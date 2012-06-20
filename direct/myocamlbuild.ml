@@ -1,1 +1,1 @@
-../../skeleton/myocamlbuild.ml
+../myocamlbuild.ml

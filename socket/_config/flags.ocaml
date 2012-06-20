@@ -1,7 +1,0 @@
--I /usr/local/lib/ocaml/3.12.1/cstruct
--I /usr/lib/ocaml/camlp4
--I /usr/local/lib/ocaml/3.12.1/cstruct
--I /usr/lib/ocaml/lwt
--I /usr/lib/ocaml/lwt
--I /usr/lib/ocaml/lwt
--I /usr/local/lib/ocaml/3.12.1/mirage
