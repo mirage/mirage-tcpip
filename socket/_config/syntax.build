@@ -1,0 +1,5 @@
+-I /usr/lib/ocaml/camlp4 
+-I /usr/lib/ocaml/camlp4 -parser Camlp4QuotationCommon -parser Camlp4OCamlOriginalQuotationExpander
+-I /usr/lib/ocaml 
+-I /usr/lib/ocaml/camlp4 
+-I /usr/lib/ocaml/camlp4 -parser Camlp4GrammarParser

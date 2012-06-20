@@ -1,0 +1,7 @@
+-I /usr/local/lib/ocaml/3.12.1/cstruct 
+-I /usr/lib/ocaml/camlp4 
+-I /usr/local/lib/ocaml/3.12.1/cstruct cstruct-syntax.cma
+-I /usr/lib/ocaml/lwt 
+-I /usr/lib/ocaml/lwt lwt-syntax-options.cma
+-I /usr/lib/ocaml/lwt lwt-syntax.cma
+-I /usr/local/lib/ocaml/3.12.1/mirage 

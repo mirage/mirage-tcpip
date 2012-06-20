@@ -1,0 +1,11 @@
+<lib/*>: for-pack(Net)
+<lib/dhcp/*>: for-pack(Net.Dhcp)
+<lib/tcp/*>: for-pack(Net.Tcp)
+<lib/dhcp/dhcp.*>: for-repack(Net)
+<lib/tcp/tcp.*>: for-repack(Net)
+"lib": include
+"lib/tcp": include
+"lib/dhcp": include
+<lib_test/*>: use_lib, custom
+<syntax/*>: build_syntax
+true: camlp4o

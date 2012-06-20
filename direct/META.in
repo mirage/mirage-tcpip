@@ -1,0 +1,5 @@
+version = "@VERSION@"
+description = "TCP/IP networking stack"
+archive(byte) = "net.cma"
+archive(native) = "net.cmxa"
+requires = "mirage"
