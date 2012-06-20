@@ -1,3 +1,0 @@
-<pervasives.*>: nopervasives
-<*> and not <pervasives.*>: need_pervasives
-<pervasives.*> or <parsing.*>: -pa_mirage

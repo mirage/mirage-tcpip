@@ -1,4 +1,0 @@
-std/stdlib.cmxa
-std/stdlib.cma
-os/runtime_xen/all.otarget
-annots

@@ -1,2 +1,0 @@
-true: mirage
-<*.S> or <*.c>: include_xen,include_libm

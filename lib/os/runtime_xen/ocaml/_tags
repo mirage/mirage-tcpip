@@ -1,4 +1,0 @@
-<*.c> or <*.S>: include_xen,include_ocaml
-<*.S>: ocaml_asmrun
-<*.bc.c>: ocaml_byterun
-<*.nc.c>: ocaml_asmrun
