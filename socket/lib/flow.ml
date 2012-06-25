@@ -29,22 +29,7 @@ exception Connect_error of string
 exception Read_error of string
 exception Write_error of string
 
-module R = OS.Socket
-
-type 'a fdwrap = {
-  fd: 'a R.fd;
-  abort_t: unit Lwt.t;  (* abort thread *)
-  abort_u: unit Lwt.u;  (* wakener for socket close *)
-}
-
-let t_of_fd fd =
-  let abort_t,abort_u = Lwt.task () in
-  { fd; abort_u; abort_t }
-
-let close t =
-  R.close t.fd;
-  (try Lwt.wakeup t.abort_u () with _ -> ());
-  return ()
+let close fd = Lwt_unix.close fd
 
 let close_on_exit t fn =
   try_lwt 
@@ -56,58 +41,34 @@ let close_on_exit t fn =
     fail exn
 
 let listen_tcpv4 addr port fn =
-  lwt fd = match R.tcpv4_bind (ipv4_addr_to_uint32 addr) port with
-    |R.OK fd -> return fd
-    |R.Err err -> fail (Listen_error err)
-    |R.Retry _ -> assert false in
-  match R.tcpv4_listen fd with
-  |R.OK () ->
-    let rec loop t =
-      match R.tcpv4_accept fd with
-      |R.OK (afd,caddr_i,cport) ->
-        let caddr = ipv4_addr_of_uint32 caddr_i in
-        let t' = t_of_fd afd in
-        (* Be careful to catch an exception here, as otherwise
-           ignore_result may raise it at some other random point *)
-        Lwt.ignore_result (
-          close_on_exit t' (fun t ->
-            try_lwt
-              fn (caddr, cport) t
-            with exn ->
-              return (Printf.printf "EXN: %s\n%!" (Printexc.to_string exn))
-          )
-        );
-        loop t
-      |R.Retry -> Activations.read t.fd >> loop t
-      |R.Err err -> fail (Accept_error err)
-    in
-    let t = t_of_fd fd in
-    let listen_t = close_on_exit t loop in
-    t.abort_t <?> listen_t
-  |R.Err s ->
-    fail (Listen_error s)
-  |R.Retry ->
-    fail (Listen_error "listen retry") (* Listen never blocks *)
+  let open Lwt_unix in
+  let fd = socket PF_INET SOCK_STREAM 0 in
+  bind fd (ADDR_INET (addr,port));
+  listen fd 10;
+  (* XXX use accept_n *)
+  while_lwt true do
+    lwt (afd, asa) = accept fd in
+    let caddr, cport = match asa with
+      |ADDR_INET (x,y) -> x,y |_ -> assert false in
+    Lwt.ignore_result (
+      close_on_exit afd (fun t ->
+        try_lwt
+          fn (caddr, cport) t
+        with exn ->
+          return (Printf.printf "EXN: %s\n%!" (Printexc.to_string exn))
+      )
+    );
+    return ()
+  done
 
 (* Read a buffer off the wire *)
-let rec read_buf t buf off len =
-  match R.read t.fd buf off len with
-  |R.Retry ->
-    Activations.read t.fd >>
-    read_buf t buf off len
-  |R.OK r -> return r
-  |R.Err e -> fail (Read_error e)
+let rec read_buf fd buf off len =
+  Lwt_bytes.read fd buf off len
 
-let rec write_buf t buf =
-  match R.write t.fd buf 0 (Cstruct.len buf) with
-  |R.Retry ->
-    Activations.write t.fd >>
-    write_buf t buf
-  |R.OK amt ->
-    let len = Cstruct.len buf in
-    if amt = len then return ()
-    else write_buf t (Cstruct.shift buf amt)
-  |R.Err e -> fail (Write_error e)
+let rec write_buf fd buf =
+  let len = Cstruct.len buf in
+  lwt amt = Lwt_bytes.write fd buf (Cstruct.base_offset buf) len in
+  if amt = len then return () else write_buf fd (Cstruct.shift buf amt)
 
 let read t =
   let buf = OS.Io_page.get () in
@@ -124,7 +85,7 @@ let writev t pages =
   Lwt_list.iter_s (write t) pages
  
 module TCPv4 = struct
-  type t = [`tcpv4] fdwrap
+  type t = Lwt_unix.file_descr
   type mgr = Manager.t
   type src = ipv4_addr option * int
   type dst = ipv4_addr * int
@@ -143,98 +104,37 @@ module TCPv4 = struct
     listen_tcpv4 addr port fn
 
   let connect mgr ?src ((addr,port):ipv4_dst) (fn: t -> 'a Lwt.t) =
-    match R.tcpv4_connect (ipv4_addr_to_uint32 addr) port with
-    |R.OK fd ->
-      (* Wait for the connect to complete *)
-      let t = t_of_fd fd in
-      let rec loop () =
-        match R.connect_result t.fd with
-        |R.OK _ ->
-          close_on_exit t fn
-        |R.Retry -> 
-          Activations.write t.fd >>
-          loop ()
-        |R.Err s -> fail (Connect_error s) in
-      let cancel_t = t.abort_t >> fail (Connect_error "cancelled") in
-      loop () <?> cancel_t
-    |R.Err s -> failwith s
-    |R.Retry -> assert false (* initial connect cannot request a retry *)
-end
-
-module Pipe = struct
-  type t = [`rd_pipe] fdwrap * [`wr_pipe] fdwrap
-  type mgr = Manager.t
-  type src = int (* process pid *)
-  type dst = int (* process pid *)
-
-  type msg = OS.Io_page.t
-
-  let read (rd,_) = read rd
-  let write (_,wr) view = write wr view
-
-  let writev t pages =
-    match pages with
-    |[] -> return ()
-    |[page] -> write t page
-    |pages ->
-      let page = Io_page.get () in
-      let off = ref 0 in
-      List.iter (fun p ->
-        let len = Cstruct.len p in
-        Cstruct.blit_buffer p 0 page !off len;
-        off := !off + len;
-      ) pages;
-      let v = Cstruct.sub page 0 !off in
-      write t v
- 
-  let close (rd,wr) = close rd <&> (close wr)
-
-  let listen mgr src fn =
-    Manager.listen_to_peers mgr
-     (fun dst (rd,wr) ->
-       fn dst (t_of_fd rd, (t_of_fd wr))
-     )
-
-  let connect mgr ?src dstid (fn: t -> 'a Lwt.t) =
-    Manager.connect mgr dstid
-      (fun (rd,wr) ->
-        fn (t_of_fd rd, (t_of_fd wr))
-      )
+    let open Lwt_unix in
+    let fd = socket PF_INET SOCK_STREAM 0 in
+    lwt () = connect fd (ADDR_INET (addr,port)) in
+    (* Wait for the connect to complete *)
+    fn fd
 end
 
 type t =
   | TCPv4 of TCPv4.t
-  | Pipe of Pipe.t
 
 type mgr = Manager.t
 
 let read = function
   | TCPv4 t -> TCPv4.read t
-  | Pipe t -> Pipe.read t
 
 let write = function
   | TCPv4 t -> TCPv4.write t
-  | Pipe t -> Pipe.write t
 
 let writev = function
   | TCPv4 t -> TCPv4.writev t
-  | Pipe t -> Pipe.writev t
 
 let close = function
   | TCPv4 t -> TCPv4.close t
-  | Pipe t -> Pipe.close t
 
 let connect mgr = function
   |`TCPv4 (src, dst, fn) ->
      TCPv4.connect mgr ?src dst (fun t -> fn (TCPv4 t))
-  |`Pipe (src, dst, fn) ->
-     Pipe.connect mgr ?src dst (fun t -> fn (Pipe t))
   |_ -> fail (Failure "unknown protocol")
 
 let listen mgr = function
   |`TCPv4 (src, fn) ->
      TCPv4.listen mgr src (fun dst t -> fn dst (TCPv4 t))
-  |`Pipe (src, fn) ->
-     Pipe.listen mgr src (fun dst t -> fn dst (Pipe t))
   |_ -> fail (Failure "unknown protocol")
 

@@ -20,8 +20,6 @@ open Nettypes
 open Lwt
 open OS
 
-module R = OS.Socket
-
 exception Error of string
 
 module UDPv4 = struct
@@ -38,38 +36,32 @@ module UDPv4 = struct
     in
     let off = Cstruct.base_offset buf in
     let len = Cstruct.len buf in
-    let dst = (ipv4_addr_to_uint32 dstaddr, dstport) in
-    match R.udpv4_sendto fd buf off len dst with
-    |R.OK len' ->
-      if len' != len then
-        fail (Error "partial UDP send")
-      else
-        return ()
-    |R.Retry -> 
-      Activations.write fd >>
-      send mgr (dstaddr, dstport) buf
-    |R.Err err -> fail (Error err)
+    let dst = Unix.ADDR_INET (dstaddr, dstport) in
+    (* TODO check short write *)
+    lwt _ = Lwt_bytes.sendto fd buf off len [] dst in
+    return ()
 
   let recv mgr (addr,port) fn =
     lwt lfd = Manager.get_udpv4_listener mgr (addr,port) in
     let buf = OS.Io_page.get () in
     let rec listen () =
-      match R.udpv4_recvfrom lfd buf 0 (Cstruct.len buf) with
-      |R.OK (frm_addr, frm_port, len) ->
-        let frm_addr = ipv4_addr_of_uint32 frm_addr in
-        let dst = (frm_addr, frm_port) in
-        let req = Cstruct.sub buf 0 len in
-        (* Be careful to catch an exception here, as otherwise
-           ignore_result may raise it at some other random point *)
-        Lwt.ignore_result (
-          try_lwt
-            fn dst req
-          with exn ->
-            return (Printf.printf "EXN: %s\n%!" (Printexc.to_string exn))
-        );
-        listen ()
-      |R.Retry -> Activations.read lfd >> listen ()
-      |R.Err _ -> return ()
+      lwt (len, frm_sa) = Lwt_bytes.recvfrom lfd buf 0 (Cstruct.len buf) [] in
+      let frm_addr, frm_port =
+        match frm_sa with
+        |Unix.ADDR_UNIX x -> ipv4_localhost, 0
+        |Unix.ADDR_INET (addr, port) -> (* XXX TODO *) ipv4_localhost, port 
+      in
+      let dst = (frm_addr, frm_port) in
+      let req = Cstruct.sub buf 0 len in
+      (* Be careful to catch an exception here, as otherwise
+         ignore_result may raise it at some other random point *)
+      Lwt.ignore_result (
+        try_lwt
+          fn dst req
+        with exn ->
+          return (Printf.printf "EXN: %s\n%!" (Printexc.to_string exn))
+      );
+      listen ()
     in 
     listen ()
 end

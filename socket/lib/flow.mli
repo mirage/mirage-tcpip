@@ -21,11 +21,6 @@ module TCPv4 : FLOW with
   and type src = ipv4_src
   and type dst = ipv4_dst
 
-module Pipe : FLOW with
-      type mgr = Manager.t
-  and type src = peer_uid
-  and type dst = peer_uid
-
 type t
 val read: t -> OS.Io_page.t option Lwt.t
 val write: t -> OS.Io_page.t -> unit Lwt.t
@@ -34,13 +29,11 @@ val close: t -> unit Lwt.t
 
 val connect :
   Manager.t -> [> 
-   | `Pipe of peer_uid option * peer_uid * (t -> 'a Lwt.t)
    | `TCPv4 of ipv4_src option * ipv4_dst * (t -> 'a Lwt.t)
   ] -> 'a Lwt.t
 
 val listen :
   Manager.t -> [> 
-   | `Pipe of peer_uid * (peer_uid -> t -> unit Lwt.t)
    | `TCPv4 of ipv4_src * (ipv4_dst -> t -> unit Lwt.t)
   ] -> unit Lwt.t
 

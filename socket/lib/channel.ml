@@ -215,66 +215,49 @@ module Make(Flow:FLOW) :
 end
 
 module TCPv4 = Make(Flow.TCPv4)
-module Pipe = Make(Flow.Pipe)
 
 type t =
   | TCPv4 of TCPv4.t
-  | Pipe of Pipe.t
 
 let read_char = function
   | TCPv4 t -> TCPv4.read_char t
-  | Pipe t -> Pipe.read_char t
 
 let read_until = function
   | TCPv4 t -> TCPv4.read_until t
-  | Pipe t -> Pipe.read_until t
 
 let read_some ?len = function
   | TCPv4 t -> TCPv4.read_some ?len t
-  | Pipe t -> Pipe.read_some ?len t
 
 let read_stream ?len = function
   | TCPv4 t -> TCPv4.read_stream ?len t
-  | Pipe t -> Pipe.read_stream ?len t
 
 let read_line = function
   | TCPv4 t -> TCPv4.read_line t
-  | Pipe t -> Pipe.read_line t
 
 let write_char = function
   | TCPv4 t -> TCPv4.write_char t
-  | Pipe t -> Pipe.write_char t
 
 let write_string = function
   | TCPv4 t -> TCPv4.write_string t
-  | Pipe t -> Pipe.write_string t
 
 let write_buffer = function
   | TCPv4 t -> TCPv4.write_buffer t
-  | Pipe t -> Pipe.write_buffer t
 
 let write_line = function
   | TCPv4 t -> TCPv4.write_line t
-  | Pipe t -> Pipe.write_line t
 
 let flush = function
   | TCPv4 t -> TCPv4.flush t
-  | Pipe t -> Pipe.flush t
 
 let close = function
   | TCPv4 t -> TCPv4.close t
-  | Pipe t -> Pipe.close t
 
 let connect mgr = function
   |`TCPv4 (src, dst, fn) ->
      TCPv4.connect mgr ?src dst (fun t -> fn (TCPv4 t))
-  |`Pipe (src, dst, fn) ->
-     Pipe.connect mgr ?src dst (fun t -> fn (Pipe t))
   |_ -> fail (Failure "unknown protocol")
 
 let listen mgr = function
   |`TCPv4 (src, fn) ->
      TCPv4.listen mgr src (fun dst t -> fn dst (TCPv4 t))
-  |`Pipe (src, fn) ->
-     Pipe.listen mgr src (fun dst t -> fn dst (Pipe t))
   |_ -> fail (Failure "unknown protocol")
