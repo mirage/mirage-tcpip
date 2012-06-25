@@ -47,40 +47,26 @@ let ethernet_mac_to_bytes x = x
 
 let ethernet_mac_broadcast = String.make 6 '\255'
 
-type ipv4_addr = int32
+type ipv4_addr = Unix.inet_addr
 
+(* XXX Inefficient *)
 let ipv4_addr_of_tuple (a,b,c,d) =
-  let in_range x = Int32.zero <= x && x <= 255l in
-  assert (in_range a);
-  assert (in_range b);
-  assert (in_range c);
-  assert (in_range d);
-   let (+) = Int32.add in
-   (Int32.shift_left a 24) +
-   (Int32.shift_left b 16) + 
-   (Int32.shift_left c 8) + d
+  let s = Printf.sprintf "%ld.%ld.%ld.%ld" a b c d in
+  Unix.inet_addr_of_string s
  
 (* Read an IPv4 address dot-separated string *)
 let ipv4_addr_of_string x =
-    let ip = ref None in
-    (try Scanf.sscanf x "%ld.%ld.%ld.%ld"
-      (fun a b c d -> ip := Some (ipv4_addr_of_tuple (a,b,c,d)));
-    with _ -> ());
-    !ip
+  try Some (Unix.inet_addr_of_string x)
+  with _ -> None
 
 (* Blank 0.0.0.0 IPv4 address *)
-let ipv4_blank = 0l
+let ipv4_blank = Unix.inet_addr_any
 (* Broadcast 255.255.255.255 IPv4 address *)
 let ipv4_broadcast = ipv4_addr_of_tuple (255l,255l,255l,255l)
 (* Localhost 127.0.0.1 ipv4 address  *)
 let ipv4_localhost = ipv4_addr_of_tuple (127l,0l,0l,1l)
 
-let ipv4_addr_to_string s =
-    let (>!) x y = Int32.to_int (Int32.logand (Int32.shift_right x y) 255l) in
-    Printf.sprintf "%d.%d.%d.%d" (s >! 24) (s >! 16) (s >! 8) (s >! 0)
-
-external ipv4_addr_of_uint32: int32 -> ipv4_addr = "%identity"
-external ipv4_addr_to_uint32: ipv4_addr -> int32 = "%identity"
+let ipv4_addr_to_string s = Unix.string_of_inet_addr s 
 
 type ipv4_src = ipv4_addr option * int
 type ipv4_dst = ipv4_addr * int

@@ -21,11 +21,6 @@ module TCPv4 : CHANNEL with
   and type dst = ipv4_dst
   and type mgr = Manager.t
 
-module Pipe : CHANNEL with
-      type src = peer_uid
-  and type dst = peer_uid
-  and type mgr = Manager.t
-
 type t
 
 val read_char: t -> char Lwt.t
@@ -44,12 +39,10 @@ val close : t -> unit Lwt.t
 
 val connect :
   Manager.t -> [> 
-   | `Pipe of peer_uid option * peer_uid * (t -> 'a Lwt.t)
    | `TCPv4 of ipv4_src option * ipv4_dst * (t -> 'a Lwt.t)
   ] -> 'a Lwt.t
 
 val listen :
   Manager.t -> [> 
-   | `Pipe of peer_uid * (peer_uid -> t -> unit Lwt.t)
    | `TCPv4 of ipv4_src * (ipv4_dst -> t -> unit Lwt.t)
   ] -> unit Lwt.t
