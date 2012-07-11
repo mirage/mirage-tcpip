@@ -227,7 +227,7 @@ module Xen = struct
   (** Link to a standalone Xen microkernel *)
   let cc_xen_link bc tags arg out env =
     (* XXX check ocamlfind path here *)
-    let xenlib = (Util.run_and_read "ocamlfind query mirage") ^ "/include/xen" in
+    let xenlib = (Util.run_and_read "ocamlfind query mirage") in
     let jmp_obj = Px (xenlib / "longjmp.o") in
     let head_obj = Px (xenlib / "x86_64.o") in
     let ocamllib = match bc with |true -> "ocamlbc" |false -> "ocaml" in
