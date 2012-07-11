@@ -119,8 +119,6 @@ module Configure = struct
     (* The test binaries also depend on the just-built libraries *)
     let lib_nc = List.map (fun x -> "lib/"^x-.-"cmxa") (config "lib") in
     let lib_bc = List.map (fun x -> "lib/"^x-.-"cma") (config "lib") in
-    dep ["ocaml"; "native"; "use_lib"] lib_nc;
-    dep ["ocaml"; "byte"; "use_lib"] lib_bc;
     let lib_nc_sh = config_sh "archives.native" :: (List.map (fun x -> P x) lib_nc) in
     let lib_bc_sh = config_sh "archives.byte" :: (List.map (fun x -> P x) lib_bc) in
     flag ["ocaml"; "link"; "native"; "program"] & S lib_nc_sh;
