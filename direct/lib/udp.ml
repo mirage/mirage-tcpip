@@ -63,6 +63,7 @@ let writev ~dest_ip ~source_port ~dest_port t bufs =
   set_udpv4_source_port hdr source_port;
   set_udpv4_dest_port hdr dest_port;
   set_udpv4_checksum hdr 0;
+  set_udpv4_length hdr (Cstruct.lenv bufs);
   Ipv4.writev t.ip ~header:hdr bufs
 
 let write ~dest_ip ~source_port ~dest_port t buf =
