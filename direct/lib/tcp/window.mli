@@ -40,6 +40,7 @@ val set_rx_wnd : t -> int32 -> unit
 
 (* tx_wnd: number of bytes other side is willing to accept *)
 val tx_wnd : t -> int32
+val tx_wnd_unscaled : t -> int32
 (* tx_available: number of bytes we can currently send after
                  accounting for congestion *)
 val tx_available : t -> int32
