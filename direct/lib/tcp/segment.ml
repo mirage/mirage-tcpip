@@ -308,7 +308,7 @@ module Tx = struct
       lwt (seq, win) = Lwt_mvar.take tx_ack in
       let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
       let dupacktest () = ((0l = (Sequence.to_int32 ack_len)) &&
-                           ((Window.tx_wnd q.wnd) = (Int32.of_int win)) &&
+                           ((Window.tx_wnd_unscaled q.wnd) = (Int32.of_int win)) &&
                            (not (Lwt_sequence.is_empty q.segs)))
       in
       serviceack (dupacktest ()) ack_len seq win;
