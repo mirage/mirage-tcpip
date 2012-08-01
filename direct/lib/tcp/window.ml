@@ -179,6 +179,7 @@ let tx_ack t r win =
 
 let tx_nxt t = t.tx_nxt 
 let tx_wnd t = t.tx_wnd
+let tx_wnd_unscaled t = Int32.shift_right t.tx_wnd t.tx_wnd_scale
 let tx_una t = t.snd_una
 let tx_available t = 
   let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
