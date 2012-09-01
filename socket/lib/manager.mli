@@ -28,3 +28,10 @@ val get_udpv4 : t -> Lwt_unix.file_descr
 val register_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr -> unit
 val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.t
 val get_intf : interface -> string
+
+val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) ->
+  unit                                                              
+val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
+val get_intf_name : t -> id -> string 
+val get_intf_mac : t -> id -> string  
+
