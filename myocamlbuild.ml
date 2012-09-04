@@ -63,16 +63,19 @@ module Configure = struct
   (* Flags for building and using syntax extensions *)
   let ppflags () =
     (* Syntax extensions for the libraries being built *)
-    flag ["ocaml"; "pp"] & S [config_sh "syntax.deps"];
+    flag ["ocaml"; "pp"; "use_syntax"] & S [config_sh "syntax.deps"];
     (* Include the camlp4 flags to build an extension *)
     flag ["ocaml"; "pp"; "build_syntax"] & S [config_sh "syntax.build"];
+    flag ["ocaml"; "pp"; "build_syntax_r"] & S [config_sh "syntax.build.r"];
     (* NOTE: we cannot use the built-in use_camlp4, as that forces
      * camlp4lib.cma to be linked with the mllib target, which results
      * in a non-functioning extension as it will be loaded twice.
      * So this simply includes the directory, which leads to a working archive *) 
     let p4incs = [A"-I"; A"+camlp4"] in
     flag ["ocaml"; "ocamldep"; "build_syntax"] & S p4incs;
-    flag ["ocaml"; "compile"; "build_syntax"] & S p4incs
+    flag ["ocaml"; "compile"; "build_syntax"] & S p4incs;
+    flag ["ocaml"; "ocamldep"; "build_syntax_r"] & S p4incs;
+    flag ["ocaml"; "compile"; "build_syntax_r"] & S p4incs
  
   (* General flags for building libraries and binaries *)
   let libflags () =
@@ -81,8 +84,11 @@ module Configure = struct
     flag ["ocaml"; "compile"] & S [config_sh "flags.ocaml"];
     flag ["ocaml"; "link"] & S [config_sh "flags.ocaml"];
     (* Include the -cclib for any C bindings being built *)
-    let ccinc = (A"-ccopt")::(A"-Lruntime"):: 
-      (List.flatten (List.map (fun x -> [A"-cclib"; A("-l"^x)]) (config "clibs"))) in
+    let ccinc = match config "clibs" with
+     |[] -> []
+     |clibs -> (A"-ccopt")::(A"-Lruntime"):: 
+      (List.flatten (List.map (fun x -> [A"-cclib"; A("-l"^x)]) clibs))
+    in
     let clibs_files = List.map (sprintf "runtime/lib%s.a") (config "clibs") in
     dep ["link"; "library"; "ocaml"] clibs_files;
     flag ["link"; "library"; "ocaml"] & S ccinc
@@ -93,6 +99,8 @@ module Configure = struct
     (* The test binaries also depend on the just-built libraries *)
     let lib_nc = List.map (fun x -> "lib/"^x-.-"cmxa") (config "lib") in
     let lib_bc = List.map (fun x -> "lib/"^x-.-"cma") (config "lib") in
+    dep ["ocaml"; "native"; "use_lib"] lib_nc;
+    dep ["ocaml"; "byte"; "use_lib"] lib_bc;
     let lib_nc_sh = config_sh "archives.native" :: (List.map (fun x -> P x) lib_nc) in
     let lib_bc_sh = config_sh "archives.byte" :: (List.map (fun x -> P x) lib_bc) in
     flag ["ocaml"; "link"; "native"; "program"] & S lib_nc_sh;
@@ -201,7 +209,7 @@ module Xen = struct
   (** Link to a standalone Xen microkernel *)
   let cc_xen_link bc tags arg out env =
     (* XXX check ocamlfind path here *)
-    let xenlib = (Util.run_and_read "ocamlfind query mirage") in
+    let xenlib = Util.run_and_read "ocamlfind query mirage" in
     let jmp_obj = Px (xenlib / "longjmp.o") in
     let head_obj = Px (xenlib / "x86_64.o") in
     let ocamllib = match bc with |true -> "ocamlbc" |false -> "ocaml" in
