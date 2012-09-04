@@ -37,7 +37,6 @@ cstruct ethernet {
 let input t frame =
   match t.promiscuous with  
     | None -> begin           
-
         match get_ethernet_ethertype frame with
           |0x0806 -> (* ARP *)
               Arp.input t.arp frame
@@ -92,5 +91,4 @@ let detach t = function
   |`IPv4 -> t.ipv4 <- (fun _ -> return ())
 
 let mac t = t.mac
-let get_ethif t =
-  t.ethif
+let get_ethif t = t.ethif
