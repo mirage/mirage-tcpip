@@ -35,8 +35,7 @@ val configure: interface -> config -> unit Lwt.t
  
 val create : (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
-val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) ->
-  unit                                                              
+val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) -> unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
 
 val tcpv4_of_addr : t -> ipv4_addr option -> Tcp.Pcb.t list
@@ -45,5 +44,4 @@ val ipv4_of_interface : interface -> Ipv4.t
 val get_intf : interface -> string
 
 val get_intf_name : t -> id -> string 
-val get_intf_mac : t -> id -> string  
-
+val get_intf_mac : t -> id -> ethernet_mac
