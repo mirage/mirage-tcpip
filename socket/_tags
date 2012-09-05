@@ -1,4 +1,5 @@
-<lib/*> and not <lib/net.*>: for-pack(Net)
+<lib/*> and not <lib/net.*>: for-pack(Net), use_syntax
 <lib_test/*>: use_lib, custom
 <syntax/*>: build_syntax
 true: camlp4o
+
