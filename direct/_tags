@@ -1,4 +1,5 @@
 <lib/*>: for-pack(Net)
+<lib/**>: use_syntax
 <lib/dhcp/*>: for-pack(Net.Dhcp)
 <lib/tcp/*>: for-pack(Net.Tcp)
 <lib/dhcp/dhcp.*>: for-repack(Net)
