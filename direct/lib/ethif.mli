@@ -40,3 +40,6 @@ val sizeof_ethernet : int
 val set_ethernet_dst : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_src : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_ethertype : OS.Io_page.t -> int -> unit
+
+val set_promiscuous : t -> (Cstruct.buf -> unit Lwt.t) -> unit
+val disable_primiscuous : t -> unit
