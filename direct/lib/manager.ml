@@ -152,11 +152,11 @@ let get_intf_name t id =
 let get_intf_mac t id =                            
   try                                               
     let (th, _) = Hashtbl.find t.listeners id in   
-      Ethif.mac th.netif
+    Ethif.mac th.netif
   with exn ->                                      
     eprintf "Net.Manager.get_intf_mac : %s\n%!"    
       (Printexc.to_string exn);            
-    ""
+    raise Not_found
 
 let set_promiscuous t id f =                       
   try                                               
@@ -165,5 +165,3 @@ let set_promiscuous t id f =
   with exn ->                                      
     eprintf "Net.Manager.get_intf_mac : %s\n%!"    
       (Printexc.to_string exn)             
-
-
