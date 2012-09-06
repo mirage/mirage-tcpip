@@ -24,6 +24,7 @@ type t = {
   mac: ethernet_mac;
   arp: Arp.t;
   mutable ipv4: (OS.Io_page.t -> unit Lwt.t);
+  mutable promiscuous:( Cstruct.buf -> unit Lwt.t) option;
 }
 
 cstruct ethernet {
@@ -34,16 +35,26 @@ cstruct ethernet {
 
 (* Handle a single input frame *)
 let input t frame =
-  match get_ethernet_ethertype frame with
-  |0x0806 -> (* ARP *)
-    Arp.input t.arp frame
-  |0x0800 -> (* IPv4 *)
-    let payload = Cstruct.shift frame sizeof_ethernet in 
-    t.ipv4 payload
-  |0x86dd -> (* IPv6 *)
-    return (printf "Ethif: discarding ipv6\n%!")
-  |etype ->
-    return (printf "Ethif: unknown frame %x\n%!" etype)
+  match t.promiscuous with  
+    | None -> begin           
+        match get_ethernet_ethertype frame with
+          |0x0806 -> (* ARP *)
+              Arp.input t.arp frame
+          |0x0800 -> (* IPv4 *)
+              let payload = Cstruct.shift frame sizeof_ethernet in 
+                t.ipv4 payload
+          |0x86dd -> (* IPv6 *)
+              return (printf "Ethif: discarding ipv6\n%!")
+          |etype ->
+              return (printf "Ethif: unknown frame %x\n%!" etype)
+      end
+    | Some(promiscuous) -> promiscuous frame
+
+let set_promiscuous t f =  
+    t.promiscuous <- Some(f)
+
+let disable_promiscuous t =
+    t.promiscuous <- None
 
 (* Loop and listen for frames *)
 let rec listen t =
@@ -68,7 +79,7 @@ let create ethif =
     let get_etherbuf () = OS.Netif.get_writebuf ethif in
     let output buf = OS.Netif.write ethif buf in
     Arp.create ~output ~get_mac ~get_etherbuf in
-  let t = { ethif; ipv4; mac; arp } in
+  let t = { ethif; ipv4; mac; arp; promiscuous=None; } in
   let listen = listen t in
   (t, listen)
 
@@ -83,5 +94,4 @@ let detach t = function
   |`IPv4 -> t.ipv4 <- (fun _ -> return ())
 
 let mac t = t.mac
-let get_ethif t =
-  t.ethif
+let get_ethif t = t.ethif

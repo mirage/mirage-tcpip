@@ -64,3 +64,14 @@ let get_udpv4_listener mgr (addr,port) =
     register_udpv4_listener mgr (addr,port) fd;
     return fd
   end
+
+let inject_packet t id buf =                            
+  failwith "Socket mirage doesn't support packet injection"
+let get_intf_name t id =                           
+  failwith "Socket mirage doesn't support dev name"
+  
+let get_intf_mac t id =                            
+  failwith "Socket mirage doesn't support dev mac address"
+  
+let set_promiscuous t id f =                       
+  failwith "Socket mirage doesn't support dev promiscuous mode"
