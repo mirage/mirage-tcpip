@@ -19,11 +19,64 @@ open Lwt
 open Nettypes
 open Printf
 
+module Lwt_bounded_stream = struct
+  (** Similar to Lwt_stream.bounded_push except threads never block in push() *)
+
+  type 'a t = {
+    stream: 'a Lwt_stream.t;
+    max_elements: int ref;
+    nr_elements: int ref;
+    nr_dropped: int ref;
+  }
+
+  let create max_elements =
+    let stream, stream_push = Lwt_stream.create () in
+    let t = {
+      stream = stream;
+      max_elements = ref max_elements;
+      nr_elements = ref 0;
+      nr_dropped = ref 0;
+    } in
+    let push = function
+      | None -> stream_push None
+      | Some x ->
+        if !(t.nr_elements) > !(t.max_elements)
+        then begin
+          incr t.nr_dropped;
+        end else begin
+          stream_push (Some x);
+          incr t.nr_elements
+        end in
+    t, push
+
+  let get_available t =
+    let all = Lwt_stream.get_available t.stream in
+    t.nr_elements := !(t.nr_elements) - (List.length all);
+    all
+
+  let nget n t =
+    lwt all = Lwt_stream.nget n t.stream in
+    t.nr_elements := !(t.nr_elements) - (List.length all);
+    return all
+
+  let set_max_elements max_elements t =
+    t.max_elements := max_elements;
+    (* drop elements if we have too many *)
+    let excess_elements = max 0 (!(t.nr_elements) - max_elements) in
+    if excess_elements > 0 then begin
+      let (_: 'a list) = Lwt_stream.get_available_up_to excess_elements t.stream in
+      t.nr_elements := max_elements
+    end
+
+end
+
 type t = {
   ethif: OS.Netif.t;
   mac: ethernet_mac;
   arp: Arp.t;
   mutable ipv4: (OS.Io_page.t -> unit Lwt.t);
+  captured_packets: (float * OS.Io_page.t list) Lwt_bounded_stream.t;
+  capture: (float * OS.Io_page.t list) option -> unit
 }
 
 cstruct ethernet {
@@ -34,6 +87,7 @@ cstruct ethernet {
 
 (* Handle a single input frame *)
 let input t frame =
+  t.capture (Some (OS.Clock.time (), [ frame ]));
   match get_ethernet_ethertype frame with
   |0x0806 -> (* ARP *)
     Arp.input t.arp frame
@@ -55,9 +109,11 @@ let get_etherbuf t =
   OS.Netif.get_writebuf t.ethif
 
 let write t buf =
+  t.capture (Some (OS.Clock.time (), [ buf ]));
   OS.Netif.write t.ethif buf
 
 let writev t bufs =
+  t.capture (Some (OS.Clock.time (), bufs));
   OS.Netif.writev t.ethif bufs
 
 let create ethif =
@@ -68,7 +124,8 @@ let create ethif =
     let get_etherbuf () = OS.Netif.get_writebuf ethif in
     let output buf = OS.Netif.write ethif buf in
     Arp.create ~output ~get_mac ~get_etherbuf in
-  let t = { ethif; ipv4; mac; arp } in
+  let captured_packets, capture = Lwt_bounded_stream.create 0 in
+  let t = { ethif; ipv4; mac; arp; captured_packets; capture } in
   let listen = listen t in
   (t, listen)
 
@@ -85,3 +142,7 @@ let detach t = function
 let mac t = t.mac
 let get_ethif t =
   t.ethif
+
+let get_captured_packets t = t.captured_packets
+
+let set_capture_limit x t = Lwt_bounded_stream.set_max_elements x t.captured_packets

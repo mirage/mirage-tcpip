@@ -40,3 +40,19 @@ val sizeof_ethernet : int
 val set_ethernet_dst : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_src : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_ethertype : OS.Io_page.t -> int -> unit
+
+module Lwt_bounded_stream : sig
+  type 'a t
+
+  val get_available : 'a t -> 'a list
+
+  val nget : int -> 'a t -> 'a list Lwt.t
+end
+
+val get_captured_packets : t -> (float * OS.Io_page.t list) Lwt_bounded_stream.t
+(** A bounded stream of (timestamp * captured packet), suitable for analysis
+    or recording. *)
+
+val set_capture_limit : int -> t -> unit
+(** Set the maximum size of the bounded stream used for packet capture.
+    Packets which arrive when the stream is full are dropped. *)
