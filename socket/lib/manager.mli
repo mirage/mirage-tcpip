@@ -19,7 +19,7 @@ open Nettypes
 type t
 type interface
 type id
-val create : (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
+val create : ?devs:int -> (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
 type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
 val configure: interface -> config -> unit Lwt.t

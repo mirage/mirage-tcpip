@@ -39,7 +39,7 @@ let get_intf intf =
    ""
 
 (* Enumerate interfaces and manage the protocol threads *)
-let create listener =
+let create ?(devs=1) listener =
   let open Lwt_unix in
   let udpv4 = socket PF_INET SOCK_DGRAM 0 in
   let udpv4_listen_ports = Hashtbl.create 7 in
