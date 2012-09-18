@@ -33,7 +33,7 @@ val unplug: t -> id -> unit
 
 val configure: interface -> config -> unit Lwt.t
  
-val create : (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
+val create : ?devs:int -> (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
 val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) -> unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
