@@ -53,7 +53,7 @@ let input t frame =
 let set_promiscuous t f =  
     t.promiscuous <- Some(f)
 
-let disable_priscuous t =
+let disable_promiscuous t =
     t.promiscuous <- None
 
 (* Loop and listen for frames *)
