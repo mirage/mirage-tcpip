@@ -1,0 +1,15 @@
+===== 0.3.1 (unreleased) =====
+
+* Expose the interface MAC address in the Manager signature.
+
+* Tweak TCP ISN calculation to be more friendly on a 32-bit host.
+
+* Add Manager.create ?devs to control the number of Netif devices
+  constructed by default.
+
+* Add Ethif.set/disable_promiscuous to permit directly tapping
+  a network interface.
+
+===== 0.3.0 (04-Sep-2012) =====
+
+* Initial public release.
