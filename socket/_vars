@@ -1,4 +1,4 @@
 NAME=mirage-net
-VERSION=0.3.1
+VERSION=0.4.0
 DEPS="mirage"
 LIB="net"
