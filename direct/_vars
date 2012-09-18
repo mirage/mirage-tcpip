@@ -1,5 +1,5 @@
 NAME=mirage-net
-VERSION=0.3.0
+VERSION=0.3.1
 DEPS="mirage lwt"
 SYNTAX_DEPS="lwt.syntax cstruct.syntax"
 LIB="net"
