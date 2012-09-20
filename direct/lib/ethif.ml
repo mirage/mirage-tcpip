@@ -19,12 +19,16 @@ open Lwt
 open Nettypes
 open Printf
 
+type packet =
+| Input of Cstruct.buf
+| Output of Cstruct.buf list
+
 type t = {
   ethif: OS.Netif.t;
   mac: ethernet_mac;
   arp: Arp.t;
   mutable ipv4: (OS.Io_page.t -> unit Lwt.t);
-  mutable promiscuous:( Cstruct.buf -> unit Lwt.t) option;
+  mutable promiscuous:( packet -> unit Lwt.t) option;
 }
 
 cstruct ethernet {
@@ -49,7 +53,7 @@ let default_process t frame =
 let input t frame =
   match t.promiscuous with  
     | None -> default_process t frame
-    | Some(promiscuous) -> promiscuous frame
+    | Some(promiscuous) -> promiscuous (Input frame)
 
 let set_promiscuous t f =  
     t.promiscuous <- Some(f)
@@ -67,9 +71,11 @@ let get_etherbuf t =
   OS.Netif.get_writebuf t.ethif
 
 let write t buf =
+  lwt () = match t.promiscuous with Some f -> f (Output [ buf ]) | None -> return () in
   OS.Netif.write t.ethif buf
 
 let writev t bufs =
+  lwt () = match t.promiscuous with Some f -> f (Output bufs) | None -> return () in
   OS.Netif.writev t.ethif bufs
 
 let create ethif =
