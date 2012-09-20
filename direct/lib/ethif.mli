@@ -19,7 +19,12 @@ open Nettypes
 
 type t
 
+val default_process : t -> OS.Io_page.t -> unit Lwt.t
+(** performs default input processing *)
+
 val input : t -> OS.Io_page.t -> unit Lwt.t
+(** called on every input frame *)
+
 val listen : t -> unit Lwt.t
 val write : t -> OS.Io_page.t -> unit Lwt.t
 val writev : t -> OS.Io_page.t list -> unit Lwt.t

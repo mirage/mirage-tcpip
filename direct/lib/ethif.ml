@@ -33,21 +33,22 @@ cstruct ethernet {
   uint16_t       ethertype
 } as big_endian
 
+let default_process t frame =
+    match get_ethernet_ethertype frame with
+      |0x0806 -> (* ARP *)
+          Arp.input t.arp frame
+      |0x0800 -> (* IPv4 *)
+          let payload = Cstruct.shift frame sizeof_ethernet in 
+            t.ipv4 payload
+      |0x86dd -> (* IPv6 *)
+          return (printf "Ethif: discarding ipv6\n%!")
+      |etype ->
+          return (printf "Ethif: unknown frame %x\n%!" etype)
+
 (* Handle a single input frame *)
 let input t frame =
   match t.promiscuous with  
-    | None -> begin           
-        match get_ethernet_ethertype frame with
-          |0x0806 -> (* ARP *)
-              Arp.input t.arp frame
-          |0x0800 -> (* IPv4 *)
-              let payload = Cstruct.shift frame sizeof_ethernet in 
-                t.ipv4 payload
-          |0x86dd -> (* IPv6 *)
-              return (printf "Ethif: discarding ipv6\n%!")
-          |etype ->
-              return (printf "Ethif: unknown frame %x\n%!" etype)
-      end
+    | None -> default_process t frame
     | Some(promiscuous) -> promiscuous frame
 
 let set_promiscuous t f =  
