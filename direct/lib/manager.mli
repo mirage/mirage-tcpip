@@ -35,7 +35,7 @@ val configure: interface -> config -> unit Lwt.t
  
 val create : ?devs:int -> (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
-val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) -> unit                                                              
+val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
 
 val tcpv4_of_addr : t -> ipv4_addr option -> Tcp.Pcb.t list
