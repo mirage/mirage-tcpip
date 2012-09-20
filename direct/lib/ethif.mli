@@ -19,7 +19,12 @@ open Nettypes
 
 type t
 
+val default_process : t -> OS.Io_page.t -> unit Lwt.t
+(** performs default input processing *)
+
 val input : t -> OS.Io_page.t -> unit Lwt.t
+(** called on every input frame *)
+
 val listen : t -> unit Lwt.t
 val write : t -> OS.Io_page.t -> unit Lwt.t
 val writev : t -> OS.Io_page.t list -> unit Lwt.t
@@ -41,5 +46,9 @@ val set_ethernet_dst : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_src : string -> int -> OS.Io_page.t -> unit
 val set_ethernet_ethertype : OS.Io_page.t -> int -> unit
 
-val set_promiscuous : t -> (Cstruct.buf -> unit Lwt.t) -> unit
+type packet =
+| Input of Cstruct.buf       (** always read as a whole chunk *)
+| Output of Cstruct.buf list (** written as a list of fragments *)
+
+val set_promiscuous : t -> (packet -> unit Lwt.t) -> unit
 val disable_promiscuous : t -> unit
