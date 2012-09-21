@@ -33,5 +33,5 @@ val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) ->
   unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
 val get_intf_name : t -> id -> string 
-val get_intf_mac : t -> id -> string  
+val get_intf_mac : t -> id -> ethernet_mac  
 
