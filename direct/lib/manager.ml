@@ -95,7 +95,7 @@ let unplug t id =
 (* Enumerate interfaces and manage the protocol threads.
  The listener becomes a new thread that is spawned when a 
  new interface shows up. *)
-let create ?(devs=1) listener =
+let create ?(devs=1) ?(attached=[]) listener =
   printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
   let t = { listener; listeners } in
@@ -104,6 +104,12 @@ let create ?(devs=1) listener =
       OS.Netif.create (plug t)
     done
   in
+  let _ = 
+    List.iter (
+      fun dev ->
+        let _ = OS.Netif.create ~dev:(Some(dev)) (plug t) in
+          ()
+    ) attached in 
   let th,_ = Lwt.task () in
   Lwt.on_cancel th (fun _ ->
     printf "Manager: cancel\n%!";
