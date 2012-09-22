@@ -115,7 +115,7 @@ module type FLOW = sig
 
   (* Flow construction *)
   val listen: mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
-  val connect: mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
+  val connect: mgr -> ?src:src -> dst -> (t -> unit Lwt.t) -> unit Lwt.t
 end
 
 module type DATAGRAM = sig
@@ -156,7 +156,7 @@ module type CHANNEL = sig
   val close : t -> unit Lwt.t
 
   val listen : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
-  val connect : mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
+  val connect : mgr -> ?src:src -> dst -> (t -> unit Lwt.t) -> unit Lwt.t
 end
 
 module type RPC = sig

@@ -33,5 +33,5 @@ val attach : t ->
     | `UDP of src:Nettypes.ipv4_addr -> dst:Nettypes.ipv4_addr -> OS.Io_page.t -> unit Lwt.t 
     | `TCP of src:Nettypes.ipv4_addr -> dst:Nettypes.ipv4_addr -> OS.Io_page.t -> unit Lwt.t ] -> unit
 val detach : t -> [< `ICMP | `UDP | `TCP ] -> unit
-
+val get_netmask: t -> ipv4_addr
 
