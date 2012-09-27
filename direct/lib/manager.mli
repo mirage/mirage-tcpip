@@ -36,6 +36,9 @@ val configure: interface -> config -> unit Lwt.t
 val create : ?devs:int -> ?attached:(string list) ->
   (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
+val attach: t -> string -> bool Lwt.t
+val detach: t -> string -> bool Lwt.t
+
 val set_promiscuous: t -> id -> (id -> Cstruct.buf -> unit Lwt.t) -> unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
 

@@ -117,6 +117,17 @@ let create ?(devs=1) ?(attached=[]) listener =
   printf "Manager: init done\n%!";
   th
 
+let attach mgr dev =
+  try_lwt
+    let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
+      return false 
+  with ex ->
+    Printf.printf "Failed to attache dev %s\n%!" (Printexc.to_string ex);
+    return false
+
+let detach mgr dev =
+  return false
+
 (* Find the interfaces associated with the address *)
 let i_of_ip t addr =
   match addr with
