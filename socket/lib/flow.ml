@@ -43,6 +43,7 @@ let close_on_exit t fn =
 let listen_tcpv4 addr port fn =
   let open Lwt_unix in
   let fd = socket PF_INET SOCK_STREAM 0 in
+  let _ = setsockopt fd SO_REUSEADDR true in 
   bind fd (ADDR_INET (addr,port));
   listen fd 10;
   (* XXX use accept_n *)
