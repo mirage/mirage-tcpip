@@ -76,7 +76,6 @@ type t =
 val msg_to_string : msg -> string
 val op_to_string : op -> string
 val t_to_string : t -> string
-val ipv4_addr_to_bytes : Nettypes.ipv4_addr -> string
 val ipv4_addr_of_bytes : string -> Nettypes.ipv4_addr
 module Marshal :
   sig
