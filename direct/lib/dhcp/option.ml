@@ -157,16 +157,6 @@ let t_to_string (t:t) =
   | `Unknown (c,x) -> sprintf "Unknown(%d[%d])" (Char.code c) (String.length x)
   | `End -> "End"
 
-let ipv4_addr_to_bytes x =
-  let x = ipv4_addr_to_uint32 x in
-  let open Int32 in
-  let r = String.create 4 in
-  r.[0] <- Char.chr (to_int (logand x 0xf_l));
-  r.[1] <- Char.chr (to_int (logand (shift_right_logical x 8) 0xf_l));
-  r.[2] <- Char.chr (to_int (logand (shift_right_logical x 16) 0xf_l));
-  r.[3] <- Char.chr (to_int (logand (shift_right_logical x 24) 0xf_l));
-  r
-  
 let ipv4_addr_of_bytes x =
   let open Int32 in
   let b n = of_int (Char.code (x.[n])) in
@@ -218,13 +208,13 @@ module Marshal = struct
     x
 
   let size x = String.make 1 (Char.chr x)
-  let ip_list c ips = 
-    let x = List.map ipv4_addr_to_bytes ips in
-    to_byte c :: (size (List.length x * 4)) :: x
-  let ip_one c x = to_byte c :: ["\004"; ipv4_addr_to_bytes x]
   let str c x = to_byte c :: (size (String.length x)) :: [x]
   let uint32 c x = to_byte c :: [ "\004"; uint32_to_bytes x]
   let uint16 c x = to_byte c :: [ "\002"; uint16_to_bytes x]
+  let ip_list c ips = 
+    let x = List.map (fun x -> (uint32_to_bytes (ipv4_addr_to_uint32 x))) ips in
+    to_byte c :: (size (List.length x * 4)) :: x
+  let ip_one c x = uint32 c (ipv4_addr_to_uint32 x)
 
   let to_bytes (x:t) =
     let bits = match x with
