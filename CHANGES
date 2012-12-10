@@ -1,4 +1,4 @@
-===== 0.3.1 (unreleased) =====
+===== 0.3.1 (12-Dec-2012) =====
 
 * Fix the DHCP client marshalling for IPv4 addresses.
 
