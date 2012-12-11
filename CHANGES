@@ -1,8 +1,9 @@
-===== 0.4.0 (unreleased) =====
+===== 0.4.0 (11-Dec-2012) =====
 
-* Require OCaml-4.00.0 or higher.
+* Require OCaml-4.00.0 or higher, and add relevant build fixes
+  to deal with module packing.
 
-===== 0.3.1 (12-Dec-2012) =====
+===== 0.3.1 (10-Dec-2012) =====
 
 * Fix the DHCP client marshalling for IPv4 addresses.
 
