@@ -1,3 +1,7 @@
+===== 0.4.0 (unreleased) =====
+
+* Require OCaml-4.00.0 or higher.
+
 ===== 0.3.1 (12-Dec-2012) =====
 
 * Fix the DHCP client marshalling for IPv4 addresses.

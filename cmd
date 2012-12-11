@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh -ex
 # Script that invokes ocamlbuild commands for various targets
 
 njobs=8

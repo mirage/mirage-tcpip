@@ -1,7 +1,7 @@
-<lib/*>: for-pack(Net)
+<lib/*> and not <lib/net.*>: for-pack(Net)
 <lib/**>: use_syntax
-<lib/dhcp/*>: for-pack(Net.Dhcp)
-<lib/tcp/*>: for-pack(Net.Tcp)
+<lib/dhcp/*> and not <lib/dhcp/dhcp.*>: for-pack(Net.Dhcp)
+<lib/tcp/*> and not <lib/tcp/tcp.*>: for-pack(Net.Tcp)
 <lib/dhcp/dhcp.*>: for-repack(Net)
 <lib/tcp/tcp.*>: for-repack(Net)
 "lib": include
