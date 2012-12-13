@@ -28,6 +28,7 @@ type t = {
   mutable tx_nxt: Sequence.t;
   mutable rx_nxt: Sequence.t;
   mutable rx_nxt_inseq: Sequence.t;
+  mutable fast_rec_th: Sequence.t;
   mutable tx_wnd: int32;           (* TX Window size after scaling *)
   mutable rx_wnd: int32;           (* RX Window size after scaling *)
   mutable ssthresh: int32;         (* threshold to switch from exponential
@@ -70,6 +71,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   (* TODO: improve this sanity check of tx_mss *)
   let tx_mss = match tx_mss with |None -> default_mss |Some mss -> min mss max_mss in
   let snd_una = tx_nxt in
+  let fast_rec_th = tx_nxt in
   let rx_wnd = Int32.(shift_left (of_int rx_wnd) rx_wnd_scale) in
   let max_rx_wnd = rx_wnd in
   let tx_wnd = Int32.(shift_left (of_int tx_wnd) tx_wnd_scale) in
@@ -87,7 +89,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rto = 3.0 in
   let backoff_count = 0 in
   { tx_isn; rx_isn; max_rx_wnd; snd_una; tx_nxt; tx_wnd; rx_nxt; rx_nxt_inseq;
-    rx_wnd; tx_wnd_scale; rx_wnd_scale;
+    fast_rec_th; rx_wnd; tx_wnd_scale; rx_wnd_scale;
     ssthresh; cwnd; tx_mss; fast_recovery;
     rtt_timer_on; rtt_timer_reset;
     rtt_timer_seq; rtt_timer_starttime; srtt; rttvar; rto; backoff_count }
@@ -144,9 +146,9 @@ let tx_advance t b =
 let tx_ack t r win =
   set_tx_wnd t win;
   if t.fast_recovery then begin
-    if Sequence.gt r t.snd_una then begin
+    t.snd_una <- r;
+    if Sequence.geq r t.fast_rec_th then begin
       (* printf "EXITING fast recovery\n%!"; *)
-      t.snd_una <- r;
       t.cwnd <- t.ssthresh;
       t.fast_recovery <- false;
     end else begin
@@ -181,6 +183,7 @@ let tx_nxt t = t.tx_nxt
 let tx_wnd t = t.tx_wnd
 let tx_wnd_unscaled t = Int32.shift_right t.tx_wnd t.tx_wnd_scale
 let tx_una t = t.snd_una
+let fast_rec t = t.fast_recovery
 let tx_available t = 
   let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
   let win = min t.cwnd t.tx_wnd in
@@ -194,21 +197,24 @@ let tx_inflight t =
 
 
 let alert_fast_rexmit t seq =
-  let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
-  let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in
-  let newcwnd = Int32.add newssthresh (Int32.of_int (t.tx_mss * 2)) in
-  (*
-  printf "ENTERING fast recovery inflight=%d, ssthresh=%d -> %d, cwnd=%d -> %d\n%!"
-    (Int32.to_int inflight)
-    (Int32.to_int t.ssthresh)
-    (Int32.to_int newssthresh)
-    (Int32.to_int t.cwnd)
-    (Int32.to_int newcwnd);
-    *)
-  t.fast_recovery <- true;
-  t.ssthresh <- newssthresh;
-  t.rtt_timer_on <- false;  
-  t.cwnd <- newcwnd
+  if not t.fast_recovery then begin
+    let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
+    let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in
+    let newcwnd = Int32.add newssthresh (Int32.of_int (t.tx_mss * 2)) in
+    (*
+      printf "ENTERING fast recovery inflight=%d, ssthresh=%d -> %d, cwnd=%d -> %d\n%!"
+      (Int32.to_int inflight)
+      (Int32.to_int t.ssthresh)
+      (Int32.to_int newssthresh)
+      (Int32.to_int t.cwnd)
+      (Int32.to_int newcwnd);
+     *)
+    t.fast_recovery <- true;
+    t.fast_rec_th <- t.tx_nxt;
+    t.ssthresh <- newssthresh;
+    t.rtt_timer_on <- false;  
+    t.cwnd <- newcwnd
+  end
 
 let rto t =
   match t.backoff_count with
