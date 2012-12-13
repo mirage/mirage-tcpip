@@ -71,7 +71,7 @@ let rec input t frame =
     (* Received ARP request, check if we can satisfy it from
        our own IPv4 list *)
     let req_ipv4 = ipv4_addr_of_uint32 (get_arp_tpa frame) in
-    printf "ARP: who-has %s?\n%!" (ipv4_addr_to_string req_ipv4);
+    (* printf "ARP: who-has %s?\n%!" (ipv4_addr_to_string req_ipv4); *)
     if List.mem req_ipv4 t.bound_ips then begin
       (* We own this IP, so reply with our MAC *)
       let sha = t.get_mac () in
