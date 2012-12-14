@@ -1,3 +1,10 @@
+===== 0.4.1 (unreleased) =====
+
+* Reduce ARP verbosity to the console.
+
+* Fix TCP fast recovery to wait until all in-flight packets are
+  acked, rather then exiting early.
+
 ===== 0.4.0 (11-Dec-2012) =====
 
 * Require OCaml-4.00.0 or higher, and add relevant build fixes
