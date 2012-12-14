@@ -1,5 +1,13 @@
 ===== 0.4.1 (unreleased) =====
 
+* Add support for attaching existing devices when initialising the
+  network manager, via an optional `attached` parameter.
+
+* Constrain TCP connect to be a `unit Lwt.t` instead of a polymorphic
+  return value.
+
+* Expose IPv4 netmask function.
+
 * Reduce ARP verbosity to the console.
 
 * Fix TCP fast recovery to wait until all in-flight packets are
