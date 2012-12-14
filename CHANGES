@@ -1,4 +1,4 @@
-===== 0.4.1 (unreleased) =====
+===== 0.4.1 (14-Dec-2012) =====
 
 * Add an iperf self-test that creates two VIFs and transmits across
   them. This is a useful 'localhost' test which stresses the bridge
