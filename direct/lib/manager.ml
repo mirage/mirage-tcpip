@@ -95,7 +95,7 @@ let unplug t id =
 (* Enumerate interfaces and manage the protocol threads.
  The listener becomes a new thread that is spawned when a 
  new interface shows up. *)
-let create ?(devs=1) listener =
+let create ?(devs=1) ?(attached=[]) listener =
   printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
   let t = { listener; listeners } in
@@ -104,12 +104,29 @@ let create ?(devs=1) listener =
       OS.Netif.create (plug t)
     done
   in
+  let _ = 
+    List.iter (
+      fun dev ->
+        let _ = OS.Netif.create ~dev:(Some(dev)) (plug t) in
+          ()
+    ) attached in 
   let th,_ = Lwt.task () in
   Lwt.on_cancel th (fun _ ->
     printf "Manager: cancel\n%!";
     Hashtbl.iter (fun id _ -> unplug t id) listeners);
   printf "Manager: init done\n%!";
   th
+
+let attach mgr dev =
+  try_lwt
+    let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
+      return false 
+  with ex ->
+    Printf.printf "Failed to attache dev %s\n%!" (Printexc.to_string ex);
+    return false
+
+let detach mgr dev =
+  return false
 
 (* Find the interfaces associated with the address *)
 let i_of_ip t addr =
@@ -123,6 +140,35 @@ let i_of_ip t addr =
        ) t.listeners [];
      end
 
+let match_ip_match ip netmask dst_ip =
+  let src_match = Int32.logand ip netmask in
+  let dst_match = Int32.logand dst_ip netmask in
+    (src_match = dst_match)
+
+(* Get an appropriate interface for a dest ip *)
+let i_of_dst_ip t addr =
+  let ret = ref None in
+  let netmask = ref 0l in
+  let addr = Nettypes.ipv4_addr_to_uint32 addr in 
+  let _ = Hashtbl.iter
+      (fun _ (i,_) ->
+         let l_ip =  Nettypes.ipv4_addr_to_uint32 
+                       (Ipv4.get_ip i.ipv4) in
+         let l_mask = Nettypes.ipv4_addr_to_uint32 
+                        (Ipv4.get_netmask i.ipv4) in
+           (* Need to consider also default gateways as 
+           * well as same subnet forwarding *)
+          if (( (Int32.logor (!netmask) l_mask) <> !netmask) &&
+               (match_ip_match l_ip l_mask addr)) then (
+                 ret := Some(i);
+                 netmask :=  Nettypes.ipv4_addr_to_uint32 
+                               (Ipv4.get_netmask i.ipv4)
+               )
+      ) t.listeners in
+    match !ret with
+      | None -> failwith("No_Path_dst")
+      | Some(ret) -> ret
+
 (* Match an address and port to a TCP thread *)
 let tcpv4_of_addr t addr =
   List.map (fun x -> x.tcp) (i_of_ip t addr)
@@ -132,6 +178,10 @@ let udpv4_of_addr (t:t) addr =
   List.map (fun x -> x.udp) (i_of_ip t addr)
 let ipv4_of_interface (t:interface) = 
   t.ipv4
+
+let tcpv4_of_dst_addr t addr =
+  let x = i_of_dst_ip t addr in
+    x.tcp
 
 let get_intf intf = 
   intf.id

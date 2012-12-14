@@ -39,7 +39,7 @@ let get_intf intf =
    ""
 
 (* Enumerate interfaces and manage the protocol threads *)
-let create ?(devs=1) listener =
+let create ?(devs=1) ?(attached=[])  listener =
   let open Lwt_unix in
   let udpv4 = socket PF_INET SOCK_DGRAM 0 in
   let udpv4_listen_ports = Hashtbl.create 7 in
@@ -65,6 +65,10 @@ let get_udpv4_listener mgr (addr,port) =
     return fd
   end
 
+let attach t id =
+  failwith "Socket mirage doesn't support interface attahcment"
+let detach t id =
+  failwith "Socket mirage doesn't support interface detahcment"
 let inject_packet t id buf =                            
   failwith "Socket mirage doesn't support packet injection"
 let get_intf_name t id =                           

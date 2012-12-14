@@ -33,12 +33,17 @@ val unplug: t -> id -> unit
 
 val configure: interface -> config -> unit Lwt.t
  
-val create : ?devs:int -> (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
+val create : ?devs:int -> ?attached:(string list) ->
+  (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
+
+val attach: t -> string -> bool Lwt.t
+val detach: t -> string -> bool Lwt.t
 
 val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit                                                              
 val inject_packet : t -> id -> Cstruct.buf -> unit Lwt.t            
 
 val tcpv4_of_addr : t -> ipv4_addr option -> Tcp.Pcb.t list
+val tcpv4_of_dst_addr : t -> ipv4_addr -> Tcp.Pcb.t 
 val udpv4_of_addr : t -> ipv4_addr option -> Udp.t list
 val ipv4_of_interface : interface -> Ipv4.t
 val get_intf : interface -> string

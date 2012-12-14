@@ -187,3 +187,5 @@ let set_gateways t gateways =
   return ()
 
 let mac t = Ethif.mac t.ethif
+
+let get_netmask t = t.netmask
