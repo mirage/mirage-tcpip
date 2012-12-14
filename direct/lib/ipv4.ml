@@ -36,9 +36,9 @@ type t = {
   mutable ip: ipv4_addr;
   mutable netmask: ipv4_addr;
   mutable gateways: ipv4_addr list;
-  mutable icmp: ipv4_addr -> OS.Io_page.t -> OS.Io_page.t -> unit Lwt.t;
-  mutable udp: src:ipv4_addr -> dst:ipv4_addr -> OS.Io_page.t -> unit Lwt.t;
-  mutable tcp: src:ipv4_addr -> dst:ipv4_addr -> OS.Io_page.t -> unit Lwt.t;
+  mutable icmp: ipv4_addr -> Cstruct.t -> Cstruct.t -> unit Lwt.t;
+  mutable udp: src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t;
+  mutable tcp: src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t;
 }
 
 module Routing = struct
@@ -69,60 +69,53 @@ module Routing = struct
     end
 end
 
-(* Return a buffer, and offset within the buffer that the IPv4
- * payload begins. The caller is responsible for creating a sub-view
- * for the IPv4 payload to be filled in *)
-let get_writebuf ~proto ~dest_ip t =
-  lwt buf = Ethif.get_etherbuf t.ethif in
+let get_frame ~proto ~dest_ip t =
+  lwt ethernet_frame = Ethif.get_frame t.ethif in
+  let buf = Frame.get_header ethernet_frame in
   (* Something of a layer violation here, but ARP is awkward *)
   lwt dmac = Routing.destination_mac t dest_ip >|= ethernet_mac_to_bytes in
   let smac = ethernet_mac_to_bytes (Ethif.mac t.ethif) in
   Ethif.set_ethernet_dst dmac 0 buf; 
   Ethif.set_ethernet_src smac 0 buf;
   Ethif.set_ethernet_ethertype buf 0x0800;
-  let ipv4_buf = Cstruct.shift buf Ethif.sizeof_ethernet in
+  let ipv4_frame = Frame.of_t ethernet_frame sizeof_ipv4 in
+  let buf = Frame.get_header ipv4_frame in
   (* Write the constant IPv4 header fields *)
-  set_ipv4_hlen_version ipv4_buf ((4 lsl 4) + (5)); (* TODO options *)
-  set_ipv4_tos ipv4_buf 0;
-  set_ipv4_off ipv4_buf 0; (* TODO fragmentation *)
-  set_ipv4_ttl ipv4_buf 38; (* TODO *)
+  set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
+  set_ipv4_tos buf 0;
+  set_ipv4_off buf 0; (* TODO fragmentation *)
+  set_ipv4_ttl buf 38; (* TODO *)
   let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in
-  set_ipv4_proto ipv4_buf proto;
-  set_ipv4_src ipv4_buf (ipv4_addr_to_uint32 t.ip);
-  set_ipv4_dst ipv4_buf (ipv4_addr_to_uint32 dest_ip);
-  let payload = Cstruct.shift ipv4_buf sizeof_ipv4 in
-  return payload
+  set_ipv4_proto buf proto;
+  set_ipv4_src buf (ipv4_addr_to_uint32 t.ip);
+  set_ipv4_dst buf (ipv4_addr_to_uint32 dest_ip);
+  return ipv4_frame
 
-let adjust_output_header ~tlen buf =
-  (* Shift the packet to expose the ipv4 header *)
-  let _ = Cstruct.shift_left buf sizeof_ipv4 in
+let adjust_output_header ~tlen frame =
+  let buf = Frame.get_header frame in
   (* Set the mutable values in the ipv4 header *)
   set_ipv4_len buf tlen;
   set_ipv4_id buf (Random.int 65535); (* TODO *)
   set_ipv4_csum buf 0;
-  let checksum = Checksum.ones_complement buf sizeof_ipv4 in
-  set_ipv4_csum buf checksum;
-  (* Final shift to expose the Ethernet headers *)
-  let _ = Cstruct.shift_left buf Ethif.sizeof_ethernet in
-  ()
+  let checksum = Checksum.ones_complement (Cstruct.sub buf 0 sizeof_ipv4) in
+  set_ipv4_csum buf checksum
 
-(* This buffer will be the full frame of headers, as passed by
- * get_writebuf, but truncated from the right to indicate the end
- * of the packet data.
+(* We write a whole frame, truncated from the right where the
+ * packet data stops.
  *)
-let write t buf =
-  (* At this point, buf points to the ipv4 payload *)
+let write t frame =
   let ihl = 5 in (* TODO options *)
-  let tlen = (ihl * 4) + (Cstruct.len buf) in
-  adjust_output_header ~tlen buf;
-  Ethif.write t.ethif buf
+  let payload = Frame.get_payload frame in
+  let tlen = (ihl * 4) + (Cstruct.len payload) in
+  let buf = adjust_output_header ~tlen frame in
+  Ethif.write t.ethif frame
 
-let writev t ~header bufs = 
-  (* The header needs to be shifted back *)
+let writev t frame bufs = 
   let ihl = 5 in (* TODO options *)
-  let tlen = (ihl * 4) + (Cstruct.len header) + (Cstruct.lenv bufs) in
-  adjust_output_header ~tlen header;
-  Ethif.writev t.ethif (header::bufs)
+  let payload = Frame.get_payload frame in
+  let tlen = (ihl * 4) + (Cstruct.len payload) + (Cstruct.lenv bufs) in
+  adjust_output_header ~tlen frame;
+  Ethif.writev t.ethif frame bufs
  
 let input t buf =
   (* buf pointers to to start of IPv4 header here *)

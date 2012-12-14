@@ -67,7 +67,8 @@ cenum mode {
 
 (* Send a client broadcast packet *)
 let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
-  lwt buf = Udp.get_writebuf ~dest_ip:ipv4_broadcast ~source_port:68 ~dest_port:67 t.udp in
+  lwt frame = Udp.get_frame ~dest_ip:ipv4_broadcast ~source_port:68 ~dest_port:67 t.udp in
+  let buf = Frame.get_payload frame in
   set_dhcp_op buf (mode_to_int BootRequest);
   set_dhcp_htype buf 1;
   set_dhcp_hlen buf 6;
@@ -86,10 +87,10 @@ let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
   set_dhcp_cookie buf 0x63825363l;
   let options = Option.Packet.to_bytes options in
   let options_len = String.length options in
-  Cstruct.set_buffer options 0 buf sizeof_dhcp options_len;
-  let buf = Cstruct.sub buf 0 (sizeof_dhcp+options_len) in
+  Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
+  Frame.set_payload_len frame (sizeof_dhcp+options_len);
   Printf.printf "Sending DHCP broadcast\n%!";
-  Udp.output_writebuf t.udp buf
+  Udp.output t.udp frame
 
 (* Receive a DHCP UDP packet *)
 let input t ~src ~dst ~source_port buf =
@@ -98,7 +99,7 @@ let input t ~src ~dst ~source_port buf =
   let siaddr = ipv4_addr_of_uint32 (get_dhcp_siaddr buf) in
   let giaddr = ipv4_addr_of_uint32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
-  let options = Cstruct.(copy_buffer buf sizeof_dhcp (len buf - sizeof_dhcp)) in
+  let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
   let packet = Option.Packet.of_bytes options in
   (* For debugging, print out the DHCP response *)
   Printf.printf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"

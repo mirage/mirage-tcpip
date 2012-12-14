@@ -35,15 +35,17 @@ let input t src hdr buf =
   |0 -> (* echo reply *)
     return (printf "ICMP: discarding echo reply\n%!")
   |8 -> (* echo request *)
+    (* convert the echo request into an echo reply *)
     let csum =
       let orig_csum = get_icmpv4_csum buf in
       let shift = if orig_csum > 0xffff -0x0800 then 0x0801 else 0x0800 in
       (orig_csum + shift) land 0xffff in
-    lwt header = Ipv4.get_writebuf ~proto:`ICMP ~dest_ip:src t.ip in
     set_icmpv4_ty buf 0;
     set_icmpv4_csum buf csum;
-    let header = Cstruct.sub header 0 0 in
-    Ipv4.writev t.ip ~header [buf]
+    (* stick an IPv4 header on the front and transmit *)
+    lwt ipv4_frame = Ipv4.get_frame ~proto:`ICMP ~dest_ip:src t.ip in
+    Frame.set_payload_len ipv4_frame 0;
+    Ipv4.writev t.ip ipv4_frame [buf]
   |ty ->
     printf "ICMP unknown ty %d\n" ty; 
     return ()

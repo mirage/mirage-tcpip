@@ -136,13 +136,13 @@ let ipv4_of_interface (t:interface) =
 let get_intf intf = 
   intf.id
 
-let inject_packet t id buf =                            
-  try_lwt                                                
-    let (th, _) = Hashtbl.find t.listeners id in        
-      Ethif.write th.netif buf                          
-  with exn ->                                           
+let inject_packet t id frame =
+  try_lwt
+    let (th, _) = Hashtbl.find t.listeners id in
+      Ethif.write th.netif frame
+  with exn ->
     return (eprintf "Net.Manager.inject_packet : %s\n%!"
-              (Printexc.to_string exn))                 
+              (Printexc.to_string exn))
 
 let get_intf_name t id =                           
   try                                               

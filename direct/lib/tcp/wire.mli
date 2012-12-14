@@ -16,56 +16,56 @@
 
 open Cstruct
 
-val get_tcpv4_src_port : buf -> uint16
-val set_tcpv4_src_port : buf -> uint16 -> unit
+val get_tcpv4_src_port : t -> uint16
+val set_tcpv4_src_port : t -> uint16 -> unit
 
-val get_tcpv4_dst_port : buf -> uint16
-val set_tcpv4_dst_port : buf -> uint16 -> unit
+val get_tcpv4_dst_port : t -> uint16
+val set_tcpv4_dst_port : t -> uint16 -> unit
 
-val get_tcpv4_sequence : buf -> uint32
-val set_tcpv4_sequence : buf -> uint32 -> unit
+val get_tcpv4_sequence : t -> uint32
+val set_tcpv4_sequence : t -> uint32 -> unit
 
-val get_tcpv4_ack_number : buf -> uint32
-val set_tcpv4_ack_number : buf -> uint32 -> unit
+val get_tcpv4_ack_number : t -> uint32
+val set_tcpv4_ack_number : t -> uint32 -> unit
 
-val get_tcpv4_window : buf -> uint16
-val set_tcpv4_window : buf -> uint16 -> unit
+val get_tcpv4_window : t -> uint16
+val set_tcpv4_window : t -> uint16 -> unit
 
-val get_tcpv4_checksum : buf -> uint16
-val set_tcpv4_checksum : buf -> uint16 -> unit
+val get_tcpv4_checksum : t -> uint16
+val set_tcpv4_checksum : t -> uint16 -> unit
 
-val get_tcpv4_urg_ptr : buf -> uint16
-val set_tcpv4_urg_ptr : buf -> uint16 -> unit
+val get_tcpv4_urg_ptr : t -> uint16
+val set_tcpv4_urg_ptr : t -> uint16 -> unit
 
-val get_data_offset : buf -> int
-val set_data_offset : buf -> int -> unit
+val get_data_offset : t -> int
+val set_data_offset : t -> int -> unit
 
 val sizeof_tcpv4 : int
 
-val set_tcpv4_flags : buf -> int -> unit
+val set_tcpv4_flags : t -> int -> unit
 
-val get_fin : buf -> bool
-val get_syn : buf -> bool
-val get_rst : buf -> bool
-val get_psh : buf -> bool
-val get_ack : buf -> bool
-val get_urg : buf -> bool
-val get_ece : buf -> bool
-val get_cwr : buf -> bool
+val get_fin : t -> bool
+val get_syn : t -> bool
+val get_rst : t -> bool
+val get_psh : t -> bool
+val get_ack : t -> bool
+val get_urg : t -> bool
+val get_ece : t -> bool
+val get_cwr : t -> bool
 
-val set_fin : buf -> unit
-val set_syn : buf -> unit
-val set_rst : buf -> unit
-val set_psh : buf -> unit
-val set_ack : buf -> unit
-val set_urg : buf -> unit
-val set_ece : buf -> unit
-val set_cwr : buf -> unit
+val set_fin : t -> unit
+val set_syn : t -> unit
+val set_rst : t -> unit
+val set_psh : t -> unit
+val set_ack : t -> unit
+val set_urg : t -> unit
+val set_ece : t -> unit
+val set_cwr : t -> unit
 
-val get_options : buf -> Options.t list
-val set_options : buf -> Options.ts -> int
+val get_options : t -> Options.t list
+val set_options : t -> Options.ts -> int
 
-val get_payload : buf -> buf
+val get_payload : t -> t
 
 type id = {
   dest_port: int;               (* Remote TCP port *)
@@ -76,4 +76,4 @@ type id = {
 
 val xmit : ip:Ipv4.t -> id:id -> ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
   rx_ack:Sequence.t option -> seq:Sequence.t -> window:int -> options:Options.ts ->
-  OS.Io_page.t list -> unit Lwt.t
+  Cstruct.t list -> unit Lwt.t

@@ -20,14 +20,14 @@ open Nettypes
 open Printf
 
 type packet =
-| Input of Cstruct.buf
-| Output of Cstruct.buf list
+| Input of Cstruct.t
+| Output of Cstruct.t list
 
 type t = {
   ethif: OS.Netif.t;
   mac: ethernet_mac;
   arp: Arp.t;
-  mutable ipv4: (OS.Io_page.t -> unit Lwt.t);
+  mutable ipv4: (Cstruct.t -> unit Lwt.t);
   mutable promiscuous:( packet -> unit Lwt.t) option;
 }
 
@@ -65,18 +65,19 @@ let disable_promiscuous t =
 let rec listen t =
   OS.Netif.listen t.ethif (input t)
 
-(* Return an Ethernet buffer. The caller is responsible for creating a
- * sub-view of the payload. *)
-let get_etherbuf t =
-  OS.Netif.get_writebuf t.ethif
+let get_frame t =
+  lwt whole_buffer = OS.Netif.get_writebuf t.ethif in
+  return (Frame.of_buffer whole_buffer sizeof_ethernet)
 
-let write t buf =
+let write t frame =
+  let buf = Frame.get_whole_buffer frame in
   lwt () = match t.promiscuous with Some f -> f (Output [ buf ]) | None -> return () in
   OS.Netif.write t.ethif buf
 
-let writev t bufs =
-  lwt () = match t.promiscuous with Some f -> f (Output bufs) | None -> return () in
-  OS.Netif.writev t.ethif bufs
+let writev t frame bufs =
+  let buf = Frame.get_whole_buffer frame in
+  lwt () = match t.promiscuous with Some f -> f (Output (buf :: bufs)) | None -> return () in
+  OS.Netif.writev t.ethif (buf :: bufs)
 
 let create ethif =
   let ipv4 = (fun _ -> return ()) in
