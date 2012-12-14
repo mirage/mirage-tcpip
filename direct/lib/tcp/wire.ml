@@ -82,7 +82,7 @@ type id = {
 }
 
 let checksum ~src ~dst =
-  let pbuf = Cstruct.sub (OS.Io_page.get ()) 0 sizeof_pseudo_header in
+  let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get ())) 0 sizeof_pseudo_header in
   fun data ->
     set_pseudo_header_src pbuf (ipv4_addr_to_uint32 src);
     set_pseudo_header_dst pbuf (ipv4_addr_to_uint32 dst);
@@ -96,36 +96,39 @@ let checksum ~src ~dst =
 let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false) ~rx_ack ~seq ~window ~options datav =
   let sequence = Sequence.to_int32 seq in
   let ack_number = match rx_ack with Some n -> Sequence.to_int32 n |None -> 0l in
-  lwt hdr = Ipv4.get_writebuf ~proto:`TCP ~dest_ip:id.dest_ip ip in
+  lwt ipv4_frame = Ipv4.get_frame  ~proto:`TCP ~dest_ip:id.dest_ip ip in
+  let ipv4_payload = Frame.get_payload ipv4_frame in
   let options_len =
     match options with
     |[] -> 0
-    |options -> Options.marshal (Cstruct.shift hdr sizeof_tcpv4) options
+    |options -> Options.marshal (Cstruct.shift ipv4_payload sizeof_tcpv4) options
   in
   let data_off = (sizeof_tcpv4 / 4) + (options_len / 4) in
-  set_tcpv4_src_port hdr id.local_port;
-  set_tcpv4_dst_port hdr id.dest_port;
-  set_tcpv4_sequence hdr sequence;
-  set_tcpv4_ack_number hdr ack_number;
-  set_data_offset hdr data_off;
-  set_tcpv4_flags hdr 0;
-  if rx_ack <> None then set_ack hdr;
-  if rst then set_rst hdr;
-  if syn then set_syn hdr;
-  if fin then set_fin hdr;
-  if psh then set_psh hdr;
-  set_tcpv4_window hdr window;
-  set_tcpv4_checksum hdr 0;
-  set_tcpv4_urg_ptr hdr 0;
-  let header = Cstruct.sub hdr 0 (sizeof_tcpv4 + options_len) in
+  set_tcpv4_src_port ipv4_payload id.local_port;
+  set_tcpv4_dst_port ipv4_payload id.dest_port;
+  set_tcpv4_sequence ipv4_payload sequence;
+  set_tcpv4_ack_number ipv4_payload ack_number;
+  set_data_offset ipv4_payload data_off;
+  set_tcpv4_flags ipv4_payload 0;
+  if rx_ack <> None then set_ack ipv4_payload;
+  if rst then set_rst ipv4_payload;
+  if syn then set_syn ipv4_payload;
+  if fin then set_fin ipv4_payload;
+  if psh then set_psh ipv4_payload;
+  set_tcpv4_window ipv4_payload window;
+  set_tcpv4_checksum ipv4_payload 0;
+  set_tcpv4_urg_ptr ipv4_payload 0;
+  Frame.set_payload_len ipv4_frame (sizeof_tcpv4 + options_len);
+  let header = Frame.get_payload ipv4_frame in
   let checksum = checksum ~src:id.local_ip ~dst:id.dest_ip (header::datav) in
-  set_tcpv4_checksum header checksum;
+  set_tcpv4_checksum ipv4_payload checksum;
   (*
-  printf "TCP.xmit %s.%d->%s.%d rst %b syn %b fin %b psh %b seq %lu ack %lu %s datalen %d datafrag %d dataoff %d olen %d\n%!"
+  printf "TCP.xmit checksum %04x %s.%d->%s.%d rst %b syn %b fin %b psh %b seq %lu ack %lu %s datalen %d datafrag %d dataoff %d olen %d\n%!"
+    checksum
     (ipv4_addr_to_string id.local_ip) id.local_port (ipv4_addr_to_string id.dest_ip) id.dest_port
     rst syn fin psh sequence ack_number (Options.prettyprint options) 
     (Cstruct.lenv datav) (List.length datav) data_off options_len;
   *)
   match datav with
-  |[] -> Ipv4.write ip header
-  |_ -> Ipv4.writev ip ~header datav
+  |[] -> Ipv4.write ip ipv4_frame
+  |_ -> Ipv4.writev ip ipv4_frame datav

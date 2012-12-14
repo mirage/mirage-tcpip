@@ -38,7 +38,7 @@ module Rx = struct
      TODO: this will change when IP fragments work *)
   type seg = {
     sequence: Sequence.t;
-    data: OS.Io_page.t;
+    data: Cstruct.t;
     fin: bool;
     syn: bool;
     ack: bool;
@@ -69,7 +69,7 @@ module Rx = struct
 
   type q = {
     mutable segs: S.t;
-    rx_data: (OS.Io_page.t list option * int option) Lwt_mvar.t; (* User receive channel *)
+    rx_data: (Cstruct.t list option * int option) Lwt_mvar.t; (* User receive channel *)
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
     wnd: Window.t;
     state: State.t;
@@ -183,10 +183,10 @@ module Tx = struct
    |Psh
 
   type xmit = flags:flags -> wnd:Window.t -> options:Options.ts ->
-              seq:Sequence.t -> OS.Io_page.t list -> unit Lwt.t
+              seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
   type seg = {
-    data: OS.Io_page.t list;
+    data: Cstruct.t list;
     flags: flags;
     seq: Sequence.t;
   }
