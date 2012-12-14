@@ -45,9 +45,9 @@ let default_process t frame =
           let payload = Cstruct.shift frame sizeof_ethernet in 
             t.ipv4 payload
       |0x86dd -> (* IPv6 *)
-          return (printf "Ethif: discarding ipv6\n%!")
+          return ( (*printf "Ethif: discarding ipv6\n%!"*) )
       |etype ->
-          return (printf "Ethif: unknown frame %x\n%!" etype)
+          return ( (*printf "Ethif: unknown frame %x\n%!" etype*) )
 
 (* Handle a single input frame *)
 let input t frame =
