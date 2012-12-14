@@ -264,46 +264,48 @@ module Tx = struct
     (* Listen for incoming TX acks from the receive queue and ACK
        segments in our retransmission queue *)
     let rec tx_ack_t () =
-      let serviceack dupack ack_len seq win = match dupack with
-      | true ->
-          q.dup_acks <- q.dup_acks + 1;
-          if 3 = q.dup_acks then begin
-            (* retransmit the bottom of the unacked list of packets *)
-            let rexmit_seg = peek_l q.segs in
-            (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
+      let serviceack dupack ack_len seq win =
+	let rec clearsegs ack_remaining segs =
+	  match ack_remaining > 0l with
+          | false -> 0l (* here we return 0l instead of ack_remaining in case
+                           the ack was an old packet in the network *)
+          | true ->
+	      match Lwt_sequence.take_opt_l segs with
+	      | None ->
+                  printf "TCP: Dubious ACK received\n%!";
+                  ack_remaining
+	      | Some s ->
+                  let seg_len = (Int32.of_int (len s)) in
+                  match ack_remaining < seg_len with
+                  | true ->
+		      printf "TCP: Partial ACK received\n%!";
+		      (* return uncleared segment to the sequence *)
+		      let _ = Lwt_sequence.add_l s segs in
+		      ack_remaining
+                  | false ->
+		      ack_segment q s;
+		      clearsegs (Int32.sub ack_remaining seg_len) segs
+        in
+        let partleft = clearsegs (Sequence.to_int32 ack_len) q.segs in
+        Window.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win;
+	match (dupack || (Window.fast_rec q.wnd)) with
+	| true ->
+            q.dup_acks <- q.dup_acks + 1;
+            if (q.dup_acks = 3) ||
+	       ((q.dup_acks > 3) && ((Sequence.to_int32 ack_len) > 0l)) then begin
+		 (* retransmit the bottom of the unacked list of packets *)
+		 let rexmit_seg = peek_l q.segs in
+		 (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
                     (Sequence.to_int rexmit_seg.seq) (Sequence.to_int seq); *)
-            let {wnd} = q in
-            let flags=rexmit_seg.flags in
-            let options=[] in (* TODO: put the right options *)
-            let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
-            (* alert window module to fall into fast recovery *)
-            Window.alert_fast_rexmit q.wnd seq
-          end
-      | false ->
-          q.dup_acks <- 0;
-          let rec clearsegs ack_remaining segs =
-            match ack_remaining > 0l with
-            | false -> 0l (* here we return 0l instead of ack_remaining in case
-                             the ack was an old packet in the network *)
-            | true ->
-		match Lwt_sequence.take_opt_l segs with
-		| None ->
-                    printf "TCP: Dubious ACK received\n%!";
-                    ack_remaining
-		| Some s ->
-                    let seg_len = (Int32.of_int (len s)) in
-                    match ack_remaining < seg_len with
-                    | true ->
-			printf "TCP: Partial ACK received\n%!";
-			(* return uncleared segment to the sequence *)
-			let _ = Lwt_sequence.add_l s segs in
-			ack_remaining
-                    | false ->
-			ack_segment q s;
-			clearsegs (Int32.sub ack_remaining seg_len) segs
-          in
-          let partleft = clearsegs (Sequence.to_int32 ack_len) q.segs in
-          Window.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win
+		 let {wnd} = q in
+		 let flags=rexmit_seg.flags in
+		 let options=[] in (* TODO: put the right options *)
+		 let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
+		 (* alert window module to fall into fast recovery *)
+		 Window.alert_fast_rexmit q.wnd seq
+               end
+	| false ->
+            q.dup_acks <- 0
       in
       lwt (seq, win) = Lwt_mvar.take tx_ack in
       let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
