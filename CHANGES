@@ -1,5 +1,9 @@
 ===== 0.4.1 (unreleased) =====
 
+* Add an iperf self-test that creates two VIFs and transmits across
+  them. This is a useful 'localhost' test which stresses the bridge
+  code using just one VM.
+
 * Add support for attaching existing devices when initialising the
   network manager, via an optional `attached` parameter.
 
