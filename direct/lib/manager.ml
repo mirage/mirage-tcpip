@@ -28,7 +28,8 @@ type id = OS.Netif.id
 
 type interface = {
   id: id;
-  netif: Ethif.t;
+  netif : OS.Netif.t;
+  ethif: Ethif.t;
   ipv4: Ipv4.t;
   icmp: Icmp.t;
   udp: Udp.t;
@@ -36,7 +37,7 @@ type interface = {
 }
 
 let get_netif t =
-  t.netif
+  t.ethif
 
 type interface_t = interface * unit Lwt.t
 
@@ -65,16 +66,16 @@ let configure i =
     return ()
 
 (* Plug in a new network interface with given id *)
-let plug t id vif =
+let plug t id netif =
   printf "Manager: plug %s\n%!" id; 
   let wrap (s,t) = try_lwt t >>= return with exn ->
     (printf "Manager: exn=%s %s\n%!" s (Printexc.to_string exn); fail exn) in
-  let (netif, netif_t) = Ethif.create vif in
-  let (ipv4, ipv4_t) = Ipv4.create netif in
+  let (ethif, ethif_t) = Ethif.create netif in
+  let (ipv4, ipv4_t) = Ipv4.create ethif in
   let (icmp, icmp_t) = Icmp.create ipv4 in
   let (tcp, tcp_t) = Tcp.Pcb.create ipv4 in
   let (udp, udp_t) = Udp.create ipv4 in
-  let i = { id; ipv4; icmp; netif; tcp; udp } in
+  let i = { id; ipv4; icmp; ethif; netif; tcp; udp } in
   (* The interface thread can be cancelled by exceptions from the
      rest of the threads, as a debug measure.
      TODO: think about restart strategies here *)
@@ -88,9 +89,11 @@ let plug t id vif =
 let unplug t id =
   try
     let i, th = Hashtbl.find t.listeners id in
+    let _ = OS.Netif.destroy i.netif in 
       Lwt.cancel th;
       Hashtbl.remove t.listeners id
-  with Not_found -> ()
+  with Not_found -> 
+    printf "[Manager] device %s not found\n%!" id
 
 (* Enumerate interfaces and manage the protocol threads.
  The listener becomes a new thread that is spawned when a 
@@ -120,13 +123,14 @@ let create ?(devs=1) ?(attached=[]) listener =
 let attach mgr dev =
   try_lwt
     let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
-      return false 
+      return true 
   with ex ->
     Printf.printf "Failed to attache dev %s\n%!" (Printexc.to_string ex);
     return false
 
 let detach mgr dev =
-  return false
+  let _ = unplug mgr dev in 
+    return true 
 
 (* Find the interfaces associated with the address *)
 let i_of_ip t addr =
@@ -189,7 +193,7 @@ let get_intf intf =
 let inject_packet t id buf =                            
   try_lwt                                                
     let (th, _) = Hashtbl.find t.listeners id in        
-      Ethif.write th.netif buf                          
+      Ethif.write th.ethif buf                          
   with exn ->                                           
     return (eprintf "Net.Manager.inject_packet : %s\n%!"
               (Printexc.to_string exn))                 
@@ -206,7 +210,7 @@ let get_intf_name t id =
 let get_intf_mac t id =                            
   try                                               
     let (th, _) = Hashtbl.find t.listeners id in   
-    Ethif.mac th.netif
+      Ethif.mac th.ethif
   with exn ->                                      
     eprintf "Net.Manager.get_intf_mac : %s\n%!"    
       (Printexc.to_string exn);            
@@ -215,7 +219,7 @@ let get_intf_mac t id =
 let set_promiscuous t id f =                       
   try                                               
     let (th, _) = Hashtbl.find t.listeners id in    
-      Ethif.set_promiscuous th.netif (f id)         
+      Ethif.set_promiscuous th.ethif (f id)         
   with exn ->                                      
     eprintf "Net.Manager.get_intf_mac : %s\n%!"    
       (Printexc.to_string exn)             
