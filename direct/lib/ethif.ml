@@ -19,12 +19,16 @@ open Lwt
 open Nettypes
 open Printf
 
+type packet =
+| Input of Cstruct.buf
+| Output of Cstruct.buf list
+
 type t = {
   ethif: OS.Netif.t;
   mac: ethernet_mac;
   arp: Arp.t;
   mutable ipv4: (OS.Io_page.t -> unit Lwt.t);
-  mutable promiscuous:( Cstruct.buf -> unit Lwt.t) option;
+  mutable promiscuous:( packet -> unit Lwt.t) option;
 }
 
 cstruct ethernet {
@@ -33,22 +37,23 @@ cstruct ethernet {
   uint16_t       ethertype
 } as big_endian
 
+let default_process t frame =
+    match get_ethernet_ethertype frame with
+      |0x0806 -> (* ARP *)
+          Arp.input t.arp frame
+      |0x0800 -> (* IPv4 *)
+          let payload = Cstruct.shift frame sizeof_ethernet in 
+            t.ipv4 payload
+      |0x86dd -> (* IPv6 *)
+          return ( (*printf "Ethif: discarding ipv6\n%!"*) )
+      |etype ->
+          return ( (*printf "Ethif: unknown frame %x\n%!" etype*) )
+
 (* Handle a single input frame *)
 let input t frame =
   match t.promiscuous with  
-    | None -> begin           
-        match get_ethernet_ethertype frame with
-          |0x0806 -> (* ARP *)
-              Arp.input t.arp frame
-          |0x0800 -> (* IPv4 *)
-              let payload = Cstruct.shift frame sizeof_ethernet in 
-                t.ipv4 payload
-          |0x86dd -> (* IPv6 *)
-              return (printf "Ethif: discarding ipv6\n%!")
-          |etype ->
-              return (printf "Ethif: unknown frame %x\n%!" etype)
-      end
-    | Some(promiscuous) -> promiscuous frame
+    | None -> default_process t frame
+    | Some(promiscuous) -> promiscuous (Input frame)
 
 let set_promiscuous t f =  
     t.promiscuous <- Some(f)
@@ -66,9 +71,11 @@ let get_etherbuf t =
   OS.Netif.get_writebuf t.ethif
 
 let write t buf =
+  lwt () = match t.promiscuous with Some f -> f (Output [ buf ]) | None -> return () in
   OS.Netif.write t.ethif buf
 
 let writev t bufs =
+  lwt () = match t.promiscuous with Some f -> f (Output bufs) | None -> return () in
   OS.Netif.writev t.ethif bufs
 
 let create ethif =

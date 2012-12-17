@@ -32,6 +32,7 @@ val tx_ack: t -> Sequence.t -> int -> unit
 val tx_nxt : t -> Sequence.t
 val tx_una : t -> Sequence.t
 val tx_mss : t -> int
+val fast_rec : t -> bool
 
 (* rx_wnd: number of bytes we are willing to accept *)
 val rx_wnd : t -> int32

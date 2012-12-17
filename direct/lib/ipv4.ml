@@ -140,7 +140,7 @@ let input t buf =
     t.tcp ~src ~dst data
   |17 -> (* UDP *)
     t.udp ~src ~dst data
-  |proto -> return (printf "IPv4: dropping proto %d\n%!" proto)
+  |proto -> return ( (* printf "IPv4: dropping proto %d\n%!" proto *) )
 
 let default_icmp = fun _ _ _ -> return ()
 let default_udp = fun ~src ~dst _ -> return ()

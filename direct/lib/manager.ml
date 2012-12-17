@@ -125,7 +125,7 @@ let attach mgr dev =
     let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
       return true 
   with ex ->
-    Printf.printf "Failed to attache dev %s\n%!" (Printexc.to_string ex);
+    Printf.printf "Failed to attach dev %s\n%!" (Printexc.to_string ex);
     return false
 
 let detach mgr dev =
