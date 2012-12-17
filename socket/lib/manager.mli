@@ -18,7 +18,7 @@ open Nettypes
 
 type t
 type interface
-type id
+type id = OS.Netif.id
 val create :  ?devs:int -> ?attached:(string list) ->
   (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
