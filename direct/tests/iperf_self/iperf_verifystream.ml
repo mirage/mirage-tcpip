@@ -52,6 +52,16 @@ let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 
 let mlen = String.length msg
 
+let calcsum data sum bnum =
+  let l = OS.Io_page.length data in
+  for i = 0 to (l - 1) do
+    sum := !sum + ((Char.code data.{i}) lsl !bnum);
+    bnum := (!bnum + 1) mod 20
+  done
+
+let txsum = ref 0
+let txbnum = ref 0
+
 let iperfclient tt ip =
   OS.Time.sleep 2. >>
   (printf "Iperf client: Attempting connection. \n%!";
@@ -67,13 +77,20 @@ let iperfclient tt ip =
        let a = Cstruct.sub a 0 mlen in
        let amt = 1000000000 in
        for_lwt i = (amt / mlen) downto 1 do
+         calcsum a txsum txbnum;
          Net.Tcp.Pcb.write pcb a
        done >>
        let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
+       calcsum a txsum txbnum;
        Net.Tcp.Pcb.write pcb a >>
-       (printf "Iperf client: Done.\n%!";
+       (printf "Checksum of TX data = %d\n%!" !txsum;
+	printf "Iperf client: Done.\n%!";
 	Net.Tcp.Pcb.close pcb)
   )
+
+
+let rxsum = ref 0
+let rxbnum = ref 0
 
 let print_data st ts_now = 
   Printf.printf "Iperf server: t = %f, rate = %Ld KBits/s, totbytes = %Ld, live_words = %d\n%!"
@@ -98,8 +115,10 @@ let iperf (dip,dpt) chan =
 	st.last_time <- st.start_time;
         print_data st ts_now;
 	Net.Flow.close chan >>
-	(printf "Iperf server: Done - closed connection. \n%!"; return ())
+	(printf "Checksum of RX data = %d\n%!" !rxsum;
+	 printf "Iperf server: Done - closed connection. \n%!"; return ())
     | Some data -> begin
+        calcsum data rxsum rxbnum;
 	let l = OS.Io_page.length data in
 	st.bytes <- (Int64.add st.bytes (Int64.of_int l));
 	st.packets <- (Int64.add st.packets 1L);
