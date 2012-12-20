@@ -25,8 +25,8 @@ type entry =
   | Verified of ethernet_mac
 
 type t = {
-  get_etherbuf: unit -> OS.Io_page.t Lwt.t;
-  output: OS.Io_page.t -> unit Lwt.t;
+  get_etherbuf: unit -> Cstruct.t Lwt.t;
+  output: Cstruct.t -> unit Lwt.t;
   get_mac: unit -> ethernet_mac;
   cache: (ipv4_addr, entry) Hashtbl.t;
   mutable bound_ips: ipv4_addr list;

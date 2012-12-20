@@ -20,10 +20,10 @@ module Rx :
   sig
     type seg
     val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
-      ack_number:Sequence.t -> window:int -> data:OS.Io_page.t -> seg
+      ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
 
     type q
-    val q : rx_data:(OS.Io_page.t list option * int option) Lwt_mvar.t ->
+    val q : rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
       wnd:Window.t -> state:State.t ->
       tx_ack:(Sequence.t * int) Lwt_mvar.t -> q
     val to_string : q -> string
@@ -38,7 +38,7 @@ module Tx :
     type flags = |No_flags |Syn |Fin |Rst |Psh
 
     type xmit = flags:flags -> wnd:Window.t -> options:Options.ts ->
-      seq:Sequence.t -> OS.Io_page.t list -> unit Lwt.t
+      seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
     type q
 
@@ -47,6 +47,6 @@ module Tx :
       tx_ack:(Sequence.t * int) Lwt_mvar.t ->
       tx_wnd_update:int Lwt_mvar.t -> q * unit Lwt.t
 
-    val output : ?flags:flags -> ?options:Options.ts -> q -> OS.Io_page.t list -> unit Lwt.t
+    val output : ?flags:flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
    
   end
