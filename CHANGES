@@ -1,3 +1,6 @@
+0.5.1 (20-Dec-2012):
+* Update socket stack to use Cstruct 0.6.0 API
+
 0.5.0 (20-Dec-2012):
 * Update Cstruct API to 0.6.0
 * [tcp] write now blocks if the write buffer and write window are full
