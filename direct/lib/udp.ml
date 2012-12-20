@@ -20,7 +20,7 @@ open Printf
 
 type t = {
   ip : Ipv4.t;
-  listeners: (int, (src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> OS.Io_page.t -> unit Lwt.t)) Hashtbl.t
+  listeners: (int, (src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t)) Hashtbl.t
 }
 
 cstruct udpv4 {
@@ -43,28 +43,29 @@ let input t ~src ~dst buf =
 (* UDP output needs the IPv4 header to generate the pseudo
    header for checksum calculation. Although we currently just
    set the checksum to 0 as it is optional *)
-let get_writebuf ~dest_ip ~source_port ~dest_port t =
-  lwt buf = Ipv4.get_writebuf ~proto:`UDP ~dest_ip t.ip in
+let get_frame ~dest_ip ~source_port ~dest_port t =
+  lwt frame = Ipv4.get_frame ~proto:`UDP ~dest_ip t.ip in
+  let buf = Frame.get_payload frame in
   set_udpv4_source_port buf source_port;
   set_udpv4_dest_port buf dest_port;
   set_udpv4_checksum buf 0;
-  let data = Cstruct.shift buf sizeof_udpv4 in
-  return data
+  return (Frame.of_t frame sizeof_udpv4)
 
-let output_writebuf t buf =
-  let len = Cstruct.len buf in
-  let _ = Cstruct.shift_left buf sizeof_udpv4 in
+let output t frame =
+  let len = Cstruct.len (Frame.get_payload frame) in
+  let buf = Frame.get_header frame in
   set_udpv4_length buf len;
-  Ipv4.write t.ip buf
+  Ipv4.write t.ip frame
 
 let writev ~dest_ip ~source_port ~dest_port t bufs =
-  lwt hdr = Ipv4.get_writebuf ~proto:`UDP ~dest_ip t.ip in
-  let hdr = Cstruct.sub hdr 0 sizeof_udpv4 in
+  lwt ipv4_frame = Ipv4.get_frame ~proto:`UDP ~dest_ip t.ip in
+  let frame = Frame.of_t ipv4_frame sizeof_udpv4 in
+  let hdr = Frame.get_header frame in
   set_udpv4_source_port hdr source_port;
   set_udpv4_dest_port hdr dest_port;
   set_udpv4_checksum hdr 0;
   set_udpv4_length hdr (Cstruct.lenv bufs);
-  Ipv4.writev t.ip ~header:hdr bufs
+  Ipv4.writev t.ip ipv4_frame bufs
 
 let write ~dest_ip ~source_port ~dest_port t buf =
   writev ~dest_ip ~source_port ~dest_port t [buf]

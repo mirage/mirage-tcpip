@@ -17,5 +17,6 @@
 (** Checksum functions for TCP/IP *)
 
 (** One's complement checksum, RFC1071 *)
-external ones_complement: OS.Io_page.t -> int -> int = "caml_ones_complement_checksum"
-external ones_complement_list: OS.Io_page.t list -> int = "caml_ones_complement_checksum_list"
+val ones_complement: Cstruct.t -> int
+
+val ones_complement_list: Cstruct.t list -> int

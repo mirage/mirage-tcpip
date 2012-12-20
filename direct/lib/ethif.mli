@@ -19,36 +19,38 @@ open Nettypes
 
 type t
 
-val default_process : t -> OS.Io_page.t -> unit Lwt.t
+val default_process : t -> Cstruct.t -> unit Lwt.t
 (** performs default input processing *)
 
-val input : t -> OS.Io_page.t -> unit Lwt.t
+val input : t -> Cstruct.t -> unit Lwt.t
 (** called on every input frame *)
 
 val listen : t -> unit Lwt.t
-val write : t -> OS.Io_page.t -> unit Lwt.t
-val writev : t -> OS.Io_page.t list -> unit Lwt.t
 val create : OS.Netif.t -> t * unit Lwt.t
 
 val add_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
 val remove_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
 val query_arp : t -> Nettypes.ipv4_addr -> Nettypes.ethernet_mac Lwt.t
 
-val get_etherbuf : t -> OS.Io_page.t Lwt.t
+val get_frame : t -> Frame.t Lwt.t
 
-val attach : t -> [< `IPv4 of OS.Io_page.t -> unit Lwt.t ] -> unit
+val write : t -> Frame.t -> unit Lwt.t
+
+val writev : t -> Frame.t -> Cstruct.t list -> unit Lwt.t
+
+val attach : t -> [< `IPv4 of Cstruct.t -> unit Lwt.t ] -> unit
 val detach : t -> [< `IPv4 ] -> unit
 val mac : t -> Nettypes.ethernet_mac
 val get_ethif : t -> OS.Netif.t
 
 val sizeof_ethernet : int
-val set_ethernet_dst : string -> int -> OS.Io_page.t -> unit
-val set_ethernet_src : string -> int -> OS.Io_page.t -> unit
-val set_ethernet_ethertype : OS.Io_page.t -> int -> unit
+val set_ethernet_dst : string -> int -> Cstruct.t -> unit
+val set_ethernet_src : string -> int -> Cstruct.t -> unit
+val set_ethernet_ethertype : Cstruct.t -> int -> unit
 
 type packet =
-| Input of Cstruct.buf       (** always read as a whole chunk *)
-| Output of Cstruct.buf list (** written as a list of fragments *)
+| Input of Cstruct.t       (** always read as a whole chunk *)
+| Output of Cstruct.t list (** written as a list of fragments *)
 
 val set_promiscuous : t -> (packet -> unit Lwt.t) -> unit
 val disable_promiscuous : t -> unit
