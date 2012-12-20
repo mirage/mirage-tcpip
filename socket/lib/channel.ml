@@ -31,9 +31,9 @@ module Make(Flow:FLOW) :
 
   type t = {
     flow: flow;
-    mutable ibuf: OS.Io_page.t option; (* Queue of incoming buf *)
-    mutable obufq: OS.Io_page.t list;  (* Queue of completed writebuf *)
-    mutable obuf: OS.Io_page.t option; (* Active write buffer *)
+    mutable ibuf: Cstruct.t option; (* Queue of incoming buf *)
+    mutable obufq: Cstruct.t list;  (* Queue of completed writebuf *)
+    mutable obuf: Cstruct.t option; (* Active write buffer *)
     mutable opos: int;                 (* Position in active write buffer *)
     abort_t: unit Lwt.t;
     abort_u: unit Lwt.u;
@@ -111,7 +111,7 @@ module Make(Flow:FLOW) :
       t.ibuf <- None;
       return (false, buf)
     |Some off -> (* found, so split the buffer *)
-      let hd = Cstruct.sub_buffer buf 0 off in
+      let hd = Cstruct.sub buf 0 off in
       t.ibuf <- Some (Cstruct.shift buf (off+1));
       return (true, hd)
 
@@ -139,7 +139,7 @@ module Make(Flow:FLOW) :
   (* Output functions *)
 
   let alloc_obuf t =
-    let buf = OS.Io_page.get () in
+    let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
     t.obuf <- Some buf;
     t.opos <- 0;
     buf
@@ -184,11 +184,11 @@ module Make(Flow:FLOW) :
     let buf = get_obuf t in
     let avail = Cstruct.len buf - t.opos in 
     if avail < len then begin
-      Cstruct.set_buffer s off buf t.opos avail;
+      Cstruct.blit_from_string s off buf t.opos avail;
       t.opos <- t.opos + avail;
       write_string t s (off+avail) (len-avail)
     end else begin
-      Cstruct.set_buffer s off buf t.opos len;
+      Cstruct.blit_from_string s off buf t.opos len;
       t.opos <- t.opos + len
     end
 

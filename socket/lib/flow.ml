@@ -63,17 +63,17 @@ let listen_tcpv4 addr port fn =
   done
 
 (* Read a buffer off the wire *)
-let rec read_buf fd buf off len =
-  Lwt_bytes.read fd buf off len
+let rec read_buf fd buf =
+  Lwt_cstruct.read fd buf
 
 let rec write_buf fd buf =
   let len = Cstruct.len buf in
-  lwt amt = Lwt_bytes.write fd buf (Cstruct.base_offset buf) len in
+  lwt amt = Lwt_cstruct.write fd buf in
   if amt = len then return () else write_buf fd (Cstruct.shift buf amt)
 
 let read t =
-  let buf = OS.Io_page.get () in
-  lwt len = read_buf t buf 0 (Cstruct.len buf) in
+  let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
+  lwt len = read_buf t buf in
   match len with
   |0 -> return None
   |len -> return (Some (Cstruct.sub buf 0 len))
