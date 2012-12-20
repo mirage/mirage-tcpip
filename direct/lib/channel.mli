@@ -29,14 +29,14 @@ module Shmem : CHANNEL with
 type t
 
 val read_char: t -> char Lwt.t
-val read_some: ?len:int -> t -> OS.Io_page.t Lwt.t
-val read_until: t -> char -> (bool * OS.Io_page.t) Lwt.t
-val read_stream: ?len:int -> t -> OS.Io_page.t Lwt_stream.t
-val read_line: t -> OS.Io_page.t list Lwt.t
+val read_some: ?len:int -> t -> Cstruct.t Lwt.t
+val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
+val read_stream: ?len:int -> t -> Cstruct.t Lwt_stream.t
+val read_line: t -> Cstruct.t list Lwt.t
 
 val write_char : t -> char -> unit 
 val write_string : t -> string -> int -> int -> unit
-val write_buffer : t -> OS.Io_page.t -> unit
+val write_buffer : t -> Cstruct.t -> unit
 val write_line : t -> string -> unit
 
 val flush : t -> unit Lwt.t

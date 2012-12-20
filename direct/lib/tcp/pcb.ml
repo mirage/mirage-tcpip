@@ -69,8 +69,7 @@ module Tx = struct
     xmit ~ip ~id ~syn ~fin ~rst ~psh ~rx_ack ~seq ~window ~options datav
 
   (* Output an RST response when we dont have a PCB *)
-  let send_rst {ip} id ~sequence ~ack_number ~syn ~fin (* ~data *) =
-    (* XXX XXX what is data for here? -avsm *)
+  let send_rst {ip} id ~sequence ~ack_number ~syn ~fin =
     let datalen = Int32.add (if syn then 1l else 0l) (if fin then 1l else 0l) in
     let window = 0 in
     let options = [] in
@@ -435,11 +434,29 @@ let write_available pcb =
 let write_wait_for pcb sz =
   User_buffer.Tx.wait_for pcb.utx (Int32.of_int sz)
 
+
+let rec writefn pcb wfn data =
+  let len = Cstruct.len data in
+  match write_available pcb with
+  | 0 ->
+      write_wait_for pcb 1 >>
+      writefn pcb wfn data
+  | av_len when av_len < len -> 
+      let first_bit = Cstruct.sub data 0 av_len in
+      let remaing_bit = Cstruct.sub data av_len (len - av_len) in
+      writefn pcb wfn first_bit  >>
+      writefn pcb wfn remaing_bit
+  | av_len -> 
+      wfn [data]
+
 (* URG_TODO: raise exception when trying to write to closed connection
              instead of quietly returning *)
-(* Write a segment *)
-let writev pcb data = User_buffer.Tx.write pcb.utx data
-let write pcb data = User_buffer.Tx.write pcb.utx [data]
+(* Blocking write on a PCB *)
+let write pcb data = writefn pcb (User_buffer.Tx.write pcb.utx) data
+let writev pcb data = Lwt_list.iter_s (fun d -> write pcb d) data
+
+let write_nodelay pcb data = writefn pcb (User_buffer.Tx.write_nodelay pcb.utx) data
+let writev_nodelay pcb data = Lwt_list.iter_s (fun d -> write_nodelay pcb d) data
 
 (* Close - no more will be written *)
 let close pcb =
