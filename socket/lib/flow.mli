@@ -22,9 +22,9 @@ module TCPv4 : FLOW with
   and type dst = ipv4_dst
 
 type t
-val read: t -> OS.Io_page.t option Lwt.t
-val write: t -> OS.Io_page.t -> unit Lwt.t
-val writev: t -> OS.Io_page.t list -> unit Lwt.t
+val read: t -> Cstruct.t option Lwt.t
+val write: t -> Cstruct.t -> unit Lwt.t
+val writev: t -> Cstruct.t list -> unit Lwt.t
 val close: t -> unit Lwt.t
 
 val connect :
