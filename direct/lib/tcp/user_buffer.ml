@@ -24,10 +24,10 @@ open Printf
 module Rx = struct
   
   type t = {
-    q: OS.Io_page.t option Lwt_sequence.t; 
+    q: Cstruct.t option Lwt_sequence.t; 
     wnd: Window.t;
     writers: unit Lwt.u Lwt_sequence.t;
-    readers: OS.Io_page.t option Lwt.u Lwt_sequence.t;
+    readers: Cstruct.t option Lwt.u Lwt_sequence.t;
     mutable watcher: int32 Lwt_mvar.t option;
     mutable max_size: int32;
     mutable cur_size: int32;
@@ -112,7 +112,7 @@ module Tx = struct
     wnd: Window.t;
     writers: unit Lwt.u Lwt_sequence.t;
     txq: Segment.Tx.q;
-    buffer: OS.Io_page.t Lwt_sequence.t;
+    buffer: Cstruct.t Lwt_sequence.t;
     max_size: int32;
     mutable bufbytes: int32;
   }
