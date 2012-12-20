@@ -35,12 +35,19 @@ val get_dest: pcb -> (ipv4_addr * int)
 (* Blocking read for a segment *)
 val read: pcb -> OS.Io_page.t option Lwt.t
 
-(* Write a segment *)
+(* Number of bytes of data that can be written - can be checked before
+   calling write to see if it will block. *)
 val write_available : pcb -> int
 val write_wait_for : pcb -> int -> unit Lwt.t
 
+(* write - blocks if the write buffer is full *)
 val write: pcb -> OS.Io_page.t -> unit Lwt.t
 val writev: pcb -> OS.Io_page.t list -> unit Lwt.t
+
+(* version of write with Nagle disabled - will block if write
+   buffer is full *)
+val write_nodelay: pcb -> OS.Io_page.t -> unit Lwt.t
+val writev_nodelay: pcb -> OS.Io_page.t list -> unit Lwt.t
 
 val create: Ipv4.t -> t * unit Lwt.t
 (* val tcpstats: t -> unit *)
