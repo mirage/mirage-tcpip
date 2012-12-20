@@ -52,7 +52,7 @@ let unmarshal buf =
             to_int32_list (off+8) (x::acc) (n-1)
         in SACK (to_int32_list 2 [] num)
       |8 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
-      |n -> Unknown (n, (copy_buffer buf 2 (len buf - 2)))
+      |n -> Unknown (n, (copy buf 2 (len buf - 2)))
     ) buf in
   fold (fun a b -> b :: a) i []
 
@@ -93,7 +93,7 @@ let write_iter buf =
   |Unknown (kind,contents) ->
     let tlen = String.length contents in
     set_tlen kind tlen;
-    set_buffer contents 0 buf 0 tlen;
+    blit_from_string contents 0 buf 0 tlen;
     tlen
 
 let marshal buf ts =
