@@ -17,13 +17,16 @@
 open Nettypes
 
 type t
-val input: t -> src:ipv4_addr -> dst:ipv4_addr -> OS.Io_page.t -> unit Lwt.t
-val get_writebuf: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> OS.Io_page.t Lwt.t
-val output_writebuf : t -> OS.Io_page.t -> unit Lwt.t
+val input: t -> src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t
 
-val write: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> OS.Io_page.t -> unit Lwt.t
-val writev: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> OS.Io_page.t list -> unit Lwt.t
+val get_frame: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> Frame.t Lwt.t
 
-val listen: t -> int -> (src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> OS.Io_page.t -> unit Lwt.t) -> unit Lwt.t
+val output : t -> Frame.t -> unit Lwt.t
+
+val write: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> Cstruct.t -> unit Lwt.t
+
+val writev: dest_ip:ipv4_addr -> source_port:int -> dest_port:int -> t -> Cstruct.t list -> unit Lwt.t
+
+val listen: t -> int -> (src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t) -> unit Lwt.t
 
 val create : Ipv4.t -> t * unit Lwt.t
