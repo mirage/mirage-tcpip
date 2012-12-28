@@ -193,7 +193,7 @@ let get_intf intf =
 let inject_packet t id frame =
   try_lwt
     let (th, _) = Hashtbl.find t.listeners id in
-      Ethif.write th.netif frame
+      Ethif.write th.ethif frame
   with exn ->
     return (eprintf "Net.Manager.inject_packet : %s\n%!"
               (Printexc.to_string exn))
