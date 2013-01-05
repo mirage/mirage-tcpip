@@ -27,25 +27,23 @@ module UDPv4 = struct
   type src = ipv4_addr option * int
   type dst = ipv4_addr * int
 
-  type msg = OS.Io_page.t
+  type msg = Cstruct.t
 
   let rec send mgr ?src (dstaddr, dstport) buf =
     lwt fd = match src with
       |None -> return (Manager.get_udpv4 mgr)
       |Some src -> Manager.get_udpv4_listener mgr src
     in
-    let off = Cstruct.base_offset buf in
-    let len = Cstruct.len buf in
     let dst = Unix.ADDR_INET (dstaddr, dstport) in
     (* TODO check short write *)
-    lwt _ = Lwt_bytes.sendto fd buf off len [] dst in
+    lwt _ = Lwt_cstruct.sendto fd buf [] dst in
     return ()
 
   let recv mgr (addr,port) fn =
     lwt lfd = Manager.get_udpv4_listener mgr (addr,port) in
-    let buf = OS.Io_page.get () in
+    let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
     let rec listen () =
-      lwt (len, frm_sa) = Lwt_bytes.recvfrom lfd buf 0 (Cstruct.len buf) [] in
+      lwt (len, frm_sa) = Lwt_cstruct.recvfrom lfd buf [] in
       let frm_addr, frm_port =
         match frm_sa with
         |Unix.ADDR_UNIX x -> ipv4_localhost, 0

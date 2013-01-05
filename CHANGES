@@ -1,41 +1,35 @@
-===== 0.4.1 (14-Dec-2012) =====
+0.5.1 (20-Dec-2012):
+* Update socket stack to use Cstruct 0.6.0 API
 
-* Add an iperf self-test that creates two VIFs and transmits across
-  them. This is a useful 'localhost' test which stresses the bridge
+0.5.0 (20-Dec-2012):
+* Update Cstruct API to 0.6.0
+* [tcp] write now blocks if the write buffer and write window are full
+
+0.4.1 (14-Dec-2012):
+* Add iperf self-test that creates two VIFs and transmits across
+  them. This is a useful local test which stresses the bridge
   code using just one VM.
-
 * Add support for attaching existing devices when initialising the
   network manager, via an optional `attached` parameter.
-
 * Constrain TCP connect to be a `unit Lwt.t` instead of a polymorphic
   return value.
-
 * Expose IPv4 netmask function.
-
 * Reduce ARP verbosity to the console.
-
 * Fix TCP fast recovery to wait until all in-flight packets are
   acked, rather then exiting early.
 
-===== 0.4.0 (11-Dec-2012) =====
-
+0.4.0 (11-Dec-2012):
 * Require OCaml-4.00.0 or higher, and add relevant build fixes
   to deal with module packing.
 
-===== 0.3.1 (10-Dec-2012) =====
-
+0.3.1 (10-Dec-2012):
 * Fix the DHCP client marshalling for IPv4 addresses.
-
 * Expose the interface MAC address in the Manager signature.
-
 * Tweak TCP ISN calculation to be more friendly on a 32-bit host.
-
 * Add Manager.create ?devs to control the number of Netif devices
   constructed by default.
-
 * Add Ethif.set/disable_promiscuous to permit directly tapping
   a network interface.
 
-===== 0.3.0 (04-Sep-2012) =====
-
+0.3.0 (04-Sep-2012):
 * Initial public release.

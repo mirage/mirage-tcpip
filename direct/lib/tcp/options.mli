@@ -24,6 +24,6 @@ type t =
   |Unknown of int * string         (* RFC793 *)
 
 type ts = t list
-val marshal: OS.Io_page.t -> t list -> int
-val unmarshal : OS.Io_page.t -> t list
+val marshal: Cstruct.t -> t list -> int
+val unmarshal : Cstruct.t -> t list
 val prettyprint : t list -> string
