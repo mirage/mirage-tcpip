@@ -35,5 +35,5 @@ type state =
 
 type t
 
-val input : t -> src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> OS.Io_page.t -> unit Lwt.t
+val input : t -> src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t
 val create : Ipv4.t -> Udp.t -> (t * unit Lwt.t) Lwt.t
