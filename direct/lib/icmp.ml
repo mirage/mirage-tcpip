@@ -43,9 +43,9 @@ let input t src hdr buf =
     set_icmpv4_ty buf 0;
     set_icmpv4_csum buf csum;
     (* stick an IPv4 header on the front and transmit *)
-    lwt ipv4_frame = Ipv4.get_frame ~proto:`ICMP ~dest_ip:src t.ip in
-    Frame.set_payload_len ipv4_frame 0;
-    Ipv4.writev t.ip ipv4_frame [buf]
+    lwt (ipv4_frame, ipv4_len) = Ipv4.get_header ~proto:`ICMP ~dest_ip:src t.ip in
+    let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
+    Ipv4.write t.ip ipv4_frame buf
   |ty ->
     printf "ICMP unknown ty %d\n" ty; 
     return ()

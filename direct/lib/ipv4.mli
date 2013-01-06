@@ -18,11 +18,10 @@ open Nettypes
 
 type t
 
-val get_frame: proto:[< `ICMP | `TCP | `UDP ] -> dest_ip:ipv4_addr -> t -> Frame.t Lwt.t
+val get_header: proto:[< `ICMP | `TCP | `UDP ] -> dest_ip:ipv4_addr -> t -> (Cstruct.t * int) Lwt.t
 
-val write: t -> Frame.t -> unit Lwt.t
-
-val writev: t -> Frame.t -> Cstruct.t list -> unit Lwt.t
+val write: t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
+val writev: t -> Cstruct.t -> Cstruct.t list -> unit Lwt.t
 
 val set_ip: t -> ipv4_addr -> unit Lwt.t
 val get_ip: t -> ipv4_addr
@@ -37,4 +36,3 @@ val attach : t ->
     | `TCP of src:Nettypes.ipv4_addr -> dst:Nettypes.ipv4_addr -> Cstruct.t -> unit Lwt.t ] -> unit
 val detach : t -> [< `ICMP | `UDP | `TCP ] -> unit
 val get_netmask: t -> ipv4_addr
-
