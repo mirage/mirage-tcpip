@@ -67,8 +67,10 @@ cenum mode {
 
 (* Send a client broadcast packet *)
 let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
-  lwt frame = Udp.get_frame ~dest_ip:ipv4_broadcast ~source_port:68 ~dest_port:67 t.udp in
-  let buf = Frame.get_payload frame in
+  let options = Option.Packet.to_bytes options in
+  let options_len = String.length options in
+  let total_len = options_len + sizeof_dhcp in
+  let buf = OS.Io_page.(to_cstruct (get ())) in
   set_dhcp_op buf (mode_to_int BootRequest);
   set_dhcp_htype buf 1;
   set_dhcp_hlen buf 6;
@@ -85,12 +87,10 @@ let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
   set_dhcp_sname (String.make 64 '\000') 0 buf;
   set_dhcp_file (String.make 128 '\000') 0 buf;
   set_dhcp_cookie buf 0x63825363l;
-  let options = Option.Packet.to_bytes options in
-  let options_len = String.length options in
   Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
-  Frame.set_payload_len frame (sizeof_dhcp+options_len);
-  Printf.printf "Sending DHCP broadcast\n%!";
-  Udp.output t.udp frame
+  let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
+  Printf.printf "Sending DHCP broadcast len %d\n%!" total_len;
+  Udp.write ~dest_ip:ipv4_broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
 (* Receive a DHCP UDP packet *)
 let input t ~src ~dst ~source_port buf =
