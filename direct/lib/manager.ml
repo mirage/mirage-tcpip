@@ -83,7 +83,14 @@ let plug t id netif =
   (* Register the interface_t with the manager interface *)
   Hashtbl.add t.listeners id (i,th);
   printf "Manager: plug done, to listener\n%!";
-  t.listener t i id
+    try_lwt 
+      t.listener t i id
+    with exn -> 
+      let _ = printf "Manager: dev %s raised exception %s\n%!" 
+                id (Printexc.to_string exn) in
+      let _ = OS.Netif.destroy i.netif in 
+      let _ = Hashtbl.remove t.listeners id in 
+        return ()
 
 (* Unplug a network interface and cancel all its threads. *)
 let unplug t id =
