@@ -96,9 +96,9 @@ let checksum ~src ~dst =
 let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
   ~rx_ack ~seq ~window ~options datav =
   (* Make a TCP/IP header frame *)
-  lwt (ipv4_frame, ipv4_len) = Ipv4.get_header ~proto:`TCP ~dest_ip:id.dest_ip ip in
-  (* Shift this out by the TCP header size *)
-  let tcp_frame = Cstruct.shift ipv4_frame ipv4_len in
+  lwt (ethernet_frame, header_len) = Ipv4.get_header ~proto:`TCP ~dest_ip:id.dest_ip ip in
+  (* Shift this out by the combined ethernet + IP header sizes *)
+  let tcp_frame = Cstruct.shift ethernet_frame header_len in
   (* Append the TCP options to the header *)
   let options_frame = Cstruct.shift tcp_frame sizeof_tcpv4 in
   let options_len =
@@ -107,7 +107,7 @@ let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
     |options -> Options.marshal options_frame options
   in
   (* At this point, extend the IPv4 view by the TCP+options size *)
-  let ipv4_frame = Cstruct.set_len ipv4_frame (ipv4_len + sizeof_tcpv4 + options_len) in
+  let ethernet_frame = Cstruct.set_len ethernet_frame (header_len + sizeof_tcpv4 + options_len) in
   let sequence = Sequence.to_int32 seq in
   let ack_number = match rx_ack with Some n -> Sequence.to_int32 n |None -> 0l in
   let data_off = (sizeof_tcpv4 / 4) + (options_len / 4) in
@@ -125,7 +125,7 @@ let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
   set_tcpv4_window tcp_frame window;
   set_tcpv4_checksum tcp_frame 0;
   set_tcpv4_urg_ptr tcp_frame 0;
-  let header = Cstruct.shift ipv4_frame ipv4_len in
+  let header = Cstruct.shift ethernet_frame header_len in
   let checksum = checksum ~src:id.local_ip ~dst:id.dest_ip (header::datav) in
   set_tcpv4_checksum tcp_frame checksum;
   (*
@@ -135,4 +135,4 @@ let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
     rst syn fin psh sequence ack_number (Options.prettyprint options) 
     (Cstruct.lenv datav) (List.length datav) data_off options_len;
   *)
-  Ipv4.writev ip ipv4_frame datav
+  Ipv4.writev ip ethernet_frame datav
