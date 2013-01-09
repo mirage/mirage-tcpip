@@ -108,11 +108,10 @@ let write t frame data =
   let buf = adjust_output_header ~tlen frame in
   Ethif.writev t.ethif [frame;data]
 
-let writev t frame bufs = 
-  let ihl = 5 in (* TODO options *)
-  let tlen = (ihl * 4) + (Cstruct.lenv bufs) in
-  adjust_output_header ~tlen frame;
-  Ethif.writev t.ethif (frame::bufs)
+let writev t ethernet_frame bufs =
+  let tlen = Cstruct.len ethernet_frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
+  adjust_output_header ~tlen ethernet_frame;
+  Ethif.writev t.ethif (ethernet_frame::bufs)
  
 let input t buf =
   (* buf pointers to to start of IPv4 header here *)
