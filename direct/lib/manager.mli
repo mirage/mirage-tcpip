@@ -39,7 +39,8 @@ val create : ?devs:int -> ?attached:(string list) ->
 val attach: t -> string -> bool Lwt.t
 val detach: t -> string -> bool Lwt.t
 
-val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit                                                              
+val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit  
+val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 
 val tcpv4_of_addr : t -> ipv4_addr option -> Tcp.Pcb.t list
 val tcpv4_of_dst_addr : t -> ipv4_addr -> Tcp.Pcb.t 
