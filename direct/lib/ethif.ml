@@ -38,16 +38,16 @@ cstruct ethernet {
 } as big_endian
 
 let default_process t frame =
-    match get_ethernet_ethertype frame with
-      |0x0806 -> (* ARP *)
-          Arp.input t.arp frame
-      |0x0800 -> (* IPv4 *)
-          let payload = Cstruct.shift frame sizeof_ethernet in 
-            t.ipv4 payload
-      |0x86dd -> (* IPv6 *)
-          return ( (*printf "Ethif: discarding ipv6\n%!"*) )
-      |etype ->
-          return ( (*printf "Ethif: unknown frame %x\n%!" etype*) )
+  match get_ethernet_ethertype frame with
+  |0x0806 -> (* ARP *)
+    Arp.input t.arp frame
+  |0x0800 -> (* IPv4 *)
+    let payload = Cstruct.shift frame sizeof_ethernet in 
+    t.ipv4 payload
+  |0x86dd -> (* IPv6 *)
+    return ( (*printf "Ethif: discarding ipv6\n%!"*) )
+  |etype ->
+    return ( (*printf "Ethif: unknown frame %x\n%!" etype*) )
 
 (* Handle a single input frame *)
 let input t frame =
@@ -66,18 +66,17 @@ let rec listen t =
   OS.Netif.listen t.ethif (input t)
 
 let get_frame t =
-  lwt whole_buffer = OS.Netif.get_writebuf t.ethif in
-  return (Frame.of_buffer whole_buffer sizeof_ethernet)
+  OS.Netif.get_writebuf t.ethif
 
 let write t frame =
-  let buf = Frame.get_whole_buffer frame in
-  lwt () = match t.promiscuous with Some f -> f (Output [ buf ]) | None -> return () in
-  OS.Netif.write t.ethif buf
+  match t.promiscuous with
+  |Some f -> f (Output [frame]) >>= fun () -> OS.Netif.write t.ethif frame
+  |None -> OS.Netif.write t.ethif frame
 
-let writev t frame bufs =
-  let buf = Frame.get_whole_buffer frame in
-  lwt () = match t.promiscuous with Some f -> f (Output (buf :: bufs)) | None -> return () in
-  OS.Netif.writev t.ethif (buf :: bufs)
+let writev t bufs =
+  match t.promiscuous with
+  |Some f -> f (Output bufs) >>= fun () -> OS.Netif.writev t.ethif bufs
+  |None -> OS.Netif.writev t.ethif bufs
 
 let create ethif =
   let ipv4 = (fun _ -> return ()) in

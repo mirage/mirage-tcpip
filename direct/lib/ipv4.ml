@@ -69,17 +69,15 @@ module Routing = struct
     end
 end
 
-let get_frame ~proto ~dest_ip t =
+let get_header ~proto ~dest_ip t =
   lwt ethernet_frame = Ethif.get_frame t.ethif in
-  let buf = Frame.get_header ethernet_frame in
   (* Something of a layer violation here, but ARP is awkward *)
   lwt dmac = Routing.destination_mac t dest_ip >|= ethernet_mac_to_bytes in
   let smac = ethernet_mac_to_bytes (Ethif.mac t.ethif) in
-  Ethif.set_ethernet_dst dmac 0 buf; 
-  Ethif.set_ethernet_src smac 0 buf;
-  Ethif.set_ethernet_ethertype buf 0x0800;
-  let ipv4_frame = Frame.of_t ethernet_frame sizeof_ipv4 in
-  let buf = Frame.get_header ipv4_frame in
+  Ethif.set_ethernet_dst dmac 0 ethernet_frame; 
+  Ethif.set_ethernet_src smac 0 ethernet_frame;
+  Ethif.set_ethernet_ethertype ethernet_frame 0x0800;
+  let buf = Cstruct.shift ethernet_frame Ethif.sizeof_ethernet in
   (* Write the constant IPv4 header fields *)
   set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
   set_ipv4_tos buf 0;
@@ -89,10 +87,11 @@ let get_frame ~proto ~dest_ip t =
   set_ipv4_proto buf proto;
   set_ipv4_src buf (ipv4_addr_to_uint32 t.ip);
   set_ipv4_dst buf (ipv4_addr_to_uint32 dest_ip);
-  return ipv4_frame
+  let len = Ethif.sizeof_ethernet + sizeof_ipv4 in
+  return (ethernet_frame, len)
 
 let adjust_output_header ~tlen frame =
-  let buf = Frame.get_header frame in
+  let buf = Cstruct.sub frame Ethif.sizeof_ethernet sizeof_ipv4 in
   (* Set the mutable values in the ipv4 header *)
   set_ipv4_len buf tlen;
   set_ipv4_id buf (Random.int 65535); (* TODO *)
@@ -103,19 +102,16 @@ let adjust_output_header ~tlen frame =
 (* We write a whole frame, truncated from the right where the
  * packet data stops.
  *)
-let write t frame =
+let write t frame data =
   let ihl = 5 in (* TODO options *)
-  let payload = Frame.get_payload frame in
-  let tlen = (ihl * 4) + (Cstruct.len payload) in
+  let tlen = (ihl * 4) + (Cstruct.len data) in
   let buf = adjust_output_header ~tlen frame in
-  Ethif.write t.ethif frame
+  Ethif.writev t.ethif [frame;data]
 
-let writev t frame bufs = 
-  let ihl = 5 in (* TODO options *)
-  let payload = Frame.get_payload frame in
-  let tlen = (ihl * 4) + (Cstruct.len payload) + (Cstruct.lenv bufs) in
-  adjust_output_header ~tlen frame;
-  Ethif.writev t.ethif frame bufs
+let writev t ethernet_frame bufs =
+  let tlen = Cstruct.len ethernet_frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
+  adjust_output_header ~tlen ethernet_frame;
+  Ethif.writev t.ethif (ethernet_frame::bufs)
  
 let input t buf =
   (* buf pointers to to start of IPv4 header here *)

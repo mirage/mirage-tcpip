@@ -1,3 +1,13 @@
+0.5.2 (trunk):
+
+* Encourag scatter-gather I/O all the time, rather than playing tricks 
+  with packet header buffers. This simplifies the output path considerably
+  and cuts minor heap allocations down.
+
+* Install the packed `cmx` along with the `cmxa` to ensure that the
+  compiler can do cross-module optimization (this is not a fatal error,
+  but will impact performance if the `cmx` file is not present).
+
 0.5.1 (20-Dec-2012):
 * Update socket stack to use Cstruct 0.6.0 API
 
