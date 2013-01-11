@@ -53,10 +53,10 @@ let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 let mlen = String.length msg
 
 let calcsum data sum bnum =
-  let l = OS.Io_page.length data in
+  let l = Cstruct.len data in
   for i = 0 to (l - 1) do
-    sum := !sum + ((Char.code data.{i}) lsl !bnum);
-    bnum := (!bnum + 1) mod 20
+    sum := !sum + ((Char.code (Cstruct.get_char data i)) lsl !bnum);
+    bnum := (!bnum + 1) mod 20;
   done
 
 let txsum = ref 0
@@ -72,8 +72,9 @@ let iperfclient tt ip =
        return ()
    | Some (pcb, _) ->
        printf "Iperf client: Made connection to server. \n%!";
-       let a = OS.Io_page.get () in
-       Cstruct.set_buffer msg 0 a 0 mlen;
+       let a_io = OS.Io_page.get () in
+       let a = OS.Io_page.to_cstruct a_io in
+       Cstruct.blit_from_string msg 0 a 0 mlen;
        let a = Cstruct.sub a 0 mlen in
        let amt = 1000000000 in
        for_lwt i = (amt / mlen) downto 1 do
@@ -119,7 +120,7 @@ let iperf (dip,dpt) chan =
 	 printf "Iperf server: Done - closed connection. \n%!"; return ())
     | Some data -> begin
         calcsum data rxsum rxbnum;
-	let l = OS.Io_page.length data in
+	let l = Cstruct.len data in
 	st.bytes <- (Int64.add st.bytes (Int64.of_int l));
 	st.packets <- (Int64.add st.packets 1L);
 	st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
