@@ -110,8 +110,8 @@ let create ?(devs=1) ?(attached=[]) listener =
   let listeners = Hashtbl.create 1 in
   let t = { listener; listeners } in
   let _ = 
-    for i=1 to devs do
-      OS.Netif.create (plug t)
+    for i= 1 to devs do
+      ignore(OS.Netif.create (plug t))
     done
   in
   let _ = 

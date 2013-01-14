@@ -32,11 +32,11 @@ val add_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
 val remove_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
 val query_arp : t -> Nettypes.ipv4_addr -> Nettypes.ethernet_mac Lwt.t
 
-val get_frame : t -> Frame.t Lwt.t
+val get_frame : t -> Cstruct.t Lwt.t
 
-val write : t -> Frame.t -> unit Lwt.t
+val write : t -> Cstruct.t -> unit Lwt.t
 
-val writev : t -> Frame.t -> Cstruct.t list -> unit Lwt.t
+val writev : t -> Cstruct.t list -> unit Lwt.t
 
 val attach : t -> [< `IPv4 of Cstruct.t -> unit Lwt.t ] -> unit
 val detach : t -> [< `IPv4 ] -> unit
