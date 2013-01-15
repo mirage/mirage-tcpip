@@ -34,6 +34,14 @@ val tx_una : t -> Sequence.t
 val tx_mss : t -> int
 val fast_rec : t -> bool
 
+val ack_serviced : t -> bool
+val ack_seq : t -> Sequence.t
+val ack_win : t -> int
+
+val set_ack_serviced : t -> bool -> unit
+val set_ack_seq : t -> Sequence.t -> unit
+val set_ack_win : t -> int -> unit
+
 (* rx_wnd: number of bytes we are willing to accept *)
 val rx_wnd : t -> int32
 val rx_wnd_unscaled : t -> int32
