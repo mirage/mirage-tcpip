@@ -142,8 +142,24 @@ module Rx = struct
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
         if seg.ack then begin
-	  tick q.state (Recv_ack seg.ack_number);
-          Lwt_mvar.put q.tx_ack (seg.ack_number, (window ready))
+          tick q.state (Recv_ack seg.ack_number);
+          let win = window ready in
+          let data_in_flight = Window.tx_inflight q.wnd in
+          let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
+          let win_has_changed = (Window.ack_win q.wnd) <> win in
+          if ((data_in_flight && (Window.ack_serviced q.wnd || not seq_has_changed)) ||
+              (not data_in_flight && win_has_changed)) then begin
+            Lwt_mvar.put q.tx_ack (seg.ack_number, win) >>
+            (Window.set_ack_serviced q.wnd false;
+             Window.set_ack_seq q.wnd seg.ack_number;
+             Window.set_ack_win q.wnd win;
+             return ())
+          end else begin
+             if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
+               Window.set_ack_seq q.wnd seg.ack_number;
+             Window.set_ack_win q.wnd win;
+            return ()
+          end
         end else
           return () in
 
@@ -308,6 +324,9 @@ module Tx = struct
             q.dup_acks <- 0
       in
       lwt (seq, win) = Lwt_mvar.take tx_ack in
+      Window.set_ack_serviced q.wnd true;
+      let seq = Window.ack_seq q.wnd in
+      let win = Window.ack_win q.wnd in
       let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
       let dupacktest () = ((0l = (Sequence.to_int32 ack_len)) &&
                            ((Window.tx_wnd_unscaled q.wnd) = (Int32.of_int win)) &&
