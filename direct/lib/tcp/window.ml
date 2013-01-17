@@ -24,6 +24,11 @@ type t = {
   max_rx_wnd: int32;               (* Max RX Window size after scaling *)
   tx_wnd_scale: int;               (* TX Window scaling option     *)
   rx_wnd_scale: int;               (* RX Window scaling option     *)
+
+  mutable ack_serviced: bool;
+  mutable ack_seq: Sequence.t;
+  mutable ack_win: int;
+
   mutable snd_una: Sequence.t;
   mutable tx_nxt: Sequence.t;
   mutable rx_nxt: Sequence.t;
@@ -72,6 +77,9 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let tx_mss = match tx_mss with |None -> default_mss |Some mss -> min mss max_mss in
   let snd_una = tx_nxt in
   let fast_rec_th = tx_nxt in
+  let ack_serviced = true in
+  let ack_seq = tx_nxt in
+  let ack_win = rx_wnd in
   let rx_wnd = Int32.(shift_left (of_int rx_wnd) rx_wnd_scale) in
   let max_rx_wnd = rx_wnd in
   let tx_wnd = Int32.(shift_left (of_int tx_wnd) tx_wnd_scale) in
@@ -88,7 +96,9 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rttvar = 0.0 in
   let rto = 3.0 in
   let backoff_count = 0 in
-  { tx_isn; rx_isn; max_rx_wnd; snd_una; tx_nxt; tx_wnd; rx_nxt; rx_nxt_inseq;
+  { tx_isn; rx_isn; max_rx_wnd; 
+    ack_serviced; ack_seq; ack_win;
+    snd_una; tx_nxt; tx_wnd; rx_nxt; rx_nxt_inseq;
     fast_rec_th; rx_wnd; tx_wnd_scale; rx_wnd_scale;
     ssthresh; cwnd; tx_mss; fast_recovery;
     rtt_timer_on; rtt_timer_reset;
@@ -118,6 +128,14 @@ let rx_nxt t = t.rx_nxt
 let rx_nxt_inseq t = t.rx_nxt_inseq
 let rx_wnd t = t.rx_wnd
 let rx_wnd_unscaled t = Int32.shift_right t.rx_wnd t.rx_wnd_scale
+
+let ack_serviced t = t.ack_serviced
+let ack_seq t = t.ack_seq
+let ack_win t = t.ack_win
+
+let set_ack_serviced t v = t.ack_serviced <- v
+let set_ack_seq t s = t.ack_seq <- s
+let set_ack_win t w = t.ack_win <- w
 
 (* TODO: scale the window down so we can advertise it correctly with
    window scaling on the wire *)
