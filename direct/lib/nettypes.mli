@@ -85,6 +85,7 @@ module type CHANNEL = sig
 
   val read_char: t -> char Lwt.t
   val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
+  val read_exactly: t -> int -> Cstruct.t Lwt.t
   val read_some: ?len:int -> t -> Cstruct.t Lwt.t
   val read_stream: ?len: int -> t -> Cstruct.t Lwt_stream.t
   val read_line: t -> Cstruct.t list Lwt.t
