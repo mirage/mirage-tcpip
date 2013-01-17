@@ -46,7 +46,7 @@ let writev ~dest_ip ~source_port ~dest_port t bufs =
   set_udpv4_source_port udp_buf source_port;
   set_udpv4_dest_port udp_buf dest_port;
   set_udpv4_checksum udp_buf 0;
-  set_udpv4_length udp_buf (Cstruct.lenv bufs);
+  set_udpv4_length udp_buf (sizeof_udpv4 + Cstruct.lenv bufs);
   let ipv4_frame = Cstruct.set_len ipv4_frame (ipv4_len + sizeof_udpv4) in
   Ipv4.writev t.ip ipv4_frame bufs
 
