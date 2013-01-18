@@ -164,7 +164,8 @@ let tx_advance t b =
 let tx_ack t r win =
   set_tx_wnd t win;
   if t.fast_recovery then begin
-    t.snd_una <- r;
+    if Sequence.gt r t.snd_una then 
+      t.snd_una <- r;
     if Sequence.geq r t.fast_rec_th then begin
       (* printf "EXITING fast recovery\n%!"; *)
       t.cwnd <- t.ssthresh;

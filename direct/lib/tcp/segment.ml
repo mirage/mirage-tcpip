@@ -309,6 +309,8 @@ module Tx = struct
             q.dup_acks <- q.dup_acks + 1;
             if (q.dup_acks = 3) ||
 	       ((q.dup_acks > 3) && ((Sequence.to_int32 ack_len) > 0l)) then begin
+		 (* alert window module to fall into fast recovery *)
+		 Window.alert_fast_rexmit q.wnd seq;
 		 (* retransmit the bottom of the unacked list of packets *)
 		 let rexmit_seg = peek_l q.segs in
 		 (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
@@ -317,8 +319,7 @@ module Tx = struct
 		 let flags=rexmit_seg.flags in
 		 let options=[] in (* TODO: put the right options *)
 		 let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
-		 (* alert window module to fall into fast recovery *)
-		 Window.alert_fast_rexmit q.wnd seq
+		 ()
                end
 	| false ->
             q.dup_acks <- 0
