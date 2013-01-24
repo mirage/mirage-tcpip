@@ -84,6 +84,38 @@ module Make(Flow:FLOW) :
       t.ibuf <- None;
       return buf
     end
+
+  (* Read exactly len characters from the input channel
+     and at most a full view. If not specified, read all *)
+  let read_exactly t len =
+    let rec read_exactly_inner t len =
+      lwt buf = get_ibuf t in
+      let avail = Cstruct.len buf in
+        match (len - avail) with
+          | l when l < 0 ->
+            let hd,tl = Cstruct.split buf len in
+            t.ibuf <- Some tl;
+            return [hd]
+          | l when l = 0 ->
+              t.ibuf <- None;
+              return [buf]
+          | l ->
+              t.ibuf <- None;
+              lwt rest = read_exactly_inner t l in
+                return (buf::rest)
+    in
+    lwt buf = read_exactly_inner t len in
+    match buf with
+      | [buf] -> return buf
+      | _ ->
+        let ret = OS.Io_page.to_cstruct (OS.Io_page.get ()) in
+        let a =
+         List.fold_right (
+          fun a off ->
+            let l = Cstruct.len a in
+            let _ = Cstruct.blit a 0 ret (off-l) l in
+              off - l) buf len in
+          return (Cstruct.sub ret 0 len)
     
   (* Read up to len characters from the input channel as a 
      stream (and read all available if no length specified *)
@@ -232,6 +264,12 @@ let read_until = function
 let read_some ?len = function
   | TCPv4 t -> TCPv4.read_some ?len t
   | Shmem t -> Shmem.read_some ?len t
+
+let read_exactly t len = 
+  match t with
+  | TCPv4 t -> TCPv4.read_exactly t len 
+  | Shmem t -> Shmem.read_exactly t len 
+
 
 let read_stream ?len = function
   | TCPv4 t -> TCPv4.read_stream ?len t
