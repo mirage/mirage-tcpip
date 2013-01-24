@@ -88,7 +88,7 @@ let plug t id netif =
     with exn -> 
       let _ = printf "Manager: dev %s raised exception %s\n%!" 
                 id (Printexc.to_string exn) in
-      let _ = OS.Netif.destroy i.netif in 
+(*       let _ = OS.Netif.destroy i.netif in  *)
       let _ = Hashtbl.remove t.listeners id in 
         return ()
 
@@ -96,7 +96,7 @@ let plug t id netif =
 let unplug t id =
   try
     let i, th = Hashtbl.find t.listeners id in
-    let _ = OS.Netif.destroy i.netif in 
+(*     let _ = OS.Netif.destroy i.netif in  *)
       Lwt.cancel th;
       Hashtbl.remove t.listeners id
   with Not_found -> 
