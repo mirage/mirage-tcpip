@@ -81,6 +81,14 @@ let ipv4_addr_to_uint32 s  =
   let ip = Unix.string_of_inet_addr s in 
     parse_addr ip 24
 
+let ipv4_addr_of_uint32 ip = 
+  ipv4_addr_of_tuple
+  ( (Int32.shift_right (Int32.logand ip 0xff000000l) 24),
+    (Int32.shift_right (Int32.logand ip 0xff0000l) 16),
+    (Int32.shift_right (Int32.logand ip 0xff00l) 8),
+    (Int32.logand ip 0xffl))
+
+
 type ipv4_src = ipv4_addr option * int
 type ipv4_dst = ipv4_addr * int
 

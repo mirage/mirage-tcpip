@@ -28,6 +28,7 @@ val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
 val ipv4_addr_of_string : string -> ipv4_addr option
 val ipv4_addr_to_string : ipv4_addr -> string
 val ipv4_addr_to_uint32 : ipv4_addr -> int32
+val ipv4_addr_of_uint32 : int32 -> ipv4_addr
 val ipv4_blank : ipv4_addr
 val ipv4_broadcast : ipv4_addr
 val ipv4_localhost : ipv4_addr
