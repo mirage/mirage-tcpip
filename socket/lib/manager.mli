@@ -35,7 +35,7 @@ val get_intf : interface -> string
 
 val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) ->
   unit                                                              
-val inject_packet : t -> id -> Frame.t -> unit Lwt.t            
+val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t            
 val get_intf_name : t -> id -> string 
 val get_intf_mac : t -> id -> ethernet_mac  
 
