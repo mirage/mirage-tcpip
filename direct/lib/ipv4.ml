@@ -174,6 +174,8 @@ let set_netmask t netmask =
 let set_gateways t gateways =
   t.gateways <- gateways;
   return ()
+let get_gateways t = t.gateways
+
 
 let mac t = Ethif.mac t.ethif
 

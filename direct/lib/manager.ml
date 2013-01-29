@@ -173,8 +173,9 @@ let i_of_dst_ip t addr =
                (match_ip_match l_ip l_mask addr)) then (
                  ret := Some(i);
                  netmask :=  Nettypes.ipv4_addr_to_uint32 
-                               (Ipv4.get_netmask i.ipv4)
-               )
+                               (Ipv4.get_netmask i.ipv4))
+          else if (List.length (Ipv4.get_gateways i.ipv4) > 0) then 
+            ret := Some(i)
       ) t.listeners in
     match !ret with
       | None -> failwith("No_Path_dst")
