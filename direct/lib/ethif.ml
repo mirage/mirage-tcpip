@@ -81,6 +81,7 @@ let writev t bufs =
 let create ethif =
   let ipv4 = (fun _ -> return ()) in
   let mac = ethernet_mac_of_bytes (OS.Netif.mac ethif) in
+  printf "ip attaching mac '%s'..\n%!" (ethernet_mac_to_string mac);
   let arp =
     let get_mac () = mac in
     let get_etherbuf () = OS.Netif.get_writebuf ethif in
@@ -100,5 +101,6 @@ let attach t = function
 let detach t = function
   |`IPv4 -> t.ipv4 <- (fun _ -> return ())
 
-let mac t = t.mac
+let mac t =  
+  t.mac
 let get_ethif t = t.ethif

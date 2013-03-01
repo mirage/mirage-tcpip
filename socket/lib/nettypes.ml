@@ -68,6 +68,27 @@ let ipv4_localhost = ipv4_addr_of_tuple (127l,0l,0l,1l)
 
 let ipv4_addr_to_string s = Unix.string_of_inet_addr s 
 
+let ipv4_addr_to_uint32 s  = 
+  let rec parse_addr s shift =
+    try
+      let x = String.index s '.' in 
+      let octet = String.sub s 0 x in 
+      let rest = String.sub s (x+1) ((String.length s) - x - 1) in
+      let ip = Int32.shift_left (Int32.of_string octet) shift in 
+        Int32.add ip (parse_addr rest (shift - 8))
+    with Not_found ->  Int32.shift_left (Int32.of_string s) shift
+  in 
+  let ip = Unix.string_of_inet_addr s in 
+    parse_addr ip 24
+
+let ipv4_addr_of_uint32 ip = 
+  ipv4_addr_of_tuple
+  ( (Int32.shift_right (Int32.logand ip 0xff000000l) 24),
+    (Int32.shift_right (Int32.logand ip 0xff0000l) 16),
+    (Int32.shift_right (Int32.logand ip 0xff00l) 8),
+    (Int32.logand ip 0xffl))
+
+
 type ipv4_src = ipv4_addr option * int
 type ipv4_dst = ipv4_addr * int
 
@@ -130,6 +151,7 @@ module type CHANNEL = sig
   val read_char: t -> char Lwt.t
   val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
   val read_some: ?len:int -> t -> Cstruct.t Lwt.t
+  val read_exactly: t -> int -> Cstruct.t Lwt.t
   val read_stream: ?len:int -> t -> Cstruct.t Lwt_stream.t
   val read_line: t -> Cstruct.t list Lwt.t
 
