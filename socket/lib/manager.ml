@@ -35,8 +35,7 @@ type t = {
   udpv4_listen_ports: ((ipv4_addr option * int), Lwt_unix.file_descr) Hashtbl.t;
 }
 
-let get_intf intf = 
-   ""
+let get_intf intf = ""
 
 (* Enumerate interfaces and manage the protocol threads *)
 let create ?(devs=1) ?(attached=[])  listener =
@@ -66,16 +65,14 @@ let get_udpv4_listener mgr (addr,port) =
   end
 
 let attach t id =
-  failwith "Socket mirage doesn't support interface attahcment"
+  failwith "Socket mirage doesn't support interface attachment"
 let detach t id =
-  failwith "Socket mirage doesn't support interface detahcment"
-let inject_packet t id buf =                            
+  failwith "Socket mirage doesn't support interface detachment"
+let inject_packet t id buf =
   failwith "Socket mirage doesn't support packet injection"
-let get_intf_name t id =                           
+let get_intf_name t id =
   failwith "Socket mirage doesn't support dev name"
-  
-let get_intf_mac t id =                            
+let get_intf_mac t id =
   failwith "Socket mirage doesn't support dev mac address"
-  
-let set_promiscuous t id f =                       
+let set_promiscuous t id f =
   failwith "Socket mirage doesn't support dev promiscuous mode"
