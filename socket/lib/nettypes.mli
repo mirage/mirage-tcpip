@@ -27,6 +27,8 @@ type ipv4_addr = Unix.inet_addr
 val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
 val ipv4_addr_of_string : string -> ipv4_addr option
 val ipv4_addr_to_string : ipv4_addr -> string
+val ipv4_addr_to_uint32 : ipv4_addr -> int32
+val ipv4_addr_of_uint32 : int32 -> ipv4_addr
 val ipv4_blank : ipv4_addr
 val ipv4_broadcast : ipv4_addr
 val ipv4_localhost : ipv4_addr
@@ -84,6 +86,7 @@ module type CHANNEL = sig
   val read_char: t -> char Lwt.t
   val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
   val read_some: ?len:int -> t -> Cstruct.t Lwt.t
+  val read_exactly: t -> int -> Cstruct.t Lwt.t
   val read_stream: ?len: int -> t -> Cstruct.t Lwt_stream.t
   val read_line: t -> Cstruct.t list Lwt.t
 
