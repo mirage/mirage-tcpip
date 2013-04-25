@@ -16,26 +16,52 @@
 
 open Nettypes
 
+(** Type of a manager *)
 type t
-type interface
-type id
-val create :  ?devs:int -> ?attached:(string list) ->
-  (t -> interface -> id -> unit Lwt.t) -> unit Lwt.t
 
-val attach: t -> string -> bool Lwt.t
-val detach: t -> string -> bool Lwt.t
-
-type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
-val configure: interface -> config -> unit Lwt.t
+(** Accessors for the t type *)
 
 val get_udpv4 : t -> Lwt_unix.file_descr
 val register_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr -> unit
 val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.t
+
+
+(** The following functions are provided for compatibility with other
+    backends, but are irrelevant for the socket backend. *)
+
+type interface = unit
+type id = string (** Always equal to "" *)
+type config
+
+(** Do nothing *)
+val configure: interface -> config -> unit Lwt.t
+
+(** Return "" *)
 val get_intf : interface -> string
 
-val set_promiscuous: t -> id -> (id -> Cstruct.t -> unit Lwt.t) ->
-  unit                                                              
-val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t            
-val get_intf_name : t -> id -> string 
-val get_intf_mac : t -> id -> ethernet_mac  
+
+(** Type of the callback function given as an argument for
+    [create]. *)
+type callback = t -> interface -> id -> unit Lwt.t
+
+(** [create callback] creates a manager that will call [callback]. The
+    optional arguments [devs] and [attached] are not used here, so it
+    is useless to give them any value. The callback function is
+    responsible for polling the hashtbl to check for new
+    "connections", implemented here as UDP sockets that are bound to a
+    particular sockaddr. *)
+val create :  ?devs:int -> ?attached:(string list) -> callback -> unit Lwt.t
+
+
+(** The following functions are provided for compatibility with other
+    backends, but are not supported by the socket backend, and MUST
+    NOT be used *)
+
+val attach: t -> string -> bool Lwt.t
+val detach: t -> string -> bool Lwt.t
+
+val set_promiscuous: t -> id -> (id -> Cstruct.t -> unit Lwt.t) -> unit
+val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
+val get_intf_name : t -> id -> string
+val get_intf_mac : t -> id -> ethernet_mac
 
