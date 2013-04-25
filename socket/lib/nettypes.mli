@@ -61,7 +61,12 @@ val ipv4_broadcast : ipv4_addr
 (** Corresponding to 127.0.0.1 *)
 val ipv4_localhost : ipv4_addr
 
+(** Type describing the socket address of a source (optional IPv4 and
+    port of the source) *)
 type ipv4_src = ipv4_addr option * int
+
+(** Type describing the socket address of an endpoint (IPv4 and port
+    of the destination *)
 type ipv4_dst = ipv4_addr * int
 
 (** Type for an ARP packet *)

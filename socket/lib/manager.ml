@@ -32,8 +32,10 @@ let configure () config = return ()
 
 type t = {
   udpv4: Lwt_unix.file_descr;
-  udpv4_listen_ports: ((ipv4_addr option * int), Lwt_unix.file_descr) Hashtbl.t;
+  udpv4_listen_ports: (ipv4_src, Lwt_unix.file_descr) Hashtbl.t;
 }
+
+type callback = t -> interface -> id -> unit Lwt.t
 
 let get_intf intf = ""
 
