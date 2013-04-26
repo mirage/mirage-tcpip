@@ -24,7 +24,7 @@ type packet =
 | Output of Cstruct.t list
 
 type t = {
-  ethif: OS.Netif.t;
+  netif: OS.Netif.t;
   mac: ethernet_mac;
   arp: Arp.t;
   mutable ipv4: (Cstruct.t -> unit Lwt.t);
@@ -39,54 +39,51 @@ cstruct ethernet {
 
 let default_process t frame =
   match get_ethernet_ethertype frame with
-  |0x0806 -> (* ARP *)
-    Arp.input t.arp frame
-  |0x0800 -> (* IPv4 *)
-    let payload = Cstruct.shift frame sizeof_ethernet in 
+  | 0x0806 -> Arp.input t.arp frame (* ARP *)
+  | 0x0800 -> (* IPv4 *)
+    let payload = Cstruct.shift frame sizeof_ethernet in
     t.ipv4 payload
-  |0x86dd -> (* IPv6 *)
-    return ( (*printf "Ethif: discarding ipv6\n%!"*) )
-  |etype ->
-    return ( (*printf "Ethif: unknown frame %x\n%!" etype*) )
+  | 0x86dd -> return () (* IPv6 *) (*printf "Ethif: discarding ipv6\n%!"*)
+  | etype  -> return () (*printf "Ethif: unknown frame %x\n%!" etype*)
 
 (* Handle a single input frame *)
 let input t frame =
-  match t.promiscuous with  
-    | None -> default_process t frame
-    | Some(promiscuous) -> promiscuous (Input frame)
+  match t.promiscuous with
+  | None -> default_process t frame
+  | Some promiscuous -> promiscuous (Input frame)
 
-let set_promiscuous t f =  
-    t.promiscuous <- Some(f)
+let set_promiscuous t f =
+    t.promiscuous <- Some f
 
 let disable_promiscuous t =
     t.promiscuous <- None
 
 (* Loop and listen for frames *)
 let rec listen t =
-  OS.Netif.listen t.ethif (input t)
+  OS.Netif.listen t.netif (input t)
 
 let get_frame t =
-  OS.Netif.get_writebuf t.ethif
+  OS.Netif.get_writebuf t.netif
 
 let write t frame =
   match t.promiscuous with
-  |Some f -> f (Output [frame]) >>= fun () -> OS.Netif.write t.ethif frame
-  |None -> OS.Netif.write t.ethif frame
+  |Some f -> f (Output [frame]) >>= fun () -> OS.Netif.write t.netif frame
+  |None -> OS.Netif.write t.netif frame
 
 let writev t bufs =
   match t.promiscuous with
-  |Some f -> f (Output bufs) >>= fun () -> OS.Netif.writev t.ethif bufs
-  |None -> OS.Netif.writev t.ethif bufs
+  |Some f -> f (Output bufs) >>= fun () -> OS.Netif.writev t.netif bufs
+  |None -> OS.Netif.writev t.netif bufs
 
-let create ethif =
-  let ipv4 = (fun _ -> return ()) in
-  let mac = ethernet_mac_of_bytes (OS.Netif.mac ethif) in
+let create netif =
+  let ipv4 = fun (_:Cstruct.t) -> return () in
+  let mac = ethernet_mac_of_bytes (OS.Netif.mac netif) in
   let arp =
     let get_mac () = mac in
-    let get_etherbuf () = OS.Netif.get_writebuf ethif in
-    let output buf = OS.Netif.write ethif buf in
+    let get_etherbuf () = OS.Netif.get_writebuf netif in
+    let output buf = OS.Netif.write netif buf in
     Arp.create ~output ~get_mac ~get_etherbuf in
-  let t = { ethif; ipv4; mac; arp; promiscuous=None; } in
+  let t = { netif; ipv4; mac; arp; promiscuous=None; } in
   let listen = listen t in
   (t, listen)
 
@@ -98,7 +95,7 @@ let attach t = function
   |`IPv4 fn -> t.ipv4 <- fn
 
 let detach t = function
-  |`IPv4 -> t.ipv4 <- (fun _ -> return ())
+  |`IPv4 -> t.ipv4 <- fun (_:Cstruct.t) -> return ()
 
 let mac t = t.mac
-let get_ethif t = t.ethif
+let get_netif t = t.netif
