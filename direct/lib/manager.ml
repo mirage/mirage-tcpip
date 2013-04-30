@@ -22,27 +22,29 @@ open Lwt
 open Nettypes
 open Printf
 
-exception Error of string
-
 type id = OS.Netif.id
 
 type interface = {
-  id: id;
-  netif: Ethif.t;
-  ipv4: Ipv4.t;
-  icmp: Icmp.t;
-  udp: Udp.t;
-  tcp: Tcp.Pcb.t;
+  id    : id;
+  ethif : Ethif.t;
+  ipv4  : Ipv4.t;
+  icmp  : Icmp.t;
+  udp   : Udp.t;
+  tcp   : Tcp.Pcb.t;
 }
 
-let get_netif t =
-  t.netif
+let get_id t    = t.id
+let get_ethif t = t.ethif
+let get_ipv4 t  = t.ipv4
+let get_icmp t  = t.icmp
+let get_udp t   = t.udp
+let get_tcp t   = t.tcp
 
-type interface_t = interface * unit Lwt.t
+type callback = t -> interface -> id -> unit Lwt.t
 
-type t = {
-  listener: t -> interface -> id -> unit Lwt.t;
-  listeners: (id, interface_t) Hashtbl.t;
+and t = {
+  listener: callback;
+  listeners: (id, interface) Hashtbl.t
 }
 
 type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
@@ -51,12 +53,12 @@ type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
 let configure i =
   function
   |`DHCP ->
-    printf "Manager: VIF %s to DHCP\n%!" i.id;
+    printf "Manager: Interface %s to DHCP\n%!" i.id;
     lwt t, th = Dhcp.Client.create i.ipv4 i.udp in
     printf "Manager: DHCP done\n%!";
     return ()
   |`IPv4 (addr, netmask, gateways) ->
-    printf "Manager: VIF %s to %s nm %s gw [%s]\n%!"
+    printf "Manager: Interface %s to %s nm %s gw [%s]\n%!"
       i.id (ipv4_addr_to_string addr) (ipv4_addr_to_string netmask)
       (String.concat ", " (List.map ipv4_addr_to_string gateways));
     Ipv4.set_ip i.ipv4 addr >>
@@ -65,51 +67,50 @@ let configure i =
     return ()
 
 (* Plug in a new network interface with given id *)
-let plug t id vif =
-  printf "Manager: plug %s\n%!" id; 
+let plug t id netif =
+  printf "Manager: plug %s\n%!" id;
   let wrap (s,t) = try_lwt t >>= return with exn ->
     (printf "Manager: exn=%s %s\n%!" s (Printexc.to_string exn); fail exn) in
-  let (netif, netif_t) = Ethif.create vif in
-  let (ipv4, ipv4_t) = Ipv4.create netif in
-  let (icmp, icmp_t) = Icmp.create ipv4 in
-  let (tcp, tcp_t) = Tcp.Pcb.create ipv4 in
-  let (udp, udp_t) = Udp.create ipv4 in
-  let i = { id; ipv4; icmp; netif; tcp; udp } in
-  (* The interface thread can be cancelled by exceptions from the
+  let (ethif, ethif_t) = Ethif.create netif in
+  let (ipv4, ipv4_t)   = Ipv4.create ethif in
+  let (icmp, icmp_t)   = Icmp.create ipv4 in
+  let (tcp, tcp_t)     = Tcp.Pcb.create ipv4 in
+  let (udp, udp_t)     = Udp.create ipv4 in
+  let i = { id; ipv4; icmp; ethif; tcp; udp } in
+  (* The interface thread should be cancellable by exceptions from the
      rest of the threads, as a debug measure.
+     TODO: think about cancellation strategy here
      TODO: think about restart strategies here *)
-  let th,_ = Lwt.task () in
   (* Register the interface_t with the manager interface *)
-  Hashtbl.add t.listeners id (i,th);
+  Hashtbl.add t.listeners id i;
   printf "Manager: plug done, to listener\n%!";
   t.listener t i id
 
-(* Unplug a network interface and cancel all its threads. *)
+(* Unplug a network interface. TODO: Cancel its thread as well. *)
 let unplug t id =
   try
-    let i, th = Hashtbl.find t.listeners id in
-      Lwt.cancel th;
+    let i = Hashtbl.find t.listeners id in
       Hashtbl.remove t.listeners id
   with Not_found -> ()
 
 (* Enumerate interfaces and manage the protocol threads.
- The listener becomes a new thread that is spawned when a 
+ The listener becomes a new thread that is spawned when a
  new interface shows up. *)
-let create ?(devs=1) ?(attached=[]) listener =
+let create ?(nb_dev=1) ?(attached=[]) listener =
   printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
   let t = { listener; listeners } in
-  let _ = 
-    for i= 1 to devs do
+  let _ =
+    for i= 1 to nb_dev do
       ignore(OS.Netif.create (plug t))
     done
   in
-  let _ = 
+  let _ =
     List.iter (
       fun dev ->
         let _ = OS.Netif.create ~dev:(Some(dev)) (plug t) in
           ()
-    ) attached in 
+    ) attached in
   let th,_ = Lwt.task () in
   Lwt.on_cancel th (fun _ ->
     printf "Manager: cancel\n%!";
@@ -120,7 +121,7 @@ let create ?(devs=1) ?(attached=[]) listener =
 let attach mgr dev =
   try_lwt
     let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
-      return false 
+      return false
   with ex ->
     Printf.printf "Failed to attach dev %s\n%!" (Printexc.to_string ex);
     return false
@@ -129,16 +130,13 @@ let detach mgr dev =
   return false
 
 (* Find the interfaces associated with the address *)
-let i_of_ip t addr =
-  match addr with
-    |None ->
-        Hashtbl.fold (fun _ (i,_) a ->
-                        i :: a) t.listeners []
-    |Some addr -> begin
-       Hashtbl.fold (fun _ (i,_) a ->
-                       if Ipv4.get_ip i.ipv4 = addr then i :: a else a
-       ) t.listeners [];
-     end
+let i_of_ip t = function
+  | None ->
+    Hashtbl.fold (fun _ i a -> i :: a) t.listeners []
+  | Some addr ->
+    Hashtbl.fold
+      (fun _ i a -> if Ipv4.get_ip i.ipv4 = addr then i :: a else a)
+      t.listeners []
 
 let match_ip_match ip netmask dst_ip =
   let src_match = Int32.logand ip netmask in
@@ -151,7 +149,7 @@ let i_of_dst_ip t addr =
   let netmask = ref 0l in
   let addr = Nettypes.ipv4_addr_to_uint32 addr in 
   let _ = Hashtbl.iter
-      (fun _ (i,_) ->
+      (fun _ i ->
          let l_ip =  Nettypes.ipv4_addr_to_uint32 
                        (Ipv4.get_ip i.ipv4) in
          let l_mask = Nettypes.ipv4_addr_to_uint32 
@@ -170,52 +168,42 @@ let i_of_dst_ip t addr =
       | Some(ret) -> ret
 
 (* Match an address and port to a TCP thread *)
-let tcpv4_of_addr t addr =
-  List.map (fun x -> x.tcp) (i_of_ip t addr)
+let tcpv4_of_addr t addr = List.map (fun x -> x.tcp) (i_of_ip t addr)
 
 (* TODO: do actual route selection *)
-let udpv4_of_addr (t:t) addr =
-  List.map (fun x -> x.udp) (i_of_ip t addr)
-let ipv4_of_interface (t:interface) = 
-  t.ipv4
+let udpv4_of_addr (t:t) addr = List.map (fun x -> x.udp) (i_of_ip t addr)
 
 let tcpv4_of_dst_addr t addr =
   let x = i_of_dst_ip t addr in
     x.tcp
 
-let get_intf intf = 
-  intf.id
-
 let inject_packet t id frame =
   try_lwt
-    let (th, _) = Hashtbl.find t.listeners id in
-      Ethif.write th.netif frame
+    let intf = Hashtbl.find t.listeners id in
+      Ethif.write intf.ethif frame
   with exn ->
     return (eprintf "Net.Manager.inject_packet : %s\n%!"
               (Printexc.to_string exn))
 
-let get_intf_name t id =                           
-  try                                               
-    let (intf, _) = Hashtbl.find t.listeners id in 
-      intf.id                                      
-  with exn ->                                      
-    eprintf "Net.Manager.get_intf_name : %s\n%!"   
-      (Printexc.to_string exn);            
-    ""                                             
+let get_intf_name t id =
+  try
+    let intf = Hashtbl.find t.listeners id in
+    intf.id
+  with exn ->
+    eprintf "Net.Manager.get_intf_name : %s\n%!" (Printexc.to_string exn);
+    ""
 
-let get_intf_mac t id =                            
-  try                                               
-    let (th, _) = Hashtbl.find t.listeners id in   
-    Ethif.mac th.netif
-  with exn ->                                      
-    eprintf "Net.Manager.get_intf_mac : %s\n%!"    
-      (Printexc.to_string exn);            
+let get_intf_mac t id =
+  try
+    let intf = Hashtbl.find t.listeners id in
+    Ethif.mac intf.ethif
+  with exn ->
+    eprintf "Net.Manager.get_intf_mac : %s\n%!" (Printexc.to_string exn);
     raise Not_found
 
-let set_promiscuous t id f =                       
-  try                                               
-    let (th, _) = Hashtbl.find t.listeners id in    
-      Ethif.set_promiscuous th.netif (f id)         
-  with exn ->                                      
-    eprintf "Net.Manager.get_intf_mac : %s\n%!"    
-      (Printexc.to_string exn)             
+let set_promiscuous t id f =
+  try
+    let intf = Hashtbl.find t.listeners id in
+      Ethif.set_promiscuous intf.ethif (f id)
+  with exn ->
+    eprintf "Net.Manager.get_intf_mac : %s\n%!" (Printexc.to_string exn)
