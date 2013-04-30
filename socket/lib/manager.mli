@@ -31,7 +31,7 @@ val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.
 
 type interface = unit
 type id = string (** Always equal to "" *)
-type config
+type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
 
 (** Do nothing *)
 val configure: interface -> config -> unit Lwt.t
