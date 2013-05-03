@@ -19,7 +19,7 @@ fi
 
 OCAMLBUILD=${OCAMLBUILD:-`which ocamlbuild`}
 OCAMLFIND=${OCAMLFIND:-`which ocamlfind`}
-OCAMLBUILD_FLAGS="-classic-display -j ${njobs}"
+OCAMLBUILD_FLAGS="-use-ocamlfind -classic-display -j ${njobs}"
 
 # create entries in the _config/ directory 
 configure() {
@@ -75,6 +75,10 @@ run_tests() {
     [ -e _config/flag.opt ] && t="${t} lib_test/$test.native"
     ${OCAMLBUILD} ${OCAMLBUILD_FLAGS} ${t}
   done
+}
+
+doc() {
+    ${OCAMLBUILD} ${OCAMLBUILD_FLAGS} doc.docdir/index.html
 }
 
 clean() {

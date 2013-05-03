@@ -18,9 +18,11 @@ open Lwt
 open Nettypes
 open Printf
 
+type callback = src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t
+
 type t = {
   ip : Ipv4.t;
-  listeners: (int, (src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t)) Hashtbl.t
+  listeners: (int, callback) Hashtbl.t
 }
 
 cstruct udpv4 {
@@ -30,17 +32,18 @@ cstruct udpv4 {
   uint16_t checksum
 } as big_endian
 
+(* Not exported in the interface, only used by [create]. *)
 let input t ~src ~dst buf =
   let dest_port = get_udpv4_dest_port buf in
   let data = Cstruct.sub buf sizeof_udpv4 (get_udpv4_length buf - sizeof_udpv4) in
-  if Hashtbl.mem t.listeners dest_port then begin
+  if Hashtbl.mem t.listeners dest_port then
     let fn = Hashtbl.find t.listeners dest_port in
     let source_port = get_udpv4_source_port buf in
     fn ~src ~dst ~source_port data
-  end else
+  else
     return ()
 
-let writev ~dest_ip ~source_port ~dest_port t bufs =
+let writev ~source_port ~dest_ip ~dest_port t bufs =
   lwt (ipv4_frame, ipv4_len) = Ipv4.get_header ~proto:`UDP ~dest_ip t.ip in
   let udp_buf = Cstruct.shift ipv4_frame ipv4_len in
   set_udpv4_source_port udp_buf source_port;
@@ -50,18 +53,17 @@ let writev ~dest_ip ~source_port ~dest_port t bufs =
   let ipv4_frame = Cstruct.set_len ipv4_frame (ipv4_len + sizeof_udpv4) in
   Ipv4.writev t.ip ipv4_frame bufs
 
-let write ~dest_ip ~source_port ~dest_port t buf =
+let write ~source_port ~dest_ip ~dest_port t buf =
   writev ~dest_ip ~source_port ~dest_port t [buf]
 
 let listen t port fn =
   if Hashtbl.mem t.listeners port then
     fail (Failure "UDP port already bound")
-  else begin
+  else
     let th, u = Lwt.task () in
     Hashtbl.add t.listeners port fn;
     Lwt.on_cancel th (fun _ -> Hashtbl.remove t.listeners port);
     th
-  end
 
 let create ip =
   let listeners = Hashtbl.create 1 in
