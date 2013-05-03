@@ -56,7 +56,7 @@ type ipv4_addr = Unix.inet_addr
     string representation is a.b.c.d. *)
 val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
 
-(** [ipv4_addr_of_string "a.b.c.d" is [Some addr] if "a.b.c.d" is a
+(** [ipv4_addr_of_string "a.b.c.d"] is [Some addr] if "a.b.c.d" is a
     dot separated string representation of a valid IPv4, or [None]
     otherwise. *)
 val ipv4_addr_of_string : string -> ipv4_addr option
