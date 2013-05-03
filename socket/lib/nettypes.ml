@@ -19,8 +19,7 @@ type ethernet_mac = string (* length 6 only *)
 
 (* Raw MAC address off the wire (network endian) *)
 let ethernet_mac_of_bytes x =
-    assert(String.length x = 6);
-    x
+  if String.length x <> 6 then raise (Invalid_argument x) else x
 
 (* Read a MAC address colon-separated string *)
 let ethernet_mac_of_string x =
@@ -143,21 +142,4 @@ module type CHANNEL = sig
 
   val listen : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
   val connect : mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
-end
-
-module type RPC = sig
-
-  type tx
-  type rx
-
-  type 'a req
-  type 'a res
-
-  type mgr
-
-  type src
-  type dst
-
-  val request : mgr -> ?src:src -> dst -> tx req -> rx res Lwt.t
-  val respond : mgr -> src -> (dst -> rx req -> tx res Lwt.t) -> unit Lwt.t
 end

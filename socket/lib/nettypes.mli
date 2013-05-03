@@ -14,62 +14,76 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Type representing a byte string (as opposed to a pretty-printed
-    string *)
+(** Functions and type definitions common to all modules. *)
+
+(** Type of byte string (as opposed to a pretty-printed
+    string). *)
 type bytes = string
 
-(** Type representing the hardware address (MAC) of an ethernet
-    interface *)
+(** Type of the hardware address (MAC) of an ethernet interface. *)
 type ethernet_mac
 
 (** Functions converting MAC addresses to bytes/string and vice
-    versa *)
+    versa. *)
 
+(** [ethernet_mac_of_bytes buf] is the hardware address extracted from
+    [buf]. Raise [Invalid_argument] if [buf] has not size 6. *)
 val ethernet_mac_of_bytes : bytes -> ethernet_mac
 
-(** Read a MAC address from a colon-separated string (like
-    ff:ff:ff:ff:ff:ff) *)
+(** [ethernet_mac_of_string "a:b:c:d:e:f"] is [Some mac] if
+    "a:b:c:d:e:f" is the colon separated string representation of a
+    valid MAC address, or [None] otherwise. *)
 val ethernet_mac_of_string : string -> ethernet_mac option
+
+(** [ethernet_mac_to_bytes mac_addr] is a string of size 6
+    representing the [mac_addr]. *)
 val ethernet_mac_to_bytes : ethernet_mac -> bytes
 
-(** Return a MAC address as a colon-separated string *)
+(** [ethernet_mac_to_string mac_addr] is the colon spearated string
+    representation of [mac_addr]. *)
 val ethernet_mac_to_string : ethernet_mac -> string
 
+(** [ethernet_mac_broadcast] is the encoded address
+    255.255.255.255. *)
 val ethernet_mac_broadcast: ethernet_mac
 
-(** Functions handling IPv4 addresses *)
+(** Functions handling IPv4 addresses. *)
 
-(** Type representing IPv4 addresses *)
+(** Type representing IPv4 addresses. *)
 type ipv4_addr = Unix.inet_addr
 
-(** Read an IPv4 from a tuple of int32 *)
+(** [ipv4_addr_of_tuple (a,b,c,d)] is an address whose dot separated
+    string representation is a.b.c.d. *)
 val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
 
-(** Read an IPv4 address from a dot-separated string
-    (e.g. 127.0.0.1) *)
+(** [ipv4_addr_of_string "a.b.c.d" is [Some addr] if "a.b.c.d" is a
+    dot separated string representation of a valid IPv4, or [None]
+    otherwise. *)
 val ipv4_addr_of_string : string -> ipv4_addr option
 
-(** Return an IPv4 address as a dot-separated string *)
+(** [ipv4_addr_to_string addr] is the dot separated string
+    representing [addr]. *)
 val ipv4_addr_to_string : ipv4_addr -> string
 
-(** Corresponding to 0.0.0.0 *)
+(** [ipv4_blank] is the address whose dot separated string
+    representation is "0.0.0.0". *)
 val ipv4_blank : ipv4_addr
 
-(** Corresponding to 255.255.255.255 *)
+(** [ipv4_broadcast] is the address whose dot separated string
+    representation is "255.255.255.255". *)
 val ipv4_broadcast : ipv4_addr
 
-(** Corresponding to 127.0.0.1 *)
+(** [ipv4_localhost] is the address whose dot separated string
+    representation is "127.0.0.1". *)
 val ipv4_localhost : ipv4_addr
 
-(** Type describing the socket address of a source (optional IPv4 and
-    port of the source) *)
+(** Type of source socket addresses. *)
 type ipv4_src = ipv4_addr option * int
 
-(** Type describing the socket address of an endpoint (IPv4 and port
-    of the destination *)
+(** Type of destination socket addresses. *)
 type ipv4_dst = ipv4_addr * int
 
-(** Type for an ARP packet *)
+(** Type of an ARP packet. *)
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ]; (** operation *)
   sha: ethernet_mac;                         (** source hardware address *)
@@ -82,31 +96,35 @@ type peer_uid = int
 
 exception Closed
 
+(** Type of an unbuffered byte-stream network protocol, e.g. TCP with
+    each write being a segment. *)
 module type FLOW = sig
-  (** Type of an individual flow *)
+
+  (** Type of an individual flow. *)
   type t
 
-  (** Type that manages a collection of flows *)
+  (** Type that manages a collection of flows. *)
   type mgr
 
-  (** Types that identifies a flow source and destination endoint *)
+  (** Types that identifies a flow source and destination endoint. *)
 
   type src
   type dst
 
-  (** Functions to read and write to/from a flow *)
+  (** Functions to read and write to/from a flow. *)
 
-  val read : t -> Cstruct.t option Lwt.t
-  val write : t -> Cstruct.t -> unit Lwt.t
-  val writev : t -> Cstruct.t list -> unit Lwt.t
-  val close : t -> unit Lwt.t
+  val read    : t -> Cstruct.t option Lwt.t
+  val write   : t -> Cstruct.t -> unit Lwt.t
+  val writev  : t -> Cstruct.t list -> unit Lwt.t
+  val close   : t -> unit Lwt.t
 
-  (** Functions to construct flows *)
+  (** Functions to construct flows. *)
 
-  val listen : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
+  val listen  : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
   val connect : mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
 end
 
+(** Type of a datagram-based network protocol, e.g. UDP. *)
 module type DATAGRAM = sig
 
   (** Datagram manager *)
@@ -127,6 +145,8 @@ module type DATAGRAM = sig
   val send : mgr -> ?src:src -> dst -> msg -> unit Lwt.t
 end
 
+(** Type of a buffered byte-stream network protocol, e.g. TCP with
+    each write buffered and TCP segmentation done. *)
 module type CHANNEL = sig
 
   type mgr
@@ -134,37 +154,20 @@ module type CHANNEL = sig
   type src
   type dst
 
-  val read_char: t -> char Lwt.t
-  val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
-  val read_some: ?len:int -> t -> Cstruct.t Lwt.t
-  val read_stream: ?len: int -> t -> Cstruct.t Lwt_stream.t
-  val read_line: t -> Cstruct.t list Lwt.t
+  val read_char    : t -> char Lwt.t
+  val read_until   : t -> char -> (bool * Cstruct.t) Lwt.t
+  val read_some    : ?len:int -> t -> Cstruct.t Lwt.t
+  val read_stream  : ?len: int -> t -> Cstruct.t Lwt_stream.t
+  val read_line    : t -> Cstruct.t list Lwt.t
 
-  val write_char : t -> char -> unit
+  val write_char   : t -> char -> unit
   val write_string : t -> string -> int -> int -> unit
   val write_buffer : t -> Cstruct.t -> unit
-  val write_line : t -> string -> unit
+  val write_line   : t -> string -> unit
 
-  val flush : t -> unit Lwt.t
-  val close : t -> unit Lwt.t
+  val flush        : t -> unit Lwt.t
+  val close        : t -> unit Lwt.t
 
-  val listen : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
-  val connect : mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
-end
-
-module type RPC = sig
-
-  type tx
-  type rx
-
-  type 'a req
-  type 'a res
-
-  type mgr
-
-  type src
-  type dst
-
-  val request : mgr -> ?src:src -> dst -> tx req -> rx res Lwt.t
-  val respond : mgr -> src -> (dst -> rx req -> tx res Lwt.t) -> unit Lwt.t
+  val listen       : mgr -> src -> (dst -> t -> unit Lwt.t) -> unit Lwt.t
+  val connect      : mgr -> ?src:src -> dst -> (t -> 'a Lwt.t) -> 'a Lwt.t
 end
