@@ -93,41 +93,19 @@ let unplug t id =
       Hashtbl.remove t.listeners id
   with Not_found -> ()
 
-(* Enumerate interfaces and manage the protocol threads.
- The listener becomes a new thread that is spawned when a
- new interface shows up. *)
-let create ?(nb_dev=1) ?(attached=[]) listener =
+(* Manage the protocol threads. The listener becomes a new thread
+   that is spawned when a new interface shows up. *)
+let create listener =
   printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
   let t = { listener; listeners } in
-  let _ =
-    for i= 1 to nb_dev do
-      ignore(OS.Netif.create (plug t))
-    done
-  in
-  let _ =
-    List.iter (
-      fun dev ->
-        let _ = OS.Netif.create ~dev:(Some(dev)) (plug t) in
-          ()
-    ) attached in
+  let xenstore_th = OS.Netif.create (plug t) in
   let th,_ = Lwt.task () in
   Lwt.on_cancel th (fun _ ->
     printf "Manager: cancel\n%!";
     Hashtbl.iter (fun id _ -> unplug t id) listeners);
   printf "Manager: init done\n%!";
   th
-
-let attach mgr dev =
-  try_lwt
-    let _ = OS.Netif.create ~dev:(Some(dev)) (plug mgr) in
-      return false
-  with ex ->
-    Printf.printf "Failed to attach dev %s\n%!" (Printexc.to_string ex);
-    return false
-
-let detach mgr dev =
-  return false
 
 (* Find the interfaces associated with the address *)
 let i_of_ip t = function
