@@ -15,14 +15,14 @@
  *
  *)
 
+(** Manage ethernet interfaces. *)
+
 (** Module Ethif is used to represent an ethernet protocol interface,
-    using the underlying OS.Netif *)
+    using the underlying OS.Netif. *)
 
 open Nettypes
 
-(** {1 Types} *)
-
-(** Type for an ethernet protocol interface. It contains a OS.Netif.t
+(** Type of an ethernet protocol interface. It contains a OS.Netif.t
     "raw" interface, as well as IPv4 and ARP callbacks to perform IP
     or ARP operations on this interface. *)
 type t
@@ -30,8 +30,6 @@ type t
 type packet =
 | Input of Cstruct.t       (** always read as a whole chunk *)
 | Output of Cstruct.t list (** written as a list of fragments *)
-
-(** {2 Values} *)
 
 (** [create netif] creates a value of type t out of a [netif] value,
     and calls [listen] on the result. It returns a tuple composed of a
