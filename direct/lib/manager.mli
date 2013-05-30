@@ -20,7 +20,7 @@
 
 open Nettypes
 
-(** Type representing an IPv4 configuration for an interface *)
+(** Type representing an IPv4 configuration for an interface. *)
 type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
 
 (** Textual id identifying a network interface, typically "tap0" on
@@ -29,13 +29,14 @@ type id = OS.Netif.id
 
 (** Type representing a network interface, including facilities to
     send data (Ethernet frames, IP packets, ICMP, UDP, TCP, ...)
-    through it *)
+    through it. *)
 type interface
 
-(** Type of a manager *)
+(** Type of a manager. *)
 type t
 
-(** Type of the callback function provided at manager creation time *)
+(** Type of the callback function provided at manager creation
+    time. *)
 type callback = t -> interface -> id -> unit Lwt.t
 
 (** Accesors for components of the interface type *)
@@ -47,23 +48,21 @@ val get_icmp  : interface -> Icmp.t
 val get_udp   : interface -> Udp.t
 val get_tcp   : interface -> Tcp.Pcb.t
 
-(** [create ~devs ~attached callback] will create a manager that will
-    create [nb_dev] devices, attach to the devices in [attached] (in
-    the sense of sniffing into those interfaces, only supported on
-    MacOS for now), create a value of type interface for each of those
-    devices and call [callback] of each of them. The return value is a
-    cancellable thread that will free all interfaces managed by the
-    manager when cancelled, freeing the values of type interface *)
-val create : ?nb_dev:int -> ?attached:(string list) -> callback -> unit Lwt.t
+(** [create callback] will create a manager that will use
+    [OS.Netif.create] to watch for network interfaces, create a value
+    of type interface for each of those devices and call [callback] of
+    each of them. The return value is a cancellable thread that will
+    free all interface values when cancelled. *)
+val create : callback -> unit Lwt.t
 
 (** [plug mgr id netif] create a value of type [interface] out of
     [netif] (which has name [id]) and adds it in the list of
     interfaces managed by [mgr], then calls the manager's callback
-    function on it *)
+    function on it. Used internally by [create]. *)
 val plug: t -> id -> OS.Netif.t -> unit Lwt.t
 
 (** [unplug mgr id] removes [id] from the list of interfaces managed
-    by [mgr]. *)
+    by [mgr]. Used internally by [create].*)
 val unplug: t -> id -> unit
 
 (** [configure intf cfg] applies [cfg] to [intf]. After this step,
@@ -72,14 +71,6 @@ val unplug: t -> id -> unit
     address, and will be able to receive and send packets at the
     resulting address. *)
 val configure: interface -> config -> unit Lwt.t
-
-(** [attach mgr id] will put [id] under control of [mgr]. [id] should
-    already exist, and be a real interface (not a TUN/TAP one). The
-    return value is [false]. *)
-val attach: t -> id -> bool Lwt.t
-
-(** Do nothing, return [false]. *)
-val detach: t -> id -> bool Lwt.t
 
 (** [set_promiscuous mgr id f] will install [f] as the promiscuous
     callback for [id]. See the documentation of module [Ethif] for

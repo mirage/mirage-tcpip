@@ -27,7 +27,8 @@ val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.
 
 
 (** The following functions are provided for compatibility with other
-    backends, but are irrelevant for the socket backend. *)
+    backends, but are irrelevant for the socket backend, and thus
+    should not be used. *)
 
 type interface = unit
 type id = string (** Always equal to "" *)
@@ -45,17 +46,15 @@ val get_intf : interface -> string
 type callback = t -> interface -> id -> unit Lwt.t
 
 (** [create callback] creates a manager that will call [callback]. The
-    optional arguments [devs] and [attached] are not used here, so it
-    is useless to give them any value. The callback function is
-    responsible for polling the hashtbl to check for new
-    "connections", implemented here as UDP sockets that are bound to a
-    particular sockaddr. *)
-val create :  ?devs:int -> ?attached:(string list) -> callback -> unit Lwt.t
+    callback function is responsible for polling the hashtbl to check
+    for new "connections", implemented here as UDP sockets that are
+    bound to a particular sockaddr. *)
+val create : callback -> unit Lwt.t
 
 
 (** The following functions are provided for compatibility with other
     backends, but are not supported by the socket backend, and MUST
-    NOT be used *)
+    NOT be used (They all fail with an appropriate error message). *)
 
 val attach: t -> string -> bool Lwt.t
 val detach: t -> string -> bool Lwt.t
