@@ -9,9 +9,17 @@ endif
 
 all:
 	cd $(NET) && $(MAKE) all
+build:
+	cd $(NET) && $(MAKE) all
 clean:
 	cd $(NET) && $(MAKE) clean
 install:
 	cd $(NET) && $(MAKE) install
 test:
 	cd $(NET) && $(MAKE) test
+
+socket-%:
+	$(MAKE) OS=unix $*
+
+direct-%:
+	$(MAKE) OS=xen $*
