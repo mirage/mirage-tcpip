@@ -19,7 +19,7 @@ test:
 	cd $(NET) && $(MAKE) test
 
 socket-%:
-	$(MAKE) OS=socket $*
+	$(MAKE) NET=socket $*
 
 direct-%:
-	$(MAKE) OS=direct $*
+	$(MAKE) NET=direct $*
