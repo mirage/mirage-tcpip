@@ -19,7 +19,7 @@ test:
 	cd $(NET) && $(MAKE) test
 
 socket-%:
-	$(MAKE) OS=unix $*
+	$(MAKE) OS=socket $*
 
 direct-%:
-	$(MAKE) OS=xen $*
+	$(MAKE) OS=direct $*
