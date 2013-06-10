@@ -1,3 +1,7 @@
+0.6.0 (trunk):
+
+* Depend on mirage-platform-0.9.1 direct tuntap interfaces.
+
 0.5.2 (08-Feb-2013):
 * Encourage scatter-gather I/O all the time, rather than playing tricks 
   with packet header buffers. This simplifies the output path considerably
