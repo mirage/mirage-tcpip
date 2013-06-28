@@ -156,6 +156,21 @@ module Tx = struct
       wait_for t sz
     end
 
+  let compactbufs bl =
+    (* TODO: fix hardecoded threshold *)
+    if (List.length bl > 8) then begin
+      let b = OS.Io_page.(to_cstruct (get 1)) in
+      let copyf doff ab =
+	Cstruct.blit ab 0 b doff (Cstruct.len ab);
+	doff + (Cstruct.len ab)
+      in
+      let l = List.fold_left copyf 0 bl in
+      let b = Cstruct.sub b 0 l in
+      [b]
+    end else begin
+      bl
+    end
+
   (* Wait until the user buffer is flushed *)
   let rec wait_for_flushed t =
     if Lwt_sequence.is_empty t.buffer then begin
@@ -218,12 +233,16 @@ module Tx = struct
         match get_pkt_to_send () with
         | None -> return ()
         | Some pkt -> 
-            Segment.Tx.output ~flags:Segment.Tx.Psh t.txq pkt >>
+	    let b = compactbufs pkt in
+            Segment.Tx.output ~flags:Segment.Tx.Psh t.txq b >>
             clear_buffer t
 
   (* Chunk up the segments into MSS max for transmission *)
   let transmit_segments ~mss ~txq datav =
-    let transmit acc = Segment.Tx.(output ~flags:Psh txq (List.rev acc)) in
+    let transmit acc = 
+      let b = compactbufs (List.rev acc) in
+      Segment.Tx.(output ~flags:Psh txq b)
+    in
     let rec chunk datav acc =
       match datav with
       |[] -> begin
