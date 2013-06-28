@@ -48,32 +48,29 @@ let ip2 =
 
 let port = 5001
 
-let msg = "0123456789abcdefghijklmnopqrstuvwxyz"
+let msg = "x"
 
 let mlen = String.length msg
 
-let iperfclient tt ip =
-  OS.Time.sleep 2. >>
+let iperfclient mgr src_ip dest_ip dport =
+  let iperftx chan =
+    printf "Iperf client: Made connection to server. \n%!";
+    let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
+    Cstruct.blit_from_string msg 0 a 0 mlen;
+    let amt = 100000000 in
+    for_lwt i = (amt / mlen) downto 1 do
+      Net.Flow.write chan a
+    done >>
+    let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
+    Net.Flow.write chan a >>
+    Net.Flow.close chan
+  in
+  OS.Time.sleep 5. >>
   (printf "Iperf client: Attempting connection. \n%!";
-   lwt conn = Net.Tcp.Pcb.connect tt ~dest_ip:ip ~dest_port:port in
-   match conn with
-   | None ->
-       printf "Iperf client: Unable to connect to remote host (is the iperf server up?) \n%!";
-       return ()
-   | Some (pcb, _) ->
-       printf "Iperf client: Made connection to server. \n%!";
-       let a_io = OS.Io_page.get () in
-       let a = OS.Io_page.to_cstruct a_io in
-       Cstruct.blit_from_string msg 0 a 0 mlen;
-       let a = Cstruct.sub a 0 mlen in
-       let amt = 100000000 in
-       for_lwt i = (amt / mlen) downto 1 do
-         Net.Tcp.Pcb.write pcb a
-       done >>
-       let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
-       Net.Tcp.Pcb.write pcb a >>
-       (printf "Iperf client: Done.\n%!";
-	Net.Tcp.Pcb.close pcb)
+   lwt conn = Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
+					    (dest_ip, dport), iperftx)) in
+   printf "Iperf client: Done.\n%!";
+   return ()
   )
 
 
@@ -125,10 +122,9 @@ let main () =
 	OS.Time.sleep 2. >>
 	(printf "Setting up iperf client on interface %s\n%!" id;
 	 Net.Manager.configure interface (`IPv4 ip2) >>
-	 let tcps = Net.Manager.tcpv4_of_addr mgr None in
-	 let tt = List.hd tcps in
-	 let (ip,_,_) = ip1 in
-	 lwt () = iperfclient tt ip in
+	 let (src_ip,_,_) = ip2 in
+	 let (dest_ip,_,_) = ip1 in
+	 iperfclient mgr src_ip dest_ip port >>
          return ()
 	)
     | 1 ->
