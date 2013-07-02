@@ -72,7 +72,7 @@ let rec write_buf fd buf =
   if amt = len then return () else write_buf fd (Cstruct.shift buf amt)
 
 let read t =
-  let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
+  let buf = Cstruct.of_bigarray (OS.Io_page.get 1) in
   lwt len = read_buf t buf in
   match len with
   |0 -> return None

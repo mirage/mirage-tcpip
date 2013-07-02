@@ -41,7 +41,7 @@ module UDPv4 = struct
 
   let recv mgr (addr,port) fn =
     lwt lfd = Manager.get_udpv4_listener mgr (addr,port) in
-    let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
+    let buf = Cstruct.of_bigarray (OS.Io_page.get 1) in
     let rec listen () =
       lwt (len, frm_sa) = Lwt_cstruct.recvfrom lfd buf [] in
       let frm_addr, frm_port =
