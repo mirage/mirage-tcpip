@@ -31,13 +31,7 @@ module TCPv4 = struct
     Tcp.Pcb.read t
 
   let rec write t view =
-    let vlen = Cstruct.len view in
-    match Tcp.Pcb.write_available t with
-    |len when len < vlen -> (* block for window to open *)
-      Tcp.Pcb.write_wait_for t vlen >>
-      write t view
-    |len -> (* full write *)
-      Tcp.Pcb.write t view
+    Tcp.Pcb.write t view
 
   let writev t views =
     Tcp.Pcb.writev t views
@@ -67,13 +61,22 @@ module TCPv4 = struct
     th
 
   let connect mgr ?src dst fn =
-    let (addr, port) = dst in
-    let tcp = Manager.tcpv4_of_dst_addr mgr addr in
-    lwt conn = Tcp.Pcb.connect tcp addr port in
+    let (daddr, dport) = dst in
+    let tcp =
+      match src with
+      | None -> Manager.tcpv4_of_dst_addr mgr daddr
+      | Some s ->
+	  (* TODO - change interface to make clear that sport is ignored *)
+	  let (saddr, _) = s in
+	  match (Manager.tcpv4_of_addr mgr saddr) with
+	  | [] -> Manager.tcpv4_of_dst_addr mgr daddr
+	  | h :: _ -> h
+    in
+    lwt conn = Tcp.Pcb.connect tcp daddr dport in
       match conn with
         | None ->
             (Printf.printf "Failed to connect to %s:%d\n%!"
-               (Nettypes.ipv4_addr_to_string addr)  port;
+               (Nettypes.ipv4_addr_to_string daddr)  dport;
              return ())
         | Some (fl, _) -> fn fl 
 
