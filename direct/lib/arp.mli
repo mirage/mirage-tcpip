@@ -24,7 +24,7 @@ open Printf
 type t
 
 (** [create ~get_etherbuf ~output ~get_mac] creates a value of type
-    [t] *)
+    [t]. *)
 val create: get_etherbuf:(unit -> Cstruct.t Lwt.t) ->
   output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> ethernet_mac) -> t
 
@@ -51,6 +51,6 @@ val input: t -> Cstruct.t -> unit Lwt.t
 
 (** [query arp ip] queries the cache in [arp] for an ARP entry
     corresponding to [ip], which may result in the sender sleeping
-    waiting for a response *)
+    waiting for a response. *)
 val query: t -> ipv4_addr -> ethernet_mac Lwt.t
 
