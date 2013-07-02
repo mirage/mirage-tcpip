@@ -139,7 +139,7 @@ module Make(Flow:FLOW) :
   (* Output functions *)
 
   let alloc_obuf t =
-    let buf = Cstruct.of_bigarray (OS.Io_page.get ()) in
+    let buf = Cstruct.of_bigarray (OS.Io_page.get 1) in
     t.obuf <- Some buf;
     t.opos <- 0;
     buf

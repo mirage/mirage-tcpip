@@ -83,7 +83,7 @@ type id = {
 
 (* Note: since just one pbuf is used for all chksum calculations,
    the call to ones_complement_list should never block *)
-let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get ())) 0 sizeof_pseudo_header 
+let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get 1)) 0 sizeof_pseudo_header 
 let checksum ~src ~dst =
   fun data ->
     set_pseudo_header_src pbuf (ipv4_addr_to_uint32 src);

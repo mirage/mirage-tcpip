@@ -86,7 +86,10 @@ module Tx = struct
     match state pcb.state with
     | Established | Close_wait ->
       User_buffer.Tx.wait_for_flushed pcb.utx >>
-      Segment.Tx.output ~flags:Segment.Tx.Fin pcb.txq []
+      (let {wnd} = pcb in
+       State.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
+       Segment.Tx.output ~flags:Segment.Tx.Fin pcb.txq []
+      )
     |_ -> return ()
      
   (* Thread that transmits ACKs in response to received packets,
@@ -154,7 +157,6 @@ module Rx = struct
       end in
       match data with
       |None ->
-        (* lwt _ = Ack.Delayed.pushack ack (Window.rx_nxt wnd) in *)
         State.tick pcb.state State.Recv_fin;
         Lwt.wakeup urx_close_u ();
         User_buffer.Rx.add_r urx None >>
@@ -641,15 +643,13 @@ let htmlend =
 
 let write_stat ch s =
   let rec w_one start len ch s =
+    let abuf = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 len in
+    Cstruct.blit_from_string s start abuf 0 len;
+    write ch abuf >>
     if (String.length s - start) > len then begin
-      let subs = String.sub s start len in
-      let bs = Bitstring.bitstring_of_string subs in
-      write ch bs >>
       w_one (start + len) len ch s
     end else begin
-      let subs = String.sub s start (String.length s - start) in
-      let bs = Bitstring.bitstring_of_string subs in
-      write ch bs
+      return ()
     end
   in
   w_one 0 1460 ch s

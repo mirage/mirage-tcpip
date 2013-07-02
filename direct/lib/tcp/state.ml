@@ -17,7 +17,7 @@
 open Lwt
 open Printf
 
-let fin_wait_2_time = (* 60. *) 4.
+let fin_wait_2_time = (* 60. *) 10.
 let time_wait_time = (* 30. *) 2.
 
 type action =

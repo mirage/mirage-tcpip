@@ -48,7 +48,7 @@ let ip2 =
 
 let port = 5001
 
-let msg = "0123456789abcdefghijklmnopqrstuvwxyz"
+let msg = "x"
 
 let mlen = String.length msg
 
@@ -62,7 +62,7 @@ let iperfclient tt ip =
        return ()
    | Some (pcb, _) ->
        printf "Iperf client: Made connection to server. \n%!";
-       let a_io = OS.Io_page.get () in
+       let a_io = OS.Io_page.get 1 in
        let a = OS.Io_page.to_cstruct a_io in
        Cstruct.blit_from_string msg 0 a 0 mlen;
        let a = Cstruct.sub a 0 mlen in
