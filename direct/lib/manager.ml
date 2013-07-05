@@ -20,7 +20,6 @@
 
 open Lwt
 open Nettypes
-open Printf
 
 type id = OS.Netif.id
 
@@ -43,7 +42,7 @@ let get_tcp t   = t.tcp
 type callback = t -> interface -> id -> unit Lwt.t
 
 and t = {
-  listener: callback;
+  cb: callback;
   listeners: (id, interface) Hashtbl.t
 }
 
@@ -53,13 +52,15 @@ type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
 let configure i =
   function
   |`DHCP ->
-    printf "Manager: Interface %s to DHCP\n%!" i.id;
+    Printf.printf "Manager: Interface %s to DHCP\n%!" (OS.Netif.string_of_id i.id);
     lwt t, th = Dhcp.Client.create i.ipv4 i.udp in
-    printf "Manager: DHCP done\n%!";
+    Printf.printf "Manager: DHCP done\n%!";
     return ()
   |`IPv4 (addr, netmask, gateways) ->
-    printf "Manager: Interface %s to %s nm %s gw [%s]\n%!"
-      i.id (ipv4_addr_to_string addr) (ipv4_addr_to_string netmask)
+    Printf.printf "Manager: Interface %s to %s nm %s gw [%s]\n%!"
+      (OS.Netif.string_of_id i.id)
+      (ipv4_addr_to_string addr)
+      (ipv4_addr_to_string netmask)
       (String.concat ", " (List.map ipv4_addr_to_string gateways));
     Ipv4.set_ip i.ipv4 addr >>
     Ipv4.set_netmask i.ipv4 netmask >>
@@ -67,10 +68,9 @@ let configure i =
     return ()
 
 (* Plug in a new network interface with given id *)
-let plug t id netif =
-  printf "Manager: plug %s\n%!" id;
-  let wrap (s,t) = try_lwt t >>= return with exn ->
-    (printf "Manager: exn=%s %s\n%!" s (Printexc.to_string exn); fail exn) in
+let plug t netif =
+  let id = OS.Netif.id netif in
+  Printf.printf "Manager: plug %s\n%!" (OS.Netif.string_of_id id);
   let (ethif, ethif_t) = Ethif.create netif in
   let (ipv4, ipv4_t)   = Ipv4.create ethif in
   let (icmp, icmp_t)   = Icmp.create ipv4 in
@@ -83,28 +83,28 @@ let plug t id netif =
      TODO: think about restart strategies here *)
   (* Register the interface_t with the manager interface *)
   Hashtbl.add t.listeners id i;
-  printf "Manager: plug done, to listener\n%!";
-  t.listener t i id
+  Printf.printf "Manager: plug done, to listener\n%!"
 
 (* Unplug a network interface. TODO: Cancel its thread as well. *)
 let unplug t id =
-  try
-    let i = Hashtbl.find t.listeners id in
-      Hashtbl.remove t.listeners id
-  with Not_found -> ()
+  Hashtbl.remove t.listeners id
 
 (* Manage the protocol threads. The listener becomes a new thread
    that is spawned when a new interface shows up. *)
-let create listener =
-  printf "Manager: create\n%!";
+let create cb =
+  Printf.printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
-  let t = { listener; listeners } in
-  let xenstore_th = OS.Netif.create (plug t) in
+  let t = { cb; listeners } in
+  lwt intfs = OS.Netif.create () in
+  let intfs = List.iter (plug t) intfs in
+  (* Now asynchronously launching the callbacks! *)
+  Hashtbl.iter (fun id intf ->
+      Lwt.async (fun () -> t.cb t intf id)) t.listeners;
   let th,_ = Lwt.task () in
   Lwt.on_cancel th (fun _ ->
-    printf "Manager: cancel\n%!";
+    Printf.printf "Manager: cancel\n%!";
     Hashtbl.iter (fun id _ -> unplug t id) listeners);
-  printf "Manager: init done\n%!";
+  Printf.printf "Manager: init done\n%!";
   th
 
 (* Find the interfaces associated with the address *)
@@ -160,28 +160,20 @@ let inject_packet t id frame =
     let intf = Hashtbl.find t.listeners id in
       Ethif.write intf.ethif frame
   with exn ->
-    return (eprintf "Net.Manager.inject_packet : %s\n%!"
+    return (Printf.eprintf "Net.Manager.inject_packet : %s\n%!"
               (Printexc.to_string exn))
 
-let get_intf_name t id =
-  try
-    let intf = Hashtbl.find t.listeners id in
-    intf.id
-  with exn ->
-    eprintf "Net.Manager.get_intf_name : %s\n%!" (Printexc.to_string exn);
-    ""
+let get_intfs t = Hashtbl.fold (fun k v a -> (k,v)::a) t.listeners []
 
 let get_intf_mac t id =
-  try
-    let intf = Hashtbl.find t.listeners id in
-    Ethif.mac intf.ethif
-  with exn ->
-    eprintf "Net.Manager.get_intf_mac : %s\n%!" (Printexc.to_string exn);
-    raise Not_found
+  let intf = Hashtbl.find t.listeners id in
+  Ethif.mac intf.ethif
+
+let get_intf_ipv4addr t id =
+  let intf = Hashtbl.find t.listeners id in
+  Ipv4.get_ip intf.ipv4
 
 let set_promiscuous t id f =
-  try
-    let intf = Hashtbl.find t.listeners id in
-      Ethif.set_promiscuous intf.ethif (f id)
-  with exn ->
-    eprintf "Net.Manager.get_intf_mac : %s\n%!" (Printexc.to_string exn)
+  let intf = Hashtbl.find t.listeners id in
+  Ethif.set_promiscuous intf.ethif (f id)
+
