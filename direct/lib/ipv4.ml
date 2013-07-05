@@ -105,7 +105,7 @@ let adjust_output_header ~tlen frame =
 let write t frame data =
   let ihl = 5 in (* TODO options *)
   let tlen = (ihl * 4) + (Cstruct.len data) in
-  let buf = adjust_output_header ~tlen frame in
+  adjust_output_header ~tlen frame;
   Ethif.writev t.ethif [frame;data]
 
 let writev t ethernet_frame bufs =
