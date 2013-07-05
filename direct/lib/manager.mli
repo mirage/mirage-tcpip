@@ -55,16 +55,6 @@ val get_tcp   : interface -> Tcp.Pcb.t
     free all interface values when cancelled. *)
 val create : callback -> unit Lwt.t
 
-(** [plug mgr id netif] create a value of type [interface] out of
-    [netif] (which has name [id]) and adds it in the list of
-    interfaces managed by [mgr], then calls the manager's callback
-    function on it. Used internally by [create]. *)
-val plug: t -> id -> OS.Netif.t -> unit Lwt.t
-
-(** [unplug mgr id] removes [id] from the list of interfaces managed
-    by [mgr]. Used internally by [create].*)
-val unplug: t -> id -> unit
-
 (** [configure intf cfg] applies [cfg] to [intf]. After this step,
     depending on the configuration (DHCP or static address), [intf]
     will either perform a DHCP discovery or assign itself a specified
@@ -73,8 +63,9 @@ val unplug: t -> id -> unit
 val configure: interface -> config -> unit Lwt.t
 
 (** [set_promiscuous mgr id f] will install [f] as the promiscuous
-    callback for [id]. See the documentation of module [Ethif] for
-    more information about registering a callback for the promiscuous
+    callback for [id] if it exists, or raise [Not_found]
+    otherwise. See the documentation of module [Ethif] for more
+    information about registering a callback for the promiscuous
     mode. *)
 val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit
 
@@ -93,9 +84,11 @@ val udpv4_of_addr : t -> ipv4_addr option -> Udp.t list
     remote address [ip]. *)
 val tcpv4_of_dst_addr : t -> ipv4_addr -> Tcp.Pcb.t
 
-(** [get_intf_name mgr id] return [id]'s name, which for now IS equal
-    to [id].*)
-val get_intf_name : t -> id -> string
-
 (** [get_intf_mac mgr id] returns the MAC address of interface [id].*)
 val get_intf_mac : t -> id -> ethernet_mac
+
+(** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
+    [id] if it exists, or raise [Not_found] otherwise. *)
+val get_intf_ipv4addr : t -> id -> ipv4_addr
+
+val get_intfs : t -> (id * interface) list
