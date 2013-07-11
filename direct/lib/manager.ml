@@ -96,7 +96,7 @@ let create cb =
   let listeners = Hashtbl.create 1 in
   let t = { cb; listeners } in
   lwt intfs = OS.Netif.create () in
-  let intfs = List.iter (plug t) intfs in
+  let () = List.iter (plug t) intfs in
   (* Now asynchronously launching the callbacks! *)
   Hashtbl.iter (fun id intf ->
       Lwt.async (fun () -> t.cb t intf id)) t.listeners;
