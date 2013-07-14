@@ -31,15 +31,36 @@ module Shmem : CHANNEL with
 type t
 
 val read_char: t -> char Lwt.t
-val read_some: ?len:int -> t -> Cstruct.t Lwt.t
-val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
-val read_stream: ?len:int -> t -> Cstruct.t Lwt_stream.t
-val read_line: t -> Cstruct.t list Lwt.t
+(** [read_char c] returns one character from [c]. *)
 
-val write_char : t -> char -> unit 
+val read_some: ?len:int -> t -> Cstruct.t Lwt.t
+(** [read_some ?len c] reads up to [len] characters from [c], or reads
+    as much characters as possible if [len] is [None]. *)
+
+val read_stream: ?len:int -> t -> Cstruct.t Lwt_stream.t
+(** [read_stream ?len c] creates a [Lwt_steam.t] using [read_some]. *)
+
+val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
+(** [read_until c ch] reads from [c] until [ch] is found if [ch]
+    belongs to the set of characters in the channel, or reads until
+    EOF otherwise. *)
+
+val read_line: t -> Cstruct.t list Lwt.t
+(** [read_line c] returns a list of views corresponding to one line
+    (e.g. that finishes by LF or CRLF). *)
+
+val write_char : t -> char -> unit
+(** [write_char c ch] writes [ch] into [c]. *)
+
 val write_string : t -> string -> int -> int -> unit
+(** [write_string c buf off len] writes [len] characters from [buf]
+    starting at [off] to [c]. *)
+
 val write_buffer : t -> Cstruct.t -> unit
+(** [write_buffer c buf] do a zero-copy write of [buf] to [c]. *)
+
 val write_line : t -> string -> unit
+(** Like [write_string] but appends a LF at the end of the string. *)
 
 val flush : t -> unit Lwt.t
 val close : t -> unit Lwt.t
