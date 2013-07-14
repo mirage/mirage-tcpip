@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Unbuffered streams over TCP or shared memory. *)
+
 open Nettypes
 
 type ipv4_src = ipv4_addr option * int

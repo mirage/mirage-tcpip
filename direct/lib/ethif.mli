@@ -15,10 +15,7 @@
  *
  *)
 
-(** Manage ethernet interfaces. *)
-
-(** Module Ethif is used to represent an ethernet protocol interface,
-    using the underlying OS.Netif. *)
+(** INTERNAL: Ethernet protocol. *)
 
 open Nettypes
 

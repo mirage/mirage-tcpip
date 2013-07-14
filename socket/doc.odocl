@@ -1,6 +1,9 @@
-Channel
+Nettypes
+Manager
+
+# This is not finished.
+#Resolve
+
 Datagram
 Flow
-Manager
-Nettypes
-Resolve
+Channel

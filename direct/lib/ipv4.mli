@@ -14,9 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** INTERNAL: IPv4 protocol. *)
+
 open Nettypes
 
 type t
+(** Type of a IPv4 *)
 
 val get_header: proto:[< `ICMP | `TCP | `UDP ] -> dest_ip:ipv4_addr -> t -> (Cstruct.t * int) Lwt.t
 
