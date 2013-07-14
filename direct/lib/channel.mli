@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Buffered streams over TCP or shared memory. *)
+
 open Nettypes
 
 module TCPv4 : CHANNEL with

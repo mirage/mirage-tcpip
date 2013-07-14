@@ -15,6 +15,8 @@
  *
  *)
 
+(** INTERNAL: ARP protocol. *)
+
 open Nettypes
 open Printf
 

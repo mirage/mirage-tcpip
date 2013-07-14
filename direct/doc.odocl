@@ -1,12 +1,23 @@
-Arp
-Channel
-Checksum
-Config
-Datagram
+# Modules that we don't include in the doc.
+
+#Checksum
+#Config
+
+# Internal modules.
+
 Ethif
-Flow
+Arp
 Icmp
 Ipv4
-Manager
-Nettypes
 Udp
+
+# Modules directly useful for users.
+
+Nettypes
+
+Manager
+
+Datagram
+Flow
+Channel
+

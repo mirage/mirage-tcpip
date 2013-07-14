@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Manage network interfaces. *)
+
 open Nettypes
 
 (** Type of a manager *)

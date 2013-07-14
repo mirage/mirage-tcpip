@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** INTERNAL: ICMP protocol. *)
+
 open Nettypes
 
 type t

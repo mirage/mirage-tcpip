@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Buffered streams (TCP with each write buffered and TCP segmentation done). *)
+
 open Nettypes
 
 module TCPv4 : CHANNEL with

@@ -18,6 +18,8 @@
    will eventually deal with load balancing and route determination
    (e.g. if a remote target is on the same host, swap to shared memory *)
 
+(** Manage network interfaces. *)
+
 open Nettypes
 
 (** Type representing an IPv4 configuration for an interface. *)

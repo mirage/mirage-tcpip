@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Send and receive UDP datagrams. *)
+
 module UDPv4 : Nettypes.DATAGRAM with
       type mgr = Manager.t
   and type src = Nettypes.ipv4_src

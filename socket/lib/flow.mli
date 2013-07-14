@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Unbuffered streams (TCP with each write being a segment). *)
+
 open Nettypes
 
 module TCPv4 : FLOW with

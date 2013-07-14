@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Send and receive UDP packets. *)
+(** INTERNAL: UDP protocol. *)
 
 open Nettypes
 
