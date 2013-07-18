@@ -1,7 +1,7 @@
-0.9.3 (unreleased):
-* Changes in module Manager: Removed some function from the .mli
-  (plug/unplug), added some, some modifications in the way the Manager
-  interact with the underlying module Netif. The Netif.create function
+0.9.3 (18-July-2013):
+* Changes in module Manager: Removed some functions from the `.mli
+  (plug/unplug) and added some modifications in the way the Manager
+  interacts with the underlying module Netif. The Netif.create function
   does not take a callback anymore.
 
 0.9.2 (09-July-2013):
