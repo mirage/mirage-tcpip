@@ -21,13 +21,13 @@ open Printf
 
 (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 type entry =
-  | Incomplete of ethernet_mac Lwt_condition.t
-  | Verified of ethernet_mac
+  | Incomplete of Macaddr.t Lwt_condition.t
+  | Verified of Macaddr.t
 
 type t = {
   get_etherbuf: unit -> Cstruct.t Lwt.t;
   output: Cstruct.t -> unit Lwt.t;
-  get_mac: unit -> ethernet_mac;
+  get_mac: unit -> Macaddr.t;
   cache: (ipv4_addr, entry) Hashtbl.t;
   mutable bound_ips: ipv4_addr list;
  }
@@ -60,7 +60,7 @@ let prettyprint t =
      (ipv4_addr_to_string ip)
      (match entry with
       | Incomplete _ -> "I"
-      | Verified mac -> sprintf "V(%s)" (ethernet_mac_to_string mac)
+      | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
      )
   ) t.cache
 
@@ -76,16 +76,16 @@ let rec input t frame =
       printf "ARP responding to: who-has %s?\n%!" (ipv4_addr_to_string req_ipv4);
       (* We own this IP, so reply with our MAC *)
       let sha = t.get_mac () in
-      let tha = ethernet_mac_of_bytes (copy_arp_sha frame) in
+      let tha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
       let spa = ipv4_addr_of_uint32 (get_arp_tpa frame) in (* the requested address *)
       let tpa = ipv4_addr_of_uint32 (get_arp_spa frame) in (* the requesting host IPv4 *)
       output t { op=`Reply; sha; tha; spa; tpa }
     end else return ()
   |2 -> (* Reply *)
     let spa = ipv4_addr_of_uint32 (get_arp_spa frame) in
-    let sha = ethernet_mac_of_bytes (copy_arp_sha frame) in
+    let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
     printf "ARP: updating %s -> %s\n%!"
-      (ipv4_addr_to_string spa) (ethernet_mac_to_string sha);
+      (ipv4_addr_to_string spa) (Macaddr.to_string sha);
     (* If we have pending entry, notify the waiters that answer is ready *)
     if Hashtbl.mem t.cache spa then begin
       match Hashtbl.find t.cache spa with
@@ -102,8 +102,8 @@ and output t arp =
   (* Obtain a buffer to write into *)
   lwt buf = t.get_etherbuf () in
   (* Write the ARP packet *)
-  let dmac = ethernet_mac_to_bytes arp.tha in
-  let smac = ethernet_mac_to_bytes arp.sha in
+  let dmac = Macaddr.to_bytes arp.tha in
+  let smac = Macaddr.to_bytes arp.sha in
   let spa = ipv4_addr_to_uint32 arp.spa in
   let tpa = ipv4_addr_to_uint32 arp.tpa in
   let op =
@@ -130,7 +130,7 @@ and output t arp =
 
 (* Send a gratuitous ARP for our IP addresses *)
 let output_garp t =
-  let tha = ethernet_mac_broadcast in
+  let tha = Macaddr.broadcast in
   let sha = t.get_mac () in
   let tpa = ipv4_blank in
   Lwt_list.iter_s (fun spa ->
@@ -141,7 +141,7 @@ let output_garp t =
 (* Send a query for a particular IP *)
 let output_probe t tpa =
   printf "ARP: transmitting probe -> %s\n%!" (ipv4_addr_to_string tpa);
-  let tha = ethernet_mac_broadcast in
+  let tha = Macaddr.broadcast in
   let sha = t.get_mac () in
   (* Source protocol address, pick one of our IP addresses *)
   let spa = match t.bound_ips with
@@ -175,7 +175,7 @@ let query t ip =
        Lwt_condition.wait cond
     | Verified mac ->
        (* printf "ARP query: %s -> %s\n%!"
-         (ipv4_addr_to_string ip) (ethernet_mac_to_string mac); *)
+         (ipv4_addr_to_string ip) (Macaddr.to_string mac); *)
        return mac
   ) else (
     let cond = Lwt_condition.create () in

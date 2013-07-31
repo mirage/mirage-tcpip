@@ -25,7 +25,7 @@ type packet =
 
 type t = {
   netif: OS.Netif.t;
-  mac: ethernet_mac;
+  mac: Macaddr.t;
   arp: Arp.t;
   mutable ipv4: (Cstruct.t -> unit Lwt.t);
   mutable promiscuous:( packet -> unit Lwt.t) option;
@@ -77,7 +77,7 @@ let writev t bufs =
 
 let create netif =
   let ipv4 = fun (_:Cstruct.t) -> return () in
-  let mac = ethernet_mac_of_bytes (OS.Netif.mac netif) in
+  let mac = Macaddr.of_bytes_exn (OS.Netif.mac netif) in
   let arp =
     let get_mac () = mac in
     let get_etherbuf () = OS.Netif.get_writebuf netif in

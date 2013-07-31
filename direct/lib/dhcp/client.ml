@@ -83,7 +83,7 @@ let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
   set_dhcp_siaddr buf (ipv4_addr_to_uint32 siaddr);
   set_dhcp_giaddr buf 0l;
   (* TODO add a pad/fill function in cstruct *)
-  set_dhcp_chaddr (ethernet_mac_to_bytes (Ipv4.mac t.ip) ^ (String.make 10 '\000')) 0 buf;
+  set_dhcp_chaddr (Macaddr.to_bytes (Ipv4.mac t.ip) ^ (String.make 10 '\000')) 0 buf;
   set_dhcp_sname (String.make 64 '\000') 0 buf;
   set_dhcp_file (String.make 128 '\000') 0 buf;
   set_dhcp_cookie buf 0x63825363l;

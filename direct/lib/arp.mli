@@ -28,7 +28,7 @@ type t
 (** [create ~get_etherbuf ~output ~get_mac] creates a value of type
     [t]. *)
 val create: get_etherbuf:(unit -> Cstruct.t Lwt.t) ->
-  output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> ethernet_mac) -> t
+  output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> Macaddr.t) -> t
 
 (** [set_ips arp] sets the bound IP address list, which will xmit a
     GARP packet also. *)
@@ -54,5 +54,5 @@ val input: t -> Cstruct.t -> unit Lwt.t
 (** [query arp ip] queries the cache in [arp] for an ARP entry
     corresponding to [ip], which may result in the sender sleeping
     waiting for a response. *)
-val query: t -> ipv4_addr -> ethernet_mac Lwt.t
+val query: t -> ipv4_addr -> Macaddr.t Lwt.t
 

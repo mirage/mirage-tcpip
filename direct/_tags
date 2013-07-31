@@ -11,3 +11,4 @@
 <syntax/*>: build_syntax
 true: camlp4o
 <**/*.{mli,ml}>: package(mirage), package(cstruct)
+true: annot

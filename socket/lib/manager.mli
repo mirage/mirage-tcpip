@@ -64,5 +64,5 @@ val detach: t -> string -> bool Lwt.t
 val set_promiscuous: t -> id -> (id -> Cstruct.t -> unit Lwt.t) -> unit
 val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 val get_intf_name : t -> id -> string
-val get_intf_mac : t -> id -> ethernet_mac
+val get_intf_mac : t -> id -> Macaddr.t
 
