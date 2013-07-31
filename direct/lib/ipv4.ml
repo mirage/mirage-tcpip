@@ -57,7 +57,7 @@ module Routing = struct
   let destination_mac t = 
     function
     |ip when ip = ipv4_broadcast || ip = ipv4_blank -> (* Broadcast *)
-      return ethernet_mac_broadcast
+      return Macaddr.broadcast
     |ip when is_local t ip -> (* Local *)
       Ethif.query_arp t.ethif ip
     |ip -> begin (* Gateway *)
@@ -72,8 +72,8 @@ end
 let get_header ~proto ~dest_ip t =
   lwt ethernet_frame = Ethif.get_frame t.ethif in
   (* Something of a layer violation here, but ARP is awkward *)
-  lwt dmac = Routing.destination_mac t dest_ip >|= ethernet_mac_to_bytes in
-  let smac = ethernet_mac_to_bytes (Ethif.mac t.ethif) in
+  lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
+  let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
   Ethif.set_ethernet_dst dmac 0 ethernet_frame; 
   Ethif.set_ethernet_src smac 0 ethernet_frame;
   Ethif.set_ethernet_ethertype ethernet_frame 0x0800;

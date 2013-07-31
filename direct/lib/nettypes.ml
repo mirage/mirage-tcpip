@@ -14,38 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type bytes = string (* to differentiate from pretty-printed strings *)
-type ethernet_mac = string (* length 6 only *)
-
-(* Raw MAC address off the wire (network endian) *)
-let ethernet_mac_of_bytes x =
-  if String.length x <> 6 then raise (Invalid_argument x) else x
-
-(* Read a MAC address colon-separated string *)
-let ethernet_mac_of_string x =
-    try
-      let s = String.create 6 in
-      Scanf.sscanf x "%2x:%2x:%2x:%2x:%2x:%2x"
-       (fun a b c d e f ->
-         s.[0] <- Char.chr a;
-         s.[1] <- Char.chr b;
-         s.[2] <- Char.chr c;
-         s.[3] <- Char.chr d;
-         s.[4] <- Char.chr e;
-         s.[5] <- Char.chr f;
-       );
-       Some s
-    with _ -> None
-
-let ethernet_mac_to_string x =
-    let chri i = Char.code x.[i] in
-    Printf.sprintf "%02x:%02x:%02x:%02x:%02x:%02x"
-       (chri 0) (chri 1) (chri 2) (chri 3) (chri 4) (chri 5)
-
-let ethernet_mac_to_bytes x = x
-
-let ethernet_mac_broadcast = String.make 6 '\255'
-
 type ipv4_addr = int32
 
 let ipv4_addr_of_tuple (a,b,c,d) =
@@ -86,9 +54,9 @@ type ipv4_dst = ipv4_addr * int
 
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ];
-  sha: ethernet_mac;
+  sha: Macaddr.t;
   spa: ipv4_addr;
-  tha: ethernet_mac;
+  tha: Macaddr.t;
   tpa: ipv4_addr;
 }
 

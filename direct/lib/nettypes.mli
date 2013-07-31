@@ -16,37 +16,6 @@
 
 (** Functions and type definitions common to all modules. *)
 
-(** Type of byte string (as opposed to a pretty-printed
-    string). *)
-type bytes = string
-
-(** Type of the hardware address (MAC) of an ethernet interface. *)
-type ethernet_mac
-
-(** Functions converting MAC addresses to bytes/string and vice
-    versa. *)
-
-(** [ethernet_mac_of_bytes buf] is the hardware address extracted from
-    [buf]. Raise [Invalid_argument] if [buf] has not size 6. *)
-val ethernet_mac_of_bytes : bytes -> ethernet_mac
-
-(** [ethernet_mac_of_string "a:b:c:d:e:f"] is [Some mac] if
-    "a:b:c:d:e:f" is the colon separated string representation of a
-    valid MAC address, or [None] otherwise. *)
-val ethernet_mac_of_string : string -> ethernet_mac option
-
-(** [ethernet_mac_to_bytes mac_addr] is a string of size 6
-    representing the [mac_addr]. *)
-val ethernet_mac_to_bytes : ethernet_mac -> bytes
-
-(** [ethernet_mac_to_string mac_addr] is the colon spearated string
-    representation of [mac_addr]. *)
-val ethernet_mac_to_string : ethernet_mac -> string
-
-(** [ethernet_mac_broadcast] is the encoded address
-    255.255.255.255. *)
-val ethernet_mac_broadcast: ethernet_mac
-
 (** Functions handling IPv4 addresses. *)
 
 (** Type representing IPv4 addresses. *)
@@ -93,9 +62,9 @@ type ipv4_dst = ipv4_addr * int
 (** Type of an ARP packet. *)
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ]; (** operation *)
-  sha: ethernet_mac;                         (** source hardware address *)
+  sha: Macaddr.t;                         (** source hardware address *)
   spa: ipv4_addr;                            (** source protocol address *)
-  tha: ethernet_mac;                         (** target hardware address *)
+  tha: Macaddr.t;                         (** target hardware address *)
   tpa: ipv4_addr;                            (** target protocol address *)
 }
 

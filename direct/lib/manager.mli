@@ -87,7 +87,7 @@ val udpv4_of_addr : t -> ipv4_addr option -> Udp.t list
 val tcpv4_of_dst_addr : t -> ipv4_addr -> Tcp.Pcb.t
 
 (** [get_intf_mac mgr id] returns the MAC address of interface [id].*)
-val get_intf_mac : t -> id -> ethernet_mac
+val get_intf_mac : t -> id -> Macaddr.t
 
 (** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
     [id] if it exists, or raise [Not_found] otherwise. *)
