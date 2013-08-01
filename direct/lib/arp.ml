@@ -132,7 +132,7 @@ and output t arp =
 let output_garp t =
   let tha = Macaddr.broadcast in
   let sha = t.get_mac () in
-  let tpa = Ipaddr.V4.blank in
+  let tpa = Ipaddr.V4.any in
   Lwt_list.iter_s (fun spa ->
     printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
     output t { op=`Reply; tha; sha; tpa; spa }
@@ -145,7 +145,7 @@ let output_probe t tpa =
   let sha = t.get_mac () in
   (* Source protocol address, pick one of our IP addresses *)
   let spa = match t.bound_ips with
-    | hd::tl -> hd | [] -> Ipaddr.V4.blank in
+    | hd::tl -> hd | [] -> Ipaddr.V4.any in
   output t { op=`Request; tha; sha; tpa; spa }
 
 let get_ips t = t.bound_ips

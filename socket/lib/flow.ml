@@ -97,7 +97,7 @@ module TCPv4 = struct
 
   let listen mgr src fn =
     let addr, port = match src with
-      |None, port -> Ipaddr.V4.blank, port
+      |None, port -> Ipaddr.V4.any, port
       |Some addr, port -> addr, port in
     listen_tcpv4 addr port fn
 
