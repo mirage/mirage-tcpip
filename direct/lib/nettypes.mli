@@ -16,56 +16,19 @@
 
 (** Functions and type definitions common to all modules. *)
 
-(** Functions handling IPv4 addresses. *)
-
-(** Type representing IPv4 addresses. *)
-type ipv4_addr
-
-(** [ipv4_addr_of_tuple (a,b,c,d)] is an address whose dot separated
-    string representation is a.b.c.d. *)
-val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
-
-(** [ipv4_addr_of_string "a.b.c.d"] is [Some addr] if "a.b.c.d" is a
-    dot separated string representation of a valid IPv4, or [None]
-    otherwise. *)
-val ipv4_addr_of_string : string -> ipv4_addr option
-
-(** [ipv4_addr_to_string addr] is the dot separated string
-    representing [addr]. *)
-val ipv4_addr_to_string : ipv4_addr -> string
-
-(** [ipv4_addr_of_int32 i] is the IPv4 address represented in [i]. *)
-val ipv4_addr_of_uint32 : int32 -> ipv4_addr
-
-(** [ipv4_addr_to_int32 addr] is the int32 representation of
-    [addr]. *)
-val ipv4_addr_to_uint32 : ipv4_addr -> int32
-
-(** [ipv4_blank] is the address whose dot separated string
-    representation is "0.0.0.0". *)
-val ipv4_blank : ipv4_addr
-
-(** [ipv4_broadcast] is the address whose dot separated string
-    representation is "255.255.255.255". *)
-val ipv4_broadcast : ipv4_addr
-
-(** [ipv4_localhost] is the address whose dot separated string
-    representation is "127.0.0.1". *)
-val ipv4_localhost : ipv4_addr
-
 (** Type of source socket addresses. *)
-type ipv4_src = ipv4_addr option * int
+type ipv4_src = Ipaddr.V4.t option * int
 
 (** Type of destination socket addresses. *)
-type ipv4_dst = ipv4_addr * int
+type ipv4_dst = Ipaddr.V4.t * int
 
 (** Type of an ARP packet. *)
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ]; (** operation *)
   sha: Macaddr.t;                         (** source hardware address *)
-  spa: ipv4_addr;                            (** source protocol address *)
+  spa: Ipaddr.V4.t;                            (** source protocol address *)
   tha: Macaddr.t;                         (** target hardware address *)
-  tpa: ipv4_addr;                            (** target protocol address *)
+  tpa: Ipaddr.V4.t;                            (** target protocol address *)
 }
 
 type peer_uid = int

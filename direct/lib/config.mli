@@ -17,4 +17,4 @@
 (** Configuration modes for interfaces. 
    Defaults to DHCP, and individual ids can be assigned static IPs *)
 
-val t: OS.Netif.id -> [ `DHCP | `IPv4 of Nettypes.ipv4_addr * Nettypes.ipv4_addr * Nettypes.ipv4_addr list ]
+val t: OS.Netif.id -> [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]

@@ -21,16 +21,16 @@ type pcb
 type listener
 type connection = (pcb * unit Lwt.t) 
 
-val input: t -> src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t
+val input: t -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
 
-val connect: t -> dest_ip:ipv4_addr -> dest_port:int -> connection option Lwt.t
+val connect: t -> dest_ip:Ipaddr.V4.t -> dest_port:int -> connection option Lwt.t
 
 val listen: t -> int -> (connection Lwt_stream.t * listener)
 val closelistener: listener -> unit
 
 val close: pcb -> unit Lwt.t
 
-val get_dest: pcb -> (ipv4_addr * int)
+val get_dest: pcb -> (Ipaddr.V4.t * int)
 
 (* Blocking read for a segment *)
 val read: pcb -> Cstruct.t option Lwt.t

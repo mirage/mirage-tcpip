@@ -28,7 +28,7 @@ let t id =
 let t id =
   let open Nettypes in
   `IPv4 (
-    ipv4_addr_of_tuple (10l,0l,0l,2l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-    [ ipv4_addr_of_tuple (10l,0l,0l,1l) ]
+    Ipaddr.V4.make 10l 0l 0l 2l,
+    Ipaddr.V4.make 255l 255l 255l 0l,
+    [ Ipaddr.V4.make 10l 0l 0l 1l ]
   )
