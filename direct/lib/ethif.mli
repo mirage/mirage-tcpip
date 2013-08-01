@@ -77,9 +77,9 @@ val listen : t -> unit Lwt.t
     value contained inside [t]. Please refer to the documentation of
     module [Arp] for more information. *)
 
-val add_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
-val remove_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
-val query_arp : t -> Nettypes.ipv4_addr -> Macaddr.t Lwt.t
+val add_ip : t -> Ipaddr.V4.t -> unit Lwt.t
+val remove_ip : t -> Ipaddr.V4.t -> unit Lwt.t
+val query_arp : t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
 
 
 (** Low-level functions to interact with the value of type [Netif.t]

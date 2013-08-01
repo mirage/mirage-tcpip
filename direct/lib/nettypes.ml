@@ -14,50 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ipv4_addr = int32
-
-let ipv4_addr_of_tuple (a,b,c,d) =
-  let in_range x = Int32.zero <= x && x <= 255l in
-  assert (in_range a);
-  assert (in_range b);
-  assert (in_range c);
-  assert (in_range d);
-   let (+) = Int32.add in
-   (Int32.shift_left a 24) +
-   (Int32.shift_left b 16) + 
-   (Int32.shift_left c 8) + d
- 
-(* Read an IPv4 address dot-separated string *)
-let ipv4_addr_of_string x =
-    let ip = ref None in
-    (try Scanf.sscanf x "%ld.%ld.%ld.%ld"
-      (fun a b c d -> ip := Some (ipv4_addr_of_tuple (a,b,c,d)));
-    with _ -> ());
-    !ip
-
-(* Blank 0.0.0.0 IPv4 address *)
-let ipv4_blank = 0l
-(* Broadcast 255.255.255.255 IPv4 address *)
-let ipv4_broadcast = ipv4_addr_of_tuple (255l,255l,255l,255l)
-(* Localhost 127.0.0.1 ipv4 address  *)
-let ipv4_localhost = ipv4_addr_of_tuple (127l,0l,0l,1l)
-
-let ipv4_addr_to_string s =
-    let (>!) x y = Int32.to_int (Int32.logand (Int32.shift_right x y) 255l) in
-    Printf.sprintf "%d.%d.%d.%d" (s >! 24) (s >! 16) (s >! 8) (s >! 0)
-
-external ipv4_addr_of_uint32: int32 -> ipv4_addr = "%identity"
-external ipv4_addr_to_uint32: ipv4_addr -> int32 = "%identity"
-
-type ipv4_src = ipv4_addr option * int
-type ipv4_dst = ipv4_addr * int
+type ipv4_src = Ipaddr.V4.t option * int
+type ipv4_dst = Ipaddr.V4.t * int
 
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ];
   sha: Macaddr.t;
-  spa: ipv4_addr;
+  spa: Ipaddr.V4.t;
   tha: Macaddr.t;
-  tpa: ipv4_addr;
+  tpa: Ipaddr.V4.t;
 }
 
 type peer_uid = int

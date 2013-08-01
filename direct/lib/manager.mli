@@ -23,7 +23,7 @@
 open Nettypes
 
 (** Type representing an IPv4 configuration for an interface. *)
-type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
+type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (** Textual id identifying a network interface, typically "tap0" on
     UNIX and "0" on Xen. *)
@@ -77,20 +77,20 @@ val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 
 (** [tcpv4_of_addr mgr ip] returns all the TCP threads that operate on
     [ip]. *)
-val tcpv4_of_addr : t -> ipv4_addr option -> Tcp.Pcb.t list
+val tcpv4_of_addr : t -> Ipaddr.V4.t option -> Tcp.Pcb.t list
 
 (** Like [tcpv4_of_addr] returns UDP threads. *)
-val udpv4_of_addr : t -> ipv4_addr option -> Udp.t list
+val udpv4_of_addr : t -> Ipaddr.V4.t option -> Udp.t list
 
 (** [tcpv4_of_dst_addr mgr ip] returns a TCP threads able to talk to
     remote address [ip]. *)
-val tcpv4_of_dst_addr : t -> ipv4_addr -> Tcp.Pcb.t
+val tcpv4_of_dst_addr : t -> Ipaddr.V4.t -> Tcp.Pcb.t
 
 (** [get_intf_mac mgr id] returns the MAC address of interface [id].*)
 val get_intf_mac : t -> id -> Macaddr.t
 
 (** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
     [id] if it exists, or raise [Not_found] otherwise. *)
-val get_intf_ipv4addr : t -> id -> ipv4_addr
+val get_intf_ipv4addr : t -> id -> Ipaddr.V4.t
 
 val get_intfs : t -> (id * interface) list

@@ -17,9 +17,6 @@
 open Lwt
 open Nettypes
 
-type ipv4_src = ipv4_addr option * int   (* optional IP address * port *)
-type ipv4_dst = ipv4_addr * int          (* specific IP address * port *)
-
 module TCPv4 = struct
 
   type t = Tcp.Pcb.pcb
@@ -76,7 +73,7 @@ module TCPv4 = struct
       match conn with
         | None ->
             (Printf.printf "Failed to connect to %s:%d\n%!"
-               (Nettypes.ipv4_addr_to_string daddr)  dport;
+               (Ipaddr.V4.to_string daddr)  dport;
              return ())
         | Some (fl, _) -> fn fl 
 

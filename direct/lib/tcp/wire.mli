@@ -69,9 +69,9 @@ val get_payload : t -> t
 
 type id = {
   dest_port: int;               (* Remote TCP port *)
-  dest_ip: Nettypes.ipv4_addr;           (* Remote IP address *)
+  dest_ip: Ipaddr.V4.t;           (* Remote IP address *)
   local_port: int;              (* Local TCP port *)
-  local_ip: Nettypes.ipv4_addr;          (* Local IP address *)
+  local_ip: Ipaddr.V4.t;          (* Local IP address *)
 }
 
 val xmit : ip:Ipv4.t -> id:id -> ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->

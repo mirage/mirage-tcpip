@@ -46,7 +46,7 @@ and t = {
   listeners: (id, interface) Hashtbl.t
 }
 
-type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
+type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (* Configure an interface based on the Config module *)
 let configure i =
@@ -59,9 +59,9 @@ let configure i =
   |`IPv4 (addr, netmask, gateways) ->
     Printf.printf "Manager: Interface %s to %s nm %s gw [%s]\n%!"
       (OS.Netif.string_of_id i.id)
-      (ipv4_addr_to_string addr)
-      (ipv4_addr_to_string netmask)
-      (String.concat ", " (List.map ipv4_addr_to_string gateways));
+      (Ipaddr.V4.to_string addr)
+      (Ipaddr.V4.to_string netmask)
+      (String.concat ", " (List.map Ipaddr.V4.to_string gateways));
     Ipv4.set_ip i.ipv4 addr >>
     Ipv4.set_netmask i.ipv4 netmask >>
     Ipv4.set_gateways i.ipv4 gateways >>
@@ -125,19 +125,19 @@ let match_ip_match ip netmask dst_ip =
 let i_of_dst_ip t addr =
   let ret = ref None in
   let netmask = ref 0l in
-  let addr = Nettypes.ipv4_addr_to_uint32 addr in 
+  let addr = Ipaddr.V4.to_int32 addr in 
   let _ = Hashtbl.iter
       (fun _ i ->
-         let l_ip =  Nettypes.ipv4_addr_to_uint32 
+         let l_ip =  Ipaddr.V4.to_int32 
                        (Ipv4.get_ip i.ipv4) in
-         let l_mask = Nettypes.ipv4_addr_to_uint32 
+         let l_mask = Ipaddr.V4.to_int32 
                         (Ipv4.get_netmask i.ipv4) in
            (* Need to consider also default gateways as 
            * well as same subnet forwarding *)
           if (( (Int32.logor (!netmask) l_mask) <> !netmask) &&
                (match_ip_match l_ip l_mask addr)) then (
                  ret := Some(i);
-                 netmask :=  Nettypes.ipv4_addr_to_uint32 
+                 netmask :=  Ipaddr.V4.to_int32 
                                (Ipv4.get_netmask i.ipv4)
                )
       ) t.listeners in

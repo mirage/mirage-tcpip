@@ -50,9 +50,9 @@ type op =
     | `Request
     | `Unknown of char ]
 type t =
-    [ `Broadcast of Nettypes.ipv4_addr
+    [ `Broadcast of Ipaddr.V4.t
     | `Client_id of string
-    | `DNS_server of Nettypes.ipv4_addr list
+    | `DNS_server of Ipaddr.V4.t list
     | `Domain_name of string
     | `Domain_search of string
     | `End
@@ -62,21 +62,21 @@ type t =
     | `Max_size of int
     | `Message of string
     | `Message_type of op
-    | `Name_server of Nettypes.ipv4_addr list
-    | `Netbios_name_server of Nettypes.ipv4_addr list
+    | `Name_server of Ipaddr.V4.t list
+    | `Netbios_name_server of Ipaddr.V4.t list
     | `Pad
     | `Parameter_request of msg list
-    | `Requested_ip of Nettypes.ipv4_addr
-    | `Router of Nettypes.ipv4_addr list
-    | `Server_identifier of Nettypes.ipv4_addr
-    | `Subnet_mask of Nettypes.ipv4_addr
+    | `Requested_ip of Ipaddr.V4.t
+    | `Router of Ipaddr.V4.t list
+    | `Server_identifier of Ipaddr.V4.t
+    | `Subnet_mask of Ipaddr.V4.t
     | `Time_offset of string
-    | `Time_server of Nettypes.ipv4_addr list
+    | `Time_server of Ipaddr.V4.t list
     | `Unknown of char * string ]
 val msg_to_string : msg -> string
 val op_to_string : op -> string
 val t_to_string : t -> string
-val ipv4_addr_of_bytes : string -> Nettypes.ipv4_addr
+val ipv4_addr_of_bytes : string -> Ipaddr.V4.t
 module Marshal :
   sig
     val t_to_code : msg -> int
@@ -84,8 +84,8 @@ module Marshal :
     val uint32_to_bytes : int32 -> string
     val uint16_to_bytes : int -> string
     val size : int -> string
-    val ip_list : msg -> Nettypes.ipv4_addr list -> string list
-    val ip_one : msg -> Nettypes.ipv4_addr -> string list
+    val ip_list : msg -> Ipaddr.V4.t list -> string list
+    val ip_one : msg -> Ipaddr.V4.t -> string list
     val str : msg -> string -> string list
     val uint32 : msg -> int32 -> string list
     val uint16 : msg -> int -> string list
