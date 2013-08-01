@@ -14,36 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ipv4_addr = Unix.inet_addr
+type ipv4_src = Ipaddr.V4.t option * int
+type ipv4_dst = Ipaddr.V4.t * int
 
-(* XXX Inefficient *)
-let ipv4_addr_of_tuple (a,b,c,d) =
-  let s = Printf.sprintf "%ld.%ld.%ld.%ld" a b c d in
-  Unix.inet_addr_of_string s
- 
-(* Read an IPv4 address dot-separated string *)
-let ipv4_addr_of_string x =
-  try Some (Unix.inet_addr_of_string x)
-  with _ -> None
-
-(* Blank 0.0.0.0 IPv4 address *)
-let ipv4_blank = Unix.inet_addr_any
-(* Broadcast 255.255.255.255 IPv4 address *)
-let ipv4_broadcast = ipv4_addr_of_tuple (255l,255l,255l,255l)
-(* Localhost 127.0.0.1 ipv4 address  *)
-let ipv4_localhost = ipv4_addr_of_tuple (127l,0l,0l,1l)
-
-let ipv4_addr_to_string s = Unix.string_of_inet_addr s 
-
-type ipv4_src = ipv4_addr option * int
-type ipv4_dst = ipv4_addr * int
+let inet_addr_of_ipaddr a = Unix.inet_addr_of_string (Ipaddr.V4.to_string a)
+let ipaddr_of_inet_addr a = Ipaddr.V4.of_string_exn (Unix.string_of_inet_addr a)
 
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ];
   sha: Macaddr.t;
-  spa: ipv4_addr;
+  spa: Ipaddr.V4.t;
   tha: Macaddr.t;
-  tpa: ipv4_addr;
+  tpa: Ipaddr.V4.t;
 }
 
 type peer_uid = int
