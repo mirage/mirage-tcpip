@@ -20,9 +20,6 @@ open Nettypes
 open Lwt
 open OS
 
-type ipv4_src = ipv4_addr option * int
-type ipv4_dst = ipv4_addr * int
-
 exception Listen_error of string
 exception Accept_error of string
 exception Connect_error of string
@@ -44,13 +41,13 @@ let listen_tcpv4 addr port fn =
   let open Lwt_unix in
   let fd = socket PF_INET SOCK_STREAM 0 in
   let _ = setsockopt fd SO_REUSEADDR true in 
-  bind fd (ADDR_INET (addr,port));
+  bind fd (ADDR_INET (inet_addr_of_ipaddr addr,port));
   listen fd 10;
   (* XXX use accept_n *)
   while_lwt true do
     lwt (afd, asa) = accept fd in
     let caddr, cport = match asa with
-      |ADDR_INET (x,y) -> x,y |_ -> assert false in
+      |ADDR_INET (x,y) -> ipaddr_of_inet_addr x,y |_ -> assert false in
     Lwt.ignore_result (
       close_on_exit afd (fun t ->
         try_lwt
@@ -88,8 +85,8 @@ let writev t pages =
 module TCPv4 = struct
   type t = Lwt_unix.file_descr
   type mgr = Manager.t
-  type src = ipv4_addr option * int
-  type dst = ipv4_addr * int
+  type src = Ipaddr.V4.t option * int
+  type dst = Ipaddr.V4.t * int
 
   (* TODO put an istring pool in the manager? *)
 
@@ -100,14 +97,14 @@ module TCPv4 = struct
 
   let listen mgr src fn =
     let addr, port = match src with
-      |None, port -> ipv4_blank, port
+      |None, port -> Ipaddr.V4.blank, port
       |Some addr, port -> addr, port in
     listen_tcpv4 addr port fn
 
   let connect mgr ?src ((addr,port):ipv4_dst) (fn: t -> 'a Lwt.t) =
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_STREAM 0 in
-    lwt () = connect fd (ADDR_INET (addr,port)) in
+    lwt () = connect fd (ADDR_INET (inet_addr_of_ipaddr addr,port)) in
     (* Wait for the connect to complete *)
     fn fd
 end
