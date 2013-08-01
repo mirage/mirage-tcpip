@@ -56,7 +56,7 @@ module Routing = struct
 
   let destination_mac t = 
     function
-    |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.blank -> (* Broadcast *)
+    |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
       return Macaddr.broadcast
     |ip when is_local t ip -> (* Local *)
       Ethif.query_arp t.ethif ip
@@ -136,8 +136,8 @@ let default_udp = fun ~src ~dst _ -> return ()
 let default_tcp = fun ~src ~dst _ -> return ()
  
 let create ethif = 
-  let ip = Ipaddr.V4.blank in
-  let netmask = Ipaddr.V4.blank in
+  let ip = Ipaddr.V4.any in
+  let netmask = Ipaddr.V4.any in
   let gateways = [] in
   let icmp = default_icmp in
   let udp = default_udp in

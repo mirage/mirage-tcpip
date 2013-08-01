@@ -165,8 +165,8 @@ let input t ~src ~dst ~source_port buf =
 let start_discovery t =
   OS.Time.sleep 0.2 >>
   let xid = Random.int32 Int32.max_int in
-  let yiaddr = Ipaddr.V4.blank in
-  let siaddr = Ipaddr.V4.blank in
+  let yiaddr = Ipaddr.V4.any in
+  let siaddr = Ipaddr.V4.any in
   let options = { Option.Packet.op=`Discover; opts= [
     (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
     (`Host_name "miragevm")

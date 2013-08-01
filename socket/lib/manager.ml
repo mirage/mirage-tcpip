@@ -60,7 +60,7 @@ let get_udpv4_listener mgr (addr,port) =
   with Not_found -> begin
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_DGRAM 0 in
-    let addr' = match addr with None -> Ipaddr.V4.blank |Some x -> x in
+    let addr' = match addr with None -> Ipaddr.V4.any |Some x -> x in
     bind fd (ADDR_INET (inet_addr_of_ipaddr addr',port));
     register_udpv4_listener mgr (addr,port) fd;
     return fd
