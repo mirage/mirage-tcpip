@@ -45,7 +45,7 @@ val detach : t -> [< `IPv4 ] -> unit
 
 (** Accessors for t values *)
 
-val mac       : t -> Nettypes.ethernet_mac
+val mac       : t -> Macaddr.t
 val get_netif : t -> OS.Netif.t
 
 
@@ -77,9 +77,9 @@ val listen : t -> unit Lwt.t
     value contained inside [t]. Please refer to the documentation of
     module [Arp] for more information. *)
 
-val add_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
-val remove_ip : t -> Nettypes.ipv4_addr -> unit Lwt.t
-val query_arp : t -> Nettypes.ipv4_addr -> Nettypes.ethernet_mac Lwt.t
+val add_ip : t -> Ipaddr.V4.t -> unit Lwt.t
+val remove_ip : t -> Ipaddr.V4.t -> unit Lwt.t
+val query_arp : t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
 
 
 (** Low-level functions to interact with the value of type [Netif.t]

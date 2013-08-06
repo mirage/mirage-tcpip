@@ -24,8 +24,8 @@ exception Error of string
 
 module UDPv4 = struct
   type mgr = Manager.t
-  type src = ipv4_addr option * int
-  type dst = ipv4_addr * int
+  type src = Ipaddr.V4.t option * int
+  type dst = Ipaddr.V4.t * int
 
   type msg = Cstruct.t
 
@@ -34,7 +34,7 @@ module UDPv4 = struct
       |None -> return (Manager.get_udpv4 mgr)
       |Some src -> Manager.get_udpv4_listener mgr src
     in
-    let dst = Unix.ADDR_INET (dstaddr, dstport) in
+    let dst = Unix.ADDR_INET (inet_addr_of_ipaddr dstaddr, dstport) in
     (* TODO check short write *)
     lwt _ = Lwt_cstruct.sendto fd buf [] dst in
     return ()
@@ -46,8 +46,8 @@ module UDPv4 = struct
       lwt (len, frm_sa) = Lwt_cstruct.recvfrom lfd buf [] in
       let frm_addr, frm_port =
         match frm_sa with
-        |Unix.ADDR_UNIX x -> ipv4_localhost, 0
-        |Unix.ADDR_INET (addr, port) -> (* XXX TODO *) ipv4_localhost, port 
+        |Unix.ADDR_UNIX x -> Ipaddr.V4.localhost, 0
+        |Unix.ADDR_INET (addr, port) -> (* XXX TODO *) Ipaddr.V4.localhost, port 
       in
       let dst = (frm_addr, frm_port) in
       let req = Cstruct.sub buf 0 len in

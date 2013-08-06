@@ -64,21 +64,21 @@ type op = [  (* DHCP operations *)
 
 type t = [   (* Full message payloads *)
 | `Pad
-| `Subnet_mask of ipv4_addr
+| `Subnet_mask of Ipaddr.V4.t
 | `Time_offset of string
-| `Router of ipv4_addr list
-| `Broadcast of ipv4_addr
-| `Time_server of ipv4_addr list
-| `Name_server of ipv4_addr list
-| `DNS_server of ipv4_addr list
-| `Netbios_name_server of ipv4_addr list
+| `Router of Ipaddr.V4.t list
+| `Broadcast of Ipaddr.V4.t
+| `Time_server of Ipaddr.V4.t list
+| `Name_server of Ipaddr.V4.t list
+| `DNS_server of Ipaddr.V4.t list
+| `Netbios_name_server of Ipaddr.V4.t list
 | `Host_name of string
 | `Domain_name of string
-| `Requested_ip of ipv4_addr
+| `Requested_ip of Ipaddr.V4.t
 | `Interface_mtu of int
 | `Lease_time of int32
 | `Message_type of op
-| `Server_identifier of ipv4_addr
+| `Server_identifier of Ipaddr.V4.t
 | `Parameter_request of msg list
 | `Message of string
 | `Max_size of int
@@ -127,8 +127,8 @@ let op_to_string (x:op) =
   |`Unknown x -> "Unknown " ^ (string_of_int (Char.code x))
  
 let t_to_string (t:t) =
-  let ip_one s ip = sprintf "%s(%s)" s (ipv4_addr_to_string ip) in
-  let ip_list s ips = sprintf "%s(%s)" s (String.concat "," (List.map ipv4_addr_to_string ips)) in
+  let ip_one s ip = sprintf "%s(%s)" s (Ipaddr.V4.to_string ip) in
+  let ip_list s ips = sprintf "%s(%s)" s (String.concat "," (List.map Ipaddr.V4.to_string ips)) in
   let str s v = sprintf "%s(%s)" s (String.escaped v) in
   let strs s v = sprintf "%s(%s)" s (String.concat "," v) in
   let i32 s v = sprintf "%s(%lu)" s v in
@@ -161,7 +161,7 @@ let ipv4_addr_of_bytes x =
   let open Int32 in
   let b n = of_int (Char.code (x.[n])) in
   let r = add (add (add (shift_left (b 0) 24) (shift_left (b 1) 16)) (shift_left (b 2) 8)) (b 3) in
-  ipv4_addr_of_uint32 r
+  Ipaddr.V4.of_int32 r
 
 module Marshal = struct
   let t_to_code (x:msg) =
@@ -212,9 +212,9 @@ module Marshal = struct
   let uint32 c x = to_byte c :: [ "\004"; uint32_to_bytes x]
   let uint16 c x = to_byte c :: [ "\002"; uint16_to_bytes x]
   let ip_list c ips = 
-    let x = List.map (fun x -> (uint32_to_bytes (ipv4_addr_to_uint32 x))) ips in
+    let x = List.map (fun x -> (uint32_to_bytes (Ipaddr.V4.to_int32 x))) ips in
     to_byte c :: (size (List.length x * 4)) :: x
-  let ip_one c x = uint32 c (ipv4_addr_to_uint32 x)
+  let ip_one c x = uint32 c (Ipaddr.V4.to_int32 x)
 
   let to_bytes (x:t) =
     let bits = match x with

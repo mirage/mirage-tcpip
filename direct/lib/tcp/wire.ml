@@ -76,9 +76,9 @@ open Printf
 
 type id = {
   dest_port: int;               (* Remote TCP port *)
-  dest_ip: ipv4_addr;           (* Remote IP address *)
+  dest_ip: Ipaddr.V4.t;           (* Remote IP address *)
   local_port: int;              (* Local TCP port *)
-  local_ip: ipv4_addr;          (* Local IP address *)
+  local_ip: Ipaddr.V4.t;          (* Local IP address *)
 }
 
 (* Note: since just one pbuf is used for all chksum calculations,
@@ -86,8 +86,8 @@ type id = {
 let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get 1)) 0 sizeof_pseudo_header 
 let checksum ~src ~dst =
   fun data ->
-    set_pseudo_header_src pbuf (ipv4_addr_to_uint32 src);
-    set_pseudo_header_dst pbuf (ipv4_addr_to_uint32 dst);
+    set_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
+    set_pseudo_header_dst pbuf (Ipaddr.V4.to_int32 dst);
     set_pseudo_header_res pbuf 0;
     set_pseudo_header_proto pbuf 6;
     set_pseudo_header_len pbuf (Cstruct.lenv data);

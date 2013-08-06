@@ -24,8 +24,8 @@ type t
 (** Accessors for the t type *)
 
 val get_udpv4 : t -> Lwt_unix.file_descr
-val register_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr -> unit
-val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.t
+val register_udpv4_listener : t -> Ipaddr.V4.t option * int -> Lwt_unix.file_descr -> unit
+val get_udpv4_listener : t -> Ipaddr.V4.t option * int -> Lwt_unix.file_descr Lwt.t
 
 
 (** The following functions are provided for compatibility with other
@@ -34,7 +34,7 @@ val get_udpv4_listener : t -> ipv4_addr option * int -> Lwt_unix.file_descr Lwt.
 
 type interface = unit
 type id = string (** Always equal to "" *)
-type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
+type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (** Do nothing *)
 val configure: interface -> config -> unit Lwt.t
@@ -64,5 +64,5 @@ val detach: t -> string -> bool Lwt.t
 val set_promiscuous: t -> id -> (id -> Cstruct.t -> unit Lwt.t) -> unit
 val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 val get_intf_name : t -> id -> string
-val get_intf_mac : t -> id -> ethernet_mac
+val get_intf_mac : t -> id -> Macaddr.t
 

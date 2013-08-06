@@ -20,10 +20,10 @@ open Printf
 open Nettypes
 
 type offer = {
-  ip_addr: ipv4_addr;
-  netmask: ipv4_addr option;
-  gateways: ipv4_addr list;
-  dns: ipv4_addr list;
+  ip_addr: Ipaddr.V4.t;
+  netmask: Ipaddr.V4.t option;
+  gateways: Ipaddr.V4.t list;
+  dns: Ipaddr.V4.t list;
   lease: int32;
   xid: int32;
 }
@@ -79,32 +79,32 @@ let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
   set_dhcp_secs buf 10; (* TODO dynamic timer *)
   set_dhcp_flags buf 0;
   set_dhcp_ciaddr buf 0l;
-  set_dhcp_yiaddr buf (ipv4_addr_to_uint32 yiaddr); 
-  set_dhcp_siaddr buf (ipv4_addr_to_uint32 siaddr);
+  set_dhcp_yiaddr buf (Ipaddr.V4.to_int32 yiaddr); 
+  set_dhcp_siaddr buf (Ipaddr.V4.to_int32 siaddr);
   set_dhcp_giaddr buf 0l;
   (* TODO add a pad/fill function in cstruct *)
-  set_dhcp_chaddr (ethernet_mac_to_bytes (Ipv4.mac t.ip) ^ (String.make 10 '\000')) 0 buf;
+  set_dhcp_chaddr (Macaddr.to_bytes (Ipv4.mac t.ip) ^ (String.make 10 '\000')) 0 buf;
   set_dhcp_sname (String.make 64 '\000') 0 buf;
   set_dhcp_file (String.make 128 '\000') 0 buf;
   set_dhcp_cookie buf 0x63825363l;
   Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
   let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
   Printf.printf "Sending DHCP broadcast len %d\n%!" total_len;
-  Udp.write ~dest_ip:ipv4_broadcast ~source_port:68 ~dest_port:67 t.udp buf
+  Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
 (* Receive a DHCP UDP packet *)
 let input t ~src ~dst ~source_port buf =
-  let ciaddr = ipv4_addr_of_uint32 (get_dhcp_ciaddr buf) in
-  let yiaddr = ipv4_addr_of_uint32 (get_dhcp_yiaddr buf) in
-  let siaddr = ipv4_addr_of_uint32 (get_dhcp_siaddr buf) in
-  let giaddr = ipv4_addr_of_uint32 (get_dhcp_giaddr buf) in
+  let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
+  let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
+  let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
+  let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
   let packet = Option.Packet.of_bytes options in
   (* For debugging, print out the DHCP response *)
   Printf.printf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
-    (ipv4_addr_to_string ciaddr) (ipv4_addr_to_string yiaddr)
-    (ipv4_addr_to_string siaddr) (ipv4_addr_to_string giaddr)
+    (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
+    (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
     (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf);
   (* See what state our Netif is in and if this packet is useful *)
   Option.Packet.(match t.state with
@@ -112,7 +112,7 @@ let input t ~src ~dst ~source_port buf =
       (* we are expecting an offer *)
       match packet.op, xid with 
       |`Offer, offer_xid when offer_xid=xid ->  begin
-            printf "DHCP: offer received: %s\n%!" (ipv4_addr_to_string yiaddr);
+            printf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr);
             let netmask = find packet
               (function `Subnet_mask addr -> Some addr |_ -> None) in
             let gateways = findl packet 
@@ -165,8 +165,8 @@ let input t ~src ~dst ~source_port buf =
 let start_discovery t =
   OS.Time.sleep 0.2 >>
   let xid = Random.int32 Int32.max_int in
-  let yiaddr = ipv4_blank in
-  let siaddr = ipv4_blank in
+  let yiaddr = Ipaddr.V4.any in
+  let siaddr = Ipaddr.V4.any in
   let options = { Option.Packet.op=`Discover; opts= [
     (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
     (`Host_name "miragevm")
@@ -201,9 +201,9 @@ let create ip udp =
   let first_t, first_u = Lwt.task () in
   let new_offer info =
     Printf.printf "DHCP: offer %s %s [%s]\n%!"
-      (ipv4_addr_to_string info.ip_addr)
-      (match info.netmask with |Some ip -> ipv4_addr_to_string ip |None -> "None")
-      (String.concat ", " (List.map ipv4_addr_to_string info.gateways));
+      (Ipaddr.V4.to_string info.ip_addr)
+      (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
+      (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways));
     Ipv4.set_ip ip info.ip_addr >>
     (match info.netmask with 
      |Some nm -> Ipv4.set_netmask ip nm

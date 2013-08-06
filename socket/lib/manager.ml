@@ -23,7 +23,7 @@ open Nettypes
 open Printf
 
 type id = string
-type config = [ `DHCP | `IPv4 of ipv4_addr * ipv4_addr * ipv4_addr list ]
+type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (* Interfaces are a NOOP for the moment, as we depend on them being
    configured externally *)
@@ -60,8 +60,8 @@ let get_udpv4_listener mgr (addr,port) =
   with Not_found -> begin
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_DGRAM 0 in
-    let addr' = match addr with None -> ipv4_blank |Some x -> x in
-    bind fd (ADDR_INET (addr',port));
+    let addr' = match addr with None -> Ipaddr.V4.any |Some x -> x in
+    bind fd (ADDR_INET (inet_addr_of_ipaddr addr',port));
     register_udpv4_listener mgr (addr,port) fd;
     return fd
   end

@@ -18,9 +18,6 @@
 
 open Nettypes
 
-type ipv4_src = ipv4_addr option * int
-type ipv4_dst = ipv4_addr * int
-
 module TCPv4 : FLOW with
       type mgr = Manager.t
   and type src = ipv4_src

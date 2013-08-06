@@ -18,7 +18,7 @@ open Lwt
 open Nettypes
 open Printf
 
-type callback = src:ipv4_addr -> dst:ipv4_addr -> source_port:int -> Cstruct.t -> unit Lwt.t
+type callback = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> source_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
   ip : Ipv4.t;

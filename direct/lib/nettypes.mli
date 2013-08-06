@@ -16,87 +16,19 @@
 
 (** Functions and type definitions common to all modules. *)
 
-(** Type of byte string (as opposed to a pretty-printed
-    string). *)
-type bytes = string
-
-(** Type of the hardware address (MAC) of an ethernet interface. *)
-type ethernet_mac
-
-(** Functions converting MAC addresses to bytes/string and vice
-    versa. *)
-
-(** [ethernet_mac_of_bytes buf] is the hardware address extracted from
-    [buf]. Raise [Invalid_argument] if [buf] has not size 6. *)
-val ethernet_mac_of_bytes : bytes -> ethernet_mac
-
-(** [ethernet_mac_of_string "a:b:c:d:e:f"] is [Some mac] if
-    "a:b:c:d:e:f" is the colon separated string representation of a
-    valid MAC address, or [None] otherwise. *)
-val ethernet_mac_of_string : string -> ethernet_mac option
-
-(** [ethernet_mac_to_bytes mac_addr] is a string of size 6
-    representing the [mac_addr]. *)
-val ethernet_mac_to_bytes : ethernet_mac -> bytes
-
-(** [ethernet_mac_to_string mac_addr] is the colon spearated string
-    representation of [mac_addr]. *)
-val ethernet_mac_to_string : ethernet_mac -> string
-
-(** [ethernet_mac_broadcast] is the encoded address
-    255.255.255.255. *)
-val ethernet_mac_broadcast: ethernet_mac
-
-(** Functions handling IPv4 addresses. *)
-
-(** Type representing IPv4 addresses. *)
-type ipv4_addr
-
-(** [ipv4_addr_of_tuple (a,b,c,d)] is an address whose dot separated
-    string representation is a.b.c.d. *)
-val ipv4_addr_of_tuple : (int32 * int32 * int32 * int32) -> ipv4_addr
-
-(** [ipv4_addr_of_string "a.b.c.d"] is [Some addr] if "a.b.c.d" is a
-    dot separated string representation of a valid IPv4, or [None]
-    otherwise. *)
-val ipv4_addr_of_string : string -> ipv4_addr option
-
-(** [ipv4_addr_to_string addr] is the dot separated string
-    representing [addr]. *)
-val ipv4_addr_to_string : ipv4_addr -> string
-
-(** [ipv4_addr_of_int32 i] is the IPv4 address represented in [i]. *)
-val ipv4_addr_of_uint32 : int32 -> ipv4_addr
-
-(** [ipv4_addr_to_int32 addr] is the int32 representation of
-    [addr]. *)
-val ipv4_addr_to_uint32 : ipv4_addr -> int32
-
-(** [ipv4_blank] is the address whose dot separated string
-    representation is "0.0.0.0". *)
-val ipv4_blank : ipv4_addr
-
-(** [ipv4_broadcast] is the address whose dot separated string
-    representation is "255.255.255.255". *)
-val ipv4_broadcast : ipv4_addr
-
-(** [ipv4_localhost] is the address whose dot separated string
-    representation is "127.0.0.1". *)
-val ipv4_localhost : ipv4_addr
-
 (** Type of source socket addresses. *)
-type ipv4_src = ipv4_addr option * int
+type ipv4_src = Ipaddr.V4.t option * int
 
 (** Type of destination socket addresses. *)
-type ipv4_dst = ipv4_addr * int
+type ipv4_dst = Ipaddr.V4.t * int
 
 (** Type of an ARP packet. *)
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ]; (** operation *)
-  sha: ethernet_mac;                         (** source hardware address *)
-  spa: ipv4_addr;                            (** source protocol address *)
-  tha: ethernet_mac;                         (** target hardware address *)
-  tpa: ipv4_addr;                            (** target protocol address *)
+  sha: Macaddr.t;                         (** source hardware address *)
+  spa: Ipaddr.V4.t;                            (** source protocol address *)
+  tha: Macaddr.t;                         (** target hardware address *)
+  tpa: Ipaddr.V4.t;                            (** target protocol address *)
 }
 
 type peer_uid = int

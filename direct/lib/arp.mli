@@ -28,23 +28,23 @@ type t
 (** [create ~get_etherbuf ~output ~get_mac] creates a value of type
     [t]. *)
 val create: get_etherbuf:(unit -> Cstruct.t Lwt.t) ->
-  output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> ethernet_mac) -> t
+  output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> Macaddr.t) -> t
 
 (** [set_ips arp] sets the bound IP address list, which will xmit a
     GARP packet also. *)
-val set_ips: t -> ipv4_addr list -> unit Lwt.t
+val set_ips: t -> Ipaddr.V4.t list -> unit Lwt.t
 
 (** [get_ips arp] gets the bound IP address list in the [arp]
     value. *)
-val get_ips: t -> ipv4_addr list
+val get_ips: t -> Ipaddr.V4.t list
 
 (** [add_ip arp ip] adds [ip] to the bound IP address list in the
     [arp] value, which will xmit a GARP packet also. *)
-val add_ip: t -> ipv4_addr -> unit Lwt.t
+val add_ip: t -> Ipaddr.V4.t -> unit Lwt.t
 
 (** [remove_ip arp ip] removes [ip] to the bound IP address list in
     the [arp] value, which will xmit a GARP packet also. *)
-val remove_ip: t -> ipv4_addr -> unit Lwt.t
+val remove_ip: t -> Ipaddr.V4.t -> unit Lwt.t
 
 (** [input arp frame] will handle an ethernet frame containing an ARP
     packet. If it is a response, it will update its cache, otherwise
@@ -54,5 +54,5 @@ val input: t -> Cstruct.t -> unit Lwt.t
 (** [query arp ip] queries the cache in [arp] for an ARP entry
     corresponding to [ip], which may result in the sender sleeping
     waiting for a response. *)
-val query: t -> ipv4_addr -> ethernet_mac Lwt.t
+val query: t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
 

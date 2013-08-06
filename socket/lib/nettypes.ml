@@ -14,68 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type bytes = string (* to differentiate from pretty-printed strings *)
-type ethernet_mac = string (* length 6 only *)
+type ipv4_src = Ipaddr.V4.t option * int
+type ipv4_dst = Ipaddr.V4.t * int
 
-(* Raw MAC address off the wire (network endian) *)
-let ethernet_mac_of_bytes x =
-  if String.length x <> 6 then raise (Invalid_argument x) else x
-
-(* Read a MAC address colon-separated string *)
-let ethernet_mac_of_string x =
-    try
-      let s = String.create 6 in
-      Scanf.sscanf x "%2x:%2x:%2x:%2x:%2x:%2x"
-       (fun a b c d e f ->
-         s.[0] <- Char.chr a;
-         s.[1] <- Char.chr b;
-         s.[2] <- Char.chr c;
-         s.[3] <- Char.chr d;
-         s.[4] <- Char.chr e;
-         s.[5] <- Char.chr f;
-       );
-       Some s
-    with _ -> None
-
-let ethernet_mac_to_string x =
-    let chri i = Char.code x.[i] in
-    Printf.sprintf "%02x:%02x:%02x:%02x:%02x:%02x"
-       (chri 0) (chri 1) (chri 2) (chri 3) (chri 4) (chri 5)
-
-let ethernet_mac_to_bytes x = x
-
-let ethernet_mac_broadcast = String.make 6 '\255'
-
-type ipv4_addr = Unix.inet_addr
-
-(* XXX Inefficient *)
-let ipv4_addr_of_tuple (a,b,c,d) =
-  let s = Printf.sprintf "%ld.%ld.%ld.%ld" a b c d in
-  Unix.inet_addr_of_string s
- 
-(* Read an IPv4 address dot-separated string *)
-let ipv4_addr_of_string x =
-  try Some (Unix.inet_addr_of_string x)
-  with _ -> None
-
-(* Blank 0.0.0.0 IPv4 address *)
-let ipv4_blank = Unix.inet_addr_any
-(* Broadcast 255.255.255.255 IPv4 address *)
-let ipv4_broadcast = ipv4_addr_of_tuple (255l,255l,255l,255l)
-(* Localhost 127.0.0.1 ipv4 address  *)
-let ipv4_localhost = ipv4_addr_of_tuple (127l,0l,0l,1l)
-
-let ipv4_addr_to_string s = Unix.string_of_inet_addr s 
-
-type ipv4_src = ipv4_addr option * int
-type ipv4_dst = ipv4_addr * int
+let inet_addr_of_ipaddr a = Unix.inet_addr_of_string (Ipaddr.V4.to_string a)
+let ipaddr_of_inet_addr a = Ipaddr.V4.of_string_exn (Unix.string_of_inet_addr a)
 
 type arp = {
   op: [ `Request |`Reply |`Unknown of int ];
-  sha: ethernet_mac;
-  spa: ipv4_addr;
-  tha: ethernet_mac;
-  tpa: ipv4_addr;
+  sha: Macaddr.t;
+  spa: Ipaddr.V4.t;
+  tha: Macaddr.t;
+  tpa: Ipaddr.V4.t;
 }
 
 type peer_uid = int

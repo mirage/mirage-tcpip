@@ -33,12 +33,12 @@ cstruct ipv4 {
 
 type t = {
   ethif: Ethif.t;
-  mutable ip: ipv4_addr;
-  mutable netmask: ipv4_addr;
-  mutable gateways: ipv4_addr list;
-  mutable icmp: ipv4_addr -> Cstruct.t -> Cstruct.t -> unit Lwt.t;
-  mutable udp: src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t;
-  mutable tcp: src:ipv4_addr -> dst:ipv4_addr -> Cstruct.t -> unit Lwt.t;
+  mutable ip: Ipaddr.V4.t;
+  mutable netmask: Ipaddr.V4.t;
+  mutable gateways: Ipaddr.V4.t list;
+  mutable icmp: Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t;
+  mutable udp: src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t;
+  mutable tcp: src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t;
 }
 
 module Routing = struct
@@ -48,23 +48,23 @@ module Routing = struct
     |Gateway
     |Local
 
-  exception No_route_to_destination_address of ipv4_addr
+  exception No_route_to_destination_address of Ipaddr.V4.t
 
   let is_local t ip =
-    let ipand a b = Int32.logand (ipv4_addr_to_uint32 a) (ipv4_addr_to_uint32 b) in
+    let ipand a b = Int32.logand (Ipaddr.V4.to_int32 a) (Ipaddr.V4.to_int32 b) in
     (ipand t.ip t.netmask) = (ipand ip t.netmask)
 
   let destination_mac t = 
     function
-    |ip when ip = ipv4_broadcast || ip = ipv4_blank -> (* Broadcast *)
-      return ethernet_mac_broadcast
+    |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
+      return Macaddr.broadcast
     |ip when is_local t ip -> (* Local *)
       Ethif.query_arp t.ethif ip
     |ip -> begin (* Gateway *)
       match t.gateways with 
       |hd::_ -> Ethif.query_arp t.ethif hd
       |[] -> 
-        printf "IP.output: no route to %s\n%!" (ipv4_addr_to_string ip);
+        printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
         fail (No_route_to_destination_address ip)
     end
 end
@@ -72,8 +72,8 @@ end
 let get_header ~proto ~dest_ip t =
   lwt ethernet_frame = Ethif.get_frame t.ethif in
   (* Something of a layer violation here, but ARP is awkward *)
-  lwt dmac = Routing.destination_mac t dest_ip >|= ethernet_mac_to_bytes in
-  let smac = ethernet_mac_to_bytes (Ethif.mac t.ethif) in
+  lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
+  let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
   Ethif.set_ethernet_dst dmac 0 ethernet_frame; 
   Ethif.set_ethernet_src smac 0 ethernet_frame;
   Ethif.set_ethernet_ethertype ethernet_frame 0x0800;
@@ -85,8 +85,8 @@ let get_header ~proto ~dest_ip t =
   set_ipv4_ttl buf 38; (* TODO *)
   let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in
   set_ipv4_proto buf proto;
-  set_ipv4_src buf (ipv4_addr_to_uint32 t.ip);
-  set_ipv4_dst buf (ipv4_addr_to_uint32 dest_ip);
+  set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
+  set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
   let len = Ethif.sizeof_ethernet + sizeof_ipv4 in
   return (ethernet_frame, len)
 
@@ -116,8 +116,8 @@ let writev t ethernet_frame bufs =
 let input t buf =
   (* buf pointers to to start of IPv4 header here *)
   let ihl = (get_ipv4_hlen_version buf land 0xf) * 4 in
-  let src = ipv4_addr_of_uint32 (get_ipv4_src buf) in
-  let dst = ipv4_addr_of_uint32 (get_ipv4_dst buf) in
+  let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
+  let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
   let payload_len = get_ipv4_len buf - ihl in
   (* XXX this will raise exception for 0-length payload *)
   let hdr = Cstruct.sub buf 0 ihl in
@@ -136,8 +136,8 @@ let default_udp = fun ~src ~dst _ -> return ()
 let default_tcp = fun ~src ~dst _ -> return ()
  
 let create ethif = 
-  let ip = ipv4_blank in
-  let netmask = ipv4_blank in
+  let ip = Ipaddr.V4.any in
+  let netmask = Ipaddr.V4.any in
   let gateways = [] in
   let icmp = default_icmp in
   let udp = default_udp in
