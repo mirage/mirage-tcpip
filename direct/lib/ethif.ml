@@ -77,7 +77,8 @@ let writev t bufs =
 
 let create netif =
   let ipv4 = fun (_:Cstruct.t) -> return () in
-  let mac = Macaddr.of_bytes_exn (OS.Netif.mac netif) in
+  (* TODO: there's a race here if the MAC can change in the future *)
+  let mac = OS.Netif.mac netif in
   let arp =
     let get_mac () = mac in
     let get_etherbuf () = OS.Netif.get_writebuf netif in

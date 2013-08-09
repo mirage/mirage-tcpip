@@ -1,3 +1,7 @@
+0.9.4 (09-August-2013):
+* Use the `Ipaddr` external library and remove the homebrew
+  equivalents in `Nettypes`.
+
 0.9.3 (18-July-2013):
 * Changes in module Manager: Removed some functions from the `.mli
   (plug/unplug) and added some modifications in the way the Manager
