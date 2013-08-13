@@ -39,6 +39,8 @@ type callback = t -> interface -> id -> unit Lwt.t
 
 let get_intf intf = ""
 
+let get_intfs _ = []
+
 (* Manage the protocol threads *)
 let create listener =
   let open Lwt_unix in
