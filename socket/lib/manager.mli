@@ -33,7 +33,7 @@ val get_udpv4_listener : t -> Ipaddr.V4.t option * int -> Lwt_unix.file_descr Lw
     should not be used. *)
 
 type interface = unit
-type id = string (** Always equal to "" *)
+type id = OS.Netif.id (** Always equal to "" *)
 type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (** Do nothing *)
