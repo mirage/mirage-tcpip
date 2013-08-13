@@ -42,6 +42,9 @@ val configure: interface -> config -> unit Lwt.t
 (** Return "" *)
 val get_intf : interface -> string
 
+(** Return [] *)
+val get_intfs : t -> (id * interface) list
+
 
 (** Type of the callback function given as an argument for
     [create]. *)
