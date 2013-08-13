@@ -69,3 +69,6 @@ val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 val get_intf_name : t -> id -> string
 val get_intf_mac : t -> id -> Macaddr.t
 
+(** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
+    [id] if it exists, or raise [Not_found] otherwise. *)
+val get_intf_ipv4addr : t -> id -> Ipaddr.V4.t
