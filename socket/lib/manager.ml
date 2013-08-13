@@ -80,3 +80,6 @@ let get_intf_mac t id =
   failwith "Socket mirage doesn't support dev mac address"
 let set_promiscuous t id f =
   failwith "Socket mirage doesn't support dev promiscuous mode"
+let get_intf_ipv4addr t id =
+  failwith "Socket mirage doesn't support get_intf_ipv4addr"
+
