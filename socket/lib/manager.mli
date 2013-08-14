@@ -33,7 +33,7 @@ val get_udpv4_listener : t -> Ipaddr.V4.t option * int -> Lwt_unix.file_descr Lw
     should not be used. *)
 
 type interface = unit
-type id = string (** Always equal to "" *)
+type id = OS.Netif.id (** Always equal to "" *)
 type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (** Do nothing *)
@@ -41,6 +41,9 @@ val configure: interface -> config -> unit Lwt.t
 
 (** Return "" *)
 val get_intf : interface -> string
+
+(** Return [] *)
+val get_intfs : t -> (id * interface) list
 
 
 (** Type of the callback function given as an argument for
@@ -66,3 +69,6 @@ val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
 val get_intf_name : t -> id -> string
 val get_intf_mac : t -> id -> Macaddr.t
 
+(** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
+    [id] if it exists, or raise [Not_found] otherwise. *)
+val get_intf_ipv4addr : t -> id -> Ipaddr.V4.t

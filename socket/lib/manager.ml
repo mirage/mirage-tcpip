@@ -22,7 +22,7 @@ open Lwt
 open Nettypes
 open Printf
 
-type id = string
+type id = OS.Netif.id
 type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (* Interfaces are a NOOP for the moment, as we depend on them being
@@ -39,13 +39,15 @@ type callback = t -> interface -> id -> unit Lwt.t
 
 let get_intf intf = ""
 
+let get_intfs _ = []
+
 (* Manage the protocol threads *)
 let create listener =
   let open Lwt_unix in
   let udpv4 = socket PF_INET SOCK_DGRAM 0 in
   let udpv4_listen_ports = Hashtbl.create 7 in
   let t = { udpv4; udpv4_listen_ports } in
-  listener t () ""
+  listener t () (OS.Netif.id_of_string "")
 
 let get_udpv4 t =
   t.udpv4
@@ -78,3 +80,6 @@ let get_intf_mac t id =
   failwith "Socket mirage doesn't support dev mac address"
 let set_promiscuous t id f =
   failwith "Socket mirage doesn't support dev promiscuous mode"
+let get_intf_ipv4addr t id =
+  failwith "Socket mirage doesn't support get_intf_ipv4addr"
+
