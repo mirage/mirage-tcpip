@@ -25,10 +25,8 @@ open Printf
     IPv4 -> MAC hashtbl. *)
 type t
 
-(** [create ~get_etherbuf ~output ~get_mac] creates a value of type
-    [t]. *)
-val create: get_etherbuf:(unit -> Cstruct.t) ->
-  output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> Macaddr.t) -> t
+(** [create ~output ~get_mac] creates a value of type [t]. *)
+val create: output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> Macaddr.t) -> t
 
 (** [set_ips arp] sets the bound IP address list, which will xmit a
     GARP packet also. *)

@@ -30,22 +30,23 @@ type t = {
   ip: Ipv4.t;
 }
 
-let input t src hdr buf =
-  match get_icmpv4_ty buf with
+let input t src ethernet_frame ipv4_hdr ipv4_payload =
+  match get_icmpv4_ty ipv4_payload with
   |0 -> (* echo reply *)
     return (printf "ICMP: discarding echo reply\n%!")
   |8 -> (* echo request *)
     (* convert the echo request into an echo reply *)
     let csum =
-      let orig_csum = get_icmpv4_csum buf in
+      let orig_csum = get_icmpv4_csum ipv4_payload in
       let shift = if orig_csum > 0xffff -0x0800 then 0x0801 else 0x0800 in
       (orig_csum + shift) land 0xffff in
-    set_icmpv4_ty buf 0;
-    set_icmpv4_csum buf csum;
+    set_icmpv4_ty ipv4_payload 0;
+    set_icmpv4_csum ipv4_payload csum;
     (* stick an IPv4 header on the front and transmit *)
-    lwt (ipv4_frame, ipv4_len) = Ipv4.get_header ~proto:`ICMP ~dest_ip:src t.ip in
+    lwt (ipv4_frame, ipv4_len) =
+      Ipv4.get_header ~ethernet_frame ~proto:`ICMP ~dest_ip:src t.ip in
     let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
-    Ipv4.write t.ip ipv4_frame buf
+    Ipv4.write t.ip ipv4_frame ipv4_payload
   |ty ->
     printf "ICMP unknown ty %d\n" ty; 
     return ()

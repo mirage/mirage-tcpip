@@ -25,7 +25,6 @@ type entry =
   | Verified of Macaddr.t
 
 type t = {
-  get_etherbuf: unit -> Cstruct.t;
   output: Cstruct.t -> unit Lwt.t;
   get_mac: unit -> Macaddr.t;
   cache: (Ipaddr.V4.t, entry) Hashtbl.t;
@@ -99,8 +98,9 @@ let rec input t frame =
     return ()
 
 and output t arp =
-  (* Obtain a buffer to write into *)
-  let buf = t.get_etherbuf () in
+  (* Allocate a page to write into *)
+  (* XXX: Recycle input page, do not allocate!!! *)
+  let buf = OS.Io_page.(to_cstruct (get 1)) in
   (* Write the ARP packet *)
   let dmac = Macaddr.to_bytes arp.tha in
   let smac = Macaddr.to_bytes arp.sha in
@@ -186,7 +186,7 @@ let query t ip =
     Lwt_condition.wait cond
   )
 
-let create ~get_etherbuf ~output ~get_mac =
+let create ~output ~get_mac =
   let cache = Hashtbl.create 7 in
   let bound_ips = [] in
-  { output; get_mac; cache; bound_ips; get_etherbuf }
+  { output; get_mac; cache; bound_ips }

@@ -40,11 +40,9 @@ cstruct ethernet {
 let default_process t frame =
   match get_ethernet_ethertype frame with
   | 0x0806 -> Arp.input t.arp frame (* ARP *)
-  | 0x0800 -> (* IPv4 *)
-    let payload = Cstruct.shift frame sizeof_ethernet in
-    t.ipv4 payload
-  | 0x86dd -> return () (* IPv6 *) (*printf "Ethif: discarding ipv6\n%!"*)
-  | etype  -> return () (*printf "Ethif: unknown frame %x\n%!" etype*)
+  | 0x0800 -> t.ipv4 frame          (* IPv4 *)
+  | 0x86dd -> return ()             (* IPv6 *)
+  | etype  -> return ()
 
 (* Handle a single input frame *)
 let input t frame =
@@ -78,9 +76,8 @@ let create netif =
   let mac = OS.Netif.mac netif in
   let arp =
     let get_mac () = mac in
-    let get_etherbuf = fun () -> OS.Io_page.(to_cstruct (get 1)) in
     let output buf = OS.Netif.write netif buf in
-    Arp.create ~output ~get_mac ~get_etherbuf in
+    Arp.create ~output ~get_mac in
   let t = { netif; ipv4; mac; arp; promiscuous=None; } in
   let listen = listen t in
   (t, listen)
