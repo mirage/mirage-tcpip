@@ -62,9 +62,6 @@ let disable_promiscuous t =
 let rec listen t =
   OS.Netif.listen t.netif (input t)
 
-let get_frame t =
-  OS.Netif.get_writebuf t.netif
-
 let write t frame =
   match t.promiscuous with
   |Some f -> f (Output [frame]) >>= fun () -> OS.Netif.write t.netif frame
@@ -81,7 +78,7 @@ let create netif =
   let mac = OS.Netif.mac netif in
   let arp =
     let get_mac () = mac in
-    let get_etherbuf () = OS.Netif.get_writebuf netif in
+    let get_etherbuf = fun () -> OS.Io_page.(to_cstruct (get 1)) in
     let output buf = OS.Netif.write netif buf in
     Arp.create ~output ~get_mac ~get_etherbuf in
   let t = { netif; ipv4; mac; arp; promiscuous=None; } in

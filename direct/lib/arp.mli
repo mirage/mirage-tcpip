@@ -27,7 +27,7 @@ type t
 
 (** [create ~get_etherbuf ~output ~get_mac] creates a value of type
     [t]. *)
-val create: get_etherbuf:(unit -> Cstruct.t Lwt.t) ->
+val create: get_etherbuf:(unit -> Cstruct.t) ->
   output:(Cstruct.t -> unit Lwt.t) -> get_mac:(unit -> Macaddr.t) -> t
 
 (** [set_ips arp] sets the bound IP address list, which will xmit a

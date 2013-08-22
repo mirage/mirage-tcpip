@@ -70,7 +70,7 @@ module Routing = struct
 end
 
 let get_header ~proto ~dest_ip t =
-  lwt ethernet_frame = Ethif.get_frame t.ethif in
+  let ethernet_frame = OS.Io_page.(to_cstruct (get 1)) in
   (* Something of a layer violation here, but ARP is awkward *)
   lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
   let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in

@@ -25,7 +25,7 @@ type entry =
   | Verified of Macaddr.t
 
 type t = {
-  get_etherbuf: unit -> Cstruct.t Lwt.t;
+  get_etherbuf: unit -> Cstruct.t;
   output: Cstruct.t -> unit Lwt.t;
   get_mac: unit -> Macaddr.t;
   cache: (Ipaddr.V4.t, entry) Hashtbl.t;
@@ -100,7 +100,7 @@ let rec input t frame =
 
 and output t arp =
   (* Obtain a buffer to write into *)
-  lwt buf = t.get_etherbuf () in
+  let buf = t.get_etherbuf () in
   (* Write the ARP packet *)
   let dmac = Macaddr.to_bytes arp.tha in
   let smac = Macaddr.to_bytes arp.sha in
