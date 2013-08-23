@@ -21,7 +21,16 @@ open Nettypes
 type t
 (** Type of a IPv4 *)
 
-val get_header: proto:[< `ICMP | `TCP | `UDP ] -> dest_ip:Ipaddr.V4.t -> t -> (Cstruct.t * int) Lwt.t
+val get_header:
+  ?ethernet_frame:Cstruct.t ->
+  proto:[< `ICMP | `TCP | `UDP ] ->
+  dest_ip:Ipaddr.V4.t ->
+  t ->
+  (Cstruct.t * int) Lwt.t
+(** [get_header ?ethernet_frame ~proto ~dest_ip ipv4] allocates a page
+    (or recycle one if [?ethernet_frame <> None] and write an IPv4
+    header on it. It returns the page and the combined size of the
+    ethernet header + IPv4 header. *)
 
 val write: t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
 val writev: t -> Cstruct.t -> Cstruct.t list -> unit Lwt.t
@@ -34,7 +43,7 @@ val set_gateways: t -> Ipaddr.V4.t list -> unit Lwt.t
 val create : Ethif.t -> t * unit Lwt.t
 
 val attach : t ->
-  [<  `ICMP of Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
+  [<  `ICMP of Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
     | `UDP of src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t 
     | `TCP of src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t ] -> unit
 val detach : t -> [< `ICMP | `UDP | `TCP ] -> unit
