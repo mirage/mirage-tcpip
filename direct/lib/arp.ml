@@ -78,7 +78,8 @@ let rec input t frame =
       let tha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
       let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
       let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
-      output t { op=`Reply; sha; tha; spa; tpa }
+      (* Recycle the frame *)
+      output ~frame t { op=`Reply; sha; tha; spa; tpa }
     end else return ()
   |2 -> (* Reply *)
     let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
@@ -97,10 +98,7 @@ let rec input t frame =
     printf "ARP: Unknown message %d ignored\n%!" n;
     return ()
 
-and output t arp =
-  (* Allocate a page to write into *)
-  (* XXX: Recycle input page, do not allocate!!! *)
-  let buf = OS.Io_page.(to_cstruct (get 1)) in
+and output ?(frame=OS.Io_page.(to_cstruct (get 1))) t arp =
   (* Write the ARP packet *)
   let dmac = Macaddr.to_bytes arp.tha in
   let smac = Macaddr.to_bytes arp.sha in
@@ -112,21 +110,21 @@ and output t arp =
     |`Reply -> 2 
     |`Unknown n -> n 
   in
-  set_arp_dst dmac 0 buf;
-  set_arp_src smac 0 buf;
-  set_arp_ethertype buf 0x0806; (* ARP *)
-  set_arp_htype buf 1; 
-  set_arp_ptype buf 0x0800; (* IPv4 *)
-  set_arp_hlen buf 6; (* ethernet mac size *)
-  set_arp_plen buf 4; (* ipv4 size *)
-  set_arp_op buf op;
-  set_arp_sha smac 0 buf;
-  set_arp_spa buf spa;
-  set_arp_tha dmac 0 buf;
-  set_arp_tpa buf tpa;
+  set_arp_dst dmac 0 frame;
+  set_arp_src smac 0 frame;
+  set_arp_ethertype frame 0x0806; (* ARP *)
+  set_arp_htype frame 1; 
+  set_arp_ptype frame 0x0800; (* IPv4 *)
+  set_arp_hlen frame 6; (* ethernet mac size *)
+  set_arp_plen frame 4; (* ipv4 size *)
+  set_arp_op frame op;
+  set_arp_sha smac 0 frame;
+  set_arp_spa frame spa;
+  set_arp_tha dmac 0 frame;
+  set_arp_tpa frame tpa;
   (* Resize buffer to sizeof arp packet *)
-  let buf = Cstruct.sub buf 0 sizeof_arp in
-  t.output buf
+  let frame = Cstruct.sub frame 0 sizeof_arp in
+  t.output frame
 
 (* Send a gratuitous ARP for our IP addresses *)
 let output_garp t =
