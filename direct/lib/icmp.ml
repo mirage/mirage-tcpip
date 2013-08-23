@@ -30,7 +30,7 @@ type t = {
   ip: Ipv4.t;
 }
 
-let input t src ethernet_frame ipv4_hdr ipv4_payload =
+let input t src frame ipv4_hdr ipv4_payload =
   match get_icmpv4_ty ipv4_payload with
   |0 -> (* echo reply *)
     return (printf "ICMP: discarding echo reply\n%!")
@@ -44,9 +44,10 @@ let input t src ethernet_frame ipv4_hdr ipv4_payload =
     set_icmpv4_csum ipv4_payload csum;
     (* stick an IPv4 header on the front and transmit *)
     lwt (ipv4_frame, ipv4_len) =
-      Ipv4.get_header ~ethernet_frame ~proto:`ICMP ~dest_ip:src t.ip in
+      Ipv4.get_header ~frame ~proto:`ICMP ~dest_ip:src t.ip in
     let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
-    Ipv4.write t.ip ipv4_frame ipv4_payload
+    Ipv4.write t.ip ipv4_frame ipv4_payload >|= fun () ->
+    OS.Io_page.recycle Cstruct.(frame.buffer)
   |ty ->
     printf "ICMP unknown ty %d\n" ty; 
     return ()

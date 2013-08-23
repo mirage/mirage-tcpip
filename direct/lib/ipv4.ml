@@ -70,17 +70,17 @@ module Routing = struct
 end
 
 let get_header
-    ?(ethernet_frame=OS.Io_page.(to_cstruct (get 1)))
+    ?(frame=OS.Io_page.(to_cstruct (get 1)))
     ~proto
     ~dest_ip
     t =
   (* Something of a layer violation here, but ARP is awkward *)
   lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
   let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
-  Ethif.set_ethernet_dst dmac 0 ethernet_frame; 
-  Ethif.set_ethernet_src smac 0 ethernet_frame;
-  Ethif.set_ethernet_ethertype ethernet_frame 0x0800;
-  let buf = Cstruct.shift ethernet_frame Ethif.sizeof_ethernet in
+  Ethif.set_ethernet_dst dmac 0 frame; 
+  Ethif.set_ethernet_src smac 0 frame;
+  Ethif.set_ethernet_ethertype frame 0x0800;
+  let buf = Cstruct.shift frame Ethif.sizeof_ethernet in
   (* Write the constant IPv4 header fields *)
   set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
   set_ipv4_tos buf 0;
@@ -91,7 +91,7 @@ let get_header
   set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
   set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
   let len = Ethif.sizeof_ethernet + sizeof_ipv4 in
-  return (ethernet_frame, len)
+  return (frame, len)
 
 let adjust_output_header ~tlen frame =
   let buf = Cstruct.sub frame Ethif.sizeof_ethernet sizeof_ipv4 in
@@ -111,14 +111,14 @@ let write t frame data =
   adjust_output_header ~tlen frame;
   Ethif.writev t.ethif [frame;data]
 
-let writev t ethernet_frame bufs =
-  let tlen = Cstruct.len ethernet_frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
-  adjust_output_header ~tlen ethernet_frame;
-  Ethif.writev t.ethif (ethernet_frame::bufs)
+let writev t frame bufs =
+  let tlen = Cstruct.len frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
+  adjust_output_header ~tlen frame;
+  Ethif.writev t.ethif (frame::bufs)
 
-let input t ethernet_frame =
+let input t frame =
   (* buf pointers to start of the ethernet header here *)
-  let ipv4_packet = Cstruct.shift ethernet_frame Ethif.sizeof_ethernet in
+  let ipv4_packet = Cstruct.shift frame Ethif.sizeof_ethernet in
   let ihl = (get_ipv4_hlen_version ipv4_packet land 0xf) * 4 in
   let src = Ipaddr.V4.of_int32 (get_ipv4_src ipv4_packet) in
   let dst = Ipaddr.V4.of_int32 (get_ipv4_dst ipv4_packet) in
@@ -128,7 +128,7 @@ let input t ethernet_frame =
   let data = Cstruct.sub ipv4_packet ihl payload_len in
   match get_ipv4_proto ipv4_packet with
   |1 -> (* ICMP *)
-    t.icmp src ethernet_frame hdr data
+    t.icmp src frame hdr data
   |6 -> (* TCP *)
     t.tcp ~src ~dst data
   |17 -> (* UDP *)

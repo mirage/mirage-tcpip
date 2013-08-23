@@ -22,7 +22,7 @@ type t
 (** Type of a IPv4 *)
 
 val get_header:
-  ?ethernet_frame:Cstruct.t ->
+  ?frame:Cstruct.t ->
   proto:[< `ICMP | `TCP | `UDP ] ->
   dest_ip:Ipaddr.V4.t ->
   t ->

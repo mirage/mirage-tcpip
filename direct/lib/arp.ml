@@ -79,7 +79,8 @@ let rec input t frame =
       let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
       let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
       (* Recycle the frame *)
-      output ~frame t { op=`Reply; sha; tha; spa; tpa }
+      output ~frame t { op=`Reply; sha; tha; spa; tpa } >|= fun () ->
+      OS.Io_page.recycle Cstruct.(frame.buffer)
     end else return ()
   |2 -> (* Reply *)
     let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
