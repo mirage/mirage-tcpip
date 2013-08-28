@@ -48,7 +48,9 @@ configure() {
   # TODO check ocamlopt is installed
   touch _config/flag.opt
   # TODO getopt parsing for this and implement various options
-  touch _config/flag.natdynlink
+  if [ `ocamlfind query dynlink -predicates native -format "%d/%a"` ]; then
+    touch _config/flag.natdynlink
+  fi
 }
 
 # invoke native code and byte code compiler targets
