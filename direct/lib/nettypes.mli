@@ -35,8 +35,8 @@ type peer_uid = int
 
 exception Closed
 
-(** Type of an unbuffered byte-stream network protocol, e.g. TCP with
-    each write being a segment. *)
+(** Type of an unbuffered byte-stream network protocol (TCP with each
+    write being a segment). *)
 module type FLOW = sig
 
   (** Type of an individual flow. *)
@@ -64,7 +64,7 @@ module type FLOW = sig
 
 end
 
-(** Type of a datagram-based network protocol, e.g. UDP. *)
+(** Type of a datagram-based network protocol (UDP). *)
 module type DATAGRAM = sig
 
   (** Datagram manager *)
@@ -85,8 +85,8 @@ module type DATAGRAM = sig
   val send : mgr -> ?src:src -> dst -> msg -> unit Lwt.t
 end
 
-(** Type of a buffered byte-stream network protocol, e.g. TCP with
-    each write buffered and TCP segmentation done. *)
+(** Type of a buffered byte-stream network protocol (TCP with each
+    write buffered and TCP segmentation done). *)
 module type CHANNEL = sig
 
   type mgr
