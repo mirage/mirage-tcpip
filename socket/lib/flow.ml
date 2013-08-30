@@ -26,35 +26,25 @@ exception Connect_error of string
 exception Read_error of string
 exception Write_error of string
 
-let close fd = Lwt_unix.close fd
-
-let close_on_exit t fn =
-  try_lwt 
-    lwt x = fn t in
-    close t >>
-    return x
-  with exn -> 
-    close t >>
-    fail exn
-
 let listen_tcpv4 addr port fn =
   let open Lwt_unix in
   let fd = socket PF_INET SOCK_STREAM 0 in
-  let _ = setsockopt fd SO_REUSEADDR true in 
+  let _ = setsockopt fd SO_REUSEADDR true in
   bind fd (ADDR_INET (inet_addr_of_ipaddr addr,port));
   listen fd 10;
   (* XXX use accept_n *)
   while_lwt true do
     lwt (afd, asa) = accept fd in
     let caddr, cport = match asa with
-      |ADDR_INET (x,y) -> ipaddr_of_inet_addr x,y |_ -> assert false in
-    Lwt.ignore_result (
-      close_on_exit afd (fun t ->
+      | ADDR_INET (x, y) -> ipaddr_of_inet_addr x, y
+      | _ -> assert false in
+    Lwt.async (fun () ->
         try_lwt
-          fn (caddr, cport) t
+          fn (caddr, cport) afd
         with exn ->
-          return (Printf.printf "EXN: %s\n%!" (Printexc.to_string exn))
-      )
+          Lwt_io.printf "EXN: %s\n%!" (Printexc.to_string exn)
+        finally
+          Lwt_unix.close afd
     );
     return ()
   done
@@ -92,7 +82,7 @@ module TCPv4 = struct
 
   let read = read
   let writev = writev
-  let close = close
+  let close = Lwt_unix.close
   let write = write
 
   let listen mgr src fn =
