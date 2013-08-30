@@ -1,7 +1,7 @@
 <lib/*> and not <lib/net.*>: for-pack(Net), use_syntax
 <lib_test/*>: use_lib, custom
 <lib>: include
-<**/*.{mli,ml}>: package(lwt.unix), package(cstruct)
+<**/*.{mli,ml}>: package(lwt.unix), package(cstruct), package(ipaddr), package(mirage)
 <syntax/*>: build_syntax
 true: camlp4o
 
