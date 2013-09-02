@@ -86,7 +86,6 @@ val query_arp : t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
     embedded into [t]. Please refer to the documentation of module
     [OS.Netif] for more information. *)
 
-val get_frame : t -> Cstruct.t Lwt.t
 val write : t -> Cstruct.t -> unit Lwt.t
 val writev : t -> Cstruct.t list -> unit Lwt.t
 

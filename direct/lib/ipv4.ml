@@ -36,7 +36,7 @@ type t = {
   mutable ip: Ipaddr.V4.t;
   mutable netmask: Ipaddr.V4.t;
   mutable gateways: Ipaddr.V4.t list;
-  mutable icmp: Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t;
+  mutable icmp: Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t;
   mutable udp: src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t;
   mutable tcp: src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t;
 }
@@ -69,15 +69,18 @@ module Routing = struct
     end
 end
 
-let get_header ~proto ~dest_ip t =
-  lwt ethernet_frame = Ethif.get_frame t.ethif in
+let get_header
+    ?(frame=OS.Io_page.(to_cstruct (get 1)))
+    ~proto
+    ~dest_ip
+    t =
   (* Something of a layer violation here, but ARP is awkward *)
   lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
   let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
-  Ethif.set_ethernet_dst dmac 0 ethernet_frame; 
-  Ethif.set_ethernet_src smac 0 ethernet_frame;
-  Ethif.set_ethernet_ethertype ethernet_frame 0x0800;
-  let buf = Cstruct.shift ethernet_frame Ethif.sizeof_ethernet in
+  Ethif.set_ethernet_dst dmac 0 frame; 
+  Ethif.set_ethernet_src smac 0 frame;
+  Ethif.set_ethernet_ethertype frame 0x0800;
+  let buf = Cstruct.shift frame Ethif.sizeof_ethernet in
   (* Write the constant IPv4 header fields *)
   set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
   set_ipv4_tos buf 0;
@@ -88,7 +91,7 @@ let get_header ~proto ~dest_ip t =
   set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
   set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
   let len = Ethif.sizeof_ethernet + sizeof_ipv4 in
-  return (ethernet_frame, len)
+  return (frame, len)
 
 let adjust_output_header ~tlen frame =
   let buf = Cstruct.sub frame Ethif.sizeof_ethernet sizeof_ipv4 in
@@ -108,30 +111,31 @@ let write t frame data =
   adjust_output_header ~tlen frame;
   Ethif.writev t.ethif [frame;data]
 
-let writev t ethernet_frame bufs =
-  let tlen = Cstruct.len ethernet_frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
-  adjust_output_header ~tlen ethernet_frame;
-  Ethif.writev t.ethif (ethernet_frame::bufs)
- 
-let input t buf =
-  (* buf pointers to to start of IPv4 header here *)
-  let ihl = (get_ipv4_hlen_version buf land 0xf) * 4 in
-  let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
-  let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
-  let payload_len = get_ipv4_len buf - ihl in
+let writev t frame bufs =
+  let tlen = Cstruct.len frame - Ethif.sizeof_ethernet + (Cstruct.lenv bufs) in
+  adjust_output_header ~tlen frame;
+  Ethif.writev t.ethif (frame::bufs)
+
+let input t frame =
+  (* buf pointers to start of the ethernet header here *)
+  let ipv4_packet = Cstruct.shift frame Ethif.sizeof_ethernet in
+  let ihl = (get_ipv4_hlen_version ipv4_packet land 0xf) * 4 in
+  let src = Ipaddr.V4.of_int32 (get_ipv4_src ipv4_packet) in
+  let dst = Ipaddr.V4.of_int32 (get_ipv4_dst ipv4_packet) in
+  let payload_len = get_ipv4_len ipv4_packet - ihl in
   (* XXX this will raise exception for 0-length payload *)
-  let hdr = Cstruct.sub buf 0 ihl in
-  let data = Cstruct.sub buf ihl payload_len in
-  match get_ipv4_proto buf with
+  let hdr = Cstruct.sub ipv4_packet 0 ihl in
+  let data = Cstruct.sub ipv4_packet ihl payload_len in
+  match get_ipv4_proto ipv4_packet with
   |1 -> (* ICMP *)
-    t.icmp src hdr data
+    t.icmp src frame hdr data
   |6 -> (* TCP *)
     t.tcp ~src ~dst data
   |17 -> (* UDP *)
     t.udp ~src ~dst data
   |proto -> return ( (* printf "IPv4: dropping proto %d\n%!" proto *) )
 
-let default_icmp = fun _ _ _ -> return ()
+let default_icmp = fun _ _ _ _ -> return ()
 let default_udp = fun ~src ~dst _ -> return ()
 let default_tcp = fun ~src ~dst _ -> return ()
  
