@@ -45,6 +45,8 @@ val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
     belongs to the set of characters in the channel, or reads until
     EOF otherwise. *)
 
+val read_exactly: t -> int -> Cstruct.t Lwt.t
+
 val read_line: t -> Cstruct.t list Lwt.t
 (** [read_line c] returns a list of views corresponding to one line
     (e.g. that finishes by LF or CRLF). *)

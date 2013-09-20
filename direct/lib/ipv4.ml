@@ -166,6 +166,7 @@ let set_ip t ip =
   Ethif.add_ip t.ethif ip
 
 let get_ip t = t.ip
+let mac t = Ethif.mac t.ethif
 
 let set_netmask t netmask =
   t.netmask <- netmask;
@@ -175,6 +176,6 @@ let set_gateways t gateways =
   t.gateways <- gateways;
   return ()
 
-let mac t = Ethif.mac t.ethif
+let get_gateways t = t.gateways
 
 let get_netmask t = t.netmask

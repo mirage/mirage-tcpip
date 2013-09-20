@@ -31,6 +31,7 @@ val get_ip: t -> Ipaddr.V4.t
 val mac: t -> Macaddr.t
 val set_netmask: t -> Ipaddr.V4.t -> unit Lwt.t
 val set_gateways: t -> Ipaddr.V4.t list -> unit Lwt.t
+val get_gateways: t -> Ipaddr.V4.t list
 val create : Ethif.t -> t * unit Lwt.t
 
 val attach : t ->
