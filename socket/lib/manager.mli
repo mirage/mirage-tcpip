@@ -20,7 +20,6 @@ open Nettypes
 
 (** Type of a manager *)
 type t
-
 (** Accessors for the t type *)
 
 val get_udpv4 : t -> Lwt_unix.file_descr

@@ -180,4 +180,3 @@ let get_intf_ipv4addr t id =
 let set_promiscuous t id f =
   let intf = Hashtbl.find t.listeners id in
   Ethif.set_promiscuous intf.ethif (f id)
-

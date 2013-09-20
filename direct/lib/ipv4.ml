@@ -175,6 +175,8 @@ let set_netmask t netmask =
 let set_gateways t gateways =
   t.gateways <- gateways;
   return ()
+let get_gateways t = t.gateways
+
 
 let get_gateways t = t.gateways
 

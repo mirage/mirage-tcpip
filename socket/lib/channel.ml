@@ -102,7 +102,6 @@ module Make(Flow:FLOW) :
               off - l) buf len in
           return (Cstruct.sub ret 0 len)
  
-
   (* Read up to len characters from the input channel
      and at most a full view. If not specified, read all *)
   let read_some ?len t =
@@ -260,6 +259,9 @@ let read_until = function
 
 let read_some ?len = function
   | TCPv4 t -> TCPv4.read_some ?len t
+let read_exactly t len = 
+  match t with
+  | TCPv4 t -> TCPv4.read_exactly t len
 
 let read_exactly t len = 
 match t with 
