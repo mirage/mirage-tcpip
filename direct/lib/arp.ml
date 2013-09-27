@@ -183,7 +183,7 @@ let query t ip =
     Hashtbl.add t.cache ip (Incomplete cond);
     (* First request, so send a query packet *)
     lwt () = output_probe t ip in
-    Lwt_condition.wait cond 
+    Lwt_condition.wait cond
   )
 
 let create ~get_etherbuf ~output ~get_mac =

@@ -20,7 +20,8 @@ open Nettypes
 
 (** Type of a manager *)
 type t
- (** Accessors for the t type *)
+
+(** Accessors for the t type *)
 
 val get_udpv4 : t -> Lwt_unix.file_descr
 val register_udpv4_listener : t -> Ipaddr.V4.t option * int -> Lwt_unix.file_descr -> unit

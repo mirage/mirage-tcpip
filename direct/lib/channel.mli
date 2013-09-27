@@ -46,7 +46,7 @@ val read_until: t -> char -> (bool * Cstruct.t) Lwt.t
     EOF otherwise. *)
 
 val read_exactly: t -> int -> Cstruct.t Lwt.t
-(** [read_some ?len c] reads exactly [len] characters from [c] and blocks until
+(** [read_exactly len c] reads exactly [len] characters from [c] and blocks until
  * [len] characters are available. *)
 
 
