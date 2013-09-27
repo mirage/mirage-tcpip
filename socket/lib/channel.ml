@@ -263,10 +263,6 @@ let read_exactly t len =
   match t with
   | TCPv4 t -> TCPv4.read_exactly t len
 
-let read_exactly t len = 
-match t with 
-| TCPv4 t -> TCPv4.read_exactly t len
-
 let read_stream ?len = function
   | TCPv4 t -> TCPv4.read_stream ?len t
 
