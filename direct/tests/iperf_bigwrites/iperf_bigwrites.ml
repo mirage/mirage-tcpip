@@ -30,27 +30,28 @@ type stats = {
   mutable last_time: float;
 }
 
+let get = function Some x -> x | None -> failwith "Bad IP!"
 
-let ip1 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,101l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,101l)]
-  )
+let ip1 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.2"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
-let ip2 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,102l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,102l)]
-  )
-
+let ip2 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.1"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
 let port = 5001
 
 let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789001234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789001234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345678"
 
 let mlen = String.length msg
+
+let server_ready, server_ready_u = Lwt.wait ()
+let server_done, server_done_u = Lwt.wait ()
 
 let iperfclient mgr src_ip dest_ip dport = 
   let iperftx chan =
@@ -65,7 +66,7 @@ let iperfclient mgr src_ip dest_ip dport =
     Net.Flow.write chan a >>
     Net.Flow.close chan
   in
-  OS.Time.sleep 5. >>
+  OS.Time.sleep 1. >>
   (printf "Iperf client: Attempting connection. \n%!";
    lwt conn = Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
 					    (dest_ip, dport), iperftx)) in
@@ -111,33 +112,44 @@ let iperf (dip,dpt) chan =
         iperf_h chan
     end
   in
-  iperf_h chan
+  iperf_h chan >>
+  (Lwt.wakeup server_done_u ();
+   return ())
 
 
 let main () =
-  Net.Manager.create (fun mgr interface id ->
-    let intfnum = int_of_string id in
-    match intfnum with
-    | 0 ->
-        OS.Time.sleep 2. >>
-        (printf "Setting up iperf client on interface %s\n%!" id;
-         Net.Manager.configure interface (`IPv4 ip2) >>
-	 let (src_ip,_,_) = ip2 in
-	 let (dest_ip,_,_) = ip1 in
-	 iperfclient mgr src_ip dest_ip port >>
-         return ()
-        )
-    | 1 ->
-        OS.Time.sleep 1. >>
-        (printf "Setting up iperf server on interface %s\n%!" id;
-         Net.Manager.configure interface (`IPv4 ip1) >>
-         let _ = Net.Flow.listen mgr (`TCPv4 ((None, port), iperf)) in
-         printf "Done setting up server \n%!";
-         return ()
-        )
+  let mgr_th =  Net.Manager.create (fun mgr interface id ->
+    let first, second = match Net.Manager.get_intfs mgr with
+    | [] | [_] -> failwith "iperf_self requires at least 2 network interfaces, exiting."
+    | h::t  -> fst h, fst (List.hd t) in
+    match id with
+    | id when id = second -> (* client *)
+	OS.Time.sleep 1.0 >> 
+	Net.Manager.configure interface ip1 >>
+	(
+	 server_ready >>
+	 let () = printf "Setting up iperf client on interface %s\n%!" (OS.Netif.string_of_id id) in
+	 let src_ip = Net.Manager.get_intf_ipv4addr mgr first in
+	 let dest_ip = Net.Manager.get_intf_ipv4addr mgr second in
+	 let src_ip_str = Ipaddr.V4.to_string src_ip in
+	 let dest_ip_str = Ipaddr.V4.to_string dest_ip in
+	 OS.Console.log (Printf.sprintf "I have IP %s, trying to connect to %s" src_ip_str dest_ip_str);
+	 iperfclient mgr src_ip dest_ip port
+	)
+    | id when id = first -> (* server *)
+	OS.Time.sleep 1.0 >> 
+	Net.Manager.configure interface ip2 >>
+	(
+	 printf "Setting up iperf server on interface %s port %d\n%!" (OS.Netif.string_of_id id) port;
+	 let _ = Net.Flow.listen mgr (`TCPv4 ((None, port), iperf)) in
+	 printf "Done setting up server \n%!";
+	 Lwt.wakeup server_ready_u ();
+	 return ()
+	)
     | _ ->
-        (printf "interface %s not used\n%!" id; return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+  ) in
+  server_done >>
+  (Lwt.cancel mgr_th;
+   return ()
   )
-
-
-let _ = OS.Main.run (main ())
