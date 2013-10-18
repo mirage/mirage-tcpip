@@ -32,6 +32,8 @@ type t
 val read: t -> Cstruct.t option Lwt.t
 val write: t -> Cstruct.t -> unit Lwt.t
 val writev: t -> Cstruct.t list -> unit Lwt.t
+val write_nodelay: t -> Cstruct.t -> unit Lwt.t
+val writev_nodelay: t -> Cstruct.t list -> unit Lwt.t
 val close: t -> unit Lwt.t
 
 val connect :
