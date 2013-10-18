@@ -25,7 +25,7 @@ open String
 let start_port = 5001
 let num_ports = 10
 let conn_per_port = 1000
-let spread_time = 1.
+let spread_time = 3.
 
 
 type stats = {
@@ -45,24 +45,27 @@ let st = {openconn_client=0L; openconn_server=0L;
 	  txbytes_server=0L; rxbytes_server=0L;
 	  last_time=(OS.Clock.time ())}
 
-let ip1 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,101l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,101l)]
-  )
+let get = function Some x -> x | None -> failwith "Bad IP!"
 
-let ip2 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,102l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,102l)]
-  )
+let ip1 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.2"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
+let ip2 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.1"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
-let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzA"
 
 let mlen = String.length msg
+
+let server_ready, server_ready_u = Lwt.wait ()
+let clients_done, clients_done_u = Lwt.wait ()
+let test_completed, test_completed_u = Lwt.wait ()
 
 let print_data ts_now = 
   printf "Servers: open = %Ld, done = %Ld, rx = %Ld bytes, tx = %Ld bytes;   Clients: open = %Ld, rx = %Ld bytes, tx = %Ld bytes, live_words = %d\n%!"
@@ -86,13 +89,10 @@ let print_data_persec ts_now =
 let iperfclient_p mgr src_ip dest_ip dport =
   let iperftxrx chan =
     st.openconn_client <- (Int64.add st.openconn_client 1L);
+    OS.Time.sleep (spread_time +. Random.float spread_time) >>
     let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
-    let amt = 100 in
-    for_lwt i = (amt / mlen) downto 1 do
-      Net.Flow.write chan a
-    done >>
-    let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
+    let amt = mlen in
     Net.Flow.write chan a >>
     (st.txbytes_client <- (Int64.add st.txbytes_client (Int64.of_int amt));
      print_data_persec (OS.Clock.time ());
@@ -117,7 +117,7 @@ let iperfclient_p mgr src_ip dest_ip dport =
      print_data_persec (OS.Clock.time ());
      return ())
   in
-  OS.Time.sleep (5. +. Random.float spread_time) >>
+  OS.Time.sleep (Random.float spread_time) >>
   Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
 				(dest_ip, dport), iperftxrx))
 
@@ -146,15 +146,19 @@ let iperf (dip,dpt) chan =
 
 
 let main () =
-  Net.Manager.create (fun mgr interface id ->
-    let intfnum = int_of_string id in
-    match intfnum with
-    | 0 ->
-	OS.Time.sleep 5. >>
-	(printf "Setting up iperf clients on interface %s\n%!" id;
-	 Net.Manager.configure interface (`IPv4 ip2) >>
-	 let (src_ip,_,_) = ip2 in
-	 let (dest_ip,_,_) = ip1 in
+  let mgr_th = Net.Manager.create (fun mgr interface id ->
+    let first, second = match Net.Manager.get_intfs mgr with
+    | [] | [_] -> failwith "iperf_self requires at least 2 network interfaces, exiting."
+    | h::t  -> fst h, fst (List.hd t) in
+    match id with
+    | id when id = second -> (* client *)
+	server_ready >>
+	(printf "Setting up iperf clients on interface %s\n%!" (OS.Netif.string_of_id id);
+	 Net.Manager.configure interface ip1 >>
+	 let src_ip = Net.Manager.get_intf_ipv4addr mgr first in
+	 let dest_ip = Net.Manager.get_intf_ipv4addr mgr second in
+	 let src_ip_str = Ipaddr.V4.to_string src_ip in
+	 let dest_ip_str = Ipaddr.V4.to_string dest_ip in
 	 let rec startmultipleclients ths n num =
 	   let num = num - 1 in
            let thsplus = (iperfclient_p mgr src_ip dest_ip (start_port + n)) :: ths in
@@ -180,16 +184,18 @@ let main () =
 	   | _ -> OS.Time.sleep 1. >> printstats (n -1)
 	  in
 	  printf "All Clients Done\n%!";
+	  Lwt.wakeup clients_done_u ();
 	  printstats 15 >>
 	  (printf "Test completed.\n%!";
+	   Lwt.wakeup test_completed_u ();
 	   return ())
 	 )
 
 	)
-    | 1 ->
-	OS.Time.sleep 4. >>
-	(printf "Setting up iperf server on interface %s\n%!" id;
-	 Net.Manager.configure interface (`IPv4 ip1) >>
+    | id when id = first -> (* server *)
+	OS.Time.sleep 1. >>
+	(printf "Setting up iperf server on interface %s\n%!" (OS.Netif.string_of_id id);
+	 Net.Manager.configure interface ip2 >>
 	 let rec openlisteners listeners p_off fn =
 	   let p_off = p_off - 1 in
 	   let l_plus = (Net.Flow.listen mgr (`TCPv4 ((None, (start_port + p_off)), fn))) :: listeners in
@@ -199,23 +205,27 @@ let main () =
 	 in
 	 let all_listeners = openlisteners [] num_ports iperf in
 	 printf "Done setting up servers \n%!";
+	 Lwt.wakeup server_ready_u ();
 	 print_data (OS.Clock.time ());
 	 let rec closelisteners all = 
 	   if st.openconn_server = 0L then begin
+	     printf "All Servers Done\n%!";
 	     printf "Closing all listen ports \n%!";
 	     List.iter Lwt.cancel all;
 	     return ()
 	   end else begin
-	     OS.Time.sleep 2. >>
+	     OS.Time.sleep 1. >>
 	     closelisteners all_listeners 
 	   end
 	 in
-	 OS.Time.sleep (spread_time +. 15.) >>
-	 closelisteners all_listeners
+	 clients_done >>
+         closelisteners all_listeners
 	)
     | _ ->
-	(printf "interface %s not used\n%!" id; return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+  ) in
+  test_completed >>
+  (Lwt.cancel mgr_th;
+   return ()
   )
 
-
-let _ = OS.Main.run (main ())

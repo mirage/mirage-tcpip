@@ -30,21 +30,19 @@ type stats = {
   mutable last_time: float;
 }
 
+let get = function Some x -> x | None -> failwith "Bad IP!"
 
-let ip1 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,101l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,101l)]
-  )
+let ip1 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.2"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
-let ip2 =
-  let open Net.Nettypes in
-  ( ipv4_addr_of_tuple (10l,100l,100l,102l),
-    ipv4_addr_of_tuple (255l,255l,255l,0l),
-   [ipv4_addr_of_tuple (10l,100l,100l,102l)]
-  )
-
+let ip2 = `IPv4 (
+  get (Ipaddr.V4.of_string "10.0.0.1"),
+  get (Ipaddr.V4.of_string "255.255.255.0"),
+  [get (Ipaddr.V4.of_string "10.0.0.1")]
+)
 
 let port = 5001
 
@@ -52,28 +50,28 @@ let msg = "x"
 
 let mlen = String.length msg
 
-let iperfclient tt ip =
-  OS.Time.sleep 2. >>
+let server_ready, server_ready_u = Lwt.wait ()
+let server_done, server_done_u = Lwt.wait ()
+
+let iperfclient mgr src_ip dest_ip dport =
+  let iperftx chan =
+    printf "Iperf client: Made connection to server. \n%!";
+    let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
+    Cstruct.blit_from_string msg 0 a 0 mlen;
+    let amt = 1000000 in
+    for_lwt i = (amt / mlen) downto 1 do
+      Net.Flow.write_nodelay chan a
+    done >>
+    let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
+    Net.Flow.write_nodelay chan a >>
+    Net.Flow.close chan
+  in
+  OS.Time.sleep 1. >>
   (printf "Iperf client: Attempting connection. \n%!";
-   lwt conn = Net.Tcp.Pcb.connect tt ~dest_ip:ip ~dest_port:port in
-   match conn with
-   | None ->
-       printf "Iperf client: Unable to connect to remote host (is the iperf server up?) \n%!";
-       return ()
-   | Some (pcb, _) ->
-       printf "Iperf client: Made connection to server. \n%!";
-       let a_io = OS.Io_page.get 1 in
-       let a = OS.Io_page.to_cstruct a_io in
-       Cstruct.blit_from_string msg 0 a 0 mlen;
-       let a = Cstruct.sub a 0 mlen in
-       let amt = 100000000 in
-       for_lwt i = (amt / mlen) downto 1 do
-         Net.Tcp.Pcb.write_nodelay pcb a
-       done >>
-       let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
-       Net.Tcp.Pcb.write_nodelay pcb a >>
-       (printf "Iperf client: Done.\n%!";
-	Net.Tcp.Pcb.close pcb)
+   lwt conn = Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
+					    (dest_ip, dport), iperftx)) in
+   printf "Iperf client: Done.\n%!";
+   return ()
   )
 
 
@@ -114,34 +112,44 @@ let iperf (dip,dpt) chan =
 	iperf_h chan
     end
   in
-  iperf_h chan
+  iperf_h chan >>
+  (Lwt.wakeup server_done_u ();
+   return ())
 
 
 let main () =
-  Net.Manager.create (fun mgr interface id ->
-    let intfnum = int_of_string id in
-    match intfnum with
-    | 0 ->
-	OS.Time.sleep 2. >>
-	(printf "Setting up iperf client on interface %s\n%!" id;
-	 Net.Manager.configure interface (`IPv4 ip2) >>
-	 let tcps = Net.Manager.tcpv4_of_addr mgr None in
-	 let tt = List.hd tcps in
-	 let (ip,_,_) = ip1 in
-	 lwt () = iperfclient tt ip in
-         return ()
+  let mgr_th =  Net.Manager.create (fun mgr interface id ->
+    let first, second = match Net.Manager.get_intfs mgr with
+    | [] | [_] -> failwith "iperf_self requires at least 2 network interfaces, exiting."
+    | h::t  -> fst h, fst (List.hd t) in
+    match id with
+    | id when id = second -> (* client *)
+	OS.Time.sleep 1.0 >> 
+	Net.Manager.configure interface ip1 >>
+	(
+	 server_ready >>
+	 let () = printf "Setting up iperf client on interface %s\n%!" (OS.Netif.string_of_id id) in
+	 let src_ip = Net.Manager.get_intf_ipv4addr mgr first in
+	 let dest_ip = Net.Manager.get_intf_ipv4addr mgr second in
+	 let src_ip_str = Ipaddr.V4.to_string src_ip in
+	 let dest_ip_str = Ipaddr.V4.to_string dest_ip in
+	 OS.Console.log (Printf.sprintf "I have IP %s, trying to connect to %s" src_ip_str dest_ip_str);
+	 iperfclient mgr src_ip dest_ip port
 	)
-    | 1 ->
-	OS.Time.sleep 1. >>
-	(printf "Setting up iperf server on interface %s\n%!" id;
-	 Net.Manager.configure interface (`IPv4 ip1) >>
+    | id when id = first -> (* server *)
+	OS.Time.sleep 1.0 >> 
+	Net.Manager.configure interface ip2 >>
+	(
+	 printf "Setting up iperf server on interface %s port %d\n%!" (OS.Netif.string_of_id id) port;
 	 let _ = Net.Flow.listen mgr (`TCPv4 ((None, port), iperf)) in
 	 printf "Done setting up server \n%!";
+	 Lwt.wakeup server_ready_u ();
 	 return ()
 	)
     | _ ->
-	(printf "interface %s not used\n%!" id; return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+  ) in
+  server_done >>
+  (Lwt.cancel mgr_th;
+   return ()
   )
-
-
-let _ = OS.Main.run (main ())
