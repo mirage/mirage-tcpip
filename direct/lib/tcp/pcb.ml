@@ -21,6 +21,14 @@ open Printf
 open State
 open Wire
 
+cstruct pseudo_header {
+  uint32_t src;
+  uint32_t dst;
+  uint8_t res;
+  uint8_t proto;
+  uint16_t len
+} as big_endian 
+
 type pcb = {
   id: id;
   wnd: Window.t;            (* Window information *)
@@ -51,8 +59,25 @@ type listener = {
   port: int;
 }
 
-(* TODO: implement *)
-let verify_checksum pkt = true
+
+let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get 1)) 0 sizeof_pseudo_header 
+let checksum ~src ~dst =
+  fun data ->
+    set_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
+    set_pseudo_header_dst pbuf (Ipaddr.V4.to_int32 dst);
+    set_pseudo_header_res pbuf 0;
+    set_pseudo_header_proto pbuf 6;
+    set_pseudo_header_len pbuf (Cstruct.lenv data);
+    Checksum.ones_complement_list (pbuf::data)
+
+let verify_checksum id pkt =
+    true
+(*  let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
+  match csum with
+  | 0 -> true
+  | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt) (Ipaddr.V4.to_string id.dest_ip);
+	 false
+*)
 
 let wscale_default = 2
 
@@ -120,8 +145,7 @@ module Rx = struct
 
   (* Process an incoming TCP packet that has an active PCB *)
   let input t pkt (pcb,_) =
-    (* TODO: implement verify checksum *)
-    match verify_checksum pkt with
+    match verify_checksum pcb.id pkt with
     | false -> return (printf "RX.input: checksum error\n%!")
     | true ->
 	(* URG_TODO: Deal correctly with incomming RST segment *)
@@ -300,8 +324,7 @@ let new_client_connection t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn ~rx_w
   return (pcb, th)
 
 let input_no_pcb t pkt id =
-  (* TODO: implement verify checksum *)
-  match verify_checksum pkt with
+  match verify_checksum id pkt with
   |false -> return (printf "RX.input: checksum error\n%!")
   |true ->
       match Wire.get_rst pkt with

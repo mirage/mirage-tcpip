@@ -33,6 +33,12 @@ module TCPv4 = struct
   let writev t views =
     Tcp.Pcb.writev t views
 
+  let rec write_nodelay t view =
+    Tcp.Pcb.write_nodelay t view
+
+  let writev_nodelay t views =
+    Tcp.Pcb.writev_nodelay t views
+
   let close t =
     Tcp.Pcb.close t
 
@@ -89,6 +95,8 @@ module Shmem = struct
   let read t = fail (Failure "read")
   let write t view = fail (Failure "write")
   let writev t views = fail (Failure "writev")
+  let write_nodelay t view = fail (Failure "write")
+  let writev_nodelay t views = fail (Failure "writev")
   let close t = fail (Failure "close")
 
   let listen mgr src fn = fail (Failure "listen")
@@ -111,6 +119,14 @@ let write = function
   | Shmem t -> Shmem.write t
 
 let writev = function
+  | TCPv4 t -> TCPv4.writev t
+  | Shmem t -> Shmem.writev t
+
+let write_nodelay = function
+  | TCPv4 t -> TCPv4.write_nodelay t
+  | Shmem t -> Shmem.write_nodelay t
+
+let writev_nodelay = function
   | TCPv4 t -> TCPv4.writev t
   | Shmem t -> Shmem.writev t
 
