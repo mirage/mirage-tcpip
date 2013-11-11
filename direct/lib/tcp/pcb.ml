@@ -71,11 +71,13 @@ let checksum ~src ~dst =
     Checksum.ones_complement_list (pbuf::data)
 
 let verify_checksum id pkt =
-  let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
+    true
+(*  let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
   match csum with
   | 0 -> true
-  | _ -> (*printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt) (Ipaddr.V4.to_string id.dest_ip);*)
+  | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt) (Ipaddr.V4.to_string id.dest_ip);
 	 false
+*)
 
 let wscale_default = 2
 
