@@ -24,7 +24,7 @@ type packet =
 | Output of Cstruct.t list
 
 type t = {
-  netif: OS.Netif.t;
+  netif: Netif.t;
   mac: Macaddr.t;
   arp: Arp.t;
   mutable ipv4: (Cstruct.t -> unit Lwt.t);
@@ -58,35 +58,41 @@ let set_promiscuous t f =
 let disable_promiscuous t =
     t.promiscuous <- None
 
-(* Loop and listen for frames *)
-let rec listen t =
-  OS.Netif.listen t.netif (input t)
-
 let get_frame t =
-  OS.Netif.get_writebuf t.netif
+  return (Io_page.to_cstruct (Io_page.get 1))
 
 let write t frame =
   match t.promiscuous with
-  |Some f -> f (Output [frame]) >>= fun () -> OS.Netif.write t.netif frame
-  |None -> OS.Netif.write t.netif frame
+  |Some f -> f (Output [frame]) >>= fun () -> Netif.write t.netif frame
+  |None -> Netif.write t.netif frame
 
 let writev t bufs =
   match t.promiscuous with
-  |Some f -> f (Output bufs) >>= fun () -> OS.Netif.writev t.netif bufs
-  |None -> OS.Netif.writev t.netif bufs
+  |Some f -> f (Output bufs) >>= fun () -> Netif.writev t.netif bufs
+  |None -> Netif.writev t.netif bufs
 
 let create netif =
   let ipv4 = fun (_:Cstruct.t) -> return () in
   (* TODO: there's a race here if the MAC can change in the future *)
-  let mac = OS.Netif.mac netif in
+  let mac = Netif.mac netif in
   let arp =
     let get_mac () = mac in
-    let get_etherbuf () = OS.Netif.get_writebuf netif in
-    let output buf = OS.Netif.write netif buf in
+    let get_etherbuf () = return (Io_page.to_cstruct (Io_page.get 1)) in
+    let output buf = Netif.write netif buf in
     Arp.create ~output ~get_mac ~get_etherbuf in
   let t = { netif; ipv4; mac; arp; promiscuous=None; } in
-  let listen = listen t in
-  (t, listen)
+  let rec listen_t fn =
+    Netif.read t.netif (Io_page.get 1)
+    >>= function
+    | `Error (`Unknown err)  -> fail (Failure ("failed to read from Netif: %s" ^ err))
+    | `Error `Disconnected -> return ()
+    | `Error _ -> fail (Failure "failed to read from Netif")
+    | `Ok buf -> begin
+        ignore_result (input t buf);
+        listen_t fn
+    end
+  in
+  t, (listen_t input)
 
 let add_ip t = Arp.add_ip t.arp
 let remove_ip t = Arp.remove_ip t.arp

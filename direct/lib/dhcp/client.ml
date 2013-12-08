@@ -70,7 +70,7 @@ let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
   let options = Option.Packet.to_bytes options in
   let options_len = String.length options in
   let total_len = options_len + sizeof_dhcp in
-  let buf = OS.Io_page.(to_cstruct (get 1)) in
+  let buf = Io_page.(to_cstruct (get 1)) in
   set_dhcp_op buf (mode_to_int BootRequest);
   set_dhcp_htype buf 1;
   set_dhcp_hlen buf 6;
