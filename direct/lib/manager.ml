@@ -139,7 +139,11 @@ let i_of_dst_ip t addr =
                  ret := Some(i);
                  netmask :=  Ipaddr.V4.to_int32 
                                (Ipv4.get_netmask i.ipv4)
-               )
+               ) else (
+                 (* In case no match is found use the default gw of my routing table*) 
+                 if (List.length (Ipv4.get_gateways i.ipv4) > 0) then 
+                   ret := Some(i)
+              )
       ) t.listeners in
     match !ret with
       | None -> failwith("No_Path_dst")
@@ -176,4 +180,3 @@ let get_intf_ipv4addr t id =
 let set_promiscuous t id f =
   let intf = Hashtbl.find t.listeners id in
   Ethif.set_promiscuous intf.ethif (f id)
-
