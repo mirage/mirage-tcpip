@@ -1,4 +1,4 @@
-NET ?= socket
+NET ?= direct
 
 ifneq "$(MIRAGE_NET)" ""
 NET := $(MIRAGE_NET)
