@@ -1,5 +1,10 @@
+0.9.5 (08-December-2013):
+* Shift to the `mirage-types` 0.5.0+ interfaces, which breaks the
+  socket backend (temporarily).
+* Port the direct stack to the new interfaces.
+
 0.9.4 (09-August-2013):
-* Use the `Ipaddr` external library and remove the homebrew
+* Use the `Ipaddr` external library and remove the Homebrew
   equivalents in `Nettypes`.
 
 0.9.3 (18-July-2013):
