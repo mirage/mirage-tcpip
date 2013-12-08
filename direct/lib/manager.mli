@@ -27,7 +27,7 @@ type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
 (** Textual id identifying a network interface, typically "tap0" on
     UNIX and "0" on Xen. *)
-type id = OS.Netif.id
+type id = Netif.id
 
 (** Type representing a network interface, including facilities to
     send data (Ethernet frames, IP packets, ICMP, UDP, TCP, ...)
@@ -55,7 +55,7 @@ val get_tcp   : interface -> Tcp.Pcb.t
     of type interface for each of those devices and call [callback] of
     each of them. The return value is a cancellable thread that will
     free all interface values when cancelled. *)
-val create : callback -> unit Lwt.t
+val create : Netif.t list -> callback -> unit Lwt.t
 
 (** [configure intf cfg] applies [cfg] to [intf]. After this step,
     depending on the configuration (DHCP or static address), [intf]
