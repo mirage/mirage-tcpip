@@ -1,4 +1,5 @@
-NAME=mirage-net
-VERSION=0.9.4
-DEPS="mirage ipaddr"
+NAME=mirage-net-direct-unix
+VERSION=0.9.9
+DEPS="mirage-clock-unix mirage-unix mirage-net-unix ipaddr cstruct"
+SYNTAX_DEPS="cstruct.syntax lwt.syntax"
 LIB="net"

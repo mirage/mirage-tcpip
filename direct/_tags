@@ -10,5 +10,4 @@
 <lib_test/*>: use_lib, custom
 <syntax/*>: build_syntax
 true: camlp4o
-<**/*.{mli,ml}>: package(mirage), package(cstruct)
-true: annot
+true: annot, bin_annot, debug
