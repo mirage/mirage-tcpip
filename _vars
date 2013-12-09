@@ -1,5 +1,0 @@
-NAME=mirage-tcpip-direct-unix
-VERSION=0.9.5
-DEPS="mirage-clock-unix mirage-unix mirage-net-unix ipaddr cstruct"
-SYNTAX_DEPS="cstruct.syntax lwt.syntax"
-LIB="net"

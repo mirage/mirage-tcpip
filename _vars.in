@@ -1,0 +1,5 @@
+NAME=mirage-tcpip-@OS@
+VERSION=0.9.5
+DEPS="mirage-clock-@OS@ mirage-@OS@ mirage-net-@OS@ ipaddr cstruct"
+SYNTAX_DEPS="cstruct.syntax lwt.syntax"
+LIB="net"
