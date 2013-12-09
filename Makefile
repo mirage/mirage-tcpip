@@ -1,9 +1,8 @@
 .PHONY: all _config build install doc clean
 
+OS ?= unix
 PREFIX ?= /usr/local
 INSTALLDIR := $(DESTDIR)$(PREFIX)
-INCLUDE := $(INSTALLDIR)/include/mirage
-XEN_INCLUDE := $(INCLUDE)/xen
 
 all: build
 

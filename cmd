@@ -3,10 +3,16 @@
 
 njobs=8
 
+if [ "${OS}" = "" ]; then
+  OS=unix
+fi
+
 cmd=$1
 shift
 
 target=$1
+
+sed -e "s/@OS@/${OS}/g" < _vars.in > _vars
 
 # source the package variables
 if [ -e "_vars" ]; then
@@ -61,7 +67,7 @@ compile() {
 
 # generate META file and invoke ${OCAMLFIND} installation
 install()  {
-  sed -e "s/@VERSION@/${VERSION}/g" < META.in > _config/META
+  sed -e "s/@VERSION@/${VERSION}/g" -e "s/@OS@/${OS}/g" < META.in > _config/META
   ${OCAMLFIND} remove ${NAME} || true
   t=`sed -e 's,^,_build/,g' < _build/${NAME}.all`
   if [ ! -z "${DESTDIR}" ]; then
