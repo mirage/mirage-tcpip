@@ -1,4 +1,0 @@
-NAME=mirage-net
-VERSION=0.9.4
-DEPS="mirage ipaddr"
-LIB="net"

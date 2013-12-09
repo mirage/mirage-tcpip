@@ -16,7 +16,7 @@
 
 open Printf
 
-let lastprinttime = ref (OS.Clock.time ())
+let lastprinttime = ref (Clock.time ())
 let totaltime = ref 0.0
 let epochlen = 1.0
 
@@ -41,18 +41,18 @@ let start s =
 	printf "Profiler error: %s was running and started again - ignoring start\n%!" s
       end else begin
 	p.on <- true;
-	p.start <- (OS.Clock.time ());
+	p.start <- (Clock.time ());
       end
   | None ->
       let name = s in
       let total = 0.0 in
       let recent = 0.0 in
-      let start = (OS.Clock.time ()) in
+      let start = (Clock.time ()) in
       let on = true in
       Hashtbl.add profiles s {name; total; recent; start; on}
 	
 let finish s =
-  let ctime = OS.Clock.time () in
+  let ctime = Clock.time () in
   let finish_p s = match (hashtbl_find profiles s) with
   | Some p ->
       if p.on then begin

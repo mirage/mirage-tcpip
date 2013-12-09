@@ -156,7 +156,7 @@ let tx_advance t b =
   if not t.rtt_timer_on && not t.fast_recovery then begin
     t.rtt_timer_on <- true;
     t.rtt_timer_seq <- t.tx_nxt;
-    t.rtt_timer_starttime <- OS.Clock.time ();
+    t.rtt_timer_starttime <- Clock.time ();
   end;
   t.tx_nxt <- Sequence.add t.tx_nxt (Sequence.of_int b)
 
@@ -179,7 +179,7 @@ let tx_ack t r win =
       t.snd_una <- r;
       if t.rtt_timer_on && Sequence.gt r t.rtt_timer_seq then begin
         t.rtt_timer_on <- false;
-        let rtt_m = OS.Clock.time () -. t.rtt_timer_starttime in
+        let rtt_m = Clock.time () -. t.rtt_timer_starttime in
 	if t.rtt_timer_reset then begin
 	  t.rtt_timer_reset <- false;
           t.rttvar <- (0.5 *. rtt_m);

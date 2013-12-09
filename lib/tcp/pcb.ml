@@ -60,7 +60,7 @@ type listener = {
 }
 
 
-let pbuf = Cstruct.sub (Cstruct.of_bigarray (OS.Io_page.get 1)) 0 sizeof_pseudo_header 
+let pbuf = Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_pseudo_header 
 let checksum ~src ~dst =
   fun data ->
     set_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);

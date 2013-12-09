@@ -205,55 +205,6 @@ module CC = struct
      flag ["cc";"compile"; "asm"] & S [A"-D__ASSEMBLY__"]
 end
 
-module Xen = struct
-  (** Link to a standalone Xen microkernel *)
-  let cc_xen_link bc tags arg out env =
-    (* XXX check ocamlfind path here *)
-    let xenlib = Util.run_and_read "ocamlfind query mirage" in
-    let jmp_obj = Px (xenlib / "longjmp.o") in
-    let head_obj = Px (xenlib / "x86_64.o") in
-    let ocamllib = match bc with |true -> "ocamlbc" |false -> "ocaml" in
-    let ld = getenv ~default:"ld" "LD" in
-    let ldlibs = List.map (fun x -> Px (xenlib / ("lib" ^ x ^ ".a")))
-      [ocamllib; "xen"; "xencaml"; "diet"; "m"] in
-    Cmd (S ( A ld :: [ T(tags++"link"++"xen");
-      A"-d"; A"-nostdlib"; A"-m"; A"elf_x86_64"; A"-T";
-      Px (xenlib / "mirage-x86_64.lds");  head_obj; P arg ]
-      @ ldlibs @ [jmp_obj; A"-o"; Px out]))
-
-  let cc_xen_bc_link tags arg out env = cc_xen_link true tags arg out env
-  let cc_xen_nc_link tags arg out env = cc_xen_link false tags arg out env
-
-  (* Rewrite sections for Xen LDS layout *)
-  let xen_objcopy dst src env builder =
-    let dst = env dst in
-    let src = env src in
-    let cmd = ["objcopy";"--rename-section";".bss=.mlbss";"--rename-section";
-      ".data=.mldata";"--rename-section";".rodata=.mlrodata";
-      "--rename-section";".text=.mltext"] in
-    let cmds = List.map (fun x -> A x) cmd in
-    Cmd (S (cmds @ [Px src; Px dst]))
-
-  (** Generic CC linking rule that wraps both Xen and C *) 
-  let cc_link_c_implem ?tag fn c o env build =
-    let c = env c and o = env o in
-    fn (tags_of_pathname c++"implem"+++tag) c o env
-
-  let rules () =
-    (* Rule to rename module sections to ml* equivalents for the static vmem layout *)
-    rule "ocaml: .m.o -> .mx.o"
-      ~prod:"%.mx.o"
-      ~dep:"%.m.o"
-      (xen_objcopy "%.mx.o" "%.m.o");
-
-     (* Xen link rule *)
-    rule ("final link: %.mx.o -> %.xen")
-      ~prod:"%(file).xen"
-      ~dep:"%(file).mx.o"
-      (cc_link_c_implem cc_xen_nc_link "%(file).mx.o" "%(file).xen")
-
-end
-
 let _ = Options.make_links := false;;
 
 let _ = dispatch begin function
@@ -263,7 +214,6 @@ let _ = dispatch begin function
   | After_rules ->
      Configure.flags ();
      CC.flags ();
-     Xen.rules ();
      (* Required to repack sub-packs (like Pa_css) into Pa_mirage *)
      pflag ["ocaml"; "pack"] "for-repack" (fun param -> S [A "-for-pack"; A param]);
   | _ -> ()

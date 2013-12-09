@@ -159,7 +159,7 @@ module Tx = struct
   let compactbufs bl =
     (* TODO: fix hardecoded threshold *)
     if (List.length bl > 8) then begin
-      let b = OS.Io_page.(to_cstruct (get 1)) in
+      let b = Io_page.(to_cstruct (get 1)) in
       let copyf doff ab =
 	Cstruct.blit ab 0 b doff (Cstruct.len ab);
 	doff + (Cstruct.len ab)

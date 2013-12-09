@@ -21,7 +21,7 @@
 open Lwt
 open Nettypes
 
-type id = OS.Netif.id
+type id = Netif.id
 
 type interface = {
   id    : id;
@@ -52,13 +52,12 @@ type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 let configure i =
   function
   |`DHCP ->
-    Printf.printf "Manager: Interface %s to DHCP\n%!" (OS.Netif.string_of_id i.id);
+    Printf.printf "Manager: Interface %s to DHCP\n%!" (i.id);
     lwt t, th = Dhcp.Client.create i.ipv4 i.udp in
     Printf.printf "Manager: DHCP done\n%!";
     return ()
   |`IPv4 (addr, netmask, gateways) ->
-    Printf.printf "Manager: Interface %s to %s nm %s gw [%s]\n%!"
-      (OS.Netif.string_of_id i.id)
+    Printf.printf "Manager: Interface %s to %s nm %s gw [%s]\n%!" i.id
       (Ipaddr.V4.to_string addr)
       (Ipaddr.V4.to_string netmask)
       (String.concat ", " (List.map Ipaddr.V4.to_string gateways));
@@ -69,8 +68,8 @@ let configure i =
 
 (* Plug in a new network interface with given id *)
 let plug t netif =
-  let id = OS.Netif.id netif in
-  Printf.printf "Manager: plug %s\n%!" (OS.Netif.string_of_id id);
+  let id = Netif.id netif in
+  Printf.printf "Manager: plug %s\n%!" id;
   let (ethif, ethif_t) = Ethif.create netif in
   let (ipv4, ipv4_t)   = Ipv4.create ethif in
   let (icmp, icmp_t)   = Icmp.create ipv4 in
@@ -91,11 +90,10 @@ let unplug t id =
 
 (* Manage the protocol threads. The listener becomes a new thread
    that is spawned when a new interface shows up. *)
-let create cb =
+let create intfs cb =
   Printf.printf "Manager: create\n%!";
   let listeners = Hashtbl.create 1 in
   let t = { cb; listeners } in
-  lwt intfs = OS.Netif.create () in
   let () = List.iter (plug t) intfs in
   (* Now asynchronously launching the callbacks! *)
   Hashtbl.iter (fun id intf ->

@@ -32,7 +32,7 @@ type packet =
     and calls [listen] on the result. It returns a tuple composed of a
     value of type t, and the result of the [listen] function that has
     been called on it. *)
-val create : OS.Netif.t -> t * unit Lwt.t
+val create : Netif.t -> t * unit Lwt.t
 
 (** Functions to set up callback for processing an IPv4 packet. By
     default, [create] ignores all received packets, so use [attach] to
@@ -46,7 +46,7 @@ val detach : t -> [< `IPv4 ] -> unit
 (** Accessors for t values *)
 
 val mac       : t -> Macaddr.t
-val get_netif : t -> OS.Netif.t
+val get_netif : t -> Netif.t
 
 
 (** [set_promiscuous ethif cb] will install [cb] as a callback to be
@@ -67,11 +67,6 @@ val default_process : t -> Cstruct.t -> unit Lwt.t
     promiscuous mode is disabled, otherwise call the promiscuous
     callback function *)
 val input : t -> Cstruct.t -> unit Lwt.t
-
-(** [listen ethif] will loop on interface [ethif] waiting for incoming
-    frames, and will use the [input] function to process them. *)
-val listen : t -> unit Lwt.t
-
 
 (** Functions related to the ARP protocol, and applied to the arp
     value contained inside [t]. Please refer to the documentation of
@@ -97,5 +92,3 @@ val sizeof_ethernet : int
 val set_ethernet_dst : string -> int -> Cstruct.t -> unit
 val set_ethernet_src : string -> int -> Cstruct.t -> unit
 val set_ethernet_ethertype : Cstruct.t -> int -> unit
-
-
