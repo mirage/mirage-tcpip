@@ -1,5 +1,5 @@
 # OPAM packages needed to build tests.
-OPAM_PACKAGES="mirage-net-unix mirage-clock-unix"
+OPAM_PACKAGES="mirage-net-unix mirage-clock-unix mirage-unix"
 
 case "$OCAML_VERSION,$OPAM_VERSION" in
 3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;
@@ -26,4 +26,4 @@ opam init
 opam install ${OPAM_PACKAGES}
 
 eval `opam config env`
-make
+make OS=unix
