@@ -1,25 +1,23 @@
-NET ?= socket
+.PHONY: all _config build install doc clean
 
-ifneq "$(MIRAGE_NET)" ""
-NET := $(MIRAGE_NET)
-endif
+PREFIX ?= /usr/local
+INSTALLDIR := $(DESTDIR)$(PREFIX)
+INCLUDE := $(INSTALLDIR)/include/mirage
+XEN_INCLUDE := $(INCLUDE)/xen
 
-.PHONY: all clean install test
-.DEFAULT: all
+all: build
 
-all:
-	cd $(NET) && $(MAKE) all
-build:
-	cd $(NET) && $(MAKE) all
-clean:
-	cd $(NET) && $(MAKE) clean
+_config:
+	./cmd configure
+
+build: _config
+	./cmd build
+
 install:
-	cd $(NET) && $(MAKE) install
-test:
-	cd $(NET) && $(MAKE) test
+	./cmd install
 
-socket-%:
-	$(MAKE) NET=socket $*
+doc: _config
+	./cmd doc
 
-direct-%:
-	$(MAKE) NET=direct $*
+clean:
+	./cmd clean
