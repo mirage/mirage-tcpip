@@ -26,9 +26,7 @@ type error = [
   | `Unknown_error of string
 ]
 
-type packet =
-| Input of Cstruct.t       (** always read as a whole chunk *)
-| Output of Cstruct.t list (** written as a list of fragments *)
+type buffer = Cstruct.t
 
 (** [create netif] creates a value of type t out of a [netif] value,
     and calls [listen] on the result. It returns a tuple composed of a
@@ -53,7 +51,7 @@ val get_netif : t -> Netif.t
 
 (** [set_promiscuous ethif cb] will install [cb] as a callback to be
     called every time a packet is received *)
-val set_promiscuous : t -> (packet -> unit Lwt.t) option -> unit
+val set_promiscuous : t -> (buffer list -> unit Lwt.t) option -> unit
 
 (** Functions related to the ARP protocol, and applied to the arp
     value contained inside [t]. Please refer to the documentation of
