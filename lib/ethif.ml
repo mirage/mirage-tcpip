@@ -21,16 +21,14 @@ type error = [
   | `Unknown_error of string
 ]
 
-type packet =
-| Input of Cstruct.t
-| Output of Cstruct.t list
+type buffer = Cstruct.t
 
 type state = {
   netif: Netif.t;
   mac: Macaddr.t;
   arp: Arp.t;
   mutable ipv4: (Cstruct.t -> unit Lwt.t);
-  mutable promiscuous:( packet -> unit Lwt.t) option;
+  mutable promiscuous:(Cstruct.t list -> unit Lwt.t) option;
 }
 
 type t = state * unit Lwt.t
@@ -54,22 +52,22 @@ let default_process t frame =
 let input t frame =
   match t.promiscuous with
   | None -> default_process t frame
-  | Some promiscuous -> promiscuous (Input frame)
+  | Some promiscuous -> promiscuous [frame]
 
 let set_promiscuous (t,_) f =
-    t.promiscuous <- f
+  t.promiscuous <- f
 
 let get_frame _t =
   return (Io_page.to_cstruct (Io_page.get 1))
 
 let write (t,_) frame =
   match t.promiscuous with
-  |Some f -> f (Output [frame]) >>= fun () -> Netif.write t.netif frame
+  |Some f -> f [frame] >>= fun () -> Netif.write t.netif frame
   |None -> Netif.write t.netif frame
 
 let writev (t,_) bufs =
   match t.promiscuous with
-  |Some f -> f (Output bufs) >>= fun () -> Netif.writev t.netif bufs
+  |Some f -> f bufs >>= fun () -> Netif.writev t.netif bufs
   |None -> Netif.writev t.netif bufs
 
 (* Loop and listen for frames *)
@@ -78,17 +76,17 @@ let listen t =
 
 let connect netif = 
   try_lwt
-  let ipv4 = fun (_:Cstruct.t) -> return () in
-  (* TODO: there's a race here if the MAC can change in the future *)
-  let mac = Netif.mac netif in
-  let arp =
-    let get_mac () = mac in
-    let get_etherbuf () = return (Io_page.to_cstruct (Io_page.get 1)) in
-    let output buf = Netif.write netif buf in
-    Arp.create ~output ~get_mac ~get_etherbuf in
-  let t = { netif; ipv4; mac; arp; promiscuous=None; } in
-  let listen = listen t in
-  return (`Ok (t, listen))
+    let ipv4 = fun (_:Cstruct.t) -> return () in
+    (* TODO: there's a race here if the MAC can change in the future *)
+    let mac = Netif.mac netif in
+    let arp =
+      let get_mac () = mac in
+      let get_etherbuf () = return (Io_page.to_cstruct (Io_page.get 1)) in
+      let output buf = Netif.write netif buf in
+      Arp.create ~output ~get_mac ~get_etherbuf in
+    let t = { netif; ipv4; mac; arp; promiscuous=None; } in
+    let listen = listen t in
+    return (`Ok (t, listen))
   with _ -> return (`Error (`Unknown_error "TODO"))
 
 let add_ipv4 (t,_) = Arp.add_ip t.arp
