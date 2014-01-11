@@ -22,6 +22,10 @@
     or ARP operations on this interface. *)
 type t
 
+type error = [
+  | `Unknown_error of string
+]
+
 type packet =
 | Input of Cstruct.t       (** always read as a whole chunk *)
 | Output of Cstruct.t list (** written as a list of fragments *)
@@ -30,7 +34,7 @@ type packet =
     and calls [listen] on the result. It returns a tuple composed of a
     value of type t, and the result of the [listen] function that has
     been called on it. *)
-val create : Netif.t -> t * unit Lwt.t
+val connect : Netif.t -> [ `Ok of t | `Error of error ] Lwt.t
 
 (** Functions to set up callback for processing an IPv4 packet. By
     default, [create] ignores all received packets, so use [attach] to
@@ -49,29 +53,14 @@ val get_netif : t -> Netif.t
 
 (** [set_promiscuous ethif cb] will install [cb] as a callback to be
     called every time a packet is received *)
-val set_promiscuous : t -> (packet -> unit Lwt.t) -> unit
-
-(** [disable_promiscuous ethif] removes the callback associated with
-    promiscuous mode in [ethif] *)
-val disable_promiscuous : t -> unit
-
-(** [default_process ethif frame] is called by function [input]
-    whenever promiscuous mode is disabled (e.g. when no promiscuous
-    callback function has been set) *)
-val default_process : t -> Cstruct.t -> unit Lwt.t
-
-(** [input ethif frame] processes the incoming data from [frame]
-    coming from [ethif]. It either call [default_process] if the
-    promiscuous mode is disabled, otherwise call the promiscuous
-    callback function *)
-val input : t -> Cstruct.t -> unit Lwt.t
+val set_promiscuous : t -> (packet -> unit Lwt.t) option -> unit
 
 (** Functions related to the ARP protocol, and applied to the arp
     value contained inside [t]. Please refer to the documentation of
     module [Arp] for more information. *)
 
-val add_ip : t -> Ipaddr.V4.t -> unit Lwt.t
-val remove_ip : t -> Ipaddr.V4.t -> unit Lwt.t
+val add_ipv4 : t -> Ipaddr.V4.t -> unit Lwt.t
+val remove_ipv4 : t -> Ipaddr.V4.t -> unit Lwt.t
 val query_arp : t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
 
 
