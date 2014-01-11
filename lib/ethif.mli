@@ -17,8 +17,6 @@
 
 (** INTERNAL: Ethernet protocol. *)
 
-open Nettypes
-
 (** Type of an ethernet protocol interface. It contains a OS.Netif.t
     "raw" interface, as well as IPv4 and ARP callbacks to perform IP
     or ARP operations on this interface. *)

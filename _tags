@@ -9,5 +9,5 @@
 <lib/dhcp>: include
 <lib_test/*>: use_lib, custom
 <syntax/*>: build_syntax
-true: camlp4o
+true: camlp4o, warn_A
 true: annot, bin_annot, debug

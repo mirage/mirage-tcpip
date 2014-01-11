@@ -16,8 +16,6 @@
  *
  *)
 open Lwt
-open Nettypes
-open Printf
 
 type packet =
 | Input of Cstruct.t
@@ -58,7 +56,7 @@ let set_promiscuous t f =
 let disable_promiscuous t =
     t.promiscuous <- None
 
-let get_frame t =
+let get_frame _t =
   return (Io_page.to_cstruct (Io_page.get 1))
 
 let write t frame =
@@ -72,7 +70,7 @@ let writev t bufs =
   |None -> Netif.writev t.netif bufs
 
 (* Loop and listen for frames *)
-let rec listen t =
+let listen t =
   Netif.listen t.netif (input t)
 
 let create netif =
