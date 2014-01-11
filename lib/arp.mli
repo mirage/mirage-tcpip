@@ -17,9 +17,6 @@
 
 (** INTERNAL: ARP protocol. *)
 
-open Nettypes
-open Printf
-
 (** Type of an ARP record. ARP records are included in Ethif.t
     values. They contain, among other bits, a list of bound IPs, and a
     IPv4 -> MAC hashtbl. *)

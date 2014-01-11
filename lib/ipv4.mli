@@ -16,8 +16,6 @@
 
 (** INTERNAL: IPv4 protocol. *)
 
-open Nettypes
-
 type t
 (** Type of a IPv4 *)
 

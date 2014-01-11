@@ -16,7 +16,6 @@
 
 open Lwt
 open Printf
-open Nettypes
 
 cstruct ipv4 {
   uint8_t        hlen_version;

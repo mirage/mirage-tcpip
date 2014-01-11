@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 # Script that invokes ocamlbuild commands for various targets
 
 njobs=8
@@ -25,7 +25,7 @@ fi
 
 OCAMLBUILD=${OCAMLBUILD:-`which ocamlbuild`}
 OCAMLFIND=${OCAMLFIND:-`which ocamlfind`}
-OCAMLBUILD_FLAGS="-use-ocamlfind -classic-display -j ${njobs}"
+OCAMLBUILD_FLAGS="-use-ocamlfind -j ${njobs}"
 
 # create entries in the _config/ directory 
 configure() {
