@@ -162,7 +162,7 @@ let detach t = function
 let set_ip t ip = 
   t.ip <- ip;
   (* Inform ARP layer of new IP *)
-  Ethif.add_ip t.ethif ip
+  Ethif.add_ipv4 t.ethif ip
 
 let get_ip t = t.ip
 

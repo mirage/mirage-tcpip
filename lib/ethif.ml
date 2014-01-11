@@ -17,17 +17,23 @@
  *)
 open Lwt
 
+type error = [
+  | `Unknown_error of string
+]
+
 type packet =
 | Input of Cstruct.t
 | Output of Cstruct.t list
 
-type t = {
+type state = {
   netif: Netif.t;
   mac: Macaddr.t;
   arp: Arp.t;
   mutable ipv4: (Cstruct.t -> unit Lwt.t);
   mutable promiscuous:( packet -> unit Lwt.t) option;
 }
+
+type t = state * unit Lwt.t
 
 cstruct ethernet {
   uint8_t        dst[6];
@@ -50,21 +56,18 @@ let input t frame =
   | None -> default_process t frame
   | Some promiscuous -> promiscuous (Input frame)
 
-let set_promiscuous t f =
-    t.promiscuous <- Some f
-
-let disable_promiscuous t =
-    t.promiscuous <- None
+let set_promiscuous (t,_) f =
+    t.promiscuous <- f
 
 let get_frame _t =
   return (Io_page.to_cstruct (Io_page.get 1))
 
-let write t frame =
+let write (t,_) frame =
   match t.promiscuous with
   |Some f -> f (Output [frame]) >>= fun () -> Netif.write t.netif frame
   |None -> Netif.write t.netif frame
 
-let writev t bufs =
+let writev (t,_) bufs =
   match t.promiscuous with
   |Some f -> f (Output bufs) >>= fun () -> Netif.writev t.netif bufs
   |None -> Netif.writev t.netif bufs
@@ -73,7 +76,8 @@ let writev t bufs =
 let listen t =
   Netif.listen t.netif (input t)
 
-let create netif =
+let connect netif = 
+  try_lwt
   let ipv4 = fun (_:Cstruct.t) -> return () in
   (* TODO: there's a race here if the MAC can change in the future *)
   let mac = Netif.mac netif in
@@ -84,17 +88,18 @@ let create netif =
     Arp.create ~output ~get_mac ~get_etherbuf in
   let t = { netif; ipv4; mac; arp; promiscuous=None; } in
   let listen = listen t in
-  (t, listen)
+  return (`Ok (t, listen))
+  with _ -> return (`Error (`Unknown_error "TODO"))
 
-let add_ip t = Arp.add_ip t.arp
-let remove_ip t = Arp.remove_ip t.arp
-let query_arp t = Arp.query t.arp
+let add_ipv4 (t,_) = Arp.add_ip t.arp
+let remove_ipv4 (t,_) = Arp.remove_ip t.arp
+let query_arp (t,_) = Arp.query t.arp
 
-let attach t = function
+let attach (t,_) = function
   |`IPv4 fn -> t.ipv4 <- fn
 
-let detach t = function
+let detach (t,_) = function
   |`IPv4 -> t.ipv4 <- fun (_:Cstruct.t) -> return ()
 
-let mac t = t.mac
-let get_netif t = t.netif
+let mac (t,_) = t.mac
+let get_netif (t,_) = t.netif
