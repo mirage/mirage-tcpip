@@ -1,0 +1,39 @@
+OASISFormat: 0.3
+Name:        tcpip
+Version:     1.0.0
+Synopsis:    Ethernet and IP driver
+Authors:     Anil Madhavapeddy, Richard Mortier
+License:     ISC
+Plugins:     META (0.3), DevFiles (0.3)
+BuildTools:  ocamlbuild
+
+Library tcpip
+  CompiledObject:     best
+  Path:               lib
+  Findlibname:        tcpip
+  Modules:            T
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct
+
+Library ethif
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        ethif
+  Modules:            Ethif, Arpv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax
+
+Library ipv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        ipv4
+  Modules:            Ipv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax
+
+Library "ethif-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        ethif-unix
+  Modules:            Ethif_unix
+  BuildDepends:       ethif,mirage-net-unix
