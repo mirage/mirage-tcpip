@@ -1,0 +1,44 @@
+# OASIS_START
+# DO NOT EDIT (digest: 0aae7751b0eca857a2e23b16223ad7ee)
+version = "1.0.0"
+description = "Ethernet and IP driver"
+requires = "io-page mirage-types ipaddr cstruct"
+archive(byte) = "tcpip.cma"
+archive(byte, plugin) = "tcpip.cma"
+archive(native) = "tcpip.cmxa"
+archive(native, plugin) = "tcpip.cmxs"
+exists_if = "tcpip.cma"
+package "ipv4" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax"
+ archive(byte) = "ipv4.cma"
+ archive(byte, plugin) = "ipv4.cma"
+ archive(native) = "ipv4.cmxa"
+ archive(native, plugin) = "ipv4.cmxs"
+ exists_if = "ipv4.cma"
+)
+
+package "ethif-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "ethif mirage-net-unix"
+ archive(byte) = "ethif-unix.cma"
+ archive(byte, plugin) = "ethif-unix.cma"
+ archive(native) = "ethif-unix.cmxa"
+ archive(native, plugin) = "ethif-unix.cmxs"
+ exists_if = "ethif-unix.cma"
+)
+
+package "ethif" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax"
+ archive(byte) = "ethif.cma"
+ archive(byte, plugin) = "ethif.cma"
+ archive(native) = "ethif.cmxa"
+ archive(native, plugin) = "ethif.cmxs"
+ exists_if = "ethif.cma"
+)
+# OASIS_STOP
+
