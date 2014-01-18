@@ -1,13 +1,32 @@
-<lib/*> and not <lib/net.*>: for-pack(Net)
-<lib/**>: use_syntax
-<lib/dhcp/*> and not <lib/dhcp/dhcp.*>: for-pack(Net.Dhcp)
-<lib/tcp/*> and not <lib/tcp/tcp.*>: for-pack(Net.Tcp)
-<lib/dhcp/dhcp.*>: for-repack(Net)
-<lib/tcp/tcp.*>: for-repack(Net)
-<lib>: include
-<lib/tcp>: include
-<lib/dhcp>: include
-<lib_test/*>: use_lib, custom
-<syntax/*>: build_syntax
-true: camlp4o, warn_A
-true: annot, bin_annot, debug
+# OASIS_START
+# DO NOT EDIT (digest: fd33e995d7a29b67bae1ebc54fddde7a)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library tcpip
+"lib/tcpip.cmxs": use_tcpip
+# Library ethif
+"lib/ethif.cmxs": use_ethif
+# Library ipv4
+"lib/ipv4.cmxs": use_ipv4
+<lib/*.ml{,i}>: pkg_io-page
+<lib/*.ml{,i}>: pkg_mirage-types
+<lib/*.ml{,i}>: pkg_ipaddr
+<lib/*.ml{,i}>: pkg_cstruct
+<lib/*.ml{,i}>: pkg_cstruct.syntax
+<lib/*.ml{,i}>: pkg_lwt.syntax
+# Library ethif-unix
+"unix/ethif-unix.cmxs": use_ethif-unix
+<unix/*.ml{,i}>: pkg_ethif
+<unix/*.ml{,i}>: pkg_mirage-net-unix
+# OASIS_STOP
