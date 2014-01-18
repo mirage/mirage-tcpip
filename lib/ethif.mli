@@ -15,10 +15,5 @@
  *
  *)
 
-(** INTERNAL: Ethernet protocol. *)
+module Make ( N:T.LWT_NETWORK ) : T.LWT_ETHIF with type netif = N.t
 
-module Make: functor (V1.NETWORK)  T.XETHIF
-  with type 'a io   = 'a Lwt.t
-   and type buffer  = Cstruct.t
-   and type macaddr = Macaddr.t
-   and type netif   = Netif.t
