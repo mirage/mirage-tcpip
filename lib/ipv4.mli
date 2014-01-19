@@ -14,5 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make ( N:T.LWT_ETHIF ) : T.LWT_IPV4
-
+module Make ( N:T.LWT_ETHIF ) : T.LWT_IPV4 with type ethif = N.t
