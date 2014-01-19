@@ -11,7 +11,7 @@ Library tcpip
   CompiledObject:     best
   Path:               lib
   Findlibname:        tcpip
-  Modules:            T, Wire_structs
+  Modules:            Wire_structs
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct
 
 Library ethif

@@ -18,7 +18,7 @@ open Lwt
 open Printf
 open Wire_structs
 
-module Make(Ipv4: T.LWT_IPV4) = struct
+module Make(Ipv4: V1_LWT.IPV4) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t

@@ -18,7 +18,7 @@ open Lwt
 open Printf
 open Wire_structs
 
-module Make(Ethif : T.LWT_ETHIF) = struct
+module Make(Ethif : V1_LWT.ETHIF) = struct
 
   (** IO operation errors *)
   type error = [
