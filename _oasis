@@ -30,6 +30,14 @@ Library ipv4
   Modules:            Ipv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
 
+Library udpv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        udpv4
+  Modules:            Udpv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
+
 Library "ethif-unix"
   CompiledObject:     best
   Path:               unix
@@ -45,3 +53,12 @@ Library "ipv4-unix"
   Findlibname:        ipv4-unix
   Modules:            Ipv4_unix
   BuildDepends:       tcpip.ethif,tcpip.ethif-unix,tcpip.ipv4,lwt,lwt.unix
+
+Library "udpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv4-unix
+  Modules:            Udpv4_unix
+  BuildDepends:       tcpip.ethif,tcpip.ipv4-unix,lwt,lwt.unix
+

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a64718ada552f7bc404303a32f92472f)
+# DO NOT EDIT (digest: bedea4dfadd17c6cf57494eb279cf040)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,6 +19,8 @@
 "lib/ethif.cmxs": use_ethif
 # Library ipv4
 "lib/ipv4.cmxs": use_ipv4
+# Library udpv4
+"lib/udpv4.cmxs": use_udpv4
 <lib/*.ml{,i}>: pkg_lwt
 <lib/*.ml{,i}>: pkg_io-page
 <lib/*.ml{,i}>: pkg_mirage-types
@@ -30,6 +32,9 @@
 "unix/ethif-unix.cmxs": use_ethif-unix
 # Library ipv4-unix
 "unix/ipv4-unix.cmxs": use_ipv4-unix
+# Library udpv4-unix
+"unix/udpv4-unix.cmxs": use_udpv4-unix
+<unix/*.ml{,i}>: use_ipv4-unix
 <unix/*.ml{,i}>: use_ethif-unix
 <unix/*.ml{,i}>: use_ethif
 <unix/*.ml{,i}>: use_ipv4
