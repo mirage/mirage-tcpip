@@ -15,4 +15,4 @@
  *)
 
 
-module Make ( IP:T.LWT_IPV4 ) : T.LWT_UDPV4 with type ipv4 = IP.t
+module Make ( IP:V1_LWT.IPV4 ) : V1_LWT.UDPV4 with type ipv4 = IP.t

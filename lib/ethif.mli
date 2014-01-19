@@ -15,4 +15,4 @@
  *
  *)
 
-module Make ( N:T.LWT_NETWORK ) : T.LWT_ETHIF with type netif = N.t
+module Make ( N:V1_LWT.NETWORK ) : V1_LWT.ETHIF with type netif = N.t

@@ -18,7 +18,7 @@
 open Lwt
 open Wire_structs
 
-module Make(Netif : T.LWT_NETWORK) = struct
+module Make(Netif : V1_LWT.NETWORK) = struct
 
   type id = Netif.t
   type 'a io = 'a Lwt.t
