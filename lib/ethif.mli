@@ -16,4 +16,3 @@
  *)
 
 module Make ( N:T.LWT_NETWORK ) : T.LWT_ETHIF with type netif = N.t
-
