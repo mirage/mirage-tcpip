@@ -25,3 +25,10 @@ cstruct icmpv4 {
   uint16_t seq
 } as big_endian
 
+cstruct udpv4 {
+  uint16_t source_port;                                                                               
+  uint16_t dest_port;
+  uint16_t length;                                                                                    
+  uint16_t checksum
+} as big_endian
+  
