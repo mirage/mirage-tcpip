@@ -19,8 +19,8 @@ Library ethif
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Arpv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax
+  Modules:            Ethif, Arpv4, Wire_structs, Checksum
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
 
 Library ipv4
   CompiledObject:     best
@@ -28,7 +28,7 @@ Library ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Ipv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
 
 Library "ethif-unix"
   CompiledObject:     best
@@ -36,4 +36,12 @@ Library "ethif-unix"
   Findlibparent:      tcpip
   Findlibname:        ethif-unix
   Modules:            Ethif_unix
-  BuildDepends:       ethif,mirage-net-unix
+  BuildDepends:       tcpip.ethif,mirage-net-unix,lwt,lwt.unix
+
+Library "ipv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        ipv4-unix
+  Modules:            Ipv4_unix
+  BuildDepends:       tcpip.ethif,tcpip.ethif-unix,tcpip.ipv4,lwt,lwt.unix
