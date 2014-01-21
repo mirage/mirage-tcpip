@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t 
 type action =
   | Passive_open
   | Recv_rst
@@ -43,7 +42,11 @@ type tcpstates =
 
 type close_cb = unit -> unit
 
+type t = {
+  on_close: close_cb;
+  mutable state: tcpstates;
+}
+
 val state : t -> tcpstates
-val tick : t -> action -> unit
 val t : on_close:close_cb -> t
 val tcpstates_to_string : tcpstates -> string
