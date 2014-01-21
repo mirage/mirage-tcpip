@@ -46,8 +46,13 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     | 0x0800 -> (* IPv4 *)
       let payload = Cstruct.shift frame sizeof_ethernet in
       ipv4 payload
-    | 0x86dd -> return ()
-    | etype  -> return ()
+    | 0x86dd -> 
+      let payload = Cstruct.shift frame sizeof_ethernet in
+      ipv6 payload
+    | etype  ->
+      let payload = Cstruct.shift frame sizeof_ethernet in
+      (* TODO default etype payload *)
+      return ()
 
   let write t frame =
     Netif.write t.netif frame
