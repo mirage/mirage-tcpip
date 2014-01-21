@@ -45,7 +45,6 @@ let rec timerloop t s =
       t.period <- p;
       timerloop t d
 
-  
 let period t = t.period
 
 let start t ?(p=(period t)) s =
