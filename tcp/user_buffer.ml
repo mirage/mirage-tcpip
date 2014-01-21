@@ -106,12 +106,14 @@ end
    to decide how to throttle or breakup its data production with this
    information.
 *)
-module Tx = struct
+module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) = struct
+
+  module TXS = Segment.Tx(Time)(Clock)
 
   type t = {
     wnd: Window.t;
     writers: unit Lwt.u Lwt_sequence.t;
-    txq: Segment.Tx.q;
+    txq: TXS.q;
     buffer: Cstruct.t Lwt_sequence.t;
     max_size: int32;
     mutable bufbytes: int32;
@@ -234,14 +236,14 @@ module Tx = struct
         | None -> return ()
         | Some pkt -> 
 	    let b = compactbufs pkt in
-            Segment.Tx.output ~flags:Segment.Tx.Psh t.txq b >>
+            TXS.output ~flags:Segment.Psh t.txq b >>
             clear_buffer t
 
   (* Chunk up the segments into MSS max for transmission *)
   let transmit_segments ~mss ~txq datav =
     let transmit acc = 
       let b = compactbufs (List.rev acc) in
-      Segment.Tx.(output ~flags:Psh txq b)
+      TXS.output ~flags:Segment.Psh txq b
     in
     let rec chunk datav acc =
       match datav with

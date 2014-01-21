@@ -191,25 +191,26 @@ end
 (* Transmitted segments are sent in-order, and may also be marked
    with control flags (such as urgent, or fin to mark the end).
 *)
-module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) = struct
 
-  module StateTick = State.Make(Time)
-  module TT = Tcptimer.Make(Time)
-  module TX = Window.Make(Clock)
-
-  type flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
+type tx_flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
     No_flags
    |Syn
    |Fin
    |Rst
    |Psh
 
-  type xmit = flags:flags -> wnd:Window.t -> options:Options.ts ->
+module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) = struct
+
+  module StateTick = State.Make(Time)
+  module TT = Tcptimer.Make(Time)
+  module TX = Window.Make(Clock)
+
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
               seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
   type seg = {
     data: Cstruct.t list;
-    flags: flags;
+    flags: tx_flags;
     seq: Sequence.t;
   }
 
