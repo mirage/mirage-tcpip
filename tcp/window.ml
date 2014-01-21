@@ -151,52 +151,54 @@ let set_tx_wnd t sz =
 let tx_mss t =
   t.tx_mss
 
-(* Advance transmitted packet sequence number *)
-let tx_advance t b =
-  if not t.rtt_timer_on && not t.fast_recovery then begin
-    t.rtt_timer_on <- true;
-    t.rtt_timer_seq <- t.tx_nxt;
-    t.rtt_timer_starttime <- Clock.time ();
-  end;
-  t.tx_nxt <- Sequence.add t.tx_nxt (Sequence.of_int b)
-
-(* An ACK was received - use it to adjust cwnd *)
-let tx_ack t r win =
-  set_tx_wnd t win;
-  if t.fast_recovery then begin
-    if Sequence.gt r t.snd_una then 
-      t.snd_una <- r;
-    if Sequence.geq r t.fast_rec_th then begin
-      (* printf "EXITING fast recovery\n%!"; *)
-      t.cwnd <- t.ssthresh;
-      t.fast_recovery <- false;
-    end else begin
-      t.cwnd <- (Int32.add t.cwnd (Int32.of_int t.tx_mss));
-    end
-  end else begin
-    if Sequence.gt r t.snd_una then begin
-      t.backoff_count <- 0;
-      t.snd_una <- r;
-      if t.rtt_timer_on && Sequence.gt r t.rtt_timer_seq then begin
-        t.rtt_timer_on <- false;
-        let rtt_m = Clock.time () -. t.rtt_timer_starttime in
-	if t.rtt_timer_reset then begin
-	  t.rtt_timer_reset <- false;
-          t.rttvar <- (0.5 *. rtt_m);
-          t.srtt <- rtt_m;
-	end else begin
-          t.rttvar <- (((1.0 -. beta) *. t.rttvar) +. (beta *. (abs_float (t.srtt -. rtt_m))));
-          t.srtt <- (((1.0 -. alpha) *. t.srtt) +. (alpha *. rtt_m));
-	end;
-        t.rto <- (max 1.0 (t.srtt +. (4.0 *. t.rttvar)));
-      end;
+module Make(Clock:T.CLOCK) = struct
+  (* Advance transmitted packet sequence number *)
+  let tx_advance t b =
+    if not t.rtt_timer_on && not t.fast_recovery then begin
+      t.rtt_timer_on <- true;
+      t.rtt_timer_seq <- t.tx_nxt;
+      t.rtt_timer_starttime <- Clock.time ();
     end;
-    let cwnd_incr = match t.cwnd < t.ssthresh with
-    | true -> Int32.of_int t.tx_mss
-    | false -> max (Int32.div (Int32.of_int (t.tx_mss * t.tx_mss)) t.cwnd) 1l
-    in
-    t.cwnd <- Int32.add t.cwnd cwnd_incr
-  end
+    t.tx_nxt <- Sequence.add t.tx_nxt (Sequence.of_int b)
+
+  (* An ACK was received - use it to adjust cwnd *)
+  let tx_ack t r win =
+    set_tx_wnd t win;
+    if t.fast_recovery then begin
+      if Sequence.gt r t.snd_una then 
+        t.snd_una <- r;
+      if Sequence.geq r t.fast_rec_th then begin
+        (* printf "EXITING fast recovery\n%!"; *)
+        t.cwnd <- t.ssthresh;
+        t.fast_recovery <- false;
+      end else begin
+        t.cwnd <- (Int32.add t.cwnd (Int32.of_int t.tx_mss));
+      end
+    end else begin
+      if Sequence.gt r t.snd_una then begin
+        t.backoff_count <- 0;
+        t.snd_una <- r;
+        if t.rtt_timer_on && Sequence.gt r t.rtt_timer_seq then begin
+          t.rtt_timer_on <- false;
+          let rtt_m = Clock.time () -. t.rtt_timer_starttime in
+          if t.rtt_timer_reset then begin
+            t.rtt_timer_reset <- false;
+            t.rttvar <- (0.5 *. rtt_m);
+            t.srtt <- rtt_m;
+          end else begin
+            t.rttvar <- (((1.0 -. beta) *. t.rttvar) +. (beta *. (abs_float (t.srtt -. rtt_m))));
+            t.srtt <- (((1.0 -. alpha) *. t.srtt) +. (alpha *. rtt_m));
+          end;
+          t.rto <- (max 1.0 (t.srtt +. (4.0 *. t.rttvar)));
+        end;
+      end;
+      let cwnd_incr = match t.cwnd < t.ssthresh with
+        | true -> Int32.of_int t.tx_mss
+        | false -> max (Int32.div (Int32.of_int (t.tx_mss * t.tx_mss)) t.cwnd) 1l
+      in
+      t.cwnd <- Int32.add t.cwnd cwnd_incr
+    end
+end
 
 let tx_nxt t = t.tx_nxt 
 let tx_wnd t = t.tx_wnd

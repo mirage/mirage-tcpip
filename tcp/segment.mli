@@ -31,7 +31,7 @@ module Rx (T:T.LWT_TIME) : sig
   end
 
 (* Pre-transmission queue *)
-module Tx (T:T.LWT_TIME) : sig
+module Tx (Time:T.LWT_TIME)(Clock:T.CLOCK) : sig
 
     type flags = |No_flags |Syn |Fin |Rst |Psh
 
