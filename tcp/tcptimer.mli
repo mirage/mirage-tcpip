@@ -21,6 +21,8 @@ type tr =
   | Continue of Sequence.t
   | ContinueSetPeriod of (float * Sequence.t)
 
-val t : period: float -> expire: (Sequence.t -> tr) -> t
+module Make(T:T.LWT_TIME) : sig
+  val t : period: float -> expire: (Sequence.t -> tr) -> t
 
-val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
+  val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
+end

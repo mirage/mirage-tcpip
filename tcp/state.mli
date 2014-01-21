@@ -50,3 +50,11 @@ type t = {
 val state : t -> tcpstates
 val t : on_close:close_cb -> t
 val tcpstates_to_string : tcpstates -> string
+
+module Make(Time : T.LWT_TIME) : sig
+  val fin_wait_2_time : float
+  val time_wait_time : float
+  val finwait2timer : t -> int -> float -> unit Lwt.t
+  val timewait : t -> float -> unit Lwt.t
+  val tick : t -> action -> unit
+end
