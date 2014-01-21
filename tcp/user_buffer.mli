@@ -26,10 +26,16 @@ module Rx : sig
   val monitor: t -> int32 Lwt_mvar.t -> unit
 end
 
-module Tx : sig
+module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) : sig
+
   type t
 
-  val create: max_size:int32 -> wnd:Window.t -> txq:Segment.Tx.q -> t
+  module TXS : sig
+    type q = Segment.Tx(Time)(Clock).q
+    val output : ?flags:Segment.tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
+  end
+
+  val create: max_size:int32 -> wnd:Window.t -> txq:TXS.q -> t
   val available: t -> int32
   val wait_for: t -> int32 -> unit Lwt.t
   val wait_for_flushed: t -> unit Lwt.t
