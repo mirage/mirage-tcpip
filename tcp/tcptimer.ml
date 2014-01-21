@@ -26,15 +26,15 @@ type t = {
   expire: (Sequence.t -> tr);
   mutable period: float;
   mutable running: bool;
-  }
+}
 
+module Make(Time:T.LWT_TIME) = struct
 let t ~period ~expire =
   let running = false in
   {period; expire; running}
 
-
 let rec timerloop t s =
-  OS.Time.sleep t.period >>
+  Time.sleep t.period >>
   match t.expire s with
   | Stoptimer ->
       t.running <- false;
@@ -55,3 +55,4 @@ let start t ?(p=(period t)) s =
     return ()
   end else 
     return ()
+end
