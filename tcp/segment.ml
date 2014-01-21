@@ -32,7 +32,9 @@ let peek_opt_l seq =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
  *)
-module Rx = struct
+module Rx(Time:T.LWT_TIME) = struct
+
+  module StateTick = State.Make(Time)
 
   (* Individual received TCP segment 
      TODO: this will change when IP fragments work *)
@@ -142,7 +144,7 @@ module Rx = struct
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
         if seg.ack then begin
-          tick q.state (Recv_ack seg.ack_number);
+          StateTick.tick q.state (Recv_ack seg.ack_number);
           let win = window ready in
           let data_in_flight = Window.tx_inflight q.wnd in
           let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
@@ -189,7 +191,10 @@ end
 (* Transmitted segments are sent in-order, and may also be marked
    with control flags (such as urgent, or fin to mark the end).
 *)
-module Tx = struct
+module Tx(Time:T.LWT_TIME) = struct
+
+  module StateTick = State.Make(Time)
+  module TT = Tcptimer.Make(Time)
 
   type flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
     No_flags
@@ -251,7 +256,7 @@ module Tx = struct
 		if (Window.max_rexmits_done wnd) then begin
 		  (* TODO - include more in log msg like ipaddrs *)
 		  printf "Max retransmits reached for connection - terminating\n%!";
-		  tick st Timeout;
+		  StateTick.tick st Timeout;
 		  Tcptimer.Stoptimer
 		end else begin
 		  let flags = rexmit_seg.flags in
@@ -345,7 +350,7 @@ module Tx = struct
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
     let period = Window.rto wnd in
-    let rexmit_timer = Tcptimer.t ~period ~expire in
+    let rexmit_timer = TT.t ~period ~expire in
     let q = { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks } in
     let t = rto_t q tx_ack in
     q, t
@@ -372,7 +377,7 @@ module Tx = struct
       | true ->
           let _ = Lwt_sequence.add_r seg q.segs in
           let p = Window.rto q.wnd in
-          Tcptimer.start q.rexmit_timer ~p seg.seq
+          TT.start q.rexmit_timer ~p seg.seq
     in
     q_rexmit () >> 
     lwt view = q.xmit ~flags ~wnd ~options ~seq data in
