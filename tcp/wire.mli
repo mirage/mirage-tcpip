@@ -14,66 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Cstruct
-
-val get_tcpv4_src_port : t -> uint16
-val set_tcpv4_src_port : t -> uint16 -> unit
-
-val get_tcpv4_dst_port : t -> uint16
-val set_tcpv4_dst_port : t -> uint16 -> unit
-
-val get_tcpv4_sequence : t -> uint32
-val set_tcpv4_sequence : t -> uint32 -> unit
-
-val get_tcpv4_ack_number : t -> uint32
-val set_tcpv4_ack_number : t -> uint32 -> unit
-
-val get_tcpv4_window : t -> uint16
-val set_tcpv4_window : t -> uint16 -> unit
-
-val get_tcpv4_checksum : t -> uint16
-val set_tcpv4_checksum : t -> uint16 -> unit
-
-val get_tcpv4_urg_ptr : t -> uint16
-val set_tcpv4_urg_ptr : t -> uint16 -> unit
-
-val get_data_offset : t -> int
-val set_data_offset : t -> int -> unit
-
-val sizeof_tcpv4 : int
-
-val set_tcpv4_flags : t -> int -> unit
-
-val get_fin : t -> bool
-val get_syn : t -> bool
-val get_rst : t -> bool
-val get_psh : t -> bool
-val get_ack : t -> bool
-val get_urg : t -> bool
-val get_ece : t -> bool
-val get_cwr : t -> bool
-
-val set_fin : t -> unit
-val set_syn : t -> unit
-val set_rst : t -> unit
-val set_psh : t -> unit
-val set_ack : t -> unit
-val set_urg : t -> unit
-val set_ece : t -> unit
-val set_cwr : t -> unit
-
-val get_options : t -> Options.t list
-val set_options : t -> Options.ts -> int
-
-val get_payload : t -> t
+val get_options : Cstruct.t -> Options.t list
+val set_options : Cstruct.t -> Options.ts -> int
+val get_payload : Cstruct.t -> Cstruct.t
 
 type id = {
   dest_port: int;               (* Remote TCP port *)
-  dest_ip: Ipaddr.V4.t;           (* Remote IP address *)
+  dest_ip: Ipaddr.V4.t;         (* Remote IP address *)
   local_port: int;              (* Local TCP port *)
-  local_ip: Ipaddr.V4.t;          (* Local IP address *)
+  local_ip: Ipaddr.V4.t;        (* Local IP address *)
 }
 
-val xmit : ip:Ipv4.t -> id:id -> ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
-  rx_ack:Sequence.t option -> seq:Sequence.t -> window:int -> options:Options.ts ->
-  Cstruct.t list -> unit Lwt.t
+module Make(Ipv4:V1_LWT.IPV4) : sig
+  val xmit : ip:Ipv4.t -> id:id ->
+    ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
+    rx_ack:Sequence.t option -> seq:Sequence.t -> window:int -> options:Options.ts ->
+    Cstruct.t list -> unit Lwt.t
+end
