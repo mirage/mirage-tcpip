@@ -38,6 +38,14 @@ Library udpv4
   Modules:            Udpv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
+Library tcpv4
+  CompiledObject:     best
+  Path:               tcp
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4
+  Modules:            Options,Wire
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+
 Library "ethif-unix"
   CompiledObject:     best
   Path:               unix
