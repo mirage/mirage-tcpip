@@ -16,8 +16,7 @@
 
 open State
 
-module Rx :
-  sig
+module Rx (T:T.LWT_TIME) : sig
     type seg
     val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
       ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
@@ -32,8 +31,7 @@ module Rx :
   end
 
 (* Pre-transmission queue *)
-module Tx :
-  sig
+module Tx (T:T.LWT_TIME) : sig
 
     type flags = |No_flags |Syn |Fin |Rst |Psh
 

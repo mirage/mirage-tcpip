@@ -43,7 +43,7 @@ Library tcpv4
   Path:               tcp
   Findlibparent:      tcpip
   Findlibname:        tcpv4
-  Modules:            T,Options,Wire,State,Sliding_window,Ack
+  Modules:            T,Options,Wire,State,Sliding_window,Ack,Segment
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
 Library "ethif-unix"
