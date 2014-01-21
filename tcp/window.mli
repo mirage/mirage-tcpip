@@ -27,8 +27,11 @@ val rx_advance_inseq : t -> int -> unit
 val rx_nxt : t -> Sequence.t
 val rx_nxt_inseq : t -> Sequence.t
 
-val tx_advance : t -> int -> unit
-val tx_ack: t -> Sequence.t -> int -> unit
+module Make(C:T.CLOCK) : sig
+  val tx_advance : t -> int -> unit
+  val tx_ack: t -> Sequence.t -> int -> unit
+end
+
 val tx_nxt : t -> Sequence.t
 val tx_una : t -> Sequence.t
 val tx_mss : t -> int

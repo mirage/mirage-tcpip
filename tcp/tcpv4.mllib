@@ -1,10 +1,11 @@
 # OASIS_START
-# DO NOT EDIT (digest: d88869e2528ec50140995fb658dcb071)
+# DO NOT EDIT (digest: b9cdacfb01b769f8678b9e45bacee72e)
 T
 Options
 Wire
 State
 Sliding_window
 Ack
+Window
 Segment
 # OASIS_STOP

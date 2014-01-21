@@ -191,10 +191,11 @@ end
 (* Transmitted segments are sent in-order, and may also be marked
    with control flags (such as urgent, or fin to mark the end).
 *)
-module Tx(Time:T.LWT_TIME) = struct
+module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)
+  module TX = Window.Make(Clock)
 
   type flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
     No_flags
@@ -308,7 +309,7 @@ module Tx(Time:T.LWT_TIME) = struct
 		      clearsegs (Int32.sub ack_remaining seg_len) segs
         in
         let partleft = clearsegs (Sequence.to_int32 ack_len) q.segs in
-        Window.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win;
+        TX.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win;
 	match (dupack || (Window.fast_rec q.wnd)) with
 	| true ->
             q.dup_acks <- q.dup_acks + 1;
@@ -369,7 +370,7 @@ module Tx(Time:T.LWT_TIME) = struct
     let seq = Window.tx_nxt wnd in
     let seg = { data; flags; seq } in
     let seq_len = len seg in
-    Window.tx_advance q.wnd seq_len;
+    TX.tx_advance q.wnd seq_len;
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match seq_len > 0 with
