@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 819094e5040efec7b4e9e6a9ef7b7d77)
+# DO NOT EDIT (digest: 4dcd777a8bff66028727894246217051)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -31,6 +31,17 @@
 <lib/*.ml{,i}>: pkg_lwt.syntax
 # Library tcpv4
 "tcp/tcpv4.cmxs": use_tcpv4
+"tcp/t.cmx": for-pack(Tcpv4)
+"tcp/options.cmx": for-pack(Tcpv4)
+"tcp/wire.cmx": for-pack(Tcpv4)
+"tcp/state.cmx": for-pack(Tcpv4)
+"tcp/tcptimer.cmx": for-pack(Tcpv4)
+"tcp/sliding_window.cmx": for-pack(Tcpv4)
+"tcp/ack.cmx": for-pack(Tcpv4)
+"tcp/window.cmx": for-pack(Tcpv4)
+"tcp/segment.cmx": for-pack(Tcpv4)
+"tcp/user_buffer.cmx": for-pack(Tcpv4)
+"tcp/pcb.cmx": for-pack(Tcpv4)
 <tcp/*.ml{,i}>: use_tcpip
 <tcp/*.ml{,i}>: pkg_lwt
 <tcp/*.ml{,i}>: pkg_io-page
