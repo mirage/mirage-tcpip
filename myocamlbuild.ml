@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: bbbc16b4c968b4b05340a089d570289a) *)
+(* DO NOT EDIT (digest: eb405f8dc39f9d8dcb541d74e19a345a) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -564,16 +564,17 @@ let package_default =
           ("tcpv4", ["tcp"], []);
           ("ethif-unix", ["unix"], []);
           ("ipv4-unix", ["unix"], []);
-          ("udpv4-unix", ["unix"], [])
+          ("udpv4-unix", ["unix"], []);
+          ("tcpv4-unix", ["unix"], [])
        ];
      lib_c = [];
      flags = [];
-     includes = [("unix", ["lib"]); ("tcp", ["lib"])]
+     includes = [("unix", ["lib"; "tcp"]); ("tcp", ["lib"])]
   }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 578 "myocamlbuild.ml"
+# 579 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

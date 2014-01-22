@@ -70,3 +70,12 @@ Library "udpv4-unix"
   Modules:            Udpv4_unix
   BuildDepends:       tcpip.udpv4,tcpip.ipv4-unix,lwt,lwt.unix
 
+Library "tcpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4-unix
+  Modules:            Tcpv4_unix
+  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,lwt,lwt.unix,mirage-unix,mirage-clock-unix
+
+
