@@ -20,12 +20,21 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
-  type t = Pcb.pcb
-
-  type tcp = Pcb.t
+  type flow = Pcb.pcb
+  type id = IP.t
+  type t = Pcb.t
+  type buffer = Cstruct.t
+  type +'a io = 'a Lwt.t
+  type error = [
+   | `Unknown_error of string
+  ]
 
   let read t =
+    (* TODO better error interface in Pcb *)
     Pcb.read t
+    >>= function
+    | None -> return `Eof
+    | Some t -> return (`Ok t)
 
   let write t view =
     Pcb.write t view
@@ -56,7 +65,7 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
     (* TODO cancellation *)
     accept ()
 
-  let connect tcp (daddr, dport) fn =
+  let create_connection tcp (daddr, dport) fn =
     Pcb.connect tcp daddr dport
     >>= function
     | None -> 
@@ -66,6 +75,9 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
     | Some (fl, _) ->
       fn fl 
 
-  let create ipv4 =
+  let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
+
+  let disconnect t =
+    return ()
 end
