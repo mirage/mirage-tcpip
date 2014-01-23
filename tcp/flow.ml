@@ -75,6 +75,9 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
     | Some (fl, _) ->
       fn fl 
 
+  let input t ~src ~dst buf =
+    Pcb.input t ~src ~dst buf
+
   let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
 

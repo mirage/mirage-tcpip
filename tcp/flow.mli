@@ -15,13 +15,13 @@
  *)
 
 
-module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM): sig
+module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) : sig
 
+  type t 
   type flow
   type id = IP.t
-  type +'a io = 'a Lwt.t
-  type t 
   type buffer = Cstruct.t
+  type +'a io = 'a Lwt.t
 
   type error = [
    | `Unknown_error of string
@@ -40,7 +40,9 @@ module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM): sig
   val create_connection : t ->
     Ipaddr.V4.t * int -> (flow -> unit Lwt.t) -> unit Lwt.t
 
-  val connect : id -> [ `Ok of t ] Lwt.t
+  val input: t -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> buffer -> unit Lwt.t
+
+  val connect : id -> [ `Ok of t | `Error of error ] Lwt.t
   val disconnect : t -> unit Lwt.t
 end
 
