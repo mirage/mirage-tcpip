@@ -50,7 +50,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
       let payload = Cstruct.shift frame sizeof_ethernet in
       ipv6 payload
     | etype  ->
-      let payload = Cstruct.shift frame sizeof_ethernet in
+      let _payload = Cstruct.shift frame sizeof_ethernet in
       (* TODO default etype payload *)
       return ()
 
