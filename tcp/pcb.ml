@@ -55,6 +55,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
 
   type t = {
     ip : Ipv4.t;
+    mutable localport : int;
     channels: (id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent waiting for ACK *)
     listens: (id, (Sequence.t * ((pcb -> unit Lwt.t) * connection))) Hashtbl.t;
@@ -499,10 +500,6 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
   let get_dest pcb =
     (pcb.id.dest_ip, pcb.id.dest_port)
 
-  (* URG_TODO: move this elsewhere! avsm: this can move to create() *)
-  let _ = Random.self_init ()
-
-  let localport = ref (10000 + (Random.int 10000))
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -511,8 +508,10 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
                        (Hashtbl.mem t.connects id) || (Hashtbl.mem t.listens id) in
     let inuse t id = (islistener t id.local_port) || (idinuse t id) in
     let rec bumpport t =
-      if !localport = 65535 then localport := 10000 else localport := !localport + 1;
-      let id = { local_port = !localport; dest_ip = dest_ip;
+      (match t.localport with
+       |65535 -> t.localport <- 10000
+       |_ -> t.localport <- t.localport + 1);
+      let id = { local_port = t.localport; dest_ip = dest_ip;
                  local_ip = (Ipv4.get_ip t.ip); dest_port = dest_port } in
       if inuse t id then bumpport t else id
     in
@@ -559,9 +558,11 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
 
   (* Construct the main TCP thread *)
   let create ip =
+    let _ = Random.self_init () in
+    let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { ip; channels; listens; connects }
+    { ip; localport; channels; listens; connects }
 
 end
