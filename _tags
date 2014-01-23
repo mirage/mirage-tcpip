@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8fd9f650663d89938d2bc4b27c4dcc44)
+# DO NOT EDIT (digest: c46a0603337a370742c62aaaad1e7b50)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -27,8 +27,8 @@
 <lib/*.ml{,i}>: pkg_mirage-types
 <lib/*.ml{,i}>: pkg_ipaddr
 <lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_lwt.syntax
 <lib/*.ml{,i}>: pkg_cstruct.syntax
+<lib/*.ml{,i}>: pkg_lwt.syntax
 # Library tcpv4
 "tcp/tcpv4.cmxs": use_tcpv4
 "tcp/t.cmx": for-pack(Tcpv4)
@@ -50,8 +50,8 @@
 <tcp/*.ml{,i}>: pkg_mirage-types
 <tcp/*.ml{,i}>: pkg_ipaddr
 <tcp/*.ml{,i}>: pkg_cstruct
-<tcp/*.ml{,i}>: pkg_lwt.syntax
 <tcp/*.ml{,i}>: pkg_cstruct.syntax
+<tcp/*.ml{,i}>: pkg_lwt.syntax
 # Library channel
 "channel/channel.cmxs": use_channel
 <channel/*.ml{,i}>: pkg_lwt
@@ -60,6 +60,16 @@
 <channel/*.ml{,i}>: pkg_ipaddr
 <channel/*.ml{,i}>: pkg_cstruct
 <channel/*.ml{,i}>: pkg_lwt.syntax
+# Library dhcpv4
+"dhcp/dhcpv4.cmxs": use_dhcpv4
+<dhcp/*.ml{,i}>: pkg_lwt
+<dhcp/*.ml{,i}>: pkg_io-page
+<dhcp/*.ml{,i}>: pkg_mirage-types
+<dhcp/*.ml{,i}>: pkg_ipaddr
+<dhcp/*.ml{,i}>: pkg_cstruct
+<dhcp/*.ml{,i}>: pkg_cstruct.syntax
+<dhcp/*.ml{,i}>: pkg_lwt.syntax
+<dhcp/*.ml{,i}>: pkg_udpv4
 # Library ethif-unix
 "unix/ethif-unix.cmxs": use_ethif-unix
 # Library ipv4-unix
@@ -85,7 +95,7 @@
 <unix/*.ml{,i}>: pkg_mirage-types
 <unix/*.ml{,i}>: pkg_ipaddr
 <unix/*.ml{,i}>: pkg_cstruct
-<unix/*.ml{,i}>: pkg_lwt.syntax
 <unix/*.ml{,i}>: pkg_cstruct.syntax
+<unix/*.ml{,i}>: pkg_lwt.syntax
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
