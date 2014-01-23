@@ -47,6 +47,14 @@ Library tcpv4
   Modules:            T,Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,Window,Segment,User_buffer,Pcb,Flow
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
+Library channel
+  CompiledObject:     best
+  Path:               channel
+  Findlibparent:      tcpip
+  Findlibname:        channel
+  Modules:            Channel
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt.syntax,lwt
+
 Library "ethif-unix"
   CompiledObject:     best
   Path:               unix

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,20 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* Buffered reading and writing over the flow API *)
+(** Buffered reading and writing over the Flow API *)
+
 open Lwt
 open Printf
-open Nettypes
 
-module Make(Flow:FLOW) : 
-  (CHANNEL with type src = Flow.src
-            and type dst = Flow.dst
-            and type mgr = Flow.mgr)  = struct
+module Make(Flow:V1_LWT.TCPV4) = struct
 
-  type flow = Flow.t
-  type src = Flow.src
-  type dst = Flow.dst
-  type mgr = Flow.mgr
+  type flow = Flow.flow
+  type buffer = Cstruct.t
+  type +'a io = 'a Lwt.t
+  type 'a io_stream = 'a Lwt_stream.t
 
   type t = {
     flow: flow;
@@ -51,10 +48,10 @@ module Make(Flow:FLOW) :
 
   let ibuf_refill t = 
     match_lwt Flow.read t.flow with
-    |Some buf ->
-      t.ibuf <- Some buf;
-      return ()
-    |None ->
+    | `Ok buf ->
+        t.ibuf <- Some buf;
+        return ()
+    | `Error _ | `Eof ->
       fail Closed
 
   let rec get_ibuf t =
@@ -203,78 +200,8 @@ module Make(Flow:FLOW) :
     Flow.writev t.flow l
  
   let close t =
-    flush t >>
+    flush t
+    >>= fun () ->
     Flow.close t.flow
 
-  let connect mgr ?src dst fn =
-    Flow.connect mgr ?src dst (fun f -> fn (create f))
-
-  let listen mgr src fn =
-    Flow.listen mgr src (fun dst f -> fn dst (create f))
-
 end
-
-module TCPv4 = Make(Flow.TCPv4)
-module Shmem = Make(Flow.Shmem)
-
-type t =
-  | TCPv4 of TCPv4.t
-  | Shmem of Shmem.t
-
-let read_char = function
-  | TCPv4 t -> TCPv4.read_char t
-  | Shmem t -> Shmem.read_char t
-
-let read_until = function
-  | TCPv4 t -> TCPv4.read_until t
-  | Shmem t -> Shmem.read_until t
-
-let read_some ?len = function
-  | TCPv4 t -> TCPv4.read_some ?len t
-  | Shmem t -> Shmem.read_some ?len t
-
-let read_stream ?len = function
-  | TCPv4 t -> TCPv4.read_stream ?len t
-  | Shmem t -> Shmem.read_stream ?len t
-
-let read_line = function
-  | TCPv4 t -> TCPv4.read_line t
-  | Shmem t -> Shmem.read_line t
-
-let write_char = function
-  | TCPv4 t -> TCPv4.write_char t
-  | Shmem t -> Shmem.write_char t
-
-let write_string = function
-  | TCPv4 t -> TCPv4.write_string t
-  | Shmem t -> Shmem.write_string t
-
-let write_buffer = function
-  | TCPv4 t -> TCPv4.write_buffer t
-  | Shmem t -> Shmem.write_buffer t
-
-let write_line = function
-  | TCPv4 t -> TCPv4.write_line t
-  | Shmem t -> Shmem.write_line t
-
-let flush = function
-  | TCPv4 t -> TCPv4.flush t
-  | Shmem t -> Shmem.flush t
-
-let close = function
-  | TCPv4 t -> TCPv4.close t
-  | Shmem t -> Shmem.close t
-
-let connect mgr = function
-  |`TCPv4 (src, dst, fn) ->
-     TCPv4.connect mgr ?src dst (fun t -> fn (TCPv4 t))
-  |`Shmem (src, dst, fn) ->
-     Shmem.connect mgr ?src dst (fun t -> fn (Shmem t))
-  |_ -> fail (Failure "unknown protocol")
-
-let listen mgr = function
-  |`TCPv4 (src, fn) ->
-     TCPv4.listen mgr src (fun dst t -> fn dst (TCPv4 t))
-  |`Shmem (src, fn) ->
-     Shmem.listen mgr src (fun dst t -> fn dst (Shmem t))
-  |_ -> fail (Failure "unknown protocol")

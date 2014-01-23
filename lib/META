@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a8a671ccc81b8a8fa963e9e384dd4e10)
+# DO NOT EDIT (digest: 6634d5deeae670376db31ee71bf8b40a)
 version = "1.0.0"
 description = "Ethernet and IP driver"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -99,6 +99,17 @@ package "ethif" (
  archive(native) = "ethif.cmxa"
  archive(native, plugin) = "ethif.cmxs"
  exists_if = "ethif.cma"
+)
+
+package "channel" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "io-page mirage-types ipaddr cstruct lwt.syntax lwt"
+ archive(byte) = "channel.cma"
+ archive(byte, plugin) = "channel.cma"
+ archive(native) = "channel.cmxa"
+ archive(native, plugin) = "channel.cmxs"
+ exists_if = "channel.cma"
 )
 # OASIS_STOP
 
