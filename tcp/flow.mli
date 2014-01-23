@@ -27,15 +27,16 @@ module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM): sig
    | `Unknown_error of string
   ]
 
-
   val read : flow -> [`Ok of buffer | `Eof | `Error of error ] Lwt.t
   val write : flow -> buffer -> unit Lwt.t
   val writev : flow -> buffer list -> unit Lwt.t
   val write_nodelay : flow -> buffer -> unit Lwt.t
   val writev_nodelay : flow -> buffer list -> unit Lwt.t
   val close : flow -> unit Lwt.t
+
   val listen : t -> int ->
     (Ipaddr.V4.t * int -> flow -> unit Lwt.t) -> unit Lwt.t
+
   val create_connection : t ->
     Ipaddr.V4.t * int -> (flow -> unit Lwt.t) -> unit Lwt.t
 
