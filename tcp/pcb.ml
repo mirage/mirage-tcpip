@@ -56,9 +56,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
   type t = {
     ip : Ipv4.t;
     channels: (id, connection) Hashtbl.t;
-    listeners: (int, (connection Lwt_stream.t * (connection option -> unit))) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent waiting for ACK *)
-    listens: (id, (Sequence.t * ((connection option -> unit) * connection))) Hashtbl.t;
+    listens: (id, (Sequence.t * ((pcb -> unit Lwt.t) * connection))) Hashtbl.t;
     (* clients in the process of connecting *)
     connects: (id, (connection option Lwt.u * Sequence.t)) Hashtbl.t;
   }
@@ -67,6 +66,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     t: t;
     port: int;
   }
+
+  let ip {ip} = ip
 
   let pbuf =
     Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_pseudo_header 
@@ -297,14 +298,12 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     Gc.finalise fnth th;
     return (pcb, th)
 
-
   let resolve_wnd_scaling options rx_wnd_scaleoffer = 
     let tx_wnd_scale = List.fold_left
         (fun a -> function Options.Window_size_shift m -> Some m |_ -> a) None options in
     match tx_wnd_scale with
     | None -> (0, 0), []
     | Some tx_f -> (rx_wnd_scaleoffer, tx_f), (Options.Window_size_shift rx_wnd_scaleoffer :: [])
-
 
   let new_server_connection t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer ~pushf id =
     let tx_mss = List.fold_left (fun a -> function Options.MSS m -> Some m |_ -> a) None options in
@@ -333,7 +332,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     lwt () = TXS.output pcb.txq [] in
     return (pcb, th)
 
-  let input_no_pcb t pkt id =
+  let input_no_pcb t listeners pkt id =
     match verify_checksum id pkt with
     |false -> return (printf "RX.input: checksum error\n%!")
     |true ->
@@ -392,8 +391,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
                     Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
                 end
               | false -> begin
-                  match (hashtbl_find t.listeners id.local_port) with
-                  | Some (_, pushf) -> begin
+                  match listeners id.local_port with
+                  | Some pushf -> begin
                       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
                       let tx_wnd = get_tcpv4_window pkt in
                       (* TODO: make this configurable per listener *)
@@ -403,9 +402,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
                           t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer ~pushf id in
                       return ()
                     end
-                  | None -> begin
+                  | None ->
                       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
-                    end
                 end
             end
           | false -> begin
@@ -418,7 +416,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
                         Hashtbl.remove t.listens id;
                         Hashtbl.add t.channels id newconn;
                         (* send new connection up to listener *)
-                        pushf (Some newconn);
+                        pushf (fst newconn)
+                        >>= fun () ->
                         Rx.input t pkt newconn
                       end else begin
                         (* No RST because we are trying to connect on this id *)
@@ -442,7 +441,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
 
 
   (* Main input function for TCP packets *)
-  let input t ~src ~dst data =
+  let input t ~listeners ~src ~dst data =
     let source_port = get_tcpv4_src_port data in
     let dest_port = get_tcpv4_dst_port data in
     let id = { local_port=dest_port; dest_ip=src; local_ip=dst; dest_port=source_port } in
@@ -451,7 +450,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
       (* PCB exists, so continue the connection state machine in tcp_input *)
       (Rx.input t data)
       (* No existing PCB, so check if it is a SYN for a listening function *)
-      (input_no_pcb t data)
+      (input_no_pcb t listeners data)
 
   (* Blocking read on a PCB *)
   let rec read pcb =
@@ -497,26 +496,17 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
   let close pcb =
     Tx.close pcb
 
-  let closelistener l = 
-    printf "TCP: Closing listener on port %d\n%!" l.port;
-    match (hashtbl_find l.t.listeners l.port) with
-    | Some (st, pushf) ->
-      pushf None;
-      Hashtbl.remove l.t.listeners l.port
-    | None -> ()
-
-
   let get_dest pcb =
     (pcb.id.dest_ip, pcb.id.dest_port)
 
-  (* URG_TODO: move this elsewhere! *)
+  (* URG_TODO: move this elsewhere! avsm: this can move to create() *)
   let _ = Random.self_init ()
 
   let localport = ref (10000 + (Random.int 10000))
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
-    let islistener t port = Hashtbl.mem t.listeners port in
+    let islistener t port = false in (* TODO keep a list of active listen ports *)
     let idinuse t id = (Hashtbl.mem t.channels id) ||
                        (Hashtbl.mem t.connects id) || (Hashtbl.mem t.listens id) in
     let inuse t id = (islistener t id.local_port) || (idinuse t id) in
@@ -567,24 +557,11 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     lwt c = th in
     return c
 
-
-  (* Register a TCP listener on a port *)
-  let listen t port =
-    let st, pushfn = Lwt_stream.create () in
-    if Hashtbl.mem t.listeners port then begin
-      printf "WARNING: TCP listen port %d in use - replacing current listener\n%!" port;
-      closelistener {t; port}
-    end;
-    Hashtbl.replace t.listeners port (st, pushfn);
-    (st, {t; port})
-
   (* Construct the main TCP thread *)
   let create ip =
-    let thread, _ = Lwt.task () in
-    let listeners = Hashtbl.create 1 in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { ip; channels; listeners; listens; connects }
+    { ip; channels; listens; connects }
 
 end

@@ -21,13 +21,19 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
   type flow = Pcb.pcb
-  type id = IP.t
-  type t = Pcb.t
+  type ipv4 = IP.t
+  type ipv4addr = Ipaddr.V4.t
   type buffer = Cstruct.t
   type +'a io = 'a Lwt.t
+  type t = Pcb.t
+
   type error = [
-   | `Unknown_error of string
+   | `Unknown of string
   ]
+
+  let id t = Pcb.ip t
+
+  let get_dest t = Pcb.get_dest t
 
   let read t =
     (* TODO better error interface in Pcb *)
@@ -51,20 +57,6 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
   let close t =
     Pcb.close t
 
-  let listen tcp port fn =
-    let (st, l) = Pcb.listen tcp port in
-    let rec accept () =
-      Lwt_stream.get st
-      >>= function
-      | None -> return_unit
-      | Some (fl, th) -> begin
-          let _ = fn (Pcb.get_dest fl) fl  in
-          accept ()
-        end
-    in
-    (* TODO cancellation *)
-    accept ()
-
   let create_connection tcp (daddr, dport) fn =
     Pcb.connect tcp daddr dport
     >>= function
@@ -75,8 +67,8 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
     | Some (fl, _) ->
       fn fl 
 
-  let input t ~src ~dst buf =
-    Pcb.input t ~src ~dst buf
+  let input t ~listeners ~src ~dst buf =
+    Pcb.input t ~listeners ~src ~dst buf
 
   let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
