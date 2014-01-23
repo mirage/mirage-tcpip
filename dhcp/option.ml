@@ -17,7 +17,6 @@
 
 open Lwt
 open Printf
-open Nettypes
 
 (* This is a hand-crafted DHCP option parser. Did not use MPL
    here as it doesn't have enough variable length array support

@@ -55,6 +55,14 @@ Library channel
   Modules:            Channel
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt.syntax,lwt
 
+Library dhcpv4
+  CompiledObject:     best
+  Path:               dhcp
+  Findlibparent:      tcpip
+  Findlibname:        dhcp
+  Modules:            Option,Client
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,udpv4
+
 Library "ethif-unix"
   CompiledObject:     best
   Path:               unix

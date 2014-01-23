@@ -15,6 +15,7 @@
  *
  *)
 
+(*
 type offer = {
   ip_addr : Ipaddr.V4.t;
   netmask : Ipaddr.V4.t option;
@@ -35,3 +36,4 @@ type t
 
 val input : t -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> source_port:int -> Cstruct.t -> unit Lwt.t
 val create : Ipv4.t -> Udp.t -> (t * unit Lwt.t) Lwt.t
+*)
