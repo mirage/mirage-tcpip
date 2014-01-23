@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 5e16d8e9882e0d611a7444aed87ad9b1)
+# DO NOT EDIT (digest: 8fd9f650663d89938d2bc4b27c4dcc44)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -75,6 +75,7 @@
 <unix/*.ml{,i}>: use_ethif-unix
 <unix/*.ml{,i}>: use_ethif
 <unix/*.ml{,i}>: use_tcpip
+<unix/*.ml{,i}>: use_channel
 <unix/*.ml{,i}>: pkg_lwt
 <unix/*.ml{,i}>: pkg_lwt.unix
 <unix/*.ml{,i}>: pkg_mirage-unix

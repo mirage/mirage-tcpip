@@ -85,6 +85,6 @@ Library "tcpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
   Modules:            Tcpv4_unix
-  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,lwt,lwt.unix,mirage-unix,mirage-clock-unix
+  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix
 
 
