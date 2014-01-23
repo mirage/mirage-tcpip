@@ -60,7 +60,7 @@ Library dhcpv4
   Path:               dhcp
   Findlibparent:      tcpip
   Findlibname:        dhcp
-  Modules:            Option,Client
+  Modules:            Option,Clientv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,udpv4
 
 Library "ethif-unix"
