@@ -1,0 +1,35 @@
+(*
+ * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+
+module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM): sig
+
+  type t
+  type tcp
+  val read : t -> Cstruct.t option Lwt.t
+  val write : t -> Cstruct.t -> unit Lwt.t
+  val writev : t -> Cstruct.t list -> unit Lwt.t
+  val write_nodelay : t -> Cstruct.t -> unit Lwt.t
+  val writev_nodelay : t -> Cstruct.t list -> unit Lwt.t
+  val close : t -> unit Lwt.t
+  val listen : tcp -> int ->
+    (Ipaddr.V4.t * int -> t -> unit Lwt.t) -> unit Lwt.t
+  val connect : tcp ->
+    Ipaddr.V4.t * int -> (t -> unit Lwt.t) -> unit Lwt.t
+
+  val create : IP.t -> [ `Ok of tcp ] Lwt.t
+end
+
