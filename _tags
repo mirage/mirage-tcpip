@@ -79,3 +79,4 @@
 <unix/*.ml{,i}>: pkg_cstruct.syntax
 <unix/*.ml{,i}>: pkg_lwt.syntax
 # OASIS_STOP
+true: annot, bin_annot, principal, strict_sequence, debug
