@@ -51,7 +51,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     utx: UTX.t;               (* App tx buffer *)
   }
 
-  type connection = (pcb * unit Lwt.t) 
+  type connection = pcb * unit Lwt.t
 
   type t = {
     ip : Ipv4.t;

@@ -15,16 +15,24 @@
  *)
 
 module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) : sig
+
+  (** Overall state of the TCP stack *)
   type t
+
   type pcb
-  type listener
-  type connection = (pcb * unit Lwt.t) 
+
+  (** State for an individual connection *)
+  type connection = pcb * unit Lwt.t
 
   val input: t -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
 
   val connect: t -> dest_ip:Ipaddr.V4.t -> dest_port:int -> connection option Lwt.t
 
+  type listener
+
+  (** [listen t port] *)
   val listen: t -> int -> (connection Lwt_stream.t * listener)
+
   val closelistener: listener -> unit
 
   val close: pcb -> unit Lwt.t
