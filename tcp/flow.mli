@@ -17,19 +17,29 @@
 
 module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM): sig
 
-  type t
-  type tcp
-  val read : t -> Cstruct.t option Lwt.t
-  val write : t -> Cstruct.t -> unit Lwt.t
-  val writev : t -> Cstruct.t list -> unit Lwt.t
-  val write_nodelay : t -> Cstruct.t -> unit Lwt.t
-  val writev_nodelay : t -> Cstruct.t list -> unit Lwt.t
-  val close : t -> unit Lwt.t
-  val listen : tcp -> int ->
-    (Ipaddr.V4.t * int -> t -> unit Lwt.t) -> unit Lwt.t
-  val connect : tcp ->
-    Ipaddr.V4.t * int -> (t -> unit Lwt.t) -> unit Lwt.t
+  type flow
+  type id = IP.t
+  type +'a io = 'a Lwt.t
+  type t 
+  type buffer = Cstruct.t
 
-  val create : IP.t -> [ `Ok of tcp ] Lwt.t
+  type error = [
+   | `Unknown_error of string
+  ]
+
+
+  val read : flow -> [`Ok of buffer | `Eof | `Error of error ] Lwt.t
+  val write : flow -> buffer -> unit Lwt.t
+  val writev : flow -> buffer list -> unit Lwt.t
+  val write_nodelay : flow -> buffer -> unit Lwt.t
+  val writev_nodelay : flow -> buffer list -> unit Lwt.t
+  val close : flow -> unit Lwt.t
+  val listen : t -> int ->
+    (Ipaddr.V4.t * int -> flow -> unit Lwt.t) -> unit Lwt.t
+  val create_connection : t ->
+    Ipaddr.V4.t * int -> (flow -> unit Lwt.t) -> unit Lwt.t
+
+  val connect : id -> [ `Ok of t ] Lwt.t
+  val disconnect : t -> unit Lwt.t
 end
 
