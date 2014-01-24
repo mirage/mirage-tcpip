@@ -89,7 +89,7 @@ module Make (Console : V1_LWT.CONSOLE)
 
   (* Send a client broadcast packet *)
   let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
-    let options = Option.Packet.to_bytes options in
+    let options = Dhcpv4_option.Packet.to_bytes options in
     let options_len = String.length options in
     let total_len = options_len + sizeof_dhcp in
     let buf = Io_page.(to_cstruct (get 1)) in
@@ -125,7 +125,7 @@ let input t ~src ~dst ~src_port buf =
   let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
-  let packet = Option.Packet.of_bytes options in
+  let packet = Dhcpv4_option.Packet.of_bytes options in
   (* For debugging, print out the DHCP response *)
   Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
     (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
@@ -133,7 +133,7 @@ let input t ~src ~dst ~src_port buf =
     (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf))
   >>= fun () ->
   (* See what state our Netif is in and if this packet is useful *)
-  let open Option.Packet in
+  let open Dhcpv4_option.Packet in
   match t.state with
   | Request_sent xid -> begin
       (* we are expecting an offer *)
@@ -182,7 +182,7 @@ let input t ~src ~dst ~src_port buf =
           (* TODO also merge in additional requested options here *)
           t.state <- Lease_held info;
           t.new_offer info
-        end
+      end
       |_ -> Console.log_s t.c "DHCP: ack not for us"
     end
   | Shutting_down -> return ()
@@ -196,7 +196,7 @@ let input t ~src ~dst ~src_port buf =
     let xid = Random.int32 Int32.max_int in
     let yiaddr = Ipaddr.V4.any in
     let siaddr = Ipaddr.V4.any in
-    let options = { Option.Packet.op=`Discover; opts= [
+    let options = { Dhcpv4_option.Packet.op=`Discover; opts= [
         (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
         (`Host_name "miragevm")
       ] } in
@@ -229,7 +229,7 @@ let input t ~src ~dst ~src_port buf =
     let state = Disabled in
     (* For now, just block on the first offer
        and shut down DHCP after. TODO: full protocol *)
-    let first_t, first_u = Lwt.task () in
+    let offer_stream, offer_push = Lwt_stream.create () in
     let new_offer info =
       Console.log_s c (sprintf "DHCP: offer %s %s [%s]"
         (Ipaddr.V4.to_string info.ip_addr)
@@ -244,9 +244,11 @@ let input t ~src ~dst ~src_port buf =
       >>= fun () ->
       Ipv4.set_gateways ip info.gateways
       >>= fun () ->
-      return (Lwt.wakeup first_u ())
+      offer_push (Some info);
+      return ()
     in
-    { c; ip; udp; state; new_offer }
+    let t = { c; ip; udp; state; new_offer } in
+    t, offer_stream
 
   let listen t ~dst_port =
     match dst_port with

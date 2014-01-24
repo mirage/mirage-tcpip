@@ -60,8 +60,8 @@ Library dhcpv4
   Path:               dhcp
   Findlibparent:      tcpip
   Findlibname:        dhcp
-  Modules:            Option,Clientv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,udpv4
+  Modules:            Dhcpv4_option,Dhcp_clientv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip.udpv4
 
 Library "ethif-unix"
   CompiledObject:     best
