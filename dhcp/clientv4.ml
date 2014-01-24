@@ -33,7 +33,12 @@ module type RANDOM = sig
   val int32 : int32 -> int32
 end
 
-module Make(Time:LWT_TIME)(Random:RANDOM)(Ethif:V1_LWT.ETHIF)(Ipv4:V1_LWT.IPV4 with type ethif = Ethif.t)(Udp:V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
+module Make (Console : V1_LWT.CONSOLE)
+            (Time : LWT_TIME) 
+            (Random : RANDOM)
+            (Ethif : V1_LWT.ETHIF)
+            (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
+            (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
@@ -52,6 +57,7 @@ module Make(Time:LWT_TIME)(Random:RANDOM)(Ethif:V1_LWT.ETHIF)(Ipv4:V1_LWT.IPV4 w
     | Shutting_down
 
   type t = {
+    c: Console.t;
     udp: Udp.t;
     ip: Ipv4.t;
     mutable state: state;
@@ -107,7 +113,8 @@ module Make(Time:LWT_TIME)(Random:RANDOM)(Ethif:V1_LWT.ETHIF)(Ipv4:V1_LWT.IPV4 w
     set_dhcp_cookie buf 0x63825363l;
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
-    Printf.printf "Sending DHCP broadcast len %d\n%!" total_len;
+    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len)
+    >>= fun () ->
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
 (* Receive a DHCP UDP packet *)
@@ -120,10 +127,11 @@ let input t ~src ~dst ~src_port buf =
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
   let packet = Option.Packet.of_bytes options in
   (* For debugging, print out the DHCP response *)
-  Printf.printf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
+  Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
     (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
     (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-    (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf);
+    (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf))
+  >>= fun () ->
   (* See what state our Netif is in and if this packet is useful *)
   let open Option.Packet in
   match t.state with
@@ -131,7 +139,8 @@ let input t ~src ~dst ~src_port buf =
       (* we are expecting an offer *)
       match packet.op, xid with 
       |`Offer, offer_xid when offer_xid=xid ->  begin
-          printf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr);
+          Console.log_s t.c (sprintf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr))
+          >>= fun () ->
           let netmask = find packet
               (function `Subnet_mask addr -> Some addr |_ -> None) in
           let gateways = findl packet 
@@ -158,7 +167,8 @@ let input t ~src ~dst ~src_port buf =
           t.state <- Offer_accepted offer;
           output_broadcast t ~xid ~yiaddr ~siaddr ~options
         end
-      |_ -> printf "DHCP: offer not for us"; return ()
+      |_ ->
+        Console.log_s t.c "DHCP: offer not for us"
     end
   | Offer_accepted info -> begin
       (* we are expecting an ACK *)
@@ -173,11 +183,11 @@ let input t ~src ~dst ~src_port buf =
           t.state <- Lease_held info;
           t.new_offer info
         end
-      |_ -> printf "DHCP: ack not for us\n%!"; return ()
+      |_ -> Console.log_s t.c "DHCP: ack not for us"
     end
   | Shutting_down -> return ()
-  | Lease_held info -> printf "DHCP input: lease already held\n%!"; return ()
-  | Disabled -> printf "DHCP input: disabled\n%!"; return ()
+  | Lease_held info -> Console.log_s t.c "DHCP input: lease already held"
+  | Disabled -> Console.log_s t.c "DHCP input: disabled"
 
   (* Start a DHCP discovery off on an interface *)
   let start_discovery t =
@@ -190,7 +200,8 @@ let input t ~src ~dst ~src_port buf =
         (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
         (`Host_name "miragevm")
       ] } in
-    Printf.printf "DHCP: start discovery\n%!";
+    Console.log_s t.c (sprintf "DHCP: start discovery\n%!")
+    >>= fun () ->
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>
     return ()
@@ -206,8 +217,7 @@ let input t ~src ~dst ~src_port buf =
       >>= fun () ->
       dhcp_thread t
     |Shutting_down ->
-      printf "DHCP thread: done\n%!";
-      return ()
+      Console.log_s t.c "DHCP thread: done"
     |_ -> 
       (* TODO: This should be looking at the lease time *)
       Time.sleep 3600.0
@@ -215,28 +225,31 @@ let input t ~src ~dst ~src_port buf =
       dhcp_thread t
 
   (* Create a DHCP thread *)
-  let create ip udp =
+  let create c ip udp =
     let state = Disabled in
     (* For now, just block on the first offer
        and shut down DHCP after. TODO: full protocol *)
     let first_t, first_u = Lwt.task () in
     let new_offer info =
-      Printf.printf "DHCP: offer %s %s [%s]\n%!"
+      Console.log_s c (sprintf "DHCP: offer %s %s [%s]"
         (Ipaddr.V4.to_string info.ip_addr)
         (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
-        (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways));
-      Ipv4.set_ip ip info.ip_addr >>
+        (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
+      >>= fun () -> 
+      Ipv4.set_ip ip info.ip_addr
+      >>= fun () ->
       (match info.netmask with 
        |Some nm -> Ipv4.set_netmask ip nm
-       |None -> return ()) >>
-      Ipv4.set_gateways ip info.gateways >>
+       |None -> return ())
+      >>= fun () ->
+      Ipv4.set_gateways ip info.gateways
+      >>= fun () ->
       return (Lwt.wakeup first_u ())
     in
-    { ip; udp; state; new_offer }
+    { c; ip; udp; state; new_offer }
 
   let listen t ~dst_port =
     match dst_port with
-    | 68 (* TODO services module from Uri? *) ->
-      Some (input t)
+    | 68 (* TODO services module from Uri? *) -> Some (input t)
     | _ -> None
 end
