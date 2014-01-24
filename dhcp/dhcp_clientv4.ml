@@ -248,6 +248,8 @@ let input t ~src ~dst ~src_port buf =
       return ()
     in
     let t = { c; ip; udp; state; new_offer } in
+    (* TODO cancellation *)
+    let _ = dhcp_thread t in
     t, offer_stream
 
   let listen t ~dst_port =
