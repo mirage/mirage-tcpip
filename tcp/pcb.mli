@@ -24,12 +24,15 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) :
   (** State for an individual connection *)
   type connection = pcb * unit Lwt.t
 
+  (** Result of attempting to open a connection *)
+  type connection_result = [ `Ok of connection | `Rst | `Timeout ]
+
   val ip : t -> Ipv4.t
 
   val input: t -> listeners:(int -> (pcb -> unit Lwt.t) option)
     -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
 
-  val connect: t -> dest_ip:Ipaddr.V4.t -> dest_port:int -> connection option Lwt.t
+  val connect: t -> dest_ip:Ipaddr.V4.t -> dest_port:int -> connection_result Lwt.t
 
   val close: pcb -> unit Lwt.t
 
