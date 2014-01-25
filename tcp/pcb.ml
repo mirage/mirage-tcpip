@@ -53,6 +53,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
 
   type connection = pcb * unit Lwt.t
 
+  type connection_result = [ `Ok of connection | `Rst | `Timeout ]
+
   type t = {
     ip : Ipv4.t;
     mutable localport : int;
@@ -60,7 +62,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     (* server connections the process of connecting - SYN-ACK sent waiting for ACK *)
     listens: (id, (Sequence.t * ((pcb -> unit Lwt.t) * connection))) Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (id, (connection option Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   type listener = {
@@ -343,7 +345,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
           | Some (wakener, _) -> begin
               (* URG_TODO: check if RST ack num is valid before it is accepted *)
               Hashtbl.remove t.connects id;
-              Lwt.wakeup wakener None;
+              Lwt.wakeup wakener `Rst;
               return ()
             end
           | None -> 
@@ -378,7 +380,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
                         let rx_wnd_scaleoffer = wscale_default in
                         lwt (pcb, th) = new_client_connection
                             t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer id in
-                        Lwt.wakeup wakener (Some (pcb, th));
+                        Lwt.wakeup wakener (`Ok (pcb, th));
                         return ()
                       end else begin
                         (* Normally sending a RST reply to a random pkt would be in order but 
@@ -527,7 +529,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
         if isn = tx_isn then begin
           if count > 3 then begin
             Hashtbl.remove t.connects id;
-            Lwt.wakeup wakener None;
+            Lwt.wakeup wakener `Timeout;
             return ()
           end else begin
             Tx.send_syn t id ~tx_isn ~options ~window >>
@@ -553,8 +555,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) =
     Hashtbl.replace t.connects id (wakener, tx_isn);
     Tx.send_syn t id ~tx_isn ~options ~window >>
     let _ = connecttimer t id tx_isn options window 0 in
-    lwt c = th in
-    return c
+    th
 
   (* Construct the main TCP thread *)
   let create ip =

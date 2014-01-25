@@ -29,6 +29,8 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
 
   type error = [
    | `Unknown of string
+   | `Timeout
+   | `Refused
   ]
 
   let id t = Pcb.ip t
@@ -57,15 +59,17 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
   let close t =
     Pcb.close t
 
-  let create_connection tcp (daddr, dport) fn =
+  let create_connection tcp (daddr, dport) =
     Pcb.connect tcp daddr dport
     >>= function
-    | None -> 
-      Printf.printf "Failed to connect to %s:%d\n%!"
-        (Ipaddr.V4.to_string daddr) dport;
-      return_unit
-    | Some (fl, _) ->
-      fn fl 
+    | `Timeout -> 
+      Printf.printf "Failed to connect to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+      return (`Error `Timeout)
+    | `Rst -> 
+      Printf.printf "Refused connection to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+      return (`Error `Refused)
+    | `Ok (fl, _) ->
+      return (`Ok fl)
 
   let input t ~listeners ~src ~dst buf =
     Pcb.input t ~listeners ~src ~dst buf
