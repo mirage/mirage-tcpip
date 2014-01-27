@@ -33,5 +33,7 @@ module Make
     V1_LWT.STACKV4
       with type console = Console.t
        and type netif   = Netif.t
+       and type mode    = V1_LWT.direct_stack_config
+       and type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
 
 

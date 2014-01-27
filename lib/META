@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0d2dc90aeed9cfd075d6b6eaa9e481c7)
+# DO NOT EDIT (digest: d5e80edeea419a8c051de5a832c3eb9c)
 version = "1.0.0"
 description = "Ethernet and IP driver"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -59,7 +59,7 @@ package "stack-unix" (
  version = "1.0.0"
  description = "Ethernet and IP driver"
  requires =
- "tcpip.tcpv4 tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix tcpip.manager mirage-console-unix mirage-clock-unix"
+ "tcpip.ethif tcpip.tcpv4 tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix tcpip.manager mirage-console-unix mirage-clock-unix"
  archive(byte) = "tcpip-stack-unix.cma"
  archive(byte, plugin) = "tcpip-stack-unix.cma"
  archive(native) = "tcpip-stack-unix.cmxa"
