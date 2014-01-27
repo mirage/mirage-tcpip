@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6aff104e5ea01367343c93e4d596d982)
+# DO NOT EDIT (digest: a29804db0d67d7fece47d2575d9c536b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -23,7 +23,6 @@
 "lib/udpv4.cmxs": use_udpv4
 # Library tcpv4
 "tcp/tcpv4.cmxs": use_tcpv4
-"tcp/t.cmx": for-pack(Tcpv4)
 "tcp/options.cmx": for-pack(Tcpv4)
 "tcp/wire.cmx": for-pack(Tcpv4)
 "tcp/state.cmx": for-pack(Tcpv4)

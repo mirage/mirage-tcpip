@@ -32,7 +32,7 @@ let peek_opt_l seq =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
  *)
-module Rx(Time:T.LWT_TIME) = struct
+module Rx(Time:V1_LWT.TIME) = struct
 
   module StateTick = State.Make(Time)
 
@@ -199,7 +199,7 @@ type tx_flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
    |Rst
    |Psh
 
-module Tx(Time:T.LWT_TIME)(Clock:T.CLOCK) = struct
+module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)
