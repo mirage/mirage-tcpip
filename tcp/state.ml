@@ -86,7 +86,7 @@ let tcpstates_to_string = function
 let to_string t =
   sprintf "{ %s }" (tcpstates_to_string t.state)
 
-module Make(Time:T.LWT_TIME) = struct
+module Make(Time:V1_LWT.TIME) = struct
 
   let fin_wait_2_time = (* 60. *) 10.
   let time_wait_time = (* 30. *) 2.

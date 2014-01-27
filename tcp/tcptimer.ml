@@ -28,7 +28,7 @@ type t = {
   mutable running: bool;
 }
 
-module Make(Time:T.LWT_TIME) = struct
+module Make(Time:V1_LWT.TIME) = struct
 let t ~period ~expire =
   let running = false in
   {period; expire; running}

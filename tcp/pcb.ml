@@ -29,7 +29,7 @@ cstruct pseudo_header {
   uint16_t len
 } as big_endian 
 
-module Make(Ipv4:V1_LWT.IPV4)(Time:T.LWT_TIME)(Clock:T.CLOCK)(Random:T.RANDOM) = struct
+module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) = struct
 
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)

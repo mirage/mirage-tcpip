@@ -26,4 +26,4 @@ module type M =
 
 module Immediate : M
 
-module Delayed(T:T.LWT_TIME) : M
+module Delayed(T:V1_LWT.TIME) : M
