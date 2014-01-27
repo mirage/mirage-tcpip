@@ -24,6 +24,7 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
   type buffer = Cstruct.t
   type ipv4 = Ipv4.t
   type ipv4addr = Ipaddr.V4.t
+  type ipv4input = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
   type callback = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> src_port:int -> Cstruct.t -> unit Lwt.t
 
   (** IO operation errors *)
