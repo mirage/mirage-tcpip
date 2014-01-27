@@ -18,6 +18,7 @@
 open Lwt
 open Printf
 
+(*
 (* TODO move to mirage-types *)
 module type LWT_TIME = sig
   val sleep: float -> unit Lwt.t
@@ -32,10 +33,10 @@ module type RANDOM = sig
   val int : int -> int
   val int32 : int32 -> int32
 end
-
+*)
 module Make (Console : V1_LWT.CONSOLE)
-            (Time : LWT_TIME) 
-            (Random : RANDOM)
+            (Time : V1_LWT.TIME) 
+            (Random : V1.RANDOM)
             (Ethif : V1_LWT.ETHIF)
             (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
             (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
