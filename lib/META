@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 50033064cdbfe4b765017b040aa29518)
+# DO NOT EDIT (digest: 0d2dc90aeed9cfd075d6b6eaa9e481c7)
 version = "1.0.0"
 description = "Ethernet and IP driver"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -53,6 +53,18 @@ package "tcpv4" (
  archive(native) = "tcpv4.cmxa"
  archive(native, plugin) = "tcpv4.cmxs"
  exists_if = "tcpv4.cma"
+)
+
+package "stack-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip.tcpv4 tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix tcpip.manager mirage-console-unix mirage-clock-unix"
+ archive(byte) = "tcpip-stack-unix.cma"
+ archive(byte, plugin) = "tcpip-stack-unix.cma"
+ archive(native) = "tcpip-stack-unix.cmxa"
+ archive(native, plugin) = "tcpip-stack-unix.cmxs"
+ exists_if = "tcpip-stack-unix.cma"
 )
 
 package "manager" (

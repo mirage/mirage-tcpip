@@ -103,4 +103,11 @@ Library "tcpv4-unix"
   Modules:            Tcpv4_unix,Tcpv4_socket
   BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix
 
+Library "tcpip-stack-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        stack-unix
+  Modules:            Tcpip_stack_unix
+  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix,tcpip.manager,mirage-console-unix,mirage-clock-unix
 
