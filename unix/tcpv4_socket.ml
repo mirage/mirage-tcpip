@@ -20,8 +20,8 @@ type buffer = Cstruct.t
 type ipv4addr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
-
 type ipv4 = Ipaddr.V4.t option (* interface *)
+type ipv4input = unit io
 
 type t = {
   interface: Unix.inet_addr option; (* source ip to bind to *)
@@ -101,5 +101,8 @@ let writev_nodelay fd bufs =
 let close fd =
   Lwt_unix.close fd
 
-let input t ~listeners ~src ~dst buf =
-  return ()
+let input t ~listeners =
+  (* TODO terminate when signalled by disconnect *)
+  let t,u = Lwt.task () in
+  t
+

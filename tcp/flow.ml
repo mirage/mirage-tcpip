@@ -25,6 +25,7 @@ module Make(IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) = struct
   type ipv4addr = Ipaddr.V4.t
   type buffer = Cstruct.t
   type +'a io = 'a Lwt.t
+  type ipv4input = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
   type t = Pcb.t
 
   type error = [
