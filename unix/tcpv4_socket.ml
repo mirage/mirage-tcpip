@@ -24,7 +24,7 @@ type ipv4 = Ipaddr.V4.t option (* interface *)
 type ipv4input = unit io
 
 type t = {
-  interface: Unix.inet_addr option; (* source ip to bind to *)
+  interface: Unix.inet_addr option;    (* source ip to bind to *)
 }
 
 (** IO operation errors *)
@@ -105,4 +105,3 @@ let input t ~listeners =
   (* TODO terminate when signalled by disconnect *)
   let t,u = Lwt.task () in
   t
-
