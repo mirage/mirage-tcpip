@@ -14,83 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* The manager process binds application ports to interfaces, and
-   will eventually deal with load balancing and route determination
-   (e.g. if a remote target is on the same host, swap to shared memory *)
+type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
+module type UDPV4_DIRECT = V1_LWT.UDPV4
+  with type ipv4input = direct_ipv4_input
 
-(** Manage network interfaces. *)
+module type TCPV4_DIRECT = V1_LWT.TCPV4
+  with type ipv4input = direct_ipv4_input
 
-open Nettypes
+module Make
+    (Console : V1_LWT.CONSOLE)
+    (Time    : V1_LWT.TIME)
+    (Random  : V1.RANDOM)
+    (Netif   : V1_LWT.NETWORK)
+    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
+    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
+    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) :
+    V1_LWT.STACKV4
+      with type console = Console.t
+       and type netif   = Netif.t
 
-(** Type representing an IPv4 configuration for an interface. *)
-type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
 
-(** Textual id identifying a network interface, typically "tap0" on
-    UNIX and "0" on Xen. *)
-type id = Netif.id
-
-(** Type representing a network interface, including facilities to
-    send data (Ethernet frames, IP packets, ICMP, UDP, TCP, ...)
-    through it. *)
-type interface
-
-(** Type of a manager. *)
-type t
-
-(** Type of the callback function provided at manager creation
-    time. *)
-type callback = t -> interface -> id -> unit Lwt.t
-
-(** Accesors for components of the interface type *)
-
-val get_id    : interface -> id
-val get_ethif : interface -> Ethif.t
-val get_ipv4  : interface -> Ipv4.t
-val get_icmp  : interface -> Icmp.t
-val get_udp   : interface -> Udp.t
-val get_tcp   : interface -> Tcp.Pcb.t
-
-(** [create callback] will create a manager that will use
-    [OS.Netif.create] to watch for network interfaces, create a value
-    of type interface for each of those devices and call [callback] of
-    each of them. The return value is a cancellable thread that will
-    free all interface values when cancelled. *)
-val create : Netif.t list -> callback -> unit Lwt.t
-
-(** [configure intf cfg] applies [cfg] to [intf]. After this step,
-    depending on the configuration (DHCP or static address), [intf]
-    will either perform a DHCP discovery or assign itself a specified
-    address, and will be able to receive and send packets at the
-    resulting address. *)
-val configure: interface -> config -> unit Lwt.t
-
-(** [set_promiscuous mgr id f] will install [f] as the promiscuous
-    callback for [id] if it exists, or raise [Not_found]
-    otherwise. See the documentation of module [Ethif] for more
-    information about registering a callback for the promiscuous
-    mode. *)
-val set_promiscuous: t -> id -> (id -> Ethif.packet -> unit Lwt.t) -> unit
-
-(** [inject_packet mgr id frame] will write [frame] into [id]'s
-    buffer, causing [frame] to be emitted on the network. *)
-val inject_packet : t -> id -> Cstruct.t -> unit Lwt.t
-
-(** [tcpv4_of_addr mgr ip] returns all the TCP threads that operate on
-    [ip]. *)
-val tcpv4_of_addr : t -> Ipaddr.V4.t option -> Tcp.Pcb.t list
-
-(** Like [tcpv4_of_addr] returns UDP threads. *)
-val udpv4_of_addr : t -> Ipaddr.V4.t option -> Udp.t list
-
-(** [tcpv4_of_dst_addr mgr ip] returns a TCP threads able to talk to
-    remote address [ip]. *)
-val tcpv4_of_dst_addr : t -> Ipaddr.V4.t -> Tcp.Pcb.t
-
-(** [get_intf_mac mgr id] returns the MAC address of interface [id].*)
-val get_intf_mac : t -> id -> Macaddr.t
-
-(** [get_intf_ipv4addr mgr id] returns the IPv4 address of interface
-    [id] if it exists, or raise [Not_found] otherwise. *)
-val get_intf_ipv4addr : t -> id -> Ipaddr.V4.t
-
-val get_intfs : t -> (id * interface) list

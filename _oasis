@@ -63,6 +63,14 @@ Library dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip.udpv4
 
+Library manager
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        manager
+  Modules:            Manager
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip.udpv4,tcpip.tcpv4,tcpip.dhcp
+
 Library "ethif-unix"
   CompiledObject:     best
   Path:               unix
