@@ -84,7 +84,7 @@ Library "udpv4-unix"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
-  Modules:            Udpv4_unix
+  Modules:            Udpv4_unix,Udpv4_socket
   BuildDepends:       tcpip.udpv4,tcpip.ipv4-unix,lwt,lwt.unix
 
 Library "tcpv4-unix"
