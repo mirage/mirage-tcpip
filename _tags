@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: c987ea65648e9c9b0fedd483fd1aa974)
+# DO NOT EDIT (digest: 6aff104e5ea01367343c93e4d596d982)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -21,14 +21,6 @@
 "lib/ipv4.cmxs": use_ipv4
 # Library udpv4
 "lib/udpv4.cmxs": use_udpv4
-<lib/*.ml{,i}>: use_tcpip
-<lib/*.ml{,i}>: pkg_lwt
-<lib/*.ml{,i}>: pkg_io-page
-<lib/*.ml{,i}>: pkg_mirage-types
-<lib/*.ml{,i}>: pkg_ipaddr
-<lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_cstruct.syntax
-<lib/*.ml{,i}>: pkg_lwt.syntax
 # Library tcpv4
 "tcp/tcpv4.cmxs": use_tcpv4
 "tcp/t.cmx": for-pack(Tcpv4)
@@ -71,6 +63,19 @@
 <dhcp/*.ml{,i}>: pkg_cstruct
 <dhcp/*.ml{,i}>: pkg_cstruct.syntax
 <dhcp/*.ml{,i}>: pkg_lwt.syntax
+# Library manager
+"lib/manager.cmxs": use_manager
+<lib/*.ml{,i}>: use_tcpv4
+<lib/*.ml{,i}>: use_dhcpv4
+<lib/*.ml{,i}>: use_udpv4
+<lib/*.ml{,i}>: use_tcpip
+<lib/*.ml{,i}>: pkg_lwt
+<lib/*.ml{,i}>: pkg_io-page
+<lib/*.ml{,i}>: pkg_mirage-types
+<lib/*.ml{,i}>: pkg_ipaddr
+<lib/*.ml{,i}>: pkg_cstruct
+<lib/*.ml{,i}>: pkg_cstruct.syntax
+<lib/*.ml{,i}>: pkg_lwt.syntax
 # Library ethif-unix
 "unix/ethif-unix.cmxs": use_ethif-unix
 # Library ipv4-unix

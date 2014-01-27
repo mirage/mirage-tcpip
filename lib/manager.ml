@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,164 +14,123 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* The manager process binds application ports to interfaces, and
-   will eventually deal with load balancing and route determination
-   (e.g. if a remote target is on the same host, swap to shared memory *)
-
 open Lwt
-open Nettypes
 
-type id = Netif.id
+type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
+module type UDPV4_DIRECT = V1_LWT.UDPV4
+  with type ipv4input = direct_ipv4_input
 
-type interface = {
-  id    : id;
-  ethif : Ethif.t;
-  ipv4  : Ipv4.t;
-  icmp  : Icmp.t;
-  udp   : Udp.t;
-  tcp   : Tcp.Pcb.t;
-}
+module type TCPV4_DIRECT = V1_LWT.TCPV4
+  with type ipv4input = direct_ipv4_input
 
-let get_id t    = t.id
-let get_ethif t = t.ethif
-let get_ipv4 t  = t.ipv4
-let get_icmp t  = t.icmp
-let get_udp t   = t.udp
-let get_tcp t   = t.tcp
+module Make
+    (Console : V1_LWT.CONSOLE)
+    (Time    : V1_LWT.TIME) 
+    (Random  : V1.RANDOM)
+    (Netif   : V1_LWT.NETWORK)
+    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
+    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
+    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) = struct
 
-type callback = t -> interface -> id -> unit Lwt.t
+  module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
 
-and t = {
-  cb: callback;
-  listeners: (id, interface) Hashtbl.t
-}
+  type +'a io = 'a Lwt.t
+  type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+  type console = Console.t
+  type netif = Netif.t
+  type id = (console, netif) config
 
-type config = [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]
+  type t = {
+    id    : id;
+    c     : Console.t;
+    netif : Netif.t;
+    ethif : Ethif.t;
+    ipv4  : Ipv4.t;
+    udpv4 : Udpv4.t;
+    tcpv4 : Tcpv4.t;
+    udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
+    tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
+  }
 
-(* Configure an interface based on the Config module *)
-let configure i =
-  function
-  |`DHCP ->
-    Printf.printf "Manager: Interface %s to DHCP\n%!" (i.id);
-    lwt t, th = Dhcp.Client.create i.ipv4 i.udp in
-    Printf.printf "Manager: DHCP done\n%!";
+  type error = [
+    `Unknown of string
+  ]
+
+  let id {id} = id
+
+  let listen_udpv4 t port callback =
+    Hashtbl.replace t.udpv4_listeners port callback
+
+  let configure t config =
+    match config with
+    | `DHCP -> begin
+        let dhcp, offers = Dhcp.create t.c t.ipv4 t.udpv4 in
+        listen_udpv4 t 68 (Dhcp.input dhcp);
+        Lwt_stream.get offers
+        >>= function
+        | None -> fail (Failure "No DHCP offer received")
+        | Some offer -> Console.log_s t.c "DHCP offer received and bound"
+      end
+    | `IPv4 (addr, netmask, gateways) ->
+      Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!" 
+                           (Ipaddr.V4.to_string addr)
+                           (Ipaddr.V4.to_string netmask)
+                           (String.concat ", " (List.map Ipaddr.V4.to_string gateways)))
+      >>= fun () ->
+      Ipv4.set_ip t.ipv4 addr
+      >>= fun () ->
+      Ipv4.set_netmask t.ipv4 netmask
+      >>= fun () ->
+      Ipv4.set_gateways t.ipv4 gateways
+
+  let udpv4_listeners t ~dst_port =
+    try Some (Hashtbl.find t.udpv4_listeners dst_port)
+    with Not_found -> None
+
+  let tcpv4_listeners t dst_port =
+    try Some (Hashtbl.find t.tcpv4_listeners dst_port)
+    with Not_found -> None
+
+  let listen t =
+    Netif.listen t.netif (
+      Ethif.input
+        ~ipv4:(
+          Ipv4.input
+            ~tcp:(Tcpv4.input t.tcpv4 
+                    ~listeners:(tcpv4_listeners t))
+            ~udp:(Udpv4.input t.udpv4
+                    ~listeners:(udpv4_listeners t))
+            t.ipv4)
+        ~ipv6:(fun b -> Console.log_s t.c ("ipv6")) t.ethif)
+
+  let connect id =
+    let {V1_LWT.console = c; interface = netif; config; name } = id in
+    let or_error fn t err =
+      fn t
+      >>= function
+      | `Error e -> fail (Failure err)
+      | `Ok r -> return r
+    in
+    Console.log_s c "Manager: connect"
+    >>= fun () ->
+    or_error Ethif.connect netif "ethif"
+    >>= fun ethif ->
+    or_error Ipv4.connect ethif "ipv4"
+    >>= fun ipv4 ->
+    or_error Udpv4.connect ipv4 "udpv4"
+    >>= fun udpv4 ->
+    or_error Tcpv4.connect ipv4 "tcpv4"
+    >>= fun tcpv4 ->
+    let udpv4_listeners = Hashtbl.create 7 in
+    let tcpv4_listeners = Hashtbl.create 7 in
+    let t = { id; c; netif; ethif; ipv4; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+    Console.log_s c "Manager: configuring"
+    >>= fun () ->
+    configure t config
+    >>= fun () ->
+    return (`Ok t)
+
+  let disconnect t =
     return ()
-  |`IPv4 (addr, netmask, gateways) ->
-    Printf.printf "Manager: Interface %s to %s nm %s gw [%s]\n%!" i.id
-      (Ipaddr.V4.to_string addr)
-      (Ipaddr.V4.to_string netmask)
-      (String.concat ", " (List.map Ipaddr.V4.to_string gateways));
-    Ipv4.set_ip i.ipv4 addr >>
-    Ipv4.set_netmask i.ipv4 netmask >>
-    Ipv4.set_gateways i.ipv4 gateways >>
-    return ()
-
-(* Plug in a new network interface with given id *)
-let plug t netif =
-  let id = Netif.id netif in
-  Printf.printf "Manager: plug %s\n%!" id;
-  let (ethif, ethif_t) = Ethif.create netif in
-  let (ipv4, ipv4_t)   = Ipv4.create ethif in
-  let (icmp, icmp_t)   = Icmp.create ipv4 in
-  let (tcp, tcp_t)     = Tcp.Pcb.create ipv4 in
-  let (udp, udp_t)     = Udp.create ipv4 in
-  let i = { id; ipv4; icmp; ethif; tcp; udp } in
-  (* The interface thread should be cancellable by exceptions from the
-     rest of the threads, as a debug measure.
-     TODO: think about cancellation strategy here
-     TODO: think about restart strategies here *)
-  (* Register the interface_t with the manager interface *)
-  Hashtbl.add t.listeners id i;
-  Printf.printf "Manager: plug done, to listener\n%!"
-
-(* Unplug a network interface. TODO: Cancel its thread as well. *)
-let unplug t id =
-  Hashtbl.remove t.listeners id
-
-(* Manage the protocol threads. The listener becomes a new thread
-   that is spawned when a new interface shows up. *)
-let create intfs cb =
-  Printf.printf "Manager: create\n%!";
-  let listeners = Hashtbl.create 1 in
-  let t = { cb; listeners } in
-  let () = List.iter (plug t) intfs in
-  (* Now asynchronously launching the callbacks! *)
-  Hashtbl.iter (fun id intf ->
-      Lwt.async (fun () -> t.cb t intf id)) t.listeners;
-  let th,_ = Lwt.task () in
-  Lwt.on_cancel th (fun _ ->
-    Printf.printf "Manager: cancel\n%!";
-    Hashtbl.iter (fun id _ -> unplug t id) listeners);
-  Printf.printf "Manager: init done\n%!";
-  th
-
-(* Find the interfaces associated with the address *)
-let i_of_ip t = function
-  | None ->
-    Hashtbl.fold (fun _ i a -> i :: a) t.listeners []
-  | Some addr ->
-    Hashtbl.fold
-      (fun _ i a -> if Ipv4.get_ip i.ipv4 = addr then i :: a else a)
-      t.listeners []
-
-let match_ip_match ip netmask dst_ip =
-  let src_match = Int32.logand ip netmask in
-  let dst_match = Int32.logand dst_ip netmask in
-    (src_match = dst_match)
-
-(* Get an appropriate interface for a dest ip *)
-let i_of_dst_ip t addr =
-  let ret = ref None in
-  let netmask = ref 0l in
-  let addr = Ipaddr.V4.to_int32 addr in 
-  let _ = Hashtbl.iter
-      (fun _ i ->
-         let l_ip =  Ipaddr.V4.to_int32 
-                       (Ipv4.get_ip i.ipv4) in
-         let l_mask = Ipaddr.V4.to_int32 
-                        (Ipv4.get_netmask i.ipv4) in
-           (* Need to consider also default gateways as 
-           * well as same subnet forwarding *)
-          if (( (Int32.logor (!netmask) l_mask) <> !netmask) &&
-               (match_ip_match l_ip l_mask addr)) then (
-                 ret := Some(i);
-                 netmask :=  Ipaddr.V4.to_int32 
-                               (Ipv4.get_netmask i.ipv4)
-               )
-      ) t.listeners in
-    match !ret with
-      | None -> failwith("No_Path_dst")
-      | Some(ret) -> ret
-
-(* Match an address and port to a TCP thread *)
-let tcpv4_of_addr t addr = List.map (fun x -> x.tcp) (i_of_ip t addr)
-
-(* TODO: do actual route selection *)
-let udpv4_of_addr (t:t) addr = List.map (fun x -> x.udp) (i_of_ip t addr)
-
-let tcpv4_of_dst_addr t addr =
-  let x = i_of_dst_ip t addr in
-    x.tcp
-
-let inject_packet t id frame =
-  try_lwt
-    let intf = Hashtbl.find t.listeners id in
-      Ethif.write intf.ethif frame
-  with exn ->
-    return (Printf.eprintf "Net.Manager.inject_packet : %s\n%!"
-              (Printexc.to_string exn))
-
-let get_intfs t = Hashtbl.fold (fun k v a -> (k,v)::a) t.listeners []
-
-let get_intf_mac t id =
-  let intf = Hashtbl.find t.listeners id in
-  Ethif.mac intf.ethif
-
-let get_intf_ipv4addr t id =
-  let intf = Hashtbl.find t.listeners id in
-  Ipv4.get_ip intf.ipv4
-
-let set_promiscuous t id f =
-  let intf = Hashtbl.find t.listeners id in
-  Ethif.set_promiscuous intf.ethif (f id)
-
+end
