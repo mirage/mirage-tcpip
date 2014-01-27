@@ -34,10 +34,11 @@ module Make
     (Tcpv4   : TCPV4_SOCKET) = struct
 
   type +'a io = 'a Lwt.t
-  type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
   type console = Console.t
   type netif = Netif.t
-  type id = (console, netif) config
+  type mode = V1_LWT.socket_stack_config
+  type id = (console, netif, mode) config
 
   type t = {
     id    : id;
@@ -57,15 +58,11 @@ module Make
   let listen_udpv4 t port callback =
     Hashtbl.replace t.udpv4_listeners port callback
 
-  let configure t config =
-    match config with
-    | `DHCP -> fail (Failure "Not yet supported on socket")
-    | `IPv4 (addr, netmask, gateways) ->
-      Console.log_s t.c
-        (Printf.sprintf "Manager: Interface to %s nm %s gw [%s] (ignoring as socket)" 
-           (Ipaddr.V4.to_string addr)
-           (Ipaddr.V4.to_string netmask)
-           (String.concat ", " (List.map Ipaddr.V4.to_string gateways)))
+  (* List of IP addresses to bind to *)
+  let configure t addrs =
+    match addrs with
+    | [] -> return ()
+    | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
@@ -79,7 +76,7 @@ module Make
     return () (* TODO *)
 
   let connect id =
-    let {V1_LWT.console = c; interface = netif; config; name } = id in
+    let {V1_LWT.console = c; interface = netif; mode; name } = id in
     let or_error fn t err =
       fn t
       >>= function
@@ -97,7 +94,7 @@ module Make
     let t = { id; c; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
     Console.log_s c "Manager: configuring"
     >>= fun () ->
-    configure t config
+    configure t mode
     >>= fun () ->
     return (`Ok t)
 
@@ -112,5 +109,4 @@ include Make
     (Random)
     (Udpv4_socket)
     (Tcpv4_socket)
-
 
