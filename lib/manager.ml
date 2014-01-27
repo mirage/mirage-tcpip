@@ -36,10 +36,11 @@ module Make
   module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
 
   type +'a io = 'a Lwt.t
-  type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
   type console = Console.t
   type netif = Netif.t
-  type id = (console, netif) config
+  type mode = V1_LWT.direct_stack_config
+  type id = (console, netif, mode) config
 
   type t = {
     id    : id;
@@ -105,7 +106,7 @@ module Make
         ~ipv6:(fun b -> Console.log_s t.c ("ipv6")) t.ethif)
 
   let connect id =
-    let {V1_LWT.console = c; interface = netif; config; name } = id in
+    let {V1_LWT.console = c; interface = netif; mode; name } = id in
     let or_error fn t err =
       fn t
       >>= function
@@ -124,10 +125,11 @@ module Make
     >>= fun tcpv4 ->
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; c; netif; ethif; ipv4; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+    let t = { id; c; netif; ethif; ipv4; tcpv4; udpv4;
+      udpv4_listeners; tcpv4_listeners } in
     Console.log_s c "Manager: configuring"
     >>= fun () ->
-    configure t config
+    configure t mode
     >>= fun () ->
     return (`Ok t)
 
