@@ -15,5 +15,6 @@
  *)
 
 
-module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) : V1_LWT.TCPV4 with type ipv4 = IP.t
-
+module Make (IP:V1_LWT.IPV4)(TM:T.LWT_TIME)(C:T.CLOCK)(R:T.RANDOM) : V1_LWT.TCPV4
+  with type ipv4 = IP.t
+   and type ipv4input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
