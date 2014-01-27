@@ -30,7 +30,6 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
   (** IO operation errors *)
   type error = [
     | `Unknown of string (** an undiagnosed error *)
-    | `Unimplemented     (** operation not yet implemented in the code *)
   ]
 
   type t = {
@@ -48,7 +47,12 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
       let src_port = get_udpv4_source_port buf in
       fn ~src ~dst ~src_port data
 
-  let writev ~source_port ~dest_ip ~dest_port t bufs =
+  let writev ?source_port ~dest_ip ~dest_port t bufs =
+    lwt source_port =
+      match source_port with
+      | None -> fail (Failure "TODO; random source port")
+      | Some p -> return p
+    in
     Ipv4.get_header ~proto:`UDP ~dest_ip t.ip
     >>= fun (ipv4_frame, ipv4_len) ->
     let udp_buf = Cstruct.shift ipv4_frame ipv4_len in
@@ -59,8 +63,8 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
     let ipv4_frame = Cstruct.set_len ipv4_frame (ipv4_len + sizeof_udpv4) in
     Ipv4.writev t.ip ipv4_frame bufs
 
-  let write ~source_port ~dest_ip ~dest_port t buf =
-    writev ~dest_ip ~source_port ~dest_port t [buf]
+  let write ?source_port ~dest_ip ~dest_port t buf =
+    writev ?source_port ~dest_ip ~dest_port t [buf]
 
   let connect ip =
     return (`Ok { ip })
