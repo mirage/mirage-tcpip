@@ -42,6 +42,9 @@ module Make
   type mode = V1_LWT.direct_stack_config
   type id = (console, netif, mode) config
 
+  type udpv4_callback = V1_LWT.udpv4_callback
+  type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
+
   type t = {
     id    : id;
     c     : Console.t;
@@ -60,8 +63,11 @@ module Make
 
   let id {id} = id
 
-  let listen_udpv4 t port callback =
+  let listen_udpv4 t ~port callback =
     Hashtbl.replace t.udpv4_listeners port callback
+
+  let listen_tcpv4 t ~port callback =
+    Hashtbl.replace t.tcpv4_listeners port callback
 
   let configure t config =
     match config with
