@@ -108,6 +108,7 @@ Library "tcpip-stack-unix"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-unix
-  Modules:            Tcpip_stack_unix
+  Modules:            Tcpip_stack_unix,Tcpip_stack_socket
   BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix,tcpip.manager,mirage-console-unix,mirage-clock-unix
+
 
