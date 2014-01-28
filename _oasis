@@ -45,7 +45,14 @@ Library tcpv4
   Findlibparent:      tcpip
   Findlibname:        tcpv4
   Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,Window,Segment,User_buffer,Pcb,Flow
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip
 
 Library channel
   CompiledObject:     best
@@ -53,7 +60,11 @@ Library channel
   Findlibparent:      tcpip
   Findlibname:        channel
   Modules:            Channel
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt.syntax,lwt
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      lwt.syntax,lwt
 
 Library dhcpv4
   CompiledObject:     best
@@ -61,7 +72,14 @@ Library dhcpv4
   Findlibparent:      tcpip
   Findlibname:        dhcp
   Modules:            Dhcpv4_option,Dhcp_clientv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip.udpv4
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip.udpv4
 
 Library manager
   CompiledObject:     best
@@ -69,7 +87,16 @@ Library manager
   Findlibparent:      tcpip
   Findlibname:        manager
   Modules:            Manager
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip.udpv4,tcpip.tcpv4,tcpip.dhcp
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip.udpv4,
+                      tcpip.tcpv4,
+                      tcpip.dhcp
 
 Library "ethif-unix"
   CompiledObject:     best
@@ -77,7 +104,10 @@ Library "ethif-unix"
   Findlibparent:      tcpip
   Findlibname:        ethif-unix
   Modules:            Ethif_unix
-  BuildDepends:       tcpip.ethif,mirage-net-unix,lwt,lwt.unix
+  BuildDepends:       tcpip.ethif,
+                      mirage-net-unix,
+                      lwt,
+                      lwt.unix
 
 Library "ipv4-unix"
   CompiledObject:     best
@@ -85,7 +115,10 @@ Library "ipv4-unix"
   Findlibparent:      tcpip
   Findlibname:        ipv4-unix
   Modules:            Ipv4_unix
-  BuildDepends:       tcpip.ethif-unix,tcpip.ipv4,lwt,lwt.unix
+  BuildDepends:       tcpip.ethif-unix,
+                      tcpip.ipv4,
+                      lwt,
+                      lwt.unix
 
 Library "udpv4-unix"
   CompiledObject:     best
@@ -93,7 +126,12 @@ Library "udpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
   Modules:            Udpv4_unix,Udpv4_socket
-  BuildDepends:       tcpip.udpv4,tcpip.ipv4-unix,lwt,lwt.unix,cstruct.lwt,ipaddr.unix
+  BuildDepends:       tcpip.udpv4,
+                      tcpip.ipv4-unix,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix
+                      cstruct.lwt,
 
 Library "tcpv4-unix"
   CompiledObject:     best
@@ -101,7 +139,15 @@ Library "tcpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
   Modules:            Tcpv4_unix,Tcpv4_socket
-  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix,cstruct.lwt
+  BuildDepends:       tcpip.tcpv4,
+                      tcpip.ipv4-unix,
+                      tcpip.channel,
+                      lwt,
+                      lwt.unix,
+                      mirage-unix,
+                      mirage-clock-unix,
+                      ipaddr.unix,
+                      cstruct.lwt
 
 Library "tcpip-stack-unix"
   CompiledObject:     best
