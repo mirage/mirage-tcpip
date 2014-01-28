@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d1068916ed130c998a16a39b1d9056dd)
+# DO NOT EDIT (digest: ef1454a0f7608ee9e18e60e927295b3b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -104,6 +104,7 @@
 <unix/*.ml{,i}>: pkg_mirage-clock-unix
 <unix/*.ml{,i}>: pkg_mirage-console-unix
 <unix/*.ml{,i}>: pkg_mirage-types.lwt
+<unix/*.ml{,i}>: pkg_cstruct.lwt
 <unix/*.ml{,i}>: pkg_mirage-net-unix
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_mirage-types

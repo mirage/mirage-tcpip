@@ -93,7 +93,7 @@ Library "udpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
   Modules:            Udpv4_unix,Udpv4_socket
-  BuildDepends:       tcpip.udpv4,tcpip.ipv4-unix,lwt,lwt.unix
+  BuildDepends:       tcpip.udpv4,tcpip.ipv4-unix,lwt,lwt.unix,cstruct.lwt,ipaddr.unix
 
 Library "tcpv4-unix"
   CompiledObject:     best
@@ -101,7 +101,7 @@ Library "tcpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
   Modules:            Tcpv4_unix,Tcpv4_socket
-  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix
+  BuildDepends:       tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix,cstruct.lwt
 
 Library "tcpip-stack-unix"
   CompiledObject:     best
