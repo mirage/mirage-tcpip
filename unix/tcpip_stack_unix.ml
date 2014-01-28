@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Manager.Make
+include Tcpip_stack_direct.Make
     (Console)
     (OS.Time)
     (Random)
