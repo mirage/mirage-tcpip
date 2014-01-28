@@ -36,9 +36,11 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   type netif = Ipaddr.V4.t list
   type mode = unit
   type id = (console, netif, mode) config
+  type buffer = Cstruct.t
+  type ipv4addr = Ipaddr.V4.t
 
-  type udpv4_callback = V1_LWT.udpv4_callback
-  type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
+  module TCPV4 = Tcpv4_socket
+  module UDPV4 = Udpv4_socket
 
   type t = {
     id    : id;

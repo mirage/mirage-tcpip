@@ -130,8 +130,8 @@ Library "udpv4-unix"
                       tcpip.ipv4-unix,
                       lwt,
                       lwt.unix,
-                      ipaddr.unix
-                      cstruct.lwt,
+                      ipaddr.unix,
+                      cstruct.lwt
 
 Library "tcpv4-unix"
   CompiledObject:     best

@@ -34,4 +34,5 @@ module Make
       with type console = Console.t
        and type netif   = Netif.t
        and type mode    = V1_LWT.direct_stack_config
-       and type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
+       and module TCPV4 = Tcpv4
+       and module UDPV4 = Udpv4
