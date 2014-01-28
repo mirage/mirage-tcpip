@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ef1454a0f7608ee9e18e60e927295b3b)
+# DO NOT EDIT (digest: 92191a3d50f99a5cf70b233e032f1262)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -62,8 +62,8 @@
 <dhcp/*.ml{,i}>: pkg_cstruct
 <dhcp/*.ml{,i}>: pkg_cstruct.syntax
 <dhcp/*.ml{,i}>: pkg_lwt.syntax
-# Library manager
-"lib/manager.cmxs": use_manager
+# Library tcpip-stack-direct
+"lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i}>: use_tcpv4
 <lib/*.ml{,i}>: use_dhcpv4
 <lib/*.ml{,i}>: use_udpv4
@@ -81,31 +81,39 @@
 "unix/ipv4-unix.cmxs": use_ipv4-unix
 # Library udpv4-unix
 "unix/udpv4-unix.cmxs": use_udpv4-unix
+# Library udpv4-socket
+"unix/udpv4-socket.cmxs": use_udpv4-socket
 # Library tcpv4-unix
 "unix/tcpv4-unix.cmxs": use_tcpv4-unix
+# Library tcpv4-socket
+"unix/tcpv4-socket.cmxs": use_tcpv4-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
 <unix/*.ml{,i}>: use_tcpv4-unix
-<unix/*.ml{,i}>: use_manager
+<unix/*.ml{,i}>: use_tcpip-stack-direct
 <unix/*.ml{,i}>: use_tcpv4
 <unix/*.ml{,i}>: use_udpv4-unix
 <unix/*.ml{,i}>: use_dhcpv4
-<unix/*.ml{,i}>: use_udpv4
 <unix/*.ml{,i}>: use_ipv4-unix
 <unix/*.ml{,i}>: use_ipv4
 <unix/*.ml{,i}>: use_ethif-unix
 <unix/*.ml{,i}>: use_ethif
-<unix/*.ml{,i}>: use_tcpip
 <unix/*.ml{,i}>: use_channel
-<unix/*.ml{,i}>: pkg_lwt
-<unix/*.ml{,i}>: pkg_lwt.unix
-<unix/*.ml{,i}>: pkg_ipaddr.unix
 <unix/*.ml{,i}>: pkg_mirage-unix
 <unix/*.ml{,i}>: pkg_mirage-clock-unix
 <unix/*.ml{,i}>: pkg_mirage-console-unix
 <unix/*.ml{,i}>: pkg_mirage-types.lwt
-<unix/*.ml{,i}>: pkg_cstruct.lwt
 <unix/*.ml{,i}>: pkg_mirage-net-unix
+# Library tcpip-stack-socket
+"unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
+<unix/*.ml{,i}>: use_udpv4-socket
+<unix/*.ml{,i}>: use_udpv4
+<unix/*.ml{,i}>: use_tcpip
+<unix/*.ml{,i}>: use_tcpv4-socket
+<unix/*.ml{,i}>: pkg_lwt
+<unix/*.ml{,i}>: pkg_lwt.unix
+<unix/*.ml{,i}>: pkg_ipaddr.unix
+<unix/*.ml{,i}>: pkg_cstruct.lwt
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_mirage-types
 <unix/*.ml{,i}>: pkg_ipaddr

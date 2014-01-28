@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8f50e4931fbfa099b08952c033408a9f)
+# DO NOT EDIT (digest: be701ce6df42cdbeeb20abe87d0814b6)
 version = "1.0.0"
 description = "Ethernet and IP driver"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -18,6 +18,17 @@ package "udpv4-unix" (
  archive(native) = "udpv4-unix.cmxa"
  archive(native, plugin) = "udpv4-unix.cmxs"
  exists_if = "udpv4-unix.cma"
+)
+
+package "udpv4-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "tcpip.udpv4 lwt lwt.unix ipaddr.unix cstruct.lwt"
+ archive(byte) = "udpv4-socket.cma"
+ archive(byte, plugin) = "udpv4-socket.cma"
+ archive(native) = "udpv4-socket.cmxa"
+ archive(native, plugin) = "udpv4-socket.cmxs"
+ exists_if = "udpv4-socket.cma"
 )
 
 package "udpv4" (
@@ -44,6 +55,17 @@ package "tcpv4-unix" (
  exists_if = "tcpv4-unix.cma"
 )
 
+package "tcpv4-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "lwt lwt.unix ipaddr.unix cstruct.lwt"
+ archive(byte) = "tcpv4-socket.cma"
+ archive(byte, plugin) = "tcpv4-socket.cma"
+ archive(native) = "tcpv4-socket.cmxa"
+ archive(native, plugin) = "tcpv4-socket.cmxs"
+ exists_if = "tcpv4-socket.cma"
+)
+
 package "tcpv4" (
  version = "1.0.0"
  description = "Ethernet and IP driver"
@@ -60,7 +82,7 @@ package "stack-unix" (
  version = "1.0.0"
  description = "Ethernet and IP driver"
  requires =
- "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.manager lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console-unix mirage-types.lwt"
+ "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console-unix mirage-types.lwt"
  archive(byte) = "tcpip-stack-unix.cma"
  archive(byte, plugin) = "tcpip-stack-unix.cma"
  archive(native) = "tcpip-stack-unix.cmxa"
@@ -68,16 +90,27 @@ package "stack-unix" (
  exists_if = "tcpip-stack-unix.cma"
 )
 
-package "manager" (
+package "stack-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "tcpip.udpv4-socket tcpip.tcpv4-socket lwt lwt.unix ipaddr.unix"
+ archive(byte) = "tcpip-stack-socket.cma"
+ archive(byte, plugin) = "tcpip-stack-socket.cma"
+ archive(native) = "tcpip-stack-socket.cmxa"
+ archive(native, plugin) = "tcpip-stack-socket.cmxs"
+ exists_if = "tcpip-stack-socket.cma"
+)
+
+package "stack-direct" (
  version = "1.0.0"
  description = "Ethernet and IP driver"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.udpv4 tcpip.tcpv4 tcpip.dhcp"
- archive(byte) = "manager.cma"
- archive(byte, plugin) = "manager.cma"
- archive(native) = "manager.cmxa"
- archive(native, plugin) = "manager.cmxs"
- exists_if = "manager.cma"
+ archive(byte) = "tcpip-stack-direct.cma"
+ archive(byte, plugin) = "tcpip-stack-direct.cma"
+ archive(native) = "tcpip-stack-direct.cmxa"
+ archive(native, plugin) = "tcpip-stack-direct.cmxs"
+ exists_if = "tcpip-stack-direct.cma"
 )
 
 package "ipv4-unix" (

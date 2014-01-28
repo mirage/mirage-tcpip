@@ -81,12 +81,12 @@ Library dhcpv4
                       lwt,
                       tcpip.udpv4
 
-Library manager
+Library "tcpip-stack-direct"
   CompiledObject:     best
   Path:               lib
   Findlibparent:      tcpip
-  Findlibname:        manager
-  Modules:            Manager
+  Findlibname:        stack-direct
+  Modules:            Tcpip_stack_direct
   BuildDepends:       io-page,
                       mirage-types,
                       ipaddr,
@@ -125,20 +125,34 @@ Library "udpv4-unix"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
-  Modules:            Udpv4_unix,Udpv4_socket
+  Modules:            Udpv4_unix
   BuildDepends:       tcpip.udpv4,
                       tcpip.ipv4-unix,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,
-                      cstruct.lwt
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "udpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv4-socket
+  Modules:            Udpv4_socket
+  BuildDepends:       tcpip.udpv4,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
 
 Library "tcpv4-unix"
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
-  Modules:            Tcpv4_unix,Tcpv4_socket
+  Modules:            Tcpv4_unix
   BuildDepends:       tcpip.tcpv4,
                       tcpip.ipv4-unix,
                       tcpip.channel,
@@ -147,21 +161,48 @@ Library "tcpv4-unix"
                       mirage-unix,
                       mirage-clock-unix,
                       ipaddr.unix,
-                      cstruct.lwt
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "tcpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4-socket
+  Modules:            Tcpv4_socket
+  BuildDepends:       lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
 
 Library "tcpip-stack-unix"
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-unix
-  Modules:            Tcpip_stack_unix,Tcpip_stack_socket
+  Modules:            Tcpip_stack_unix
   BuildDepends:       tcpip.udpv4-unix,
                       tcpip.tcpv4-unix,
-                      tcpip.manager,
+                      tcpip.stack-direct,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,
                       mirage-unix,
                       mirage-clock-unix,
                       mirage-console-unix,
-                      mirage-types.lwt
+                      mirage-types.lwt,
+                      io-page.unix
+
+Library "tcpip-stack-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        stack-socket
+  Modules:            Tcpip_stack_socket
+  BuildDepends:       tcpip.udpv4-socket,
+                      tcpip.tcpv4-socket,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      io-page.unix
