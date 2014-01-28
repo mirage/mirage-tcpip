@@ -46,6 +46,8 @@ module Make(Flow:V1_LWT.TCPV4) = struct
     let abort_t, abort_u = Lwt.task () in
     { ibuf; obuf; flow; obufq; opos; abort_t; abort_u }
 
+  let to_flow { flow } = flow
+
   let ibuf_refill t = 
     match_lwt Flow.read t.flow with
     | `Ok buf ->
