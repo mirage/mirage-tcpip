@@ -33,6 +33,9 @@ module Make
     (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) = struct
 
+  module UDPV4 = Udpv4
+  module TCPV4 = Tcpv4
+
   module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
 
   type +'a io = 'a Lwt.t
@@ -41,9 +44,8 @@ module Make
   type netif = Netif.t
   type mode = V1_LWT.direct_stack_config
   type id = (console, netif, mode) config
-
-  type udpv4_callback = V1_LWT.udpv4_callback
-  type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
+  type buffer = Cstruct.t
+  type ipv4addr = Ipaddr.V4.t
 
   type t = {
     id    : id;
