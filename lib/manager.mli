@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Anil Madhavapeddy <anil@recoil.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,5 +35,3 @@ module Make
        and type netif   = Netif.t
        and type mode    = V1_LWT.direct_stack_config
        and type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
-
-

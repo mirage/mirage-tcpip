@@ -109,6 +109,13 @@ Library "tcpip-stack-unix"
   Findlibparent:      tcpip
   Findlibname:        stack-unix
   Modules:            Tcpip_stack_unix,Tcpip_stack_socket
-  BuildDepends:       tcpip.ethif,tcpip.tcpv4,tcpip.ipv4-unix,tcpip.channel,lwt,lwt.unix,mirage-unix,mirage-clock-unix,ipaddr.unix,tcpip.manager,mirage-console-unix,mirage-clock-unix
-
-
+  BuildDepends:       tcpip.udpv4-unix,
+                      tcpip.tcpv4-unix,
+                      tcpip.manager,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      mirage-unix,
+                      mirage-clock-unix,
+                      mirage-console-unix,
+                      mirage-types.lwt
