@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6229ff0fbe0f4ec9d5b6e7308c82b899)
+# DO NOT EDIT (digest: d1068916ed130c998a16a39b1d9056dd)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -85,8 +85,10 @@
 "unix/tcpv4-unix.cmxs": use_tcpv4-unix
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i}>: use_tcpv4-unix
 <unix/*.ml{,i}>: use_manager
 <unix/*.ml{,i}>: use_tcpv4
+<unix/*.ml{,i}>: use_udpv4-unix
 <unix/*.ml{,i}>: use_dhcpv4
 <unix/*.ml{,i}>: use_udpv4
 <unix/*.ml{,i}>: use_ipv4-unix
@@ -97,10 +99,11 @@
 <unix/*.ml{,i}>: use_channel
 <unix/*.ml{,i}>: pkg_lwt
 <unix/*.ml{,i}>: pkg_lwt.unix
+<unix/*.ml{,i}>: pkg_ipaddr.unix
 <unix/*.ml{,i}>: pkg_mirage-unix
 <unix/*.ml{,i}>: pkg_mirage-clock-unix
-<unix/*.ml{,i}>: pkg_ipaddr.unix
 <unix/*.ml{,i}>: pkg_mirage-console-unix
+<unix/*.ml{,i}>: pkg_mirage-types.lwt
 <unix/*.ml{,i}>: pkg_mirage-net-unix
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_mirage-types

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include V1_LWT.UDPV4
-  with type ipv4 = Ipaddr.V4.t option
-   and type ipv4input = unit Lwt.t
+module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACKV4
+  with type console = Console.t
+   and type netif   = Ipaddr.V4.t list
+   and type mode    = unit
+   and type tcpv4_callback = Tcpv4_socket.flow -> unit Lwt.t

@@ -26,19 +26,19 @@ module type TCPV4_SOCKET = V1_LWT.TCPV4
   with type ipv4input = socket_ipv4_input
    and type ipv4 = Ipaddr.V4.t option
 
-module Make
-    (Console : V1_LWT.CONSOLE)
-    (Time    : V1_LWT.TIME)
-    (Random  : V1.RANDOM)
-    (Udpv4   : UDPV4_SOCKET)
-    (Tcpv4   : TCPV4_SOCKET) = struct
+module Tcpv4 = Tcpv4_socket
+module Udpv4 = Udpv4_socket
 
+module Make(Console:V1_LWT.CONSOLE) = struct
   type +'a io = 'a Lwt.t
   type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
   type console = Console.t
-  type netif = Netif.t
-  type mode = V1_LWT.socket_stack_config
+  type netif = Ipaddr.V4.t list
+  type mode = unit
   type id = (console, netif, mode) config
+
+  type udpv4_callback = V1_LWT.udpv4_callback
+  type tcpv4_callback = Tcpv4.flow -> unit Lwt.t
 
   type t = {
     id    : id;
@@ -55,9 +55,6 @@ module Make
 
   let id {id} = id
 
-  let listen_udpv4 t port callback =
-    Hashtbl.replace t.udpv4_listeners port callback
-
   (* List of IP addresses to bind to *)
   let configure t addrs =
     match addrs with
@@ -72,11 +69,47 @@ module Make
     try Some (Hashtbl.find t.tcpv4_listeners dst_port)
     with Not_found -> None
 
+  let listen_udpv4 t ~port callback =
+    let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
+    let buf = Cstruct.create 4096 in
+    let _t = 
+      while_lwt true do (* TODO cancellation *)
+        Lwt_cstruct.recvfrom fd buf []
+        >>= fun (len, sa) ->
+        let buf = Cstruct.sub buf 0 len in
+        match sa with
+        | Lwt_unix.ADDR_INET (addr, src_port) ->
+          let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
+          let dst = Ipaddr.V4.any in (* TODO *)
+          ignore_result (callback ~src ~dst ~src_port buf);
+          return ()
+        | _ -> return ()
+      done
+    in
+    ()
+
+  let listen_tcpv4 t ~port callback =
+    let open Lwt_unix in
+    let fd = socket PF_INET SOCK_STREAM 0 in
+    let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
+    bind fd (ADDR_INET (interface, port));
+    listen fd 10;
+    let _t = 
+      while_lwt true do (* TODO cancellation *)
+        Lwt_unix.accept fd
+        >>= fun (afd, sa) ->
+        ignore_result (callback afd >>= fun () -> return_unit);
+        return ();
+      done
+    in
+    ()
+
   let listen t =
-    return () (* TODO *)
+    let t,u = Lwt.task () in
+    t (* TODO cancellation *)
 
   let connect id =
-    let {V1_LWT.console = c; interface = netif; mode; name } = id in
+    let {V1_LWT.console = c; interface; mode; name } = id in
     let or_error fn t err =
       fn t
       >>= function
@@ -94,19 +127,10 @@ module Make
     let t = { id; c; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
     Console.log_s c "Manager: configuring"
     >>= fun () ->
-    configure t mode
+    configure t interface
     >>= fun () ->
     return (`Ok t)
 
   let disconnect t =
     return ()
-
 end
-
-include Make
-    (Console)
-    (OS.Time)
-    (Random)
-    (Udpv4_socket)
-    (Tcpv4_socket)
-
