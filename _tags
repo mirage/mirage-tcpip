@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 92191a3d50f99a5cf70b233e032f1262)
+# DO NOT EDIT (digest: fd41d185fd29ec25919897fd1bacf1e0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -35,6 +35,7 @@
 "tcp/user_buffer.cmx": for-pack(Tcpv4)
 "tcp/pcb.cmx": for-pack(Tcpv4)
 "tcp/flow.cmx": for-pack(Tcpv4)
+<tcp/*.ml{,i}>: use_ipv4
 <tcp/*.ml{,i}>: use_tcpip
 <tcp/*.ml{,i}>: pkg_lwt
 <tcp/*.ml{,i}>: pkg_io-page
@@ -67,6 +68,7 @@
 <lib/*.ml{,i}>: use_tcpv4
 <lib/*.ml{,i}>: use_dhcpv4
 <lib/*.ml{,i}>: use_udpv4
+<lib/*.ml{,i}>: use_ipv4
 <lib/*.ml{,i}>: use_tcpip
 <lib/*.ml{,i}>: pkg_lwt
 <lib/*.ml{,i}>: pkg_io-page
@@ -113,6 +115,7 @@
 <unix/*.ml{,i}>: pkg_lwt
 <unix/*.ml{,i}>: pkg_lwt.unix
 <unix/*.ml{,i}>: pkg_ipaddr.unix
+<unix/*.ml{,i}>: pkg_io-page.unix
 <unix/*.ml{,i}>: pkg_cstruct.lwt
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_mirage-types
