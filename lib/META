@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e2c7ad7f3e9bb57ce34455f268dcecfe)
+# DO NOT EDIT (digest: d03cbba5ce46f694b31cdf88adfc1e29)
 version = "1.0.0"
 description = "Ethernet and IP driver"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -12,7 +12,7 @@ package "udpv4-unix" (
  version = "1.0.0"
  description = "Ethernet and IP driver"
  requires =
- "tcpip.udpv4 tcpip.ipv4-unix lwt lwt.unix cstruct.lwt ipaddr.unix"
+ "tcpip.udpv4 tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt "
  archive(byte) = "udpv4-unix.cma"
  archive(byte, plugin) = "udpv4-unix.cma"
  archive(native) = "udpv4-unix.cmxa"
