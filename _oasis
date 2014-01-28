@@ -27,7 +27,7 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4
+  Modules:            Ipv4,Checksum
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
 Library udpv4
@@ -52,7 +52,8 @@ Library tcpv4
                       cstruct.syntax,
                       lwt.syntax,
                       lwt,
-                      tcpip
+                      tcpip,
+                      tcpip.ipv4
 
 Library channel
   CompiledObject:     best
