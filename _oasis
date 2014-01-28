@@ -95,6 +95,7 @@ Library "tcpip-stack-direct"
                       cstruct.syntax,
                       lwt.syntax,
                       lwt,
+                      tcpip.ethif,
                       tcpip.udpv4,
                       tcpip.tcpv4,
                       tcpip.dhcp
