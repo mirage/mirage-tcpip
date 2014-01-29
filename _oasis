@@ -71,7 +71,7 @@ Library dhcpv4
   CompiledObject:     best
   Path:               dhcp
   Findlibparent:      tcpip
-  Findlibname:        dhcp
+  Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
   BuildDepends:       io-page,
                       mirage-types,
@@ -98,7 +98,7 @@ Library "tcpip-stack-direct"
                       tcpip.ethif,
                       tcpip.udpv4,
                       tcpip.tcpv4,
-                      tcpip.dhcp
+                      tcpip.dhcpv4
 
 Library "ethif-unix"
   CompiledObject:     best
