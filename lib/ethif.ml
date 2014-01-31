@@ -16,87 +16,65 @@
  *
  *)
 open Lwt
-open Nettypes
-open Printf
+open Wire_structs
 
-type packet =
-| Input of Cstruct.t
-| Output of Cstruct.t list
+module Make(Netif : V1_LWT.NETWORK) = struct
 
-type t = {
-  netif: Netif.t;
-  mac: Macaddr.t;
-  arp: Arp.t;
-  mutable ipv4: (Cstruct.t -> unit Lwt.t);
-  mutable promiscuous:( packet -> unit Lwt.t) option;
-}
+  type id = Netif.t
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipv4addr = Ipaddr.V4.t
+  type macaddr = Macaddr.t
+  type netif = Netif.t
 
-cstruct ethernet {
-  uint8_t        dst[6];
-  uint8_t        src[6];
-  uint16_t       ethertype
-} as big_endian
+  type error = [
+    | `Unknown of string
+    | `Unimplemented
+    | `Disconnected
+  ]
 
-let default_process t frame =
-  match get_ethernet_ethertype frame with
-  | 0x0806 -> Arp.input t.arp frame (* ARP *)
-  | 0x0800 -> (* IPv4 *)
-    let payload = Cstruct.shift frame sizeof_ethernet in
-    t.ipv4 payload
-  | 0x86dd -> return () (* IPv6 *) (*printf "Ethif: discarding ipv6\n%!"*)
-  | etype  -> return () (*printf "Ethif: unknown frame %x\n%!" etype*)
+  type t = {
+    netif: Netif.t;
+    arp: Arpv4.t;
+  }
 
-(* Handle a single input frame *)
-let input t frame =
-  match t.promiscuous with
-  | None -> default_process t frame
-  | Some promiscuous -> promiscuous (Input frame)
+  let id t = t.netif
 
-let set_promiscuous t f =
-    t.promiscuous <- Some f
+  let input ~ipv4 ~ipv6 t frame =
+    match get_ethernet_ethertype frame with
+    | 0x0806 -> Arpv4.input t.arp frame (* ARP *)
+    | 0x0800 -> (* IPv4 *)
+      let payload = Cstruct.shift frame sizeof_ethernet in
+      ipv4 payload
+    | 0x86dd -> 
+      let payload = Cstruct.shift frame sizeof_ethernet in
+      ipv6 payload
+    | etype  ->
+      let _payload = Cstruct.shift frame sizeof_ethernet in
+      (* TODO default etype payload *)
+      return ()
 
-let disable_promiscuous t =
-    t.promiscuous <- None
+  let write t frame =
+    Netif.write t.netif frame
 
-let get_frame t =
-  return (Io_page.to_cstruct (Io_page.get 1))
+  let writev t bufs =
+    Netif.writev t.netif bufs
 
-let write t frame =
-  match t.promiscuous with
-  |Some f -> f (Output [frame]) >>= fun () -> Netif.write t.netif frame
-  |None -> Netif.write t.netif frame
+  let connect netif =
+    let arp =
+      let get_mac () = Netif.mac netif in
+      let get_etherbuf () = return (Io_page.to_cstruct (Io_page.get 1)) in
+      let output buf = Netif.write netif buf in
+      Arpv4.create ~output ~get_mac ~get_etherbuf in
+    return (`Ok { netif; arp })
 
-let writev t bufs =
-  match t.promiscuous with
-  |Some f -> f (Output bufs) >>= fun () -> Netif.writev t.netif bufs
-  |None -> Netif.writev t.netif bufs
+  let disconnect nf = return ()
+  let mac {netif} = Netif.mac netif
 
-(* Loop and listen for frames *)
-let rec listen t =
-  Netif.listen t.netif (input t)
+  let add_ipv4 t = Arpv4.add_ip t.arp
+  let remove_ipv4 t = Arpv4.remove_ip t.arp
+  let query_arpv4 t = Arpv4.query t.arp
 
-let create netif =
-  let ipv4 = fun (_:Cstruct.t) -> return () in
-  (* TODO: there's a race here if the MAC can change in the future *)
-  let mac = Netif.mac netif in
-  let arp =
-    let get_mac () = mac in
-    let get_etherbuf () = return (Io_page.to_cstruct (Io_page.get 1)) in
-    let output buf = Netif.write netif buf in
-    Arp.create ~output ~get_mac ~get_etherbuf in
-  let t = { netif; ipv4; mac; arp; promiscuous=None; } in
-  let listen = listen t in
-  (t, listen)
-
-let add_ip t = Arp.add_ip t.arp
-let remove_ip t = Arp.remove_ip t.arp
-let query_arp t = Arp.query t.arp
-
-let attach t = function
-  |`IPv4 fn -> t.ipv4 <- fn
-
-let detach t = function
-  |`IPv4 -> t.ipv4 <- fun (_:Cstruct.t) -> return ()
-
-let mac t = t.mac
-let get_netif t = t.netif
+  let mac t = Netif.mac t.netif
+  let get_netif t = t.netif
+end

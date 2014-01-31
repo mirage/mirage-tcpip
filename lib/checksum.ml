@@ -18,7 +18,3 @@
 external ones_complement: Cstruct.t -> int = "caml_ones_complement_checksum"
 
 external ones_complement_list: Cstruct.t list -> int = "caml_ones_complement_checksum_list"
-
-
-
-

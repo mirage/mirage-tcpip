@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2010-2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2010 Anil Madhavapeddy <anil@recoil.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -12,7 +12,18 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
  *)
 
-module Make ( N:V1_LWT.NETWORK ) : V1_LWT.ETHIF with type netif = N.t
+module type M =
+  sig
+    type t
+    val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
+
+    val receive : t -> Sequence.t -> unit Lwt.t
+    val pushack : t -> Sequence.t -> unit Lwt.t
+    val transmit : t -> Sequence.t -> unit Lwt.t
+  end
+
+module Immediate : M
+
+module Delayed(T:V1_LWT.TIME) : M
