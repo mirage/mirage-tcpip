@@ -49,6 +49,7 @@ module Make
 
   type t = {
     id    : id;
+    mode  : mode;
     c     : Console.t;
     netif : Netif.t;
     ethif : Ethif.t;
@@ -102,7 +103,7 @@ module Make
     with Not_found -> None
 
   let listen t =
-    Netif.listen t.netif (
+    let t1 = Netif.listen t.netif (
       Ethif.input
         ~ipv4:(
           Ipv4.input
@@ -111,7 +112,13 @@ module Make
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
             t.ipv4)
-        ~ipv6:(fun b -> Console.log_s t.c ("ipv6")) t.ethif)
+        ~ipv6:(fun b -> Console.log_s t.c ("ipv6")) t.ethif
+    ) in
+    let t2 =
+      Console.log_s t.c "Manager: configuring"
+      >>= fun () ->
+      configure t t.mode
+    in t1 <&> t2
 
   let connect id =
     let {V1_LWT.console = c; interface = netif; mode; name } = id in
@@ -133,12 +140,8 @@ module Make
     >>= fun tcpv4 ->
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; c; netif; ethif; ipv4; tcpv4; udpv4;
+    let t = { id; c; mode; netif; ethif; ipv4; tcpv4; udpv4;
       udpv4_listeners; tcpv4_listeners } in
-    Console.log_s c "Manager: configuring"
-    >>= fun () ->
-    configure t mode
-    >>= fun () ->
     return (`Ok t)
 
   let disconnect t =
