@@ -1,0 +1,210 @@
+OASISFormat: 0.3
+Name:        tcpip
+Version:     1.0.0
+Synopsis:    Ethernet and IP driver
+Authors:     Anil Madhavapeddy, Richard Mortier
+License:     ISC
+Plugins:     META (0.3), DevFiles (0.3)
+BuildTools:  ocamlbuild
+
+Library tcpip
+  CompiledObject:     best
+  Path:               lib
+  Findlibname:        tcpip
+  Modules:            Wire_structs
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct
+
+Library ethif
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        ethif
+  Modules:            Ethif, Arpv4, Checksum
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
+
+Library ipv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        ipv4
+  Modules:            Ipv4,Checksum
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+
+Library udpv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        udpv4
+  Modules:            Udpv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+
+Library tcpv4
+  CompiledObject:     best
+  Pack:               true
+  Path:               tcp
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4
+  Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,Window,Segment,User_buffer,Pcb,Flow
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip,
+                      tcpip.ipv4
+
+Library channel
+  CompiledObject:     best
+  Path:               channel
+  Findlibparent:      tcpip
+  Findlibname:        channel
+  Modules:            Channel
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      lwt.syntax,lwt
+
+Library dhcpv4
+  CompiledObject:     best
+  Path:               dhcp
+  Findlibparent:      tcpip
+  Findlibname:        dhcpv4
+  Modules:            Dhcpv4_option,Dhcp_clientv4
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip.udpv4
+
+Library "tcpip-stack-direct"
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        stack-direct
+  Modules:            Tcpip_stack_direct
+  BuildDepends:       io-page,
+                      mirage-types,
+                      ipaddr,
+                      cstruct,
+                      cstruct.syntax,
+                      lwt.syntax,
+                      lwt,
+                      tcpip.ethif,
+                      tcpip.udpv4,
+                      tcpip.tcpv4,
+                      tcpip.dhcpv4
+
+Library "ethif-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        ethif-unix
+  Modules:            Ethif_unix
+  BuildDepends:       tcpip.ethif,
+                      mirage-net-unix,
+                      lwt,
+                      lwt.unix
+
+Library "ipv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        ipv4-unix
+  Modules:            Ipv4_unix
+  BuildDepends:       tcpip.ethif-unix,
+                      tcpip.ipv4,
+                      lwt,
+                      lwt.unix
+
+Library "udpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv4-unix
+  Modules:            Udpv4_unix
+  BuildDepends:       tcpip.udpv4,
+                      tcpip.ipv4-unix,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "udpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv4-socket
+  Modules:            Udpv4_socket
+  BuildDepends:       tcpip.udpv4,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "tcpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4-unix
+  Modules:            Tcpv4_unix
+  BuildDepends:       tcpip.tcpv4,
+                      tcpip.ipv4-unix,
+                      tcpip.channel,
+                      lwt,
+                      lwt.unix,
+                      mirage-unix,
+                      mirage-clock-unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "tcpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv4-socket
+  Modules:            Tcpv4_socket
+  BuildDepends:       lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "tcpip-stack-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        stack-unix
+  Modules:            Tcpip_stack_unix
+  BuildDepends:       tcpip.udpv4-unix,
+                      tcpip.tcpv4-unix,
+                      tcpip.stack-direct,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      mirage-unix,
+                      mirage-clock-unix,
+                      mirage-console-unix,
+                      mirage-types.lwt,
+                      io-page.unix
+
+Library "tcpip-stack-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        stack-socket
+  Modules:            Tcpip_stack_socket
+  BuildDepends:       tcpip.udpv4-socket,
+                      tcpip.tcpv4-socket,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      io-page.unix

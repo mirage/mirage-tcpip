@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2010-2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2012 Balraj Singh <bs375@cl.cam.ac.uk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -12,7 +12,17 @@
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
  *)
 
-module Make ( N:V1_LWT.NETWORK ) : V1_LWT.ETHIF with type netif = N.t
+type t 
+
+type tr =
+  | Stoptimer
+  | Continue of Sequence.t
+  | ContinueSetPeriod of (float * Sequence.t)
+
+module Make(T:V1_LWT.TIME) : sig
+  val t : period: float -> expire: (Sequence.t -> tr) -> t
+
+  val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
+end

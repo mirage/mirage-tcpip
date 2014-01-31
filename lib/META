@@ -1,0 +1,186 @@
+# OASIS_START
+# DO NOT EDIT (digest: 721cdcd2b44ebeeea3cd6190a91eb7c4)
+version = "1.0.0"
+description = "Ethernet and IP driver"
+requires = "io-page mirage-types ipaddr cstruct"
+archive(byte) = "tcpip.cma"
+archive(byte, plugin) = "tcpip.cma"
+archive(native) = "tcpip.cmxa"
+archive(native, plugin) = "tcpip.cmxs"
+exists_if = "tcpip.cma"
+package "udpv4-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip.udpv4 tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
+ archive(byte) = "udpv4-unix.cma"
+ archive(byte, plugin) = "udpv4-unix.cma"
+ archive(native) = "udpv4-unix.cmxa"
+ archive(native, plugin) = "udpv4-unix.cmxs"
+ exists_if = "udpv4-unix.cma"
+)
+
+package "udpv4-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "tcpip.udpv4 lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
+ archive(byte) = "udpv4-socket.cma"
+ archive(byte, plugin) = "udpv4-socket.cma"
+ archive(native) = "udpv4-socket.cmxa"
+ archive(native, plugin) = "udpv4-socket.cmxs"
+ exists_if = "udpv4-socket.cma"
+)
+
+package "udpv4" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
+ archive(byte) = "udpv4.cma"
+ archive(byte, plugin) = "udpv4.cma"
+ archive(native) = "udpv4.cmxa"
+ archive(native, plugin) = "udpv4.cmxs"
+ exists_if = "udpv4.cma"
+)
+
+package "tcpv4-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip.tcpv4 tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
+ archive(byte) = "tcpv4-unix.cma"
+ archive(byte, plugin) = "tcpv4-unix.cma"
+ archive(native) = "tcpv4-unix.cmxa"
+ archive(native, plugin) = "tcpv4-unix.cmxs"
+ exists_if = "tcpv4-unix.cma"
+)
+
+package "tcpv4-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
+ archive(byte) = "tcpv4-socket.cma"
+ archive(byte, plugin) = "tcpv4-socket.cma"
+ archive(native) = "tcpv4-socket.cmxa"
+ archive(native, plugin) = "tcpv4-socket.cmxs"
+ exists_if = "tcpv4-socket.cma"
+)
+
+package "tcpv4" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip tcpip.ipv4"
+ archive(byte) = "tcpv4.cma"
+ archive(byte, plugin) = "tcpv4.cma"
+ archive(native) = "tcpv4.cmxa"
+ archive(native, plugin) = "tcpv4.cmxs"
+ exists_if = "tcpv4.cma"
+)
+
+package "stack-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console-unix mirage-types.lwt io-page.unix"
+ archive(byte) = "tcpip-stack-unix.cma"
+ archive(byte, plugin) = "tcpip-stack-unix.cma"
+ archive(native) = "tcpip-stack-unix.cmxa"
+ archive(native, plugin) = "tcpip-stack-unix.cmxs"
+ exists_if = "tcpip-stack-unix.cma"
+)
+
+package "stack-socket" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip.udpv4-socket tcpip.tcpv4-socket lwt lwt.unix ipaddr.unix io-page.unix"
+ archive(byte) = "tcpip-stack-socket.cma"
+ archive(byte, plugin) = "tcpip-stack-socket.cma"
+ archive(native) = "tcpip-stack-socket.cmxa"
+ archive(native, plugin) = "tcpip-stack-socket.cmxs"
+ exists_if = "tcpip-stack-socket.cma"
+)
+
+package "stack-direct" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.ethif tcpip.udpv4 tcpip.tcpv4 tcpip.dhcpv4"
+ archive(byte) = "tcpip-stack-direct.cma"
+ archive(byte, plugin) = "tcpip-stack-direct.cma"
+ archive(native) = "tcpip-stack-direct.cmxa"
+ archive(native, plugin) = "tcpip-stack-direct.cmxs"
+ exists_if = "tcpip-stack-direct.cma"
+)
+
+package "ipv4-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "tcpip.ethif-unix tcpip.ipv4 lwt lwt.unix"
+ archive(byte) = "ipv4-unix.cma"
+ archive(byte, plugin) = "ipv4-unix.cma"
+ archive(native) = "ipv4-unix.cmxa"
+ archive(native, plugin) = "ipv4-unix.cmxs"
+ exists_if = "ipv4-unix.cma"
+)
+
+package "ipv4" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
+ archive(byte) = "ipv4.cma"
+ archive(byte, plugin) = "ipv4.cma"
+ archive(native) = "ipv4.cmxa"
+ archive(native, plugin) = "ipv4.cmxs"
+ exists_if = "ipv4.cma"
+)
+
+package "ethif-unix" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
+ archive(byte) = "ethif-unix.cma"
+ archive(byte, plugin) = "ethif-unix.cma"
+ archive(native) = "ethif-unix.cmxa"
+ archive(native, plugin) = "ethif-unix.cmxs"
+ exists_if = "ethif-unix.cma"
+)
+
+package "ethif" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "tcpip io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt"
+ archive(byte) = "ethif.cma"
+ archive(byte, plugin) = "ethif.cma"
+ archive(native) = "ethif.cmxa"
+ archive(native, plugin) = "ethif.cmxs"
+ exists_if = "ethif.cma"
+)
+
+package "dhcpv4" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires =
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.udpv4"
+ archive(byte) = "dhcpv4.cma"
+ archive(byte, plugin) = "dhcpv4.cma"
+ archive(native) = "dhcpv4.cmxa"
+ archive(native, plugin) = "dhcpv4.cmxs"
+ exists_if = "dhcpv4.cma"
+)
+
+package "channel" (
+ version = "1.0.0"
+ description = "Ethernet and IP driver"
+ requires = "io-page mirage-types ipaddr cstruct lwt.syntax lwt"
+ archive(byte) = "channel.cma"
+ archive(byte, plugin) = "channel.cma"
+ archive(native) = "channel.cmxa"
+ archive(native, plugin) = "channel.cmxs"
+ exists_if = "channel.cma"
+)
+# OASIS_STOP
+

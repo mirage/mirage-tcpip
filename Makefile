@@ -1,22 +1,38 @@
-.PHONY: all _config build install doc clean
+# OASIS_START
+# DO NOT EDIT (digest: 7b2408909643717852b95f994b273fee)
 
-OS ?= unix
-PREFIX ?= /usr/local
-INSTALLDIR := $(DESTDIR)$(PREFIX)
+SETUP = ocaml setup.ml
 
-all: build
+build: setup.data
+	$(SETUP) -build $(BUILDFLAGS)
 
-_config:
-	./cmd configure
+doc: setup.data build
+	$(SETUP) -doc $(DOCFLAGS)
 
-build: _config
-	./cmd build
+test: setup.data build
+	$(SETUP) -test $(TESTFLAGS)
 
-install:
-	./cmd install
+all:
+	$(SETUP) -all $(ALLFLAGS)
 
-doc: _config
-	./cmd doc
+install: setup.data
+	$(SETUP) -install $(INSTALLFLAGS)
+
+uninstall: setup.data
+	$(SETUP) -uninstall $(UNINSTALLFLAGS)
+
+reinstall: setup.data
+	$(SETUP) -reinstall $(REINSTALLFLAGS)
 
 clean:
-	./cmd clean
+	$(SETUP) -clean $(CLEANFLAGS)
+
+distclean:
+	$(SETUP) -distclean $(DISTCLEANFLAGS)
+
+setup.data:
+	$(SETUP) -configure $(CONFIGUREFLAGS)
+
+.PHONY: build doc test all install uninstall reinstall clean distclean configure
+
+# OASIS_STOP

@@ -14,28 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** INTERNAL: IPv4 protocol. *)
-
-open Nettypes
-
-type t
-(** Type of a IPv4 *)
-
-val get_header: proto:[< `ICMP | `TCP | `UDP ] -> dest_ip:Ipaddr.V4.t -> t -> (Cstruct.t * int) Lwt.t
-
-val write: t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
-val writev: t -> Cstruct.t -> Cstruct.t list -> unit Lwt.t
-
-val set_ip: t -> Ipaddr.V4.t -> unit Lwt.t
-val get_ip: t -> Ipaddr.V4.t
-val mac: t -> Macaddr.t
-val set_netmask: t -> Ipaddr.V4.t -> unit Lwt.t
-val set_gateways: t -> Ipaddr.V4.t list -> unit Lwt.t
-val create : Ethif.t -> t * unit Lwt.t
-
-val attach : t ->
-  [<  `ICMP of Ipaddr.V4.t -> Cstruct.t -> Cstruct.t -> unit Lwt.t
-    | `UDP of src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t 
-    | `TCP of src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t ] -> unit
-val detach : t -> [< `ICMP | `UDP | `TCP ] -> unit
-val get_netmask: t -> Ipaddr.V4.t
+module Make ( N:V1_LWT.ETHIF ) : V1_LWT.IPV4 with type ethif = N.t

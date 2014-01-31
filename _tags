@@ -1,13 +1,128 @@
-<lib/*> and not <lib/net.*>: for-pack(Net)
-<lib/**>: use_syntax
-<lib/dhcp/*> and not <lib/dhcp/dhcp.*>: for-pack(Net.Dhcp)
-<lib/tcp/*> and not <lib/tcp/tcp.*>: for-pack(Net.Tcp)
-<lib/dhcp/dhcp.*>: for-repack(Net)
-<lib/tcp/tcp.*>: for-repack(Net)
-<lib>: include
-<lib/tcp>: include
-<lib/dhcp>: include
-<lib_test/*>: use_lib, custom
-<syntax/*>: build_syntax
-true: camlp4o
-true: annot, bin_annot, debug
+# OASIS_START
+# DO NOT EDIT (digest: 024b2e10f30b285262743f7ab0a96f66)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library tcpip
+"lib/tcpip.cmxs": use_tcpip
+# Library ethif
+"lib/ethif.cmxs": use_ethif
+# Library ipv4
+"lib/ipv4.cmxs": use_ipv4
+# Library udpv4
+"lib/udpv4.cmxs": use_udpv4
+# Library tcpv4
+"tcp/tcpv4.cmxs": use_tcpv4
+"tcp/options.cmx": for-pack(Tcpv4)
+"tcp/wire.cmx": for-pack(Tcpv4)
+"tcp/state.cmx": for-pack(Tcpv4)
+"tcp/tcptimer.cmx": for-pack(Tcpv4)
+"tcp/sequence.cmx": for-pack(Tcpv4)
+"tcp/sliding_window.cmx": for-pack(Tcpv4)
+"tcp/ack.cmx": for-pack(Tcpv4)
+"tcp/window.cmx": for-pack(Tcpv4)
+"tcp/segment.cmx": for-pack(Tcpv4)
+"tcp/user_buffer.cmx": for-pack(Tcpv4)
+"tcp/pcb.cmx": for-pack(Tcpv4)
+"tcp/flow.cmx": for-pack(Tcpv4)
+<tcp/*.ml{,i}>: use_ipv4
+<tcp/*.ml{,i}>: use_tcpip
+<tcp/*.ml{,i}>: pkg_lwt
+<tcp/*.ml{,i}>: pkg_io-page
+<tcp/*.ml{,i}>: pkg_mirage-types
+<tcp/*.ml{,i}>: pkg_ipaddr
+<tcp/*.ml{,i}>: pkg_cstruct
+<tcp/*.ml{,i}>: pkg_cstruct.syntax
+<tcp/*.ml{,i}>: pkg_lwt.syntax
+# Library channel
+"channel/channel.cmxs": use_channel
+<channel/*.ml{,i}>: pkg_lwt
+<channel/*.ml{,i}>: pkg_io-page
+<channel/*.ml{,i}>: pkg_mirage-types
+<channel/*.ml{,i}>: pkg_ipaddr
+<channel/*.ml{,i}>: pkg_cstruct
+<channel/*.ml{,i}>: pkg_lwt.syntax
+# Library dhcpv4
+"dhcp/dhcpv4.cmxs": use_dhcpv4
+<dhcp/*.ml{,i}>: use_udpv4
+<dhcp/*.ml{,i}>: use_tcpip
+<dhcp/*.ml{,i}>: pkg_lwt
+<dhcp/*.ml{,i}>: pkg_io-page
+<dhcp/*.ml{,i}>: pkg_mirage-types
+<dhcp/*.ml{,i}>: pkg_ipaddr
+<dhcp/*.ml{,i}>: pkg_cstruct
+<dhcp/*.ml{,i}>: pkg_cstruct.syntax
+<dhcp/*.ml{,i}>: pkg_lwt.syntax
+# Library tcpip-stack-direct
+"lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
+<lib/*.ml{,i}>: use_tcpv4
+<lib/*.ml{,i}>: use_dhcpv4
+<lib/*.ml{,i}>: use_udpv4
+<lib/*.ml{,i}>: use_ipv4
+<lib/*.ml{,i}>: use_ethif
+<lib/*.ml{,i}>: use_tcpip
+<lib/*.ml{,i}>: pkg_lwt
+<lib/*.ml{,i}>: pkg_io-page
+<lib/*.ml{,i}>: pkg_mirage-types
+<lib/*.ml{,i}>: pkg_ipaddr
+<lib/*.ml{,i}>: pkg_cstruct
+<lib/*.ml{,i}>: pkg_cstruct.syntax
+<lib/*.ml{,i}>: pkg_lwt.syntax
+# Library ethif-unix
+"unix/ethif-unix.cmxs": use_ethif-unix
+# Library ipv4-unix
+"unix/ipv4-unix.cmxs": use_ipv4-unix
+# Library udpv4-unix
+"unix/udpv4-unix.cmxs": use_udpv4-unix
+# Library udpv4-socket
+"unix/udpv4-socket.cmxs": use_udpv4-socket
+# Library tcpv4-unix
+"unix/tcpv4-unix.cmxs": use_tcpv4-unix
+# Library tcpv4-socket
+"unix/tcpv4-socket.cmxs": use_tcpv4-socket
+# Library tcpip-stack-unix
+"unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i}>: use_tcpv4-unix
+<unix/*.ml{,i}>: use_tcpip-stack-direct
+<unix/*.ml{,i}>: use_tcpv4
+<unix/*.ml{,i}>: use_udpv4-unix
+<unix/*.ml{,i}>: use_dhcpv4
+<unix/*.ml{,i}>: use_ipv4-unix
+<unix/*.ml{,i}>: use_ipv4
+<unix/*.ml{,i}>: use_ethif-unix
+<unix/*.ml{,i}>: use_ethif
+<unix/*.ml{,i}>: use_channel
+<unix/*.ml{,i}>: pkg_mirage-unix
+<unix/*.ml{,i}>: pkg_mirage-clock-unix
+<unix/*.ml{,i}>: pkg_mirage-console-unix
+<unix/*.ml{,i}>: pkg_mirage-types.lwt
+<unix/*.ml{,i}>: pkg_mirage-net-unix
+# Library tcpip-stack-socket
+"unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
+<unix/*.ml{,i}>: use_udpv4-socket
+<unix/*.ml{,i}>: use_udpv4
+<unix/*.ml{,i}>: use_tcpip
+<unix/*.ml{,i}>: use_tcpv4-socket
+<unix/*.ml{,i}>: pkg_lwt
+<unix/*.ml{,i}>: pkg_lwt.unix
+<unix/*.ml{,i}>: pkg_ipaddr.unix
+<unix/*.ml{,i}>: pkg_io-page.unix
+<unix/*.ml{,i}>: pkg_cstruct.lwt
+<unix/*.ml{,i}>: pkg_io-page
+<unix/*.ml{,i}>: pkg_mirage-types
+<unix/*.ml{,i}>: pkg_ipaddr
+<unix/*.ml{,i}>: pkg_cstruct
+<unix/*.ml{,i}>: pkg_cstruct.syntax
+<unix/*.ml{,i}>: pkg_lwt.syntax
+# OASIS_STOP
+true: annot, bin_annot, principal, strict_sequence, debug

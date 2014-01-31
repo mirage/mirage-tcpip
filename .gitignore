@@ -1,2 +1,4 @@
 _build
-_config
+.*.swp
+setup.data
+setup.log

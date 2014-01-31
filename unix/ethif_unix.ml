@@ -1,0 +1,1 @@
+include Ethif.Make(Netif)
