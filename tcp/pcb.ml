@@ -514,7 +514,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
        |65535 -> t.localport <- 10000
        |_ -> t.localport <- t.localport + 1);
       let id = { local_port = t.localport; dest_ip = dest_ip;
-                 local_ip = (Ipv4.get_ip t.ip); dest_port = dest_port } in
+                 local_ip = (Ipv4.get_ipv4 t.ip); dest_port = dest_port } in
       if inuse t id then bumpport t else id
     in
     bumpport t

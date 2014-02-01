@@ -53,7 +53,7 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
       | None -> fail (Failure "TODO; random source port")
       | Some p -> return p
     in
-    Ipv4.get_header ~proto:`UDP ~dest_ip t.ip
+    Ipv4.allocate_frame ~proto:`UDP ~dest_ip t.ip
     >>= fun (ipv4_frame, ipv4_len) ->
     let udp_buf = Cstruct.shift ipv4_frame ipv4_len in
     set_udpv4_source_port udp_buf source_port;
