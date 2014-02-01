@@ -116,8 +116,7 @@ module Make(Flow:V1_LWT.TCPV4) = struct
 
   (* This reads a line of input, which is terminated either by a CRLF
      sequence, or the end of the channel (which counts as a line).
-     @return Returns a stream of views that terminates at EOF.
-     @raise Closed to signify EOF  *)
+     @return Returns a stream of views that terminates at EOF. *)
   let read_line t =
     let rec get acc =
       match_lwt read_until t '\n' with
