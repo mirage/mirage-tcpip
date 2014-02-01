@@ -18,22 +18,6 @@
 open Lwt
 open Printf
 
-(*
-(* TODO move to mirage-types *)
-module type LWT_TIME = sig
-  val sleep: float -> unit Lwt.t
-end
-
-module type CLOCK = sig
-  val time: unit -> float
-end
-
-module type RANDOM = sig
-  val self_init : unit -> unit
-  val int : int -> int
-  val int32 : int32 -> int32
-end
-*)
 module Make (Console : V1_LWT.CONSOLE)
             (Time : V1_LWT.TIME) 
             (Random : V1.RANDOM)
@@ -237,13 +221,13 @@ let input t ~src ~dst ~src_port buf =
         (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
       >>= fun () -> 
-      Ipv4.set_ip ip info.ip_addr
+      Ipv4.set_ipv4 ip info.ip_addr
       >>= fun () ->
       (match info.netmask with 
-       |Some nm -> Ipv4.set_netmask ip nm
+       |Some nm -> Ipv4.set_ipv4_netmask ip nm
        |None -> return ())
       >>= fun () ->
-      Ipv4.set_gateways ip info.gateways
+      Ipv4.set_ipv4_gateways ip info.gateways
       >>= fun () ->
       offer_push (Some info);
       return ()

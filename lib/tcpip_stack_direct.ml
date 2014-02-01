@@ -87,11 +87,11 @@ module Make
                            (Ipaddr.V4.to_string netmask)
                            (String.concat ", " (List.map Ipaddr.V4.to_string gateways)))
       >>= fun () ->
-      Ipv4.set_ip t.ipv4 addr
+      Ipv4.set_ipv4 t.ipv4 addr
       >>= fun () ->
-      Ipv4.set_netmask t.ipv4 netmask
+      Ipv4.set_ipv4_netmask t.ipv4 netmask
       >>= fun () ->
-      Ipv4.set_gateways t.ipv4 gateways
+      Ipv4.set_ipv4_gateways t.ipv4 gateways
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
@@ -110,8 +110,9 @@ module Make
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
+            ~default:(fun ~proto ~src ~dst buf -> return ())
             t.ipv4)
-        ~ipv6:(fun b -> Console.log_s t.c ("ipv6")) t.ethif)
+        ~ipv6:(fun b -> Console.log_s t.c ("Dropping ipv6")) t.ethif)
 
   let connect id =
     let {V1_LWT.console = c; interface = netif; mode; name } = id in
