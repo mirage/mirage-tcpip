@@ -53,7 +53,8 @@ module Make (Ipv4:V1_LWT.IPV4) = struct
 let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
   ~rx_ack ~seq ~window ~options datav =
   (* Make a TCP/IP header frame *)
-  lwt (ethernet_frame, header_len) = Ipv4.get_header ~proto:`TCP ~dest_ip:id.dest_ip ip in
+  lwt (ethernet_frame, header_len) =
+    Ipv4.allocate_frame ~proto:`TCP ~dest_ip:id.dest_ip ip in
   (* Shift this out by the combined ethernet + IP header sizes *)
   let tcp_frame = Cstruct.shift ethernet_frame header_len in
   (* Append the TCP options to the header *)
