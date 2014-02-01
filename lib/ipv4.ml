@@ -30,7 +30,8 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ipaddr = Ipaddr.V4.t
+  type ipv4addr = Ipaddr.V4.t
+  type callback = src:ipv4addr -> dst:ipv4addr -> buffer -> unit Lwt.t
 
   type t = {
     ethif: Ethif.t;
@@ -69,7 +70,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
         end
   end
 
-  let get_header ~proto ~dest_ip t =
+  let allocate_frame ~proto ~dest_ip t =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     (* Something of a layer violation here, but ARP is awkward *)
     lwt dmac = Routing.destination_mac t dest_ip >|= Macaddr.to_bytes in
@@ -126,14 +127,14 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       set_icmpv4_ty buf 0;
       set_icmpv4_csum buf csum;
       (* stick an IPv4 header on the front and transmit *)
-      lwt (ipv4_frame, ipv4_len) = get_header ~proto:`ICMP ~dest_ip:src t in
+      lwt (ipv4_frame, ipv4_len) = allocate_frame ~proto:`ICMP ~dest_ip:src t in
       let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
       write t ipv4_frame buf
     |ty ->
       printf "ICMP unknown ty %d\n" ty;
       return ()
 
-  let input ~tcp ~udp t buf =
+  let input ~tcp ~udp ~default t buf =
     (* buf pointers to to start of IPv4 header here *)
     let ihl = (get_ipv4_hlen_version buf land 0xf) * 4 in
     let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
@@ -149,7 +150,8 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       tcp ~src ~dst data
     |17 -> (* UDP *)
       udp ~src ~dst data
-    |proto -> return (printf "IPv4: dropping proto %d\n%!" proto)
+    |proto -> 
+      default ~proto ~src ~dst data
 
   let default_icmp = fun _ _ _ -> return ()
   let default_udp = fun ~src ~dst _ -> return ()
@@ -164,21 +166,23 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
 
   let disconnect ethif = return ()
 
-  let set_ip t ip = 
+  let set_ipv4 t ip = 
     t.ip <- ip;
     (* Inform ARP layer of new IP *)
     Ethif.add_ipv4 t.ethif ip
 
-  let get_ip t = t.ip
+  let get_ipv4 t = t.ip
 
-  let set_netmask t netmask =
+  let set_ipv4_netmask t netmask =
     t.netmask <- netmask;
     return ()
 
-  let set_gateways t gateways =
+  let get_ipv4_netmask t = t.netmask
+
+  let set_ipv4_gateways t gateways =
     t.gateways <- gateways;
     return ()
 
-  let get_netmask t = t.netmask
+  let get_ipv4_gateways {gateways} = gateways
 
 end
