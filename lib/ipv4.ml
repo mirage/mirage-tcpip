@@ -97,7 +97,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     set_ipv4_len buf tlen;
     set_ipv4_id buf (Random.int 65535); (* TODO *)
     set_ipv4_csum buf 0;
-    let checksum = Checksum.ones_complement (Cstruct.sub buf 0 sizeof_ipv4) in
+    let checksum = Tcpip_checksum.ones_complement (Cstruct.sub buf 0 sizeof_ipv4) in
     set_ipv4_csum buf checksum
 
   (* We write a whole frame, truncated from the right where the
