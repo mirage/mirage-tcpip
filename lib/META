@@ -1,7 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 721cdcd2b44ebeeea3cd6190a91eb7c4)
-version = "1.0.0"
-description = "Ethernet and IP driver"
+# DO NOT EDIT (digest: 5648a170b275da36bda34ae44a9d3978)
+version = "1.1.0"
+description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct"
 archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
@@ -9,8 +9,8 @@ archive(native) = "tcpip.cmxa"
 archive(native, plugin) = "tcpip.cmxs"
 exists_if = "tcpip.cma"
 package "udpv4-unix" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4 tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv4-unix.cma"
@@ -21,8 +21,8 @@ package "udpv4-unix" (
 )
 
 package "udpv4-socket" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.udpv4 lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv4-socket.cma"
  archive(byte, plugin) = "udpv4-socket.cma"
@@ -32,8 +32,8 @@ package "udpv4-socket" (
 )
 
 package "udpv4" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
  archive(byte) = "udpv4.cma"
@@ -44,8 +44,8 @@ package "udpv4" (
 )
 
 package "tcpv4-unix" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.tcpv4 tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv4-unix.cma"
@@ -56,8 +56,8 @@ package "tcpv4-unix" (
 )
 
 package "tcpv4-socket" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv4-socket.cma"
  archive(byte, plugin) = "tcpv4-socket.cma"
@@ -67,8 +67,8 @@ package "tcpv4-socket" (
 )
 
 package "tcpv4" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip tcpip.ipv4"
  archive(byte) = "tcpv4.cma"
@@ -79,8 +79,8 @@ package "tcpv4" (
 )
 
 package "stack-unix" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console-unix mirage-types.lwt io-page.unix"
  archive(byte) = "tcpip-stack-unix.cma"
@@ -91,8 +91,8 @@ package "stack-unix" (
 )
 
 package "stack-socket" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-socket tcpip.tcpv4-socket lwt lwt.unix ipaddr.unix io-page.unix"
  archive(byte) = "tcpip-stack-socket.cma"
@@ -103,8 +103,8 @@ package "stack-socket" (
 )
 
 package "stack-direct" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.ethif tcpip.udpv4 tcpip.tcpv4 tcpip.dhcpv4"
  archive(byte) = "tcpip-stack-direct.cma"
@@ -115,8 +115,8 @@ package "stack-direct" (
 )
 
 package "ipv4-unix" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif-unix tcpip.ipv4 lwt lwt.unix"
  archive(byte) = "ipv4-unix.cma"
  archive(byte, plugin) = "ipv4-unix.cma"
@@ -126,8 +126,8 @@ package "ipv4-unix" (
 )
 
 package "ipv4" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
  archive(byte) = "ipv4.cma"
@@ -138,8 +138,8 @@ package "ipv4" (
 )
 
 package "ethif-unix" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
  archive(byte) = "ethif-unix.cma"
  archive(byte, plugin) = "ethif-unix.cma"
@@ -149,8 +149,8 @@ package "ethif-unix" (
 )
 
 package "ethif" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt"
  archive(byte) = "ethif.cma"
@@ -161,8 +161,8 @@ package "ethif" (
 )
 
 package "dhcpv4" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.udpv4"
  archive(byte) = "dhcpv4.cma"
@@ -173,8 +173,8 @@ package "dhcpv4" (
 )
 
 package "channel" (
- version = "1.0.0"
- description = "Ethernet and IP driver"
+ version = "1.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt.syntax lwt"
  archive(byte) = "channel.cma"
  archive(byte, plugin) = "channel.cma"
