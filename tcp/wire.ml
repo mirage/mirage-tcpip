@@ -38,7 +38,7 @@ let checksum ~src ~dst =
     set_tcpv4_pseudo_header_res pbuf 0;
     set_tcpv4_pseudo_header_proto pbuf 6;
     set_tcpv4_pseudo_header_len pbuf (Cstruct.lenv data);
-    Checksum.ones_complement_list (pbuf::data)
+    Tcpip_checksum.ones_complement_list (pbuf::data)
 
 type id = {
   dest_port: int;               (* Remote TCP port *)

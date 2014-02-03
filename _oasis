@@ -1,8 +1,8 @@
 OASISFormat: 0.3
 Name:        tcpip
-Version:     1.0.0
-Synopsis:    Ethernet and IP driver
-Authors:     Anil Madhavapeddy, Richard Mortier
+Version:     1.1.0
+Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
+Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier
 License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
@@ -19,7 +19,7 @@ Library ethif
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Arpv4, Checksum
+  Modules:            Ethif, Arpv4, Tcpip_checksum
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
 
 Library ipv4
@@ -27,7 +27,7 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4,Checksum
+  Modules:            Ipv4, Tcpip_checksum
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
 Library udpv4
