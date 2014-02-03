@@ -82,7 +82,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
       set_pseudo_header_res pbuf 0;
       set_pseudo_header_proto pbuf 6;
       set_pseudo_header_len pbuf (Cstruct.lenv data);
-      Checksum.ones_complement_list (pbuf::data)
+      Tcpip_checksum.ones_complement_list (pbuf::data)
 
   let verify_checksum id pkt =
     true
