@@ -29,30 +29,30 @@ type t = {
 }
 
 module Make(Time:V1_LWT.TIME) = struct
-let t ~period ~expire =
-  let running = false in
-  {period; expire; running}
+  let t ~period ~expire =
+    let running = false in
+    {period; expire; running}
 
-let rec timerloop t s =
-  Time.sleep t.period >>
-  match t.expire s with
-  | Stoptimer ->
+  let rec timerloop t s =
+    Time.sleep t.period >>
+    match t.expire s with
+    | Stoptimer ->
       t.running <- false;
       return ()
-  | Continue d ->
+    | Continue d ->
       timerloop t d
-  | ContinueSetPeriod (p, d) ->
+    | ContinueSetPeriod (p, d) ->
       t.period <- p;
       timerloop t d
 
-let period t = t.period
+  let period t = t.period
 
-let start t ?(p=(period t)) s =
-  if not t.running then begin
-    t.period <- p;
-    t.running <- true;
-    let _ = timerloop t s in
-    return ()
-  end else 
-    return ()
+  let start t ?(p=(period t)) s =
+    if not t.running then begin
+      t.period <- p;
+      t.running <- true;
+      let _ = timerloop t s in
+      return ()
+    end else 
+      return ()
 end
