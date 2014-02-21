@@ -1,3 +1,9 @@
+1.1.1 (21-February-2013):
+* Catch and ignore top-level socket exceptions (#219).
+* Set `SO_REUSEADDR` on listening sockets for Unix (#218).
+* Adapt the Stack interfaces to the v1.1.1 mirage-types interface
+  (see mirage/mirage#226 for details).
+
 1.1.0 (03-February-2013):
 * Rewrite of the library as a set of functors that parameterize the
   stack across the `V1_LWT` module types from Mirage 1.1.x.  This removes
