@@ -1,3 +1,7 @@
+1.1.1 (trunk):
+* Adapt the Stack interfaces to the v1.1.1 mirage-types interface
+  (see mirage/mirage#226 for details).
+
 1.1.0 (03-February-2013):
 * Rewrite of the library as a set of functors that parameterize the
   stack across the `V1_LWT` module types from Mirage 1.1.x.  This removes
