@@ -1,4 +1,5 @@
 1.1.1 (trunk):
+* Set `SO_REUSEADDR` on listening sockets for Unix (#218).
 * Adapt the Stack interfaces to the v1.1.1 mirage-types interface
   (see mirage/mirage#226 for details).
 

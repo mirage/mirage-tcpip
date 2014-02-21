@@ -98,6 +98,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let listen_tcpv4 t ~port callback =
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_STREAM 0 in
+    setsockopt fd SO_REUSEADDR true;
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
     bind fd (ADDR_INET (interface, port));
     listen fd 10;
