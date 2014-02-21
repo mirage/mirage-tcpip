@@ -42,6 +42,9 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   module TCPV4 = Tcpv4_socket
   module UDPV4 = Udpv4_socket
 
+  type udpv4 = Udpv4_socket.t
+  type tcpv4 = Tcpv4_socket.t
+
   type t = {
     id    : id;
     c     : Console.t;
@@ -56,6 +59,8 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   ]
 
   let id {id} = id
+  let udpv4 {udpv4} = udpv4
+  let tcpv4 {tcpv4} = tcpv4
 
   (* List of IP addresses to bind to *)
   let configure t addrs =
@@ -93,6 +98,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let listen_tcpv4 t ~port callback =
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_STREAM 0 in
+    setsockopt fd SO_REUSEADDR true;
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
     bind fd (ADDR_INET (interface, port));
     listen fd 10;
@@ -100,7 +106,12 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       while_lwt true do (* TODO cancellation *)
         Lwt_unix.accept fd
         >>= fun (afd, sa) ->
-        ignore_result (callback afd >>= fun () -> return_unit);
+        ignore_result (
+          try_lwt
+            callback afd
+            >>= fun () -> return_unit
+          with exn -> return_unit
+        );
         return ();
       done
     in

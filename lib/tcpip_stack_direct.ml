@@ -33,11 +33,6 @@ module Make
     (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) = struct
 
-  module UDPV4 = Udpv4
-  module TCPV4 = Tcpv4
-
-  module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
-
   type +'a io = 'a Lwt.t
   type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
   type console = Console.t
@@ -46,6 +41,12 @@ module Make
   type id = (console, netif, mode) config
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
+  type tcpv4 = Tcpv4.t
+  type udpv4 = Udpv4.t
+
+  module UDPV4 = Udpv4
+  module TCPV4 = Tcpv4
+  module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
 
   type t = {
     id    : id;
@@ -65,6 +66,8 @@ module Make
   ]
 
   let id {id} = id
+  let tcpv4 {tcpv4} = tcpv4
+  let udpv4 {udpv4} = udpv4
 
   let listen_udpv4 t ~port callback =
     Hashtbl.replace t.udpv4_listeners port callback
