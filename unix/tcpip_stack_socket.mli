@@ -18,5 +18,7 @@ module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACKV4
   with type console = Console.t
    and type netif   = Ipaddr.V4.t list
    and type mode    = unit
+   and type tcpv4   = Tcpv4_socket.t
+   and type udpv4   = Udpv4_socket.t
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
