@@ -106,7 +106,12 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       while_lwt true do (* TODO cancellation *)
         Lwt_unix.accept fd
         >>= fun (afd, sa) ->
-        ignore_result (callback afd >>= fun () -> return_unit);
+        ignore_result (
+          try_lwt
+            callback afd
+            >>= fun () -> return_unit
+          with exn -> return_unit
+        );
         return ();
       done
     in
