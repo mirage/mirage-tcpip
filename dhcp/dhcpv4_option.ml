@@ -305,7 +305,10 @@ module Unmarshal = struct
     let getint () = (* Get one integer *)
       Char.code (getc ()) in
     let slice len = (* Get a substring *)
-      let r = String.sub buf !pos len in
+      printf "About to pull %d characters from %d in a buffer of length %d\n " len !pos (String.length buf);
+      if (!pos + len) > (String.length buf) || !pos > (String.length buf) 
+        then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
+      let r = String.sub buf !pos len in 
       pos := !pos + len;
       r in
     let check c = (* Check that a char is the provided value *)
@@ -328,6 +331,7 @@ module Unmarshal = struct
     let rec fn acc =
       let cont (r:t) = fn (r :: acc) in
       let code = msg_of_code (getc ()) in
+      printf "Parsing option type %s" (msg_to_string code);
       match code with
       |`Pad -> fn acc
       |`Subnet_mask -> cont (`Subnet_mask (get_addr ipv4_addr_of_bytes))
@@ -368,7 +372,10 @@ module Unmarshal = struct
       |`Max_size ->
           let l1 = getint () lsl 8 in
           cont (`Max_size (getint () + l1))
-      |`Interface_mtu ->
+      |`Interface_mtu -> 
+          (*interface mtu has a length. we should respect it,
+            rather than assuming that the mtu is 2 bytes. *)
+          let len = getint () in 
           let l1 = getint () lsl 8 in
           cont (`Interface_mtu (getint () + l1))
       |`Client_id ->

@@ -74,8 +74,8 @@ module Make (Console : V1_LWT.CONSOLE)
 
   (* Send a client broadcast packet *)
   let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
-    let options = Dhcpv4_option.Packet.to_bytes options in
-    let options_len = String.length options in
+    let options_bytes = Dhcpv4_option.Packet.to_bytes options in
+    let options_len = String.length options_bytes in
     let total_len = options_len + sizeof_dhcp in
     let buf = Io_page.(to_cstruct (get 1)) in
     set_dhcp_op buf (mode_to_int BootRequest);
@@ -96,26 +96,37 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_sname (String.make 64 '\000') 0 buf;
     set_dhcp_file (String.make 128 '\000') 0 buf;
     set_dhcp_cookie buf 0x63825363l;
-    Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
+    Cstruct.blit_from_string options_bytes 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
-    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len)
+    let _ = Console.log_s t.c (sprintf "Packet dump in output_broadcast: ") in
+    hexdump_dhcp buf; 
+    let _ = Console.log_s t.c (sprintf "Options: %s " (Dhcpv4_option.Packet.prettyprint options)) in
+    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len);
     >>= fun () ->
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
 (* Receive a DHCP UDP packet *)
 let input t ~src ~dst ~src_port buf =
+  (*Also hexdump the whole blessed packet*)
+  let _ = hexdump_dhcp buf in
   let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
   let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
   let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
   let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
+  let chaddr = match (Macaddr.of_bytes (copy_dhcp_chaddr buf)) with
+    | Some mac -> (Macaddr.to_string mac) 
+    | None -> "00:00:00:00:00:00"
+  in 
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
+  let _ = Console.log_s t.c (sprintf "Options buffer copied, but processing not yet attempted") in
   let packet = Dhcpv4_option.Packet.of_bytes options in
+  let _ = Console.log_s t.c (sprintf "Options: %s" (Dhcpv4_option.Packet.prettyprint packet)) in
   (* For debugging, print out the DHCP response *)
   Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
     (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
     (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-    (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf))
+    (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf)) 
   >>= fun () ->
   (* See what state our Netif is in and if this packet is useful *)
   let open Dhcpv4_option.Packet in
@@ -134,6 +145,10 @@ let input t ~src ~dst ~src_port buf =
               (function `DNS_server addrs -> Some addrs |_ -> None) in
           let lease = 0l in
           let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
+          
+          (* try printing here - it will be instructive to see whether break 
+             is before or after this segment *)
+          let _ = Console.log_s t.c (sprintf "Netmask, gateways, and DNS deconstructed.  Offer assembled.") in
           (* RFC2131 defines the 'siaddr' as the address of the server which
              will take part in the next stage of the bootstrap process (eg
              'delivery of an operating system executable image'). This
@@ -142,14 +157,22 @@ let input t ~src ~dst ~src_port buf =
              identifier option' *)
           let server_identifier = find packet
               (function `Server_identifier addr -> Some addr | _ -> None) in
+          let _ = Console.log_s t.c (sprintf "Server identifier extracted.") in
+          let si_string = 
+            match server_identifier with
+            | Some x -> (Ipaddr.V4.to_string x)
+            | None -> "Nothing found, bad problem, everything is awful"
+          in
+          let _ = Console.log_s t.c (sprintf "Its value is %s" si_string) in
           let options = { op=`Request; opts=
                                          `Requested_ip yiaddr :: (
                                            match server_identifier with
                                            | Some x -> [ `Server_identifier x ]
-                                           | None -> []
+                                           | None -> [ ]
                                          )
                         } in
           t.state <- Offer_accepted offer;
+          let _ = Console.log_s t.c (sprintf "State of thread advanced to Offer_accepted.  Invoking reply...") in
           output_broadcast t ~xid ~yiaddr ~siaddr ~options
         end
       |_ ->
@@ -182,10 +205,10 @@ let input t ~src ~dst ~src_port buf =
     let yiaddr = Ipaddr.V4.any in
     let siaddr = Ipaddr.V4.any in
     let options = { Dhcpv4_option.Packet.op=`Discover; opts= [
-        (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
+        (`Parameter_request [`Server_identifier; `Subnet_mask; `Router; `DNS_server; `Broadcast]);
         (`Host_name "miragevm")
       ] } in
-    Console.log_s t.c (sprintf "DHCP: start discovery\n%!")
+    Console.log_s t.c (sprintf "DHCP: start discovery\n%!");
     >>= fun () ->
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>
@@ -203,11 +226,23 @@ let input t ~src ~dst ~src_port buf =
       dhcp_thread t
     |Shutting_down ->
       Console.log_s t.c "DHCP thread: done"
-    |_ -> 
-      (* TODO: This should be looking at the lease time *)
-      Time.sleep 3600.0
+    (* |Offer_accepted offer ->
+      let interval = offer.lease in 
+      let _ = Console.log_s t.c (sprintf "DHCP thread: offer was accepted, twiddling thumbs for %d" (Int32.to_int interval)) in 
+      let _ = Time.sleep (Int32.to_float interval) in
+      start_discovery t
       >>= fun () ->
       dhcp_thread t
+    |Lease_held offer ->
+      let _ = Console.log_s t.c "I already have a lease" in 
+      let _ = Time.sleep 60.0 in
+      start_discovery t
+      >>= fun () ->
+      dhcp_thread t *)
+    |_ -> 
+      Time.sleep 3600.0
+      >>= fun () ->
+      dhcp_thread t 
 
   (* Create a DHCP thread *)
   let create c ip udp =
