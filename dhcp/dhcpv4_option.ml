@@ -317,6 +317,14 @@ module Unmarshal = struct
     let get_addr fn = (* Get one address *)
       check '\004';
       fn (slice 4) in
+    let get_number len = (* Get a number from len bytes *)
+      let bytestring = slice len in
+      let r = ref 0 in 
+      for i = 0 to (len - 1) do
+         let bitshift = ((len - (i + 1)) * 8) in
+         r := ((Char.code bytestring.[i]) lsl bitshift) + !r;
+      done; 
+      !r in
     let get_addrs fn = (* Repeat fn n times and return the list *)
       let len = getint () / 4 in
       let res = ref [] in 
@@ -380,16 +388,10 @@ module Unmarshal = struct
           (* according to some printf/tcpdump testing, this is being set but not
            * respected by the unikernel *)
           let len = getint () in
-          let bytestring = slice len in
-          let mtu = ref 0 in 
-          for i = 0 to (len - 1) do
-             let bitshift = ((len - (i + 1)) * 8) in
-             mtu := ((Char.code bytestring.[i]) lsl bitshift) + !mtu;
-          done; 
-          cont (`Interface_mtu !mtu)
+          cont (`Interface_mtu (get_number len))
       |`Client_id ->
           let len = getint () in 
-          let _ = getint () in
+          let _ = getint () in (* disregard type information *)
           cont (`Client_id (slice len))
       |`End -> acc
       |`Unknown c -> cont (`Unknown (c, (slice (getint ()))))
