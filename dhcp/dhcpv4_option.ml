@@ -378,12 +378,8 @@ module Unmarshal = struct
           done;
           cont (`Parameter_request (List.rev !params))
       |`Max_size ->
-          (* let _ = getint () in (* per RFC, length is specified but always 2 *) *)
-          (* dnsmasq is using this internally & incorrectly reporting an error when
-           * I try to set it in dnsmasq.conf - report & maybe patch; in the meantime, 
-           * try to repro with scapy *)
-          let l1 = getint () lsl 8 in 
-          cont (`Max_size (getint () + l1))
+          let len = getint () in
+          cont (`Max_size (get_number len))
       |`Interface_mtu -> 
           (* according to some printf/tcpdump testing, this is being set but not
            * respected by the unikernel *)
