@@ -375,7 +375,7 @@ module Unmarshal = struct
       |`Interface_mtu -> 
           (*interface mtu has a length. we should respect it,
             rather than assuming that the mtu is 2 bytes. *)
-          let len = getint () in 
+          let _ = getint () in 
           let l1 = getint () lsl 8 in
           cont (`Interface_mtu (getint () + l1))
       |`Client_id ->
