@@ -114,10 +114,18 @@ let input t ~src ~dst ~src_port buf =
   let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
   let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
-  let chaddr = match (Macaddr.of_bytes (copy_dhcp_chaddr buf)) with
-    | Some mac -> (Macaddr.to_string mac) 
-    | None -> "00:00:00:00:00:00"
-  in 
+  let of_byte x =
+    Printf.sprintf "%02x" (Char.code x) in
+  let chaddr_to_string x =
+    let dst_buffer = (String.make 32 '\000') (*start blank*) in
+    for i = 0 to 15 do (* an OK idea because we know x is a 16-byte string *)
+      let thischar = of_byte x.[i] in
+        String.set dst_buffer (i*2) (String.get thischar 0);
+        String.set dst_buffer ((i*2)+1) (String.get thischar 1)
+    done;
+    dst_buffer
+  in
+  let chaddr = (chaddr_to_string) (copy_dhcp_chaddr buf) in
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
   let _ = Console.log_s t.c (sprintf "Options buffer copied, but processing not yet attempted") in
   let packet = Dhcpv4_option.Packet.of_bytes options in
