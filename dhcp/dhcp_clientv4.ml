@@ -104,8 +104,6 @@ module Make (Console : V1_LWT.CONSOLE)
 
 (* Receive a DHCP UDP packet *)
 let input t ~src ~dst ~src_port buf =
-  (*Also hexdump the whole blessed packet*)
-  let _ = hexdump_dhcp buf in
   let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
   let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
   let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
@@ -114,8 +112,9 @@ let input t ~src ~dst ~src_port buf =
   let of_byte x =
     Printf.sprintf "%02x" (Char.code x) in
   let chaddr_to_string x =
-    let dst_buffer = (String.make 32 '\000') (*start blank*) in
-    for i = 0 to 15 do (* an OK idea because we know x is a 16-byte string *)
+    let chaddr_size = (String.length x) in
+    let dst_buffer = (String.make (chaddr_size * 2) '\000') in
+    for i = 0 to (chaddr_size - 1) do 
       let thischar = of_byte x.[i] in
         String.set dst_buffer (i*2) (String.get thischar 0);
         String.set dst_buffer ((i*2)+1) (String.get thischar 1)
