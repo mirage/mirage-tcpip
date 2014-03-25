@@ -370,17 +370,26 @@ module Unmarshal = struct
           done;
           cont (`Parameter_request (List.rev !params))
       |`Max_size ->
-          let l1 = getint () lsl 8 in
+          (* let _ = getint () in (* per RFC, length is specified but always 2 *) *)
+          (* dnsmasq is using this internally & incorrectly reporting an error when
+           * I try to set it in dnsmasq.conf - report & maybe patch; in the meantime, 
+           * try to repro with scapy *)
+          let l1 = getint () lsl 8 in 
           cont (`Max_size (getint () + l1))
       |`Interface_mtu -> 
-          (*interface mtu has a length. we should respect it,
-            rather than assuming that the mtu is 2 bytes. *)
-          let _ = getint () in 
-          let l1 = getint () lsl 8 in
-          cont (`Interface_mtu (getint () + l1))
+          (* according to some printf/tcpdump testing, this is being set but not
+           * respected by the unikernel *)
+          let len = getint () in
+          let bytestring = slice len in
+          let mtu = ref 0 in 
+          for i = 0 to (len - 1) do
+             let bitshift = ((len - (i + 1)) * 8) in
+             mtu := ((Char.code bytestring.[i]) lsl bitshift) + !mtu;
+          done; 
+          cont (`Interface_mtu !mtu)
       |`Client_id ->
           let len = getint () in 
-          let _ = getint () in 
+          let _ = getint () in
           cont (`Client_id (slice len))
       |`End -> acc
       |`Unknown c -> cont (`Unknown (c, (slice (getint ()))))
