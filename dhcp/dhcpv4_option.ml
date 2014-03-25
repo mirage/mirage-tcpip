@@ -305,7 +305,6 @@ module Unmarshal = struct
     let getint () = (* Get one integer *)
       Char.code (getc ()) in
     let slice len = (* Get a substring *)
-      printf "About to pull %d characters from %d in a buffer of length %d\n " len !pos (String.length buf);
       if (!pos + len) > (String.length buf) || !pos > (String.length buf) 
         then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
       let r = String.sub buf !pos len in 
@@ -339,7 +338,6 @@ module Unmarshal = struct
     let rec fn acc =
       let cont (r:t) = fn (r :: acc) in
       let code = msg_of_code (getc ()) in
-      printf "Parsing option type %s" (msg_to_string code);
       match code with
       |`Pad -> fn acc
       |`Subnet_mask -> cont (`Subnet_mask (get_addr ipv4_addr_of_bytes))
