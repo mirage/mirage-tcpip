@@ -98,7 +98,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_cookie buf 0x63825363l;
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
-    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len);
+    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len)
     >>= fun () ->
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
@@ -147,7 +147,6 @@ let input t ~src ~dst ~src_port buf =
               (function `DNS_server addrs -> Some addrs |_ -> None) in
           let lease = 0l in
           let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
-          
           (* RFC2131 defines the 'siaddr' as the address of the server which
              will take part in the next stage of the bootstrap process (eg
              'delivery of an operating system executable image'). This
@@ -160,7 +159,7 @@ let input t ~src ~dst ~src_port buf =
                                          `Requested_ip yiaddr :: (
                                            match server_identifier with
                                            | Some x -> [ `Server_identifier x ]
-                                           | None -> [ ]
+                                           | None -> []
                                          )
                         } in
           t.state <- Offer_accepted offer;
@@ -196,10 +195,10 @@ let input t ~src ~dst ~src_port buf =
     let yiaddr = Ipaddr.V4.any in
     let siaddr = Ipaddr.V4.any in
     let options = { Dhcpv4_option.Packet.op=`Discover; opts= [
-        (`Parameter_request [`Server_identifier; `Subnet_mask; `Router; `DNS_server; `Broadcast]);
+        (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
         (`Host_name "miragevm")
       ] } in
-    Console.log_s t.c (sprintf "DHCP: start discovery\n%!");
+    Console.log_s t.c (sprintf "DHCP: start discovery\n%!")
     >>= fun () ->
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>
@@ -220,7 +219,7 @@ let input t ~src ~dst ~src_port buf =
     |_ -> 
       Time.sleep 3600.0
       >>= fun () ->
-      dhcp_thread t 
+      dhcp_thread t
 
   (* Create a DHCP thread *)
   let create c ip udp =
