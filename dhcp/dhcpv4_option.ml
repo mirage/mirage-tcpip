@@ -305,7 +305,9 @@ module Unmarshal = struct
     let getint () = (* Get one integer *)
       Char.code (getc ()) in
     let slice len = (* Get a substring *)
-      let r = String.sub buf !pos len in
+      if (!pos + len) > (String.length buf) || !pos > (String.length buf) 
+        then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
+      let r = String.sub buf !pos len in 
       pos := !pos + len;
       r in
     let check c = (* Check that a char is the provided value *)
@@ -314,6 +316,14 @@ module Unmarshal = struct
     let get_addr fn = (* Get one address *)
       check '\004';
       fn (slice 4) in
+    let get_number len = (* Get a number from len bytes *)
+      let bytestring = slice len in
+      let r = ref 0 in 
+      for i = 0 to (len - 1) do
+         let bitshift = ((len - (i + 1)) * 8) in
+         r := ((Char.code bytestring.[i]) lsl bitshift) + !r;
+      done; 
+      !r in
     let get_addrs fn = (* Repeat fn n times and return the list *)
       let len = getint () / 4 in
       let res = ref [] in 
@@ -366,14 +376,16 @@ module Unmarshal = struct
           done;
           cont (`Parameter_request (List.rev !params))
       |`Max_size ->
-          let l1 = getint () lsl 8 in
-          cont (`Max_size (getint () + l1))
-      |`Interface_mtu ->
-          let l1 = getint () lsl 8 in
-          cont (`Interface_mtu (getint () + l1))
+          let len = getint () in
+          cont (`Max_size (get_number len))
+      |`Interface_mtu -> 
+          (* according to some printf/tcpdump testing, this is being set but not
+           * respected by the unikernel *)
+          let len = getint () in
+          cont (`Interface_mtu (get_number len))
       |`Client_id ->
           let len = getint () in 
-          let _ = getint () in 
+          let _ = getint () in (* disregard type information *)
           cont (`Client_id (slice len))
       |`End -> acc
       |`Unknown c -> cont (`Unknown (c, (slice (getint ()))))

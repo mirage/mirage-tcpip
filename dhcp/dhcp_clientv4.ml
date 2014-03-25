@@ -109,13 +109,26 @@ let input t ~src ~dst ~src_port buf =
   let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
   let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
   let xid = get_dhcp_xid buf in
+  let of_byte x =
+    Printf.sprintf "%02x" (Char.code x) in
+  let chaddr_to_string x =
+    let chaddr_size = (String.length x) in
+    let dst_buffer = (String.make (chaddr_size * 2) '\000') in
+    for i = 0 to (chaddr_size - 1) do 
+      let thischar = of_byte x.[i] in
+        String.set dst_buffer (i*2) (String.get thischar 0);
+        String.set dst_buffer ((i*2)+1) (String.get thischar 1)
+    done;
+    dst_buffer
+  in
+  let chaddr = (chaddr_to_string) (copy_dhcp_chaddr buf) in
   let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
   let packet = Dhcpv4_option.Packet.of_bytes options in
   (* For debugging, print out the DHCP response *)
   Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
     (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
     (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-    (copy_dhcp_chaddr buf) (copy_dhcp_sname buf) (copy_dhcp_file buf))
+    (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf)) 
   >>= fun () ->
   (* See what state our Netif is in and if this packet is useful *)
   let open Dhcpv4_option.Packet in
@@ -204,7 +217,6 @@ let input t ~src ~dst ~src_port buf =
     |Shutting_down ->
       Console.log_s t.c "DHCP thread: done"
     |_ -> 
-      (* TODO: This should be looking at the lease time *)
       Time.sleep 3600.0
       >>= fun () ->
       dhcp_thread t
