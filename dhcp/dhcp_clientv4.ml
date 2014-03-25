@@ -74,8 +74,8 @@ module Make (Console : V1_LWT.CONSOLE)
 
   (* Send a client broadcast packet *)
   let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
-    let options_bytes = Dhcpv4_option.Packet.to_bytes options in
-    let options_len = String.length options_bytes in
+    let options = Dhcpv4_option.Packet.to_bytes options in
+    let options_len = String.length options in
     let total_len = options_len + sizeof_dhcp in
     let buf = Io_page.(to_cstruct (get 1)) in
     set_dhcp_op buf (mode_to_int BootRequest);
@@ -96,7 +96,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_sname (String.make 64 '\000') 0 buf;
     set_dhcp_file (String.make 128 '\000') 0 buf;
     set_dhcp_cookie buf 0x63825363l;
-    Cstruct.blit_from_string options_bytes 0 buf sizeof_dhcp options_len;
+    Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
     Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len);
     >>= fun () ->
