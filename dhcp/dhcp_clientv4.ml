@@ -217,6 +217,7 @@ let input t ~src ~dst ~src_port buf =
     |Shutting_down ->
       Console.log_s t.c "DHCP thread: done"
     |_ -> 
+      (* TODO: This should be looking at the lease time *)
       Time.sleep 3600.0
       >>= fun () ->
       dhcp_thread t
