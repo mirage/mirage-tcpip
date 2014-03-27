@@ -379,8 +379,8 @@ module Unmarshal = struct
           let len = getint () in
           cont (`Max_size (get_number len))
       |`Interface_mtu -> 
-          (* according to some printf/tcpdump testing, this is being set but not
-           * respected by the unikernel *)
+          (* TODO according to some printf/tcpdump testing, this is being set but not
+           * respected by the unikernel; https://github.com/mirage/mirage/issues/238 *)
           let len = getint () in
           cont (`Interface_mtu (get_number len))
       |`Client_id ->
