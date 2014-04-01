@@ -201,7 +201,7 @@ Library "tcpip-stack-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-socket
-  Modules:            Tcpip_stack_socket
+  Modules:            Tcpip_stack_socket, Ipv4_socket
   BuildDepends:       tcpip.udpv4-socket,
                       tcpip.tcpv4-socket,
                       lwt,
