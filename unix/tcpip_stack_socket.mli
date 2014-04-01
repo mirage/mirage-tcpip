@@ -20,5 +20,7 @@ module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACKV4
    and type mode    = unit
    and type tcpv4   = Tcpv4_socket.t
    and type udpv4   = Udpv4_socket.t
+   and type ipv4    = unit
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
+   and module IPV4  = Ipv4_socket

@@ -1,3 +1,6 @@
+1.1.2 (01-April-2014):
+* Expose IPV4 through the STACKV4 interface.
+
 1.1.1 (21-February-2013):
 * Catch and ignore top-level socket exceptions (#219).
 * Set `SO_REUSEADDR` on listening sockets for Unix (#218).
