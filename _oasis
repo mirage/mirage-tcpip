@@ -1,6 +1,6 @@
 OASISFormat: 0.3
 Name:        tcpip
-Version:     1.1.2
+Version:     1.1.3
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier
 License:     ISC
@@ -201,7 +201,7 @@ Library "tcpip-stack-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-socket
-  Modules:            Tcpip_stack_socket
+  Modules:            Tcpip_stack_socket, Ipv4_socket
   BuildDepends:       tcpip.udpv4-socket,
                       tcpip.tcpv4-socket,
                       lwt,

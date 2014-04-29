@@ -41,9 +41,11 @@ module Make(Console:V1_LWT.CONSOLE) = struct
 
   module TCPV4 = Tcpv4_socket
   module UDPV4 = Udpv4_socket
+  module IPV4  = Ipv4_socket
 
   type udpv4 = Udpv4_socket.t
   type tcpv4 = Tcpv4_socket.t
+  type ipv4  = unit
 
   type t = {
     id    : id;
@@ -61,6 +63,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let id {id} = id
   let udpv4 {udpv4} = udpv4
   let tcpv4 {tcpv4} = tcpv4
+  let ipv4  _       = ()
 
   (* List of IP addresses to bind to *)
   let configure t addrs =
