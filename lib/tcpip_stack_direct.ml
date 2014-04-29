@@ -43,9 +43,11 @@ module Make
   type ipv4addr = Ipaddr.V4.t
   type tcpv4 = Tcpv4.t
   type udpv4 = Udpv4.t
+  type ipv4 = Ipv4.t
 
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4
+  module IPV4  = Ipv4
   module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
 
   type t = {
@@ -68,6 +70,7 @@ module Make
   let id {id} = id
   let tcpv4 {tcpv4} = tcpv4
   let udpv4 {udpv4} = udpv4
+  let ipv4 {ipv4} = ipv4
 
   let listen_udpv4 t ~port callback =
     Hashtbl.replace t.udpv4_listeners port callback
