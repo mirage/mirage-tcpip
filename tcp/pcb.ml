@@ -418,10 +418,11 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                         (* Established connection - promote to active channels *)
                         Hashtbl.remove t.listens id;
                         Hashtbl.add t.channels id newconn;
+                        (* Finish processing ACK, so pcb.state is correct *)
+                        Rx.input t pkt newconn
+                        >>= fun () ->
                         (* send new connection up to listener *)
                         pushf (fst newconn)
-                        >>= fun () ->
-                        Rx.input t pkt newconn
                       end else begin
                         (* No RST because we are trying to connect on this id *)
                         return ()
