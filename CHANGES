@@ -1,3 +1,8 @@
+1.1.4 (03-June-2014):
+* [tcp] Fully process the last `ACK` in a 3-way handshake for server connections.
+  This ensures that a `FIN` is correctly transmitted upon application-initiated
+  connection close. (fix from Mindy Preston in #51).
+
 1.1.3 (01-April-2014):
 * Expose IPV4 through the STACKV4 interface.
 
