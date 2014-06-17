@@ -109,7 +109,7 @@ module Make
     with Not_found -> None
 
   let listen t =
-    let t1 = Netif.listen t.netif (
+    Netif.listen t.netif (
       Ethif.input
         ~ipv4:(
           Ipv4.input
@@ -120,12 +120,6 @@ module Make
             ~default:(fun ~proto ~src ~dst buf -> return ())
             t.ipv4)
         ~ipv6:(fun b -> Console.log_s t.c ("Dropping ipv6")) t.ethif)
-    in
-    let t2 =
-      Console.log_s t.c "Manager: configuring"
-      >>= fun () ->
-      configure t t.mode
-    in t1 <&> t2
 
   let connect id =
     let {V1_LWT.console = c; interface = netif; mode; name } = id in
@@ -149,6 +143,14 @@ module Make
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; c; mode; netif; ethif; ipv4; tcpv4; udpv4;
       udpv4_listeners; tcpv4_listeners } in
+    ( Console.log_s t.c "Manager: configuring" >>
+      choose [ listen t;
+      configure t t.mode ] >> (* TODO: this is fine for now, because the 
+      DHCP state machine isn't fully implemented and its thread will terminate 
+      after one successful lease transaction.  For a DHCP thread that runs 
+      forever, `configure` will not terminate, and the client application will
+      never run. *)
+      Console.log_s t.c "Manager: configuration done") >> 
     return (`Ok t)
 
   let disconnect t =
