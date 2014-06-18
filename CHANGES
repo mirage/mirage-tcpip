@@ -1,3 +1,8 @@
+1.1.5 (18-June-2014)
+* Ensure that DHCP completes before the application is started, so that
+  unikernels that establish outgoing connections can do so without a race.
+  (fix from Mindy Preston in #53, followup in #55)
+
 1.1.4 (03-June-2014):
 * [tcp] Fully process the last `ACK` in a 3-way handshake for server connections.
   This ensures that a `FIN` is correctly transmitted upon application-initiated
