@@ -17,7 +17,7 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
       Cstruct.set_len buf (String.length output)
     in
 
-    S.TCPV4.write flow (make_chars how_many start_at) >>
+    S.TCPV4.write flow (make_chars how_many start_at) >>= fun () -> 
       chargen flow how_many ((start_at + 1) mod (String.length charpool))
 
   let rec discard c flow =
@@ -35,15 +35,15 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
       match result with  
         | `Eof -> report_and_close c flow "Echo connection closure initiated."
         | `Error e -> 
-          let message = (
+          let message = 
           match e with 
             | `Timeout -> "Echo connection timed out; closing.\n"
             | `Refused -> "Echo connection refused; closing.\n"
             | `Unknown s -> (Printf.sprintf "Echo connection error: %s\n" s)
-            ) in
+             in
           report_and_close c flow message
         | `Ok buf ->
-            S.TCPV4.write flow buf >> echo c flow
+            S.TCPV4.write flow buf >>= fun () -> echo c flow
         ) 
 
   let start c s =
