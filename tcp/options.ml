@@ -16,6 +16,8 @@
 
 (* TCP options parsing *)
 
+exception Bad_option of string
+
 type t =
   |Noop
   |MSS of int                    (* RFC793 *)
@@ -37,22 +39,41 @@ let unmarshal buf =
       |n -> Some (get_uint8 buf 1)
     )
     (fun buf ->
-      match get_uint8 buf 0 with
+      let option_number = (get_uint8 buf 0) in
+      match option_number with
       |0 -> assert false
       |1 -> Noop
-      |2 -> MSS (BE.get_uint16 buf 2)
-      |3 -> Window_size_shift (get_uint8 buf 2)
-      |4 -> SACK_ok
-      |5 -> 
-        let num = ((get_uint8 buf 1) - 2) / 8 in
-        let rec to_int32_list off acc = function
-          |0 -> acc
-          |n ->
-            let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
-            to_int32_list (off+8) (x::acc) (n-1)
-        in SACK (to_int32_list 2 [] num)
-      |8 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
-      |n -> Unknown (n, (copy buf 2 (len buf - 2)))
+      |_ -> 
+          let report_error n =
+            let error = Printf.sprintf "Invalid option %d presented" n in
+            raise (Bad_option error)
+          in
+          let option_length = (get_uint8 buf 1) in
+          match option_number, option_length with
+          | _, 0 | _, 1 -> report_error option_number
+          | 2, 4 ->  
+              let mss_size = BE.get_uint16 buf 2 in 
+              if mss_size < 88 then 
+                let err = Printf.sprintf "Invalid MSS %d received" mss_size in
+                raise (Bad_option err)
+              else
+                MSS mss_size
+          | 2, _ -> report_error option_number
+          | 3, 3 -> Window_size_shift (get_uint8 buf 2)
+          | 3, _ -> report_error option_number
+          | 4, 2 -> SACK_ok 
+          | 4, _ -> report_error option_number
+          | 5, _ -> 
+            let num = (option_length - 2) / 8 in
+            let rec to_int32_list off acc = function
+              |0 -> acc
+              |n ->
+                let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
+                to_int32_list (off+8) (x::acc) (n-1)
+            in SACK (to_int32_list 2 [] num)
+          | 8, 10 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
+          | 8, _ -> report_error option_number
+          | n, _ -> Unknown (n, (copy buf 2 (len buf - 2))) 
     ) buf in
   fold (fun a b -> b :: a) i []
 
