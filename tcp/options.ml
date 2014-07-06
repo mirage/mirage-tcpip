@@ -33,6 +33,17 @@ let report_error n =
   let error = Printf.sprintf "Invalid option %d presented" n in
   raise (Bad_option error)
 
+let check_mss buf =
+  let min_mss_size = 88 in
+  try 
+    let mss_size = Cstruct.BE.get_uint16 buf 2 in
+    if mss_size < min_mss_size then 
+      let err = (Printf.sprintf "Invalid MSS %d received" mss_size) in
+      raise (Bad_option err)
+    else
+      MSS mss_size
+  with Failure _ -> report_error 2
+
 let unmarshal buf =
   let open Cstruct in
   let i = iter 
@@ -51,14 +62,7 @@ let unmarshal buf =
           let option_length = (get_uint8 buf 1) in
           match option_number, option_length with
           | _, 0 | _, 1 -> report_error option_number
-          | 2, 4 ->  
-              let mss_size = BE.get_uint16 buf 2 in 
-              let min_mss_size = 88 in
-              if mss_size < min_mss_size then 
-                let err = Printf.sprintf "Invalid MSS %d received" mss_size in
-                raise (Bad_option err)
-              else
-                MSS mss_size
+          | 2, 4 -> check_mss buf
           | 2, _ -> report_error option_number
           | 3, 3 -> Window_size_shift (get_uint8 buf 2)
           | 3, _ -> report_error option_number
