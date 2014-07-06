@@ -29,6 +29,10 @@ type t =
 
 type ts = t list
 
+let report_error n =
+  let error = Printf.sprintf "Invalid option %d presented" n in
+  raise (Bad_option error)
+
 let unmarshal buf =
   let open Cstruct in
   let i = iter 
@@ -44,16 +48,13 @@ let unmarshal buf =
       |0 -> assert false
       |1 -> Noop
       |_ -> 
-          let report_error n =
-            let error = Printf.sprintf "Invalid option %d presented" n in
-            raise (Bad_option error)
-          in
           let option_length = (get_uint8 buf 1) in
           match option_number, option_length with
           | _, 0 | _, 1 -> report_error option_number
           | 2, 4 ->  
               let mss_size = BE.get_uint16 buf 2 in 
-              if mss_size < 88 then 
+              let min_mss_size = 88 in
+              if mss_size < min_mss_size then 
                 let err = Printf.sprintf "Invalid MSS %d received" mss_size in
                 raise (Bad_option err)
               else
