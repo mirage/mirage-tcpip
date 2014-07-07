@@ -122,7 +122,8 @@ module Make
                     ~listeners:(udpv4_listeners t))
             ~default:(fun ~proto ~src ~dst buf -> return ())
             t.ipv4)
-        ~ipv6:(fun b -> Console.log_s t.c ("Dropping ipv6")) t.ethif)
+         ~ipv6:(fun b -> return ())
+       t.ethif)
 
   let connect id =
     let {V1_LWT.console = c; interface = netif; mode; name } = id in
