@@ -1,4 +1,7 @@
-1.1.5 (18-June-2014)
+1.1.6 (trunk):
+* Quieten down the stack logging rate by not announcing IPv6 packet discards.
+
+1.1.5 (18-June-2014):
 * Ensure that DHCP completes before the application is started, so that
   unikernels that establish outgoing connections can do so without a race.
   (fix from Mindy Preston in #53, followup in #55)
