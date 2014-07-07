@@ -35,23 +35,23 @@ let report_error n =
 
 let check_mss buf =
   let min_mss_size = 88 in
-  try 
-    let mss_size = Cstruct.BE.get_uint16 buf 2 in
-    if mss_size < min_mss_size then 
-      let err = (Printf.sprintf "Invalid MSS %d received" mss_size) in
-      raise (Bad_option err)
-    else
-      MSS mss_size
-  with Failure _ -> report_error 2
+  let mss_size = Cstruct.BE.get_uint16 buf 2 in
+  if mss_size < min_mss_size then 
+    let err = (Printf.sprintf "Invalid MSS %d received" mss_size) in
+    raise (Bad_option err)
+  else
+    MSS mss_size
 
-let unmarshal buf =
+let unmarshal buf = 
   let open Cstruct in
   let i = iter 
     (fun buf -> 
       match get_uint8 buf 0 with
       |0 -> None   (* EOF *)
       |1 -> Some 1 (* NOP *)
-      |n -> Some (get_uint8 buf 1)
+      |n -> 
+          try Some (get_uint8 buf 1)
+          with Failure _ -> report_error n
     )
     (fun buf ->
       let option_number = (get_uint8 buf 0) in
@@ -60,25 +60,29 @@ let unmarshal buf =
       |1 -> Noop
       |_ -> 
           let option_length = (get_uint8 buf 1) in
-          match option_number, option_length with
-          | _, 0 | _, 1 -> report_error option_number
-          | 2, 4 -> check_mss buf
-          | 2, _ -> report_error option_number
-          | 3, 3 -> Window_size_shift (get_uint8 buf 2)
-          | 3, _ -> report_error option_number
-          | 4, 2 -> SACK_ok 
-          | 4, _ -> report_error option_number
-          | 5, _ -> 
-            let num = (option_length - 2) / 8 in
-            let rec to_int32_list off acc = function
-              |0 -> acc
-              |n ->
-                let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
-                to_int32_list (off+8) (x::acc) (n-1)
-            in SACK (to_int32_list 2 [] num)
-          | 8, 10 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
-          | 8, _ -> report_error option_number
-          | n, _ -> Unknown (n, (copy buf 2 (len buf - 2))) 
+          try
+            match option_number, option_length with
+            (* error out for lengths that are always nonsensible when option
+             * number >1 *)
+            | _, 0 | _, 1 -> report_error option_number
+            | 2, 4 -> check_mss buf
+            | 3, 3 -> Window_size_shift (get_uint8 buf 2)
+            | 4, 2 -> SACK_ok 
+            | 5, _ -> 
+              let num = (option_length - 2) / 8 in
+              let rec to_int32_list off acc = function
+                |0 -> acc
+                |n ->
+                  let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
+                  to_int32_list (off+8) (x::acc) (n-1)
+              in SACK (to_int32_list 2 [] num)
+            | 8, 10 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
+            (* error out for lengths that don't match the spec's fixed length 
+             * for a given, recognized option number *)
+            | 2, _ | 3, _ | 4, _ | 8, _ -> report_error option_number
+            (* Parse apparently well-formed but unrecognized options *)
+            | n, _ -> Unknown (n, (copy buf 2 (len buf - 2))) 
+          with Failure _ -> report_error option_number 
     ) buf in
   fold (fun a b -> b :: a) i []
 
