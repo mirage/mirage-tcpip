@@ -51,7 +51,7 @@ let unmarshal buf =
       |1 -> Some 1 (* NOP *)
       |n -> 
           try Some (get_uint8 buf 1)
-          with Failure _ -> report_error n
+          with Invalid_argument _ -> report_error n
     )
     (fun buf ->
       let option_number = (get_uint8 buf 0) in
@@ -82,7 +82,7 @@ let unmarshal buf =
             | 2, _ | 3, _ | 4, _ | 8, _ -> report_error option_number
             (* Parse apparently well-formed but unrecognized options *)
             | n, _ -> Unknown (n, (copy buf 2 (len buf - 2))) 
-          with Failure _ -> report_error option_number 
+          with Invalid_argument _ -> report_error option_number 
     ) buf in
   fold (fun a b -> b :: a) i []
 
