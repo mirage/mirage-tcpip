@@ -1,3 +1,6 @@
+1.1.7 (trunk):
+* Moved 1s complement checksum C code here from mirage-platform.
+
 1.1.6 (20-July-2014):
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
 * Raise exception `Bad_option` for unparseable or invalid TCPv4 options (#57).
