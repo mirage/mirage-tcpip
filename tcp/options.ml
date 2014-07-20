@@ -16,6 +16,8 @@
 
 (* TCP options parsing *)
 
+exception Bad_option of string
+
 type t =
   |Noop
   |MSS of int                    (* RFC793 *)
@@ -27,32 +29,60 @@ type t =
 
 type ts = t list
 
-let unmarshal buf =
+let report_error n =
+  let error = Printf.sprintf "Invalid option %d presented" n in
+  raise (Bad_option error)
+
+let check_mss buf =
+  let min_mss_size = 88 in
+  let mss_size = Cstruct.BE.get_uint16 buf 2 in
+  if mss_size < min_mss_size then 
+    let err = (Printf.sprintf "Invalid MSS %d received" mss_size) in
+    raise (Bad_option err)
+  else
+    MSS mss_size
+
+let unmarshal buf = 
   let open Cstruct in
   let i = iter 
     (fun buf -> 
       match get_uint8 buf 0 with
       |0 -> None   (* EOF *)
       |1 -> Some 1 (* NOP *)
-      |n -> Some (get_uint8 buf 1)
+      |n -> 
+          try Some (get_uint8 buf 1)
+          with Invalid_argument _ -> report_error n
     )
     (fun buf ->
-      match get_uint8 buf 0 with
+      let option_number = (get_uint8 buf 0) in
+      match option_number with
       |0 -> assert false
       |1 -> Noop
-      |2 -> MSS (BE.get_uint16 buf 2)
-      |3 -> Window_size_shift (get_uint8 buf 2)
-      |4 -> SACK_ok
-      |5 -> 
-        let num = ((get_uint8 buf 1) - 2) / 8 in
-        let rec to_int32_list off acc = function
-          |0 -> acc
-          |n ->
-            let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
-            to_int32_list (off+8) (x::acc) (n-1)
-        in SACK (to_int32_list 2 [] num)
-      |8 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
-      |n -> Unknown (n, (copy buf 2 (len buf - 2)))
+      |_ -> 
+          let option_length = (get_uint8 buf 1) in
+          try
+            match option_number, option_length with
+            (* error out for lengths that are always nonsensible when option
+             * number >1 *)
+            | _, 0 | _, 1 -> report_error option_number
+            | 2, 4 -> check_mss buf
+            | 3, 3 -> Window_size_shift (get_uint8 buf 2)
+            | 4, 2 -> SACK_ok 
+            | 5, _ -> 
+              let num = (option_length - 2) / 8 in
+              let rec to_int32_list off acc = function
+                |0 -> acc
+                |n ->
+                  let x = (BE.get_uint32 buf off), (BE.get_uint32 buf (off+4)) in
+                  to_int32_list (off+8) (x::acc) (n-1)
+              in SACK (to_int32_list 2 [] num)
+            | 8, 10 -> Timestamp ((BE.get_uint32 buf 2), (BE.get_uint32 buf 6))
+            (* error out for lengths that don't match the spec's fixed length 
+             * for a given, recognized option number *)
+            | 2, _ | 3, _ | 4, _ | 8, _ -> report_error option_number
+            (* Parse apparently well-formed but unrecognized options *)
+            | n, _ -> Unknown (n, (copy buf 2 (len buf - 2))) 
+          with Invalid_argument _ -> report_error option_number 
     ) buf in
   fold (fun a b -> b :: a) i []
 

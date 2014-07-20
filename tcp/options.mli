@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+exception Bad_option of string
+
 type t =
   |Noop
   |MSS of int                      (* RFC793 *)
