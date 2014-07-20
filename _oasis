@@ -11,7 +11,7 @@ Library tcpip
   CompiledObject:     best
   Path:               lib
   Findlibname:        tcpip
-  Modules:            Wire_structs
+  Modules:            Wire_structs, Tcpip_checksum
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct
 
 Library ethif
@@ -19,7 +19,7 @@ Library ethif
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Arpv4, Tcpip_checksum
+  Modules:            Ethif, Arpv4
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
 
 Library ipv4
@@ -27,7 +27,7 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4, Tcpip_checksum
+  Modules:            Ipv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
 
 Library udpv4
