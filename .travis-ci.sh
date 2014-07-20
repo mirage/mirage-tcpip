@@ -1,6 +1,3 @@
-# OPAM packages needed to build tests.
-OPAM_PACKAGES="cstruct mirage-types mirage-unix mirage-console-unix mirage-clock-unix mirage-net-unix ipaddr"
-
 case "$OCAML_VERSION,$OPAM_VERSION" in
 3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;
 3.12.1,1.1.0) ppa=avsm/ocaml312+opam11 ;;
@@ -23,7 +20,8 @@ opam --version
 opam --git-version
 
 opam init 
-opam install ${OPAM_PACKAGES}
 
 eval `opam config env`
-make
+opam pin tcpip .
+opam install tcpip
+opam install mirage-www

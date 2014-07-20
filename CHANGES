@@ -1,5 +1,8 @@
-1.1.6 (trunk):
+1.1.6 (20-July-2014):
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
+* Raise exception `Bad_option` for unparseable or invalid TCPv4 options (#57).
+* Fix linking error with module `Tcp_checksum` by lifting it into top library (#60).
+* Add `opam` file to permit easier local pinning, and fix Travis to use this.
 
 1.1.5 (18-June-2014):
 * Ensure that DHCP completes before the application is started, so that
