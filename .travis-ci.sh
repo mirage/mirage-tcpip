@@ -28,4 +28,5 @@ opam install mirage-www
 
 git clone git://github.com/mirage/mirage-www
 cd mirage-www
-make MODE=xen
+make MODE=xen configure
+make MODE=xen build
