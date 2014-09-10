@@ -19,7 +19,7 @@
 open Lwt
 open Printf
 
-module Make(Flow:V1_LWT.TCPV4) = struct
+module Make(Flow:V1_LWT.FLOW) = struct
 
   type flow = Flow.flow
   type buffer = Cstruct.t
@@ -199,6 +199,7 @@ module Make(Flow:V1_LWT.TCPV4) = struct
     let l = List.rev t.obufq in
     t.obufq <- [];
     Flow.writev t.flow l
+    >>= fun _ -> return ()
  
   let close t =
     flush t

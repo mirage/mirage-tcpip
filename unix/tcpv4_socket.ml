@@ -84,20 +84,30 @@ let read fd =
     return (`Error (`Unknown (Printexc.to_string exn)))
 
 let rec write fd buf =
-  match_lwt Lwt_cstruct.write fd buf with
-  | n when n = Cstruct.len buf -> return ()
+  Lwt_cstruct.write fd buf
+  >>= function
+  | 0 -> return `Eof
+  | n when n = Cstruct.len buf -> return (`Ok ())
   | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
 
 let writev fd bufs =
-  Lwt_list.iter_s (write fd) bufs
+  Lwt_list.fold_left_s
+    (fun res buf ->
+       match res with
+       |`Error _ as e -> return e
+       |`Eof as e -> return e
+       |`Ok () -> write fd buf
+    ) (`Ok ()) bufs
 
 (* TODO make nodelay a flow option *)
 let write_nodelay fd buf =
   write fd buf
+  >>= fun _ -> return ()
 
 (* TODO make nodelay a flow option *)
 let writev_nodelay fd bufs =
   writev fd bufs
+  >>= fun _ -> return ()
 
 let close fd =
   Lwt_unix.close fd

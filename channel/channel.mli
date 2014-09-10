@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(F:V1_LWT.TCPV4) : V1_LWT.CHANNEL with type flow = F.flow
+module Make(F:V1_LWT.FLOW) : V1_LWT.CHANNEL with type flow = F.flow
