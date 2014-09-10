@@ -25,15 +25,15 @@
 
 /* WARNING: This code assumes that it is running on a little endian machine (x86) */
 static inline uint16_t
-htons(uint16_t v)
+local_htons(uint16_t v)
 {
   return (((v & 0xFF) << 8) | ((v & 0xFF00) >> 8));
 }
 
 static inline uint16_t
-ntohs(uint16_t v)
+local_ntohs(uint16_t v)
 {
-  return (htons(v));
+  return (local_htons(v));
 }
 
 static uint16_t
@@ -58,14 +58,14 @@ ones_complement_checksum_bigarray(unsigned char *addr, size_t ofs, size_t count,
   }
 
   if (count > 0) {
-    uint16_t v = ntohs((*addr) << 8);
+    uint16_t v = local_ntohs((*addr) << 8);
     sum64 += v;
     if (sum64 < v) sum64++;
   }
 
   while (sum64 >> 16)
     sum64 = (sum64 & 0xffff) + (sum64 >> 16);
-  return htons(~sum64);
+  return local_htons(~sum64);
 }
 
 CAMLprim value
@@ -110,7 +110,7 @@ caml_tcpip_ones_complement_checksum_list(value v_cstruct_list)
     count = Int_val(v_len);
     if (count <= 0) continue;
     if (overflow != 0) {
-      overflow_val = ntohs((overflow_val << 8) + (*addr));
+      overflow_val = local_ntohs((overflow_val << 8) + (*addr));
       sum64 += overflow_val;
       if (sum64 < overflow_val) sum64++;
       overflow = 0;
@@ -233,14 +233,14 @@ caml_tcpip_ones_complement_checksum_list(value v_cstruct_list)
   }
 
   if (overflow != 0) {
-    overflow_val = ntohs(overflow_val << 8);
+    overflow_val = local_ntohs(overflow_val << 8);
     sum64 += overflow_val;
     if (sum64 < overflow_val) sum64++;
   }
 
   while (sum64 >> 16)
     sum64 = (sum64 & 0xffff) + (sum64 >> 16);
-  checksum = htons(~sum64);
+  checksum = local_htons(~sum64);
   CAMLreturn(Val_int(checksum));
 }
 
