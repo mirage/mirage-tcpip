@@ -26,7 +26,6 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     | `Unimplemented     (** operation not yet implemented in the code *)
   ]
 
-  type id = Ethif.t
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -40,14 +39,9 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     mutable gateways: Ipaddr.V4.t list;
   }
 
-  let id {ethif} = ethif
+  let id { ethif; _ } = ethif
 
   module Routing = struct
-
-    type classify =
-      |Broadcast
-      |Gateway
-      |Local
 
     exception No_route_to_destination_address of Ipaddr.V4.t
 
@@ -114,7 +108,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     adjust_output_header ~tlen ethernet_frame;
     Ethif.writev t.ethif (ethernet_frame::bufs)
 
-  let icmp_input t src hdr buf =
+  let icmp_input t src _hdr buf =
     match get_icmpv4_ty buf with
     |0 -> (* echo reply *)
       return (printf "ICMP: discarding echo reply\n%!")
@@ -144,18 +138,14 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let hdr = Cstruct.sub buf 0 ihl in
     let data = Cstruct.sub buf ihl payload_len in
     match get_ipv4_proto buf with
-    |1 -> (* ICMP *)
+    | 1 -> (* ICMP *)
       icmp_input t src hdr data
-    |6 -> (* TCP *)
+    | 6 -> (* TCP *)
       tcp ~src ~dst data
-    |17 -> (* UDP *)
+    | 17 -> (* UDP *)
       udp ~src ~dst data
-    |proto ->
+    | proto ->
       default ~proto ~src ~dst data
-
-  let default_icmp = fun _ _ _ -> return_unit
-  let default_udp = fun ~src ~dst _ -> return_unit
-  let default_tcp = fun ~src ~dst _ -> return_unit
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
@@ -164,7 +154,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let t = { ethif; ip; netmask; gateways } in
     return (`Ok t)
 
-  let disconnect ethif = return_unit
+  let disconnect _ = return_unit
 
   let set_ipv4 t ip =
     t.ip <- ip;
@@ -183,6 +173,6 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     t.gateways <- gateways;
     return_unit
 
-  let get_ipv4_gateways {gateways} = gateways
+  let get_ipv4_gateways { gateways; _ } = gateways
 
 end

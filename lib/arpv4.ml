@@ -54,7 +54,7 @@ cstruct arp {
     uint32_t tpa
   } as big_endian
 
-    cenum op {
+cenum op {
     Op_request = 1;
     Op_reply
   } as uint16_t
@@ -152,7 +152,7 @@ let output_probe t tpa =
   let sha = t.get_mac () in
   (* Source protocol address, pick one of our IP addresses *)
   let spa = match t.bound_ips with
-    | hd::tl -> hd | [] -> Ipaddr.V4.any in
+    | hd::_ -> hd | [] -> Ipaddr.V4.any in
   output t { op=`Request; tha; sha; tpa; spa }
 
 let get_ips t = t.bound_ips
