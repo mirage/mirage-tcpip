@@ -17,34 +17,34 @@
 open State
 
 module Rx (T:V1_LWT.TIME) : sig
-    type seg
-    val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
-      ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
+  type seg
+  val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
+    ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
 
-    type q
-    val q : rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
-      wnd:Window.t -> state:State.t ->
-      tx_ack:(Sequence.t * int) Lwt_mvar.t -> q
-    val to_string : q -> string
-    val is_empty : q -> bool
-    val input : q -> seg -> unit Lwt.t
-  end
+  type q
+  val q : rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
+    wnd:Window.t -> state:State.t ->
+    tx_ack:(Sequence.t * int) Lwt_mvar.t -> q
+  val to_string : q -> string
+  val is_empty : q -> bool
+  val input : q -> seg -> unit Lwt.t
+end
 
 type tx_flags = |No_flags |Syn |Fin |Rst |Psh
 
 (* Pre-transmission queue *)
 module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
 
-    type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
-      seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
+    seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
-    type q
+  type q
 
-    val q : xmit:xmit -> wnd:Window.t -> state:State.t ->
-      rx_ack:Sequence.t Lwt_mvar.t ->
-      tx_ack:(Sequence.t * int) Lwt_mvar.t ->
-      tx_wnd_update:int Lwt_mvar.t -> q * unit Lwt.t
+  val q : xmit:xmit -> wnd:Window.t -> state:State.t ->
+    rx_ack:Sequence.t Lwt_mvar.t ->
+    tx_ack:(Sequence.t * int) Lwt_mvar.t ->
+    tx_wnd_update:int Lwt_mvar.t -> q * unit Lwt.t
 
-    val output : ?flags:tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
-   
-  end
+  val output : ?flags:tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
+
+end

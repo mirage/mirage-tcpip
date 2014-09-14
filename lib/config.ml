@@ -15,7 +15,7 @@
  *)
 
 (** Configuration modes for interfaces. 
-   Defaults to DHCP, and individual ids can be assigned static IPs *)
+    Defaults to DHCP, and individual ids can be assigned static IPs *)
 
 (* For now, uncomment the one you want until we have a p4 syntax extension
    which compiles in the correct set of options based on user choice *)

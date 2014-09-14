@@ -24,67 +24,67 @@ open Printf
    autogen Mpl_stdlib *)
 
 type msg = [  (* Message types, without payloads *)
-|`Pad
-|`Subnet_mask
-|`Time_offset
-|`Router
-|`Broadcast
-|`Time_server
-|`Name_server
-|`DNS_server
-|`Netbios_name_server
-|`Host_name
-|`Domain_name
-|`Requested_ip
-|`Lease_time
-|`Message_type
-|`Server_identifier
-|`Interface_mtu
-|`Parameter_request
-|`Message
-|`Max_size
-|`Client_id
-|`Domain_search (* RFC 3397 *)
-|`End
-|`Unknown of char
+  |`Pad
+  |`Subnet_mask
+  |`Time_offset
+  |`Router
+  |`Broadcast
+  |`Time_server
+  |`Name_server
+  |`DNS_server
+  |`Netbios_name_server
+  |`Host_name
+  |`Domain_name
+  |`Requested_ip
+  |`Lease_time
+  |`Message_type
+  |`Server_identifier
+  |`Interface_mtu
+  |`Parameter_request
+  |`Message
+  |`Max_size
+  |`Client_id
+  |`Domain_search (* RFC 3397 *)
+  |`End
+  |`Unknown of char
 ]
 
 type op = [  (* DHCP operations *)
-|`Discover
-|`Offer
-|`Request
-|`Decline
-|`Ack
-|`Nak
-|`Release
-|`Inform
-|`Unknown of char
+  |`Discover
+  |`Offer
+  |`Request
+  |`Decline
+  |`Ack
+  |`Nak
+  |`Release
+  |`Inform
+  |`Unknown of char
 ]
 
 type t = [   (* Full message payloads *)
-| `Pad
-| `Subnet_mask of Ipaddr.V4.t
-| `Time_offset of string
-| `Router of Ipaddr.V4.t list
-| `Broadcast of Ipaddr.V4.t
-| `Time_server of Ipaddr.V4.t list
-| `Name_server of Ipaddr.V4.t list
-| `DNS_server of Ipaddr.V4.t list
-| `Netbios_name_server of Ipaddr.V4.t list
-| `Host_name of string
-| `Domain_name of string
-| `Requested_ip of Ipaddr.V4.t
-| `Interface_mtu of int
-| `Lease_time of int32
-| `Message_type of op
-| `Server_identifier of Ipaddr.V4.t
-| `Parameter_request of msg list
-| `Message of string
-| `Max_size of int
-| `Client_id of string
-| `Domain_search of string (* not full support yet *)
-| `Unknown of (char * string) (* code * buffer *)
-| `End 
+  | `Pad
+  | `Subnet_mask of Ipaddr.V4.t
+  | `Time_offset of string
+  | `Router of Ipaddr.V4.t list
+  | `Broadcast of Ipaddr.V4.t
+  | `Time_server of Ipaddr.V4.t list
+  | `Name_server of Ipaddr.V4.t list
+  | `DNS_server of Ipaddr.V4.t list
+  | `Netbios_name_server of Ipaddr.V4.t list
+  | `Host_name of string
+  | `Domain_name of string
+  | `Requested_ip of Ipaddr.V4.t
+  | `Interface_mtu of int
+  | `Lease_time of int32
+  | `Message_type of op
+  | `Server_identifier of Ipaddr.V4.t
+  | `Parameter_request of msg list
+  | `Message of string
+  | `Max_size of int
+  | `Client_id of string
+  | `Domain_search of string (* not full support yet *)
+  | `Unknown of (char * string) (* code * buffer *)
+  | `End 
 ]
 
 let msg_to_string (x:msg) =
@@ -124,7 +124,7 @@ let op_to_string (x:op) =
   |`Release -> "Release"
   |`Inform -> "Inform"
   |`Unknown x -> "Unknown " ^ (string_of_int (Char.code x))
- 
+
 let t_to_string (t:t) =
   let ip_one s ip = sprintf "%s(%s)" s (Ipaddr.V4.to_string ip) in
   let ip_list s ips = sprintf "%s(%s)" s (String.concat "," (List.map Ipaddr.V4.to_string ips)) in
@@ -217,45 +217,45 @@ module Marshal = struct
 
   let to_bytes (x:t) =
     let bits = match x with
-    |`Pad -> [to_byte `Pad]
-    |`Subnet_mask mask -> ip_one `Subnet_mask mask
-    |`Time_offset off -> assert false (* TODO 2s complement not uint32 *)
-    |`Router ips -> ip_list `Router ips
-    |`Broadcast ip -> ip_one `Broadcast ip
-    |`Time_server ips -> ip_list `Time_server ips
-    |`Name_server ips -> ip_list `Name_server ips
-    |`DNS_server ips -> ip_list `DNS_server ips
-    |`Netbios_name_server ips -> ip_list `Netbios_name_server ips
-    |`Host_name h -> str `Host_name h
-    |`Domain_name n -> str `Domain_name n
-    |`Requested_ip ip -> ip_one `Requested_ip ip
-    |`Lease_time t -> uint32 `Lease_time t
-    |`Message x -> str `Message x
-    |`Max_size s -> uint16 `Max_size s
-    |`Interface_mtu s -> uint16 `Interface_mtu s
-    |`Message_type mtype ->
-      let mcode = function
-      |`Discover -> "\001"
-      |`Offer -> "\002"
-      |`Request -> "\003"
-      |`Decline -> "\004"
-      |`Ack -> "\005"
-      |`Nak -> "\006"
-      |`Release -> "\007"
-      |`Inform -> "\008"
-      |`Unknown x -> String.make 1 x in
-      to_byte `Message_type :: "\001" :: [mcode mtype]
-    |`Server_identifier id -> ip_one `Server_identifier id
-    |`Parameter_request ps ->
-      to_byte `Parameter_request :: (size (List.length ps)) :: 
+      |`Pad -> [to_byte `Pad]
+      |`Subnet_mask mask -> ip_one `Subnet_mask mask
+      |`Time_offset off -> assert false (* TODO 2s complement not uint32 *)
+      |`Router ips -> ip_list `Router ips
+      |`Broadcast ip -> ip_one `Broadcast ip
+      |`Time_server ips -> ip_list `Time_server ips
+      |`Name_server ips -> ip_list `Name_server ips
+      |`DNS_server ips -> ip_list `DNS_server ips
+      |`Netbios_name_server ips -> ip_list `Netbios_name_server ips
+      |`Host_name h -> str `Host_name h
+      |`Domain_name n -> str `Domain_name n
+      |`Requested_ip ip -> ip_one `Requested_ip ip
+      |`Lease_time t -> uint32 `Lease_time t
+      |`Message x -> str `Message x
+      |`Max_size s -> uint16 `Max_size s
+      |`Interface_mtu s -> uint16 `Interface_mtu s
+      |`Message_type mtype ->
+        let mcode = function
+          |`Discover -> "\001"
+          |`Offer -> "\002"
+          |`Request -> "\003"
+          |`Decline -> "\004"
+          |`Ack -> "\005"
+          |`Nak -> "\006"
+          |`Release -> "\007"
+          |`Inform -> "\008"
+          |`Unknown x -> String.make 1 x in
+        to_byte `Message_type :: "\001" :: [mcode mtype]
+      |`Server_identifier id -> ip_one `Server_identifier id
+      |`Parameter_request ps ->
+        to_byte `Parameter_request :: (size (List.length ps)) :: 
         List.map to_byte ps
-    |`Client_id s ->
-      let s' = "\000" ^ s in (* only support domain name ids *)
-      str `Client_id s'
-    |`Domain_search s ->
-      assert false (* not supported yet, requires annoying DNS compression *)
-    |`End -> [to_byte `End]
-    |`Unknown (c,x) -> [ (String.make 1 c); x ]
+      |`Client_id s ->
+        let s' = "\000" ^ s in (* only support domain name ids *)
+        str `Client_id s'
+      |`Domain_search s ->
+        assert false (* not supported yet, requires annoying DNS compression *)
+      |`End -> [to_byte `End]
+      |`Unknown (c,x) -> [ (String.make 1 c); x ]
     in String.concat "" bits
 
   let options mtype xs = 
@@ -306,7 +306,7 @@ module Unmarshal = struct
       Char.code (getc ()) in
     let slice len = (* Get a substring *)
       if (!pos + len) > (String.length buf) || !pos > (String.length buf) 
-        then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
+      then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
       let r = String.sub buf !pos len in 
       pos := !pos + len;
       r in
@@ -320,8 +320,8 @@ module Unmarshal = struct
       let bytestring = slice len in
       let r = ref 0 in 
       for i = 0 to (len - 1) do
-         let bitshift = ((len - (i + 1)) * 8) in
-         r := ((Char.code bytestring.[i]) lsl bitshift) + !r;
+        let bitshift = ((len - (i + 1)) * 8) in
+        r := ((Char.code bytestring.[i]) lsl bitshift) + !r;
       done; 
       !r in
     let get_addrs fn = (* Repeat fn n times and return the list *)
@@ -356,8 +356,8 @@ module Unmarshal = struct
       |`Netbios_name_server -> cont (`Netbios_name_server (get_addrs ipv4_addr_of_bytes))
       |`Message -> cont (`Message (slice (getint ())))
       |`Message_type ->
-          check '\001';
-          let mcode = match (getc ()) with
+        check '\001';
+        let mcode = match (getc ()) with
           |'\001' -> `Discover
           |'\002' -> `Offer 
           |'\003' -> `Request 
@@ -367,30 +367,30 @@ module Unmarshal = struct
           |'\007' -> `Release
           |'\008'  -> `Inform
           |x -> `Unknown x in
-          cont (`Message_type mcode)
+        cont (`Message_type mcode)
       |`Parameter_request ->
-          let len = getint () in
-          let params = ref [] in
-          for i = 1 to len do
-            params := (msg_of_code (getc ())) :: !params
-          done;
-          cont (`Parameter_request (List.rev !params))
+        let len = getint () in
+        let params = ref [] in
+        for i = 1 to len do
+          params := (msg_of_code (getc ())) :: !params
+        done;
+        cont (`Parameter_request (List.rev !params))
       |`Max_size ->
-          let len = getint () in
-          cont (`Max_size (get_number len))
+        let len = getint () in
+        cont (`Max_size (get_number len))
       |`Interface_mtu -> 
-          (* TODO according to some printf/tcpdump testing, this is being set but not
-           * respected by the unikernel; https://github.com/mirage/mirage/issues/238 *)
-          let len = getint () in
-          cont (`Interface_mtu (get_number len))
+        (* TODO according to some printf/tcpdump testing, this is being set but not
+         * respected by the unikernel; https://github.com/mirage/mirage/issues/238 *)
+        let len = getint () in
+        cont (`Interface_mtu (get_number len))
       |`Client_id ->
-          let len = getint () in 
-          let _ = getint () in (* disregard type information *)
-          cont (`Client_id (slice len))
+        let len = getint () in 
+        let _ = getint () in (* disregard type information *)
+        cont (`Client_id (slice len))
       |`End -> acc
       |`Unknown c -> cont (`Unknown (c, (slice (getint ()))))
-      in
-      fn []       
+    in
+    fn []       
 end 
 
 module Packet = struct
@@ -414,9 +414,9 @@ module Packet = struct
   (* Find an option in a packet *)
   let find p fn = 
     List.fold_left (fun a b ->
-      match fn b with 
-      |Some x -> Some x
-      |None -> a) None p.opts
+        match fn b with 
+        |Some x -> Some x
+        |None -> a) None p.opts
 
   (* Find an option list, and return empty list if opt doesnt exist *)
   let findl p fn =

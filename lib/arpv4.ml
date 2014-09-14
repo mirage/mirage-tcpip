@@ -37,39 +37,39 @@ type t = {
   get_mac: unit -> Macaddr.t;
   cache: (Ipaddr.V4.t, entry) Hashtbl.t;
   mutable bound_ips: Ipaddr.V4.t list;
- }
+}
 
 cstruct arp {
-  uint8_t dst[6];
-  uint8_t src[6];
-  uint16_t ethertype;
-  uint16_t htype;
-  uint16_t ptype;
-  uint8_t hlen;
-  uint8_t plen;
-  uint16_t op;
-  uint8_t sha[6];
-  uint32_t spa;
-  uint8_t tha[6];
-  uint32_t tpa
-} as big_endian
+    uint8_t dst[6];
+    uint8_t src[6];
+    uint16_t ethertype;
+    uint16_t htype;
+    uint16_t ptype;
+    uint8_t hlen;
+    uint8_t plen;
+    uint16_t op;
+    uint8_t sha[6];
+    uint32_t spa;
+    uint8_t tha[6];
+    uint32_t tpa
+  } as big_endian
 
-cenum op {
-  Op_request = 1;
-  Op_reply
-} as uint16_t
+    cenum op {
+    Op_request = 1;
+    Op_reply
+  } as uint16_t
 
 (* Prettyprint cache contents *)
 let prettyprint t =
   printf "ARP info:\n";
   Hashtbl.iter (fun ip entry ->
-    printf "%s -> %s\n%!"
-     (Ipaddr.V4.to_string ip)
-     (match entry with
-      | Incomplete _ -> "I"
-      | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
-     )
-  ) t.cache
+      printf "%s -> %s\n%!"
+        (Ipaddr.V4.to_string ip)
+        (match entry with
+         | Incomplete _ -> "I"
+         | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+        )
+    ) t.cache
 
 (* Input handler for an ARP packet, registered through attach() *)
 let rec input t frame =
@@ -141,9 +141,9 @@ let output_garp t =
   let sha = t.get_mac () in
   let tpa = Ipaddr.V4.any in
   Lwt_list.iter_s (fun spa ->
-    printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
-    output t { op=`Reply; tha; sha; tpa; spa }
-  ) t.bound_ips
+      printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
+      output t { op=`Reply; tha; sha; tpa; spa }
+    ) t.bound_ips
 
 (* Send a query for a particular IP *)
 let output_probe t tpa =
@@ -178,12 +178,12 @@ let query t ip =
   if Hashtbl.mem t.cache ip then (
     match Hashtbl.find t.cache ip with
     | Incomplete cond ->
-       (* printf "ARP query: %s -> [incomplete]\n%!" (Ipaddr.V4.to_string ip); *)
-       Lwt_condition.wait cond
+      (* printf "ARP query: %s -> [incomplete]\n%!" (Ipaddr.V4.to_string ip); *)
+      Lwt_condition.wait cond
     | Verified mac ->
-       (* printf "ARP query: %s -> %s\n%!"
+      (* printf "ARP query: %s -> %s\n%!"
          (Ipaddr.V4.to_string ip) (Macaddr.to_string mac); *)
-       return mac
+      return mac
   ) else (
     let cond = Lwt_condition.create () in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)

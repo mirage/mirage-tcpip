@@ -19,11 +19,11 @@ open Lwt
 open Printf
 
 module Make (Console : V1_LWT.CONSOLE)
-            (Time : V1_LWT.TIME)
-            (Random : V1.RANDOM)
-            (Ethif : V1_LWT.ETHIF)
-            (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
-            (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
+    (Time : V1_LWT.TIME)
+    (Random : V1.RANDOM)
+    (Ethif : V1_LWT.ETHIF)
+    (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
@@ -50,27 +50,27 @@ module Make (Console : V1_LWT.CONSOLE)
   }
 
   cstruct dhcp {
-    uint8_t op;
-    uint8_t htype;
-    uint8_t hlen;
-    uint8_t hops;
-    uint32_t xid;
-    uint16_t secs;
-    uint16_t flags;
-    uint32_t ciaddr;
-    uint32_t yiaddr;
-    uint32_t siaddr;
-    uint32_t giaddr;
-    uint8_t chaddr[16];
-    uint8_t sname[64];
-    uint8_t file[128];
-    uint32_t cookie
-  } as big_endian
+      uint8_t op;
+      uint8_t htype;
+      uint8_t hlen;
+      uint8_t hops;
+      uint32_t xid;
+      uint16_t secs;
+      uint16_t flags;
+      uint32_t ciaddr;
+      uint32_t yiaddr;
+      uint32_t siaddr;
+      uint32_t giaddr;
+      uint8_t chaddr[16];
+      uint8_t sname[64];
+      uint8_t file[128];
+      uint32_t cookie
+    } as big_endian
 
-  cenum mode {
-    BootRequest = 1;
-    BootReply
-  } as uint8_t
+      cenum mode {
+      BootRequest = 1;
+      BootReply
+    } as uint8_t
 
   (* Send a client broadcast packet *)
   let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
@@ -102,90 +102,90 @@ module Make (Console : V1_LWT.CONSOLE)
     >>= fun () ->
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
-(* Receive a DHCP UDP packet *)
-let input t ~src ~dst ~src_port buf =
-  let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
-  let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
-  let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
-  let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
-  let xid = get_dhcp_xid buf in
-  let of_byte x =
-    Printf.sprintf "%02x" (Char.code x) in
-  let chaddr_to_string x =
-    let chaddr_size = (String.length x) in
-    let dst_buffer = (String.make (chaddr_size * 2) '\000') in
-    for i = 0 to (chaddr_size - 1) do
-      let thischar = of_byte x.[i] in
+  (* Receive a DHCP UDP packet *)
+  let input t ~src ~dst ~src_port buf =
+    let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
+    let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
+    let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
+    let giaddr = Ipaddr.V4.of_int32 (get_dhcp_giaddr buf) in
+    let xid = get_dhcp_xid buf in
+    let of_byte x =
+      Printf.sprintf "%02x" (Char.code x) in
+    let chaddr_to_string x =
+      let chaddr_size = (String.length x) in
+      let dst_buffer = (String.make (chaddr_size * 2) '\000') in
+      for i = 0 to (chaddr_size - 1) do
+        let thischar = of_byte x.[i] in
         String.set dst_buffer (i*2) (String.get thischar 0);
         String.set dst_buffer ((i*2)+1) (String.get thischar 1)
-    done;
-    dst_buffer
-  in
-  let chaddr = (chaddr_to_string) (copy_dhcp_chaddr buf) in
-  let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
-  let packet = Dhcpv4_option.Packet.of_bytes options in
-  (* For debugging, print out the DHCP response *)
-  Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
-    (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
-    (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-    (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf))
-  >>= fun () ->
-  (* See what state our Netif is in and if this packet is useful *)
-  let open Dhcpv4_option.Packet in
-  match t.state with
-  | Request_sent xid -> begin
-      (* we are expecting an offer *)
-      match packet.op, xid with
-      |`Offer, offer_xid when offer_xid=xid ->  begin
-          Console.log_s t.c (sprintf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr))
-          >>= fun () ->
-          let netmask = find packet
-              (function `Subnet_mask addr -> Some addr |_ -> None) in
-          let gateways = findl packet
-              (function `Router addrs -> Some addrs |_ -> None) in
-          let dns = findl packet
-              (function `DNS_server addrs -> Some addrs |_ -> None) in
-          let lease = 0l in
-          let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
-          (* RFC2131 defines the 'siaddr' as the address of the server which
-             will take part in the next stage of the bootstrap process (eg
-             'delivery of an operating system executable image'). This
-             may or may not be the address of the DHCP server. However
-             'a DHCP server always returns its own address in the server
-             identifier option' *)
-          let server_identifier = find packet
-              (function `Server_identifier addr -> Some addr | _ -> None) in
-          let options = { op=`Request; opts=
-                                         `Requested_ip yiaddr :: (
-                                           match server_identifier with
-                                           | Some x -> [ `Server_identifier x ]
-                                           | None -> []
-                                         )
-                        } in
-          t.state <- Offer_accepted offer;
-          output_broadcast t ~xid ~yiaddr ~siaddr ~options
-        end
-      |_ ->
-        Console.log_s t.c "DHCP: offer not for us"
-    end
-  | Offer_accepted info -> begin
-      (* we are expecting an ACK *)
-      match packet.op, xid with
-      |`Ack, ack_xid when ack_xid = info.xid -> begin
-          let lease =
-            match find packet (function `Lease_time lt -> Some lt |_ -> None) with
-            | None -> 300l (* Just leg it and assume a lease time of 5 minutes *)
-            | Some x -> x in
-          let info = { info with lease=lease } in
-          (* TODO also merge in additional requested options here *)
-          t.state <- Lease_held info;
-          t.new_offer info
+      done;
+      dst_buffer
+    in
+    let chaddr = (chaddr_to_string) (copy_dhcp_chaddr buf) in
+    let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
+    let packet = Dhcpv4_option.Packet.of_bytes options in
+    (* For debugging, print out the DHCP response *)
+    Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
+                         (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
+                         (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
+                         (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf))
+    >>= fun () ->
+    (* See what state our Netif is in and if this packet is useful *)
+    let open Dhcpv4_option.Packet in
+    match t.state with
+    | Request_sent xid -> begin
+        (* we are expecting an offer *)
+        match packet.op, xid with
+        |`Offer, offer_xid when offer_xid=xid ->  begin
+            Console.log_s t.c (sprintf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr))
+            >>= fun () ->
+            let netmask = find packet
+                (function `Subnet_mask addr -> Some addr |_ -> None) in
+            let gateways = findl packet
+                (function `Router addrs -> Some addrs |_ -> None) in
+            let dns = findl packet
+                (function `DNS_server addrs -> Some addrs |_ -> None) in
+            let lease = 0l in
+            let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
+            (* RFC2131 defines the 'siaddr' as the address of the server which
+               will take part in the next stage of the bootstrap process (eg
+               'delivery of an operating system executable image'). This
+               may or may not be the address of the DHCP server. However
+               'a DHCP server always returns its own address in the server
+               identifier option' *)
+            let server_identifier = find packet
+                (function `Server_identifier addr -> Some addr | _ -> None) in
+            let options = { op=`Request; opts=
+                                           `Requested_ip yiaddr :: (
+                                             match server_identifier with
+                                             | Some x -> [ `Server_identifier x ]
+                                             | None -> []
+                                           )
+                          } in
+            t.state <- Offer_accepted offer;
+            output_broadcast t ~xid ~yiaddr ~siaddr ~options
+          end
+        |_ ->
+          Console.log_s t.c "DHCP: offer not for us"
       end
-      |_ -> Console.log_s t.c "DHCP: ack not for us"
-    end
-  | Shutting_down -> return ()
-  | Lease_held info -> Console.log_s t.c "DHCP input: lease already held"
-  | Disabled -> Console.log_s t.c "DHCP input: disabled"
+    | Offer_accepted info -> begin
+        (* we are expecting an ACK *)
+        match packet.op, xid with
+        |`Ack, ack_xid when ack_xid = info.xid -> begin
+            let lease =
+              match find packet (function `Lease_time lt -> Some lt |_ -> None) with
+              | None -> 300l (* Just leg it and assume a lease time of 5 minutes *)
+              | Some x -> x in
+            let info = { info with lease=lease } in
+            (* TODO also merge in additional requested options here *)
+            t.state <- Lease_held info;
+            t.new_offer info
+          end
+        |_ -> Console.log_s t.c "DHCP: ack not for us"
+      end
+    | Shutting_down -> return ()
+    | Lease_held info -> Console.log_s t.c "DHCP input: lease already held"
+    | Disabled -> Console.log_s t.c "DHCP input: disabled"
 
   (* Start a DHCP discovery off on an interface *)
   let start_discovery t =
@@ -230,9 +230,9 @@ let input t ~src ~dst ~src_port buf =
     let offer_stream, offer_push = Lwt_stream.create () in
     let new_offer info =
       Console.log_s c (sprintf "DHCP: offer %s %s [%s]"
-        (Ipaddr.V4.to_string info.ip_addr)
-        (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
-        (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
+                         (Ipaddr.V4.to_string info.ip_addr)
+                         (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
+                         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
       >>= fun () ->
       Ipv4.set_ipv4 ip info.ip_addr
       >>= fun () ->

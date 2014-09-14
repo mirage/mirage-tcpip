@@ -64,7 +64,7 @@ module Make
   }
 
   type error = [
-    `Unknown of string
+      `Unknown of string
   ]
 
   let id {id} = id
@@ -122,8 +122,8 @@ module Make
                     ~listeners:(udpv4_listeners t))
             ~default:(fun ~proto ~src ~dst buf -> return ())
             t.ipv4)
-         ~ipv6:(fun b -> return ())
-       t.ethif)
+        ~ipv6:(fun b -> return ())
+        t.ethif)
 
   let connect id =
     let {V1_LWT.console = c; interface = netif; mode; name } = id in
@@ -146,7 +146,7 @@ module Make
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; c; mode; netif; ethif; ipv4; tcpv4; udpv4;
-      udpv4_listeners; tcpv4_listeners } in
+              udpv4_listeners; tcpv4_listeners } in
     Console.log_s t.c "Manager: configuring"
     >>= fun () ->
     let _ = listen t in
