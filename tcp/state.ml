@@ -30,7 +30,7 @@ type action =
   | Send_fin of Sequence.t
   | Timeout
 
-type tcpstates = 
+type tcpstates =
   | Closed
   | Listen
   | Syn_rcvd of Sequence.t
@@ -46,7 +46,7 @@ type tcpstates =
 type close_cb = unit -> unit
 
 type t = {
-  on_close: close_cb;  
+  on_close: close_cb;
   mutable state: tcpstates;
 }
 
