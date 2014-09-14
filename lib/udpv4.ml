@@ -43,16 +43,15 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
     let data = Cstruct.sub buf sizeof_udpv4 (get_udpv4_length buf - sizeof_udpv4) in
     match listeners ~dst_port with
     | None -> return ()
-    | Some fn -> 
+    | Some fn ->
       let src_port = get_udpv4_source_port buf in
       fn ~src ~dst ~src_port data
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
-    lwt source_port =
-      match source_port with
+    begin match source_port with
       | None -> fail (Failure "TODO; random source port")
       | Some p -> return p
-    in
+    end >>= fun source_port ->
     Ipv4.allocate_frame ~proto:`UDP ~dest_ip t.ip
     >>= fun (ipv4_frame, ipv4_len) ->
     let udp_buf = Cstruct.shift ipv4_frame ipv4_len in

@@ -19,7 +19,7 @@ open Lwt
 open Printf
 
 module Make (Console : V1_LWT.CONSOLE)
-            (Time : V1_LWT.TIME) 
+            (Time : V1_LWT.TIME)
             (Random : V1.RANDOM)
             (Ethif : V1_LWT.ETHIF)
             (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
@@ -34,7 +34,7 @@ module Make (Console : V1_LWT.CONSOLE)
     xid: int32;
   }
 
-  type state = 
+  type state =
     | Disabled
     | Request_sent of int32
     | Offer_accepted of offer
@@ -86,7 +86,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_secs buf 10; (* TODO dynamic timer *)
     set_dhcp_flags buf 0;
     set_dhcp_ciaddr buf 0l;
-    set_dhcp_yiaddr buf (Ipaddr.V4.to_int32 yiaddr); 
+    set_dhcp_yiaddr buf (Ipaddr.V4.to_int32 yiaddr);
     set_dhcp_siaddr buf (Ipaddr.V4.to_int32 siaddr);
     set_dhcp_giaddr buf 0l;
     (* TODO add a pad/fill function in cstruct *)
@@ -114,7 +114,7 @@ let input t ~src ~dst ~src_port buf =
   let chaddr_to_string x =
     let chaddr_size = (String.length x) in
     let dst_buffer = (String.make (chaddr_size * 2) '\000') in
-    for i = 0 to (chaddr_size - 1) do 
+    for i = 0 to (chaddr_size - 1) do
       let thischar = of_byte x.[i] in
         String.set dst_buffer (i*2) (String.get thischar 0);
         String.set dst_buffer ((i*2)+1) (String.get thischar 1)
@@ -128,22 +128,22 @@ let input t ~src ~dst ~src_port buf =
   Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
     (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
     (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-    (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf)) 
+    (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf))
   >>= fun () ->
   (* See what state our Netif is in and if this packet is useful *)
   let open Dhcpv4_option.Packet in
   match t.state with
   | Request_sent xid -> begin
       (* we are expecting an offer *)
-      match packet.op, xid with 
+      match packet.op, xid with
       |`Offer, offer_xid when offer_xid=xid ->  begin
           Console.log_s t.c (sprintf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr))
           >>= fun () ->
           let netmask = find packet
               (function `Subnet_mask addr -> Some addr |_ -> None) in
-          let gateways = findl packet 
+          let gateways = findl packet
               (function `Router addrs -> Some addrs |_ -> None) in
-          let dns = findl packet 
+          let dns = findl packet
               (function `DNS_server addrs -> Some addrs |_ -> None) in
           let lease = 0l in
           let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
@@ -201,7 +201,7 @@ let input t ~src ~dst ~src_port buf =
     Console.log_s t.c (sprintf "DHCP: start discovery\n%!")
     >>= fun () ->
     t.state <- Request_sent xid;
-    output_broadcast t ~xid ~yiaddr ~siaddr ~options >>
+    output_broadcast t ~xid ~yiaddr ~siaddr ~options >>= fun () ->
     return ()
 
   (* DHCP state thred *)
@@ -211,12 +211,12 @@ let input t ~src ~dst ~src_port buf =
     |Disabled |Request_sent _ ->
       start_discovery t
       >>= fun () ->
-      Time.sleep 10.0 
+      Time.sleep 10.0
       >>= fun () ->
       dhcp_thread t
     |Shutting_down ->
       Console.log_s t.c "DHCP thread: done"
-    |_ -> 
+    |_ ->
       (* TODO: This should be looking at the lease time *)
       Time.sleep 3600.0
       >>= fun () ->
@@ -233,10 +233,10 @@ let input t ~src ~dst ~src_port buf =
         (Ipaddr.V4.to_string info.ip_addr)
         (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
-      >>= fun () -> 
+      >>= fun () ->
       Ipv4.set_ipv4 ip info.ip_addr
       >>= fun () ->
-      (match info.netmask with 
+      (match info.netmask with
        |Some nm -> Ipv4.set_ipv4_netmask ip nm
        |None -> return ())
       >>= fun () ->

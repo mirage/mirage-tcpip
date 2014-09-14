@@ -30,7 +30,7 @@ let get_payload buf =
 
 (* Note: since just one pbuf is used for all chksum calculations,
    the call to ones_complement_list should never block *)
-let pbuf = Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_tcpv4_pseudo_header 
+let pbuf = Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_tcpv4_pseudo_header
 let checksum ~src ~dst =
   fun data ->
     set_tcpv4_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
@@ -53,8 +53,8 @@ module Make (Ipv4:V1_LWT.IPV4) = struct
 let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
   ~rx_ack ~seq ~window ~options datav =
   (* Make a TCP/IP header frame *)
-  lwt (ethernet_frame, header_len) =
-    Ipv4.allocate_frame ~proto:`TCP ~dest_ip:id.dest_ip ip in
+  Ipv4.allocate_frame ~proto:`TCP ~dest_ip:id.dest_ip ip
+  >>= fun (ethernet_frame, header_len) ->
   (* Shift this out by the combined ethernet + IP header sizes *)
   let tcp_frame = Cstruct.shift ethernet_frame header_len in
   (* Append the TCP options to the header *)
@@ -90,7 +90,7 @@ let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
   printf "TCP.xmit checksum %04x %s.%d->%s.%d rst %b syn %b fin %b psh %b seq %lu ack %lu %s datalen %d datafrag %d dataoff %d olen %d\n%!"
     checksum
     (ipv4_addr_to_string id.local_ip) id.local_port (ipv4_addr_to_string id.dest_ip) id.dest_port
-    rst syn fin psh sequence ack_number (Options.prettyprint options) 
+    rst syn fin psh sequence ack_number (Options.prettyprint options)
     (Cstruct.lenv datav) (List.length datav) data_off options_len;
   *)
   Ipv4.writev ip ethernet_frame datav

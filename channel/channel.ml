@@ -48,8 +48,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   let to_flow { flow } = flow
 
-  let ibuf_refill t = 
-    match_lwt Flow.read t.flow with
+  let ibuf_refill t =
+    Flow.read t.flow >>= function
     | `Ok buf ->
         t.ibuf <- Some buf;
         return ()
@@ -58,13 +58,13 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   let rec get_ibuf t =
     match t.ibuf with
-    |None -> ibuf_refill t >> get_ibuf t
-    |Some buf when Cstruct.len buf = 0 -> ibuf_refill t >> get_ibuf t
+    |None -> ibuf_refill t >>= fun () -> get_ibuf t
+    |Some buf when Cstruct.len buf = 0 -> ibuf_refill t >>= fun () -> get_ibuf t
     |Some buf -> return buf
 
   (* Read one character from the input channel *)
   let read_char t =
-    lwt buf = get_ibuf t in
+    get_ibuf t >>= fun buf ->
     let c = Cstruct.get_char buf 0 in
     t.ibuf <- Some (Cstruct.shift buf 1);
     return c
@@ -72,32 +72,30 @@ module Make(Flow:V1_LWT.FLOW) = struct
   (* Read up to len characters from the input channel
      and at most a full view. If not specified, read all *)
   let read_some ?len t =
-    lwt buf = get_ibuf t in
+    get_ibuf t >>= fun buf ->
     let avail = Cstruct.len buf in
     let len = match len with |Some len -> len |None -> avail in
-    if len < avail then begin 
+    if len < avail then begin
       let hd,tl = Cstruct.split buf len in
       t.ibuf <- Some tl;
       return hd
-    end else begin 
+    end else begin
       t.ibuf <- None;
       return buf
     end
-    
-  (* Read up to len characters from the input channel as a 
+
+  (* Read up to len characters from the input channel as a
      stream (and read all available if no length specified *)
   let read_stream ?len t =
     Lwt_stream.from (fun () ->
-      try_lwt
-        lwt v = read_some ?len t in
-        return (Some v)
-      with Closed ->
-        return None
-    )
- 
+      Lwt.catch
+        (fun () -> read_some ?len t >>= fun v -> return (Some v))
+        (function Closed -> return None | e -> fail e)
+      )
+
   (* Read until a character is found *)
   let read_until t ch =
-    lwt buf = get_ibuf t in
+    get_ibuf t >>= fun buf ->
     let len = Cstruct.len buf in
     let rec scan off =
       if off = len then None else begin
@@ -119,7 +117,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
      @return Returns a stream of views that terminates at EOF. *)
   let read_line t =
     let rec get acc =
-      match_lwt read_until t '\n' with
+      read_until t '\n' >>= function
       |(false, v) ->
         get (v :: acc)
       |(true, v) -> begin
@@ -129,11 +127,11 @@ module Make(Flow:V1_LWT.FLOW) = struct
          if vlen > 0 && (Cstruct.get_char v (vlen-1) = '\r') then
            Cstruct.sub v 0 (vlen-1) else v
         in
-        return (v :: acc) 
+        return (v :: acc)
       end
     in
     get [] >|= List.rev
-    
+
   (* Output functions *)
 
   let alloc_obuf t =
@@ -180,7 +178,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   let rec write_string t s off len =
     let buf = get_obuf t in
-    let avail = Cstruct.len buf - t.opos in 
+    let avail = Cstruct.len buf - t.opos in
     if avail < len then begin
       Cstruct.blit_from_string s off buf t.opos avail;
       t.opos <- t.opos + avail;
@@ -200,7 +198,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     t.obufq <- [];
     Flow.writev t.flow l
     >>= fun _ -> return ()
- 
+
   let close t =
     flush t
     >>= fun () ->
