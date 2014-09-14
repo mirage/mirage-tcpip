@@ -38,7 +38,7 @@ module Make(Time:V1_LWT.TIME) = struct
     match t.expire s with
     | Stoptimer ->
       t.running <- false;
-      return ()
+      return_unit
     | Continue d ->
       timerloop t d
     | ContinueSetPeriod (p, d) ->
@@ -52,7 +52,7 @@ module Make(Time:V1_LWT.TIME) = struct
       t.period <- p;
       t.running <- true;
       let _ = timerloop t s in
-      return ()
+      return_unit
     end else
-      return ()
+      return_unit
 end

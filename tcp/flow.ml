@@ -80,5 +80,5 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     return (`Ok (Pcb.create ipv4))
 
   let disconnect t =
-    return ()
+    return_unit
 end

@@ -114,7 +114,7 @@ module Rx(Time:V1_LWT.TIME) = struct
        window *)
     let force_ack = ref false in
     match Window.valid q.wnd seg.sequence with
-    |false -> return ()
+    |false -> return_unit
     |true -> begin
         (* Insert the latest segment *)
         let segs = S.add seg q.segs in
@@ -155,15 +155,15 @@ module Rx(Time:V1_LWT.TIME) = struct
               (Window.set_ack_serviced q.wnd false;
                Window.set_ack_seq q.wnd seg.ack_number;
                Window.set_ack_win q.wnd win;
-               return ())
+               return_unit)
             end else begin
               if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
                 Window.set_ack_seq q.wnd seg.ack_number;
               Window.set_ack_win q.wnd win;
-              return ()
+              return_unit
             end
           end else
-            return () in
+            return_unit in
 
         (* Inform the user application of new data *)
         let urx_inform =
@@ -181,7 +181,7 @@ module Rx(Time:V1_LWT.TIME) = struct
               if S.cardinal waiting != 0 then
                 printf "TCP: warning, rx closed but waiting segs != 0\n%!";
               Lwt_mvar.put q.rx_data (None, Some 0)
-            end else return ())
+            end else return_unit)
         in
         tx_ack <&> urx_inform
       end
@@ -375,7 +375,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match seq_len > 0 with
-      | false -> return ()
+      | false -> return_unit
       | true ->
         let _ = Lwt_sequence.add_r seg q.segs in
         let p = Window.rto q.wnd in

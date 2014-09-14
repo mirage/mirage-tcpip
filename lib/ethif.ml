@@ -52,7 +52,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     | etype  ->
       let _payload = Cstruct.shift frame sizeof_ethernet in
       (* TODO default etype payload *)
-      return ()
+      return_unit
 
   let write t frame =
     Netif.write t.netif frame
@@ -68,7 +68,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
       Arpv4.create ~output ~get_mac ~get_etherbuf in
     return (`Ok { netif; arp })
 
-  let disconnect nf = return ()
+  let disconnect nf = return_unit
   let mac {netif} = Netif.mac netif
 
   let add_ipv4 t = Arpv4.add_ip t.arp

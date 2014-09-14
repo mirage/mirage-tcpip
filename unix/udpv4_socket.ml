@@ -55,7 +55,7 @@ let connect (id:ipv4) =
   in return (`Ok t)
 
 let disconnect _ =
-  return ()
+  return_unit
 
 let id {interface} =
   Some (Ipaddr_unix.V4.of_inet_addr_exn interface)
@@ -74,4 +74,4 @@ let write ?source_port ~dest_ip ~dest_port t buf =
   in
   Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dest_ip), dest_port))
   >>= fun _ ->
-  return ()
+  return_unit

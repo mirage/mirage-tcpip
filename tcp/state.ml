@@ -99,19 +99,19 @@ module Make(Time:V1_LWT.TIME) = struct
       if i = count then begin
         t.state <- Closed;
         t.on_close ();
-        return ()
+        return_unit
       end else begin
         finwait2timer t i timeout
       end
     | _ ->
-      return ()
+      return_unit
 
   let timewait t twomsl =
     Time.sleep twomsl
     >>= fun () ->
     t.state <- Closed;
     t.on_close ();
-    return ()
+    return_unit
 
   let tick t (i:action) =
     (* printf "%s  - %s ->  " (to_string t) (action_to_string i); *)

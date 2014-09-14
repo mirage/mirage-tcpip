@@ -52,12 +52,12 @@ module Immediate : M = struct
 
   let receive t ack_number =
     match t.pushpending with
-    | true -> return ()
+    | true -> return_unit
     | false -> pushack t ack_number
 
   let transmit t ack_number =
     t.pushpending <- false;
-    return ()
+    return_unit
 end
 
 
@@ -83,7 +83,7 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true -> return ()
+    | true -> return_unit
     | false -> r.pushpending <- true;
       transmitacknow r ack_number
 
@@ -135,7 +135,7 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
   let transmit t ack_number =
     t.r.delayed <- false;
     t.r.pushpending <- false;
-    return ()
+    return_unit
 
 end
 

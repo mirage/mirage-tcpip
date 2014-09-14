@@ -68,7 +68,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   (* List of IP addresses to bind to *)
   let configure t addrs =
     match addrs with
-    | [] -> return ()
+    | [] -> return_unit
     | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
 
   let udpv4_listeners t ~dst_port =
@@ -151,5 +151,5 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     return (`Ok t)
 
   let disconnect t =
-    return ()
+    return_unit
 end

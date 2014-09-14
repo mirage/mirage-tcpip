@@ -42,7 +42,7 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
     let dst_port = get_udpv4_dest_port buf in
     let data = Cstruct.sub buf sizeof_udpv4 (get_udpv4_length buf - sizeof_udpv4) in
     match listeners ~dst_port with
-    | None -> return ()
+    | None -> return_unit
     | Some fn ->
       let src_port = get_udpv4_source_port buf in
       fn ~src ~dst ~src_port data
@@ -68,5 +68,5 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
   let connect ip =
     return (`Ok { ip })
 
-  let disconnect ip = return ()
+  let disconnect ip = return_unit
 end

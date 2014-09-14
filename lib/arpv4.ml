@@ -87,7 +87,7 @@ let rec input t frame =
       let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
       let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
       output t { op=`Reply; sha; tha; spa; tpa }
-    end else return ()
+    end else return_unit
   |2 -> (* Reply *)
     let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
     let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
@@ -100,10 +100,10 @@ let rec input t frame =
       |_ -> ()
     end;
     Hashtbl.replace t.cache spa (Verified sha);
-    return ()
+    return_unit
   |n ->
     printf "ARP: Unknown message %d ignored\n%!" n;
-    return ()
+    return_unit
 
 and output t arp =
   (* Obtain a buffer to write into *)
@@ -165,12 +165,12 @@ let set_ips t ips =
 let add_ip t ip =
   if not (List.mem ip t.bound_ips) then
     set_ips t (ip :: t.bound_ips)
-  else return ()
+  else return_unit
 
 let remove_ip t ip =
   if List.mem ip t.bound_ips then
     set_ips t (List.filter ((<>) ip) t.bound_ips)
-  else return ()
+  else return_unit
 
 (* Query the cache for an ARP entry, which may result in the sender sleeping
    waiting for a response *)
