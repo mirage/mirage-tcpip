@@ -61,9 +61,9 @@ cenum op {
 
 (* Prettyprint cache contents *)
 let prettyprint t =
-  printf "ARP info:\n"; 
-  Hashtbl.iter (fun ip entry -> 
-    printf "%s -> %s\n%!" 
+  printf "ARP info:\n";
+  Hashtbl.iter (fun ip entry ->
+    printf "%s -> %s\n%!"
      (Ipaddr.V4.to_string ip)
      (match entry with
       | Incomplete _ -> "I"
@@ -107,7 +107,7 @@ let rec input t frame =
 
 and output t arp =
   (* Obtain a buffer to write into *)
-  lwt buf = t.get_etherbuf () in
+  t.get_etherbuf () >>= fun buf ->
   (* Write the ARP packet *)
   let dmac = Macaddr.to_bytes arp.tha in
   let smac = Macaddr.to_bytes arp.sha in
@@ -116,13 +116,13 @@ and output t arp =
   let op =
     match arp.op with
     |`Request -> 1
-    |`Reply -> 2 
-    |`Unknown n -> n 
+    |`Reply -> 2
+    |`Unknown n -> n
   in
   set_arp_dst dmac 0 buf;
   set_arp_src smac 0 buf;
   set_arp_ethertype buf 0x0806; (* ARP *)
-  set_arp_htype buf 1; 
+  set_arp_htype buf 1;
   set_arp_ptype buf 0x0800; (* IPv4 *)
   set_arp_hlen buf 6; (* ethernet mac size *)
   set_arp_plen buf 4; (* ipv4 size *)
@@ -189,7 +189,7 @@ let query t ip =
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
     Hashtbl.add t.cache ip (Incomplete cond);
     (* First request, so send a query packet *)
-    lwt () = output_probe t ip in
+    output_probe t ip >>= fun () ->
     Lwt_condition.wait cond
   )
 

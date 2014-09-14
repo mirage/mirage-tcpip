@@ -34,7 +34,7 @@ module Make(Time:V1_LWT.TIME) = struct
     {period; expire; running}
 
   let rec timerloop t s =
-    Time.sleep t.period >>
+    Time.sleep t.period >>= fun () ->
     match t.expire s with
     | Stoptimer ->
       t.running <- false;
@@ -53,6 +53,6 @@ module Make(Time:V1_LWT.TIME) = struct
       t.running <- true;
       let _ = timerloop t s in
       return ()
-    end else 
+    end else
       return ()
 end

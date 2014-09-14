@@ -41,18 +41,17 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
   let read t =
     (* TODO better error interface in Pcb *)
-    Pcb.read t
-    >>= function
+    Pcb.read t >>= function
     | None -> return `Eof
     | Some t -> return (`Ok t)
 
   let write t view =
-    Pcb.write t view
-    >>= fun () -> return (`Ok ())
+    Pcb.write t view >>= fun () ->
+    return (`Ok ())
 
   let writev t views =
-    Pcb.writev t views
-    >>= fun () -> return (`Ok ())
+    Pcb.writev t views >>= fun () ->
+    return (`Ok ())
 
   let rec write_nodelay t view =
     Pcb.write_nodelay t view
@@ -64,12 +63,11 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     Pcb.close t
 
   let create_connection tcp (daddr, dport) =
-    Pcb.connect tcp daddr dport
-    >>= function
-    | `Timeout -> 
+    Pcb.connect tcp daddr dport >>= function
+    | `Timeout ->
       Printf.printf "Failed to connect to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Timeout)
-    | `Rst -> 
+    | `Rst ->
       Printf.printf "Refused connection to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Refused)
     | `Ok (fl, _) ->

@@ -22,7 +22,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Arpv4
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt
 
 Library ipv4
   CompiledObject:     best
@@ -30,7 +30,7 @@ Library ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Ipv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt,tcpip
 
 Library udpv4
   CompiledObject:     best
@@ -38,7 +38,7 @@ Library udpv4
   Findlibparent:      tcpip
   Findlibname:        udpv4
   Modules:            Udpv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt.syntax,lwt,tcpip
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt,tcpip
 
 Library tcpv4
   CompiledObject:     best
@@ -52,7 +52,6 @@ Library tcpv4
                       ipaddr,
                       cstruct,
                       cstruct.syntax,
-                      lwt.syntax,
                       lwt,
                       tcpip,
                       tcpip.ipv4
@@ -67,7 +66,7 @@ Library channel
                       mirage-types,
                       ipaddr,
                       cstruct,
-                      lwt.syntax,lwt
+                      lwt
 
 Library dhcpv4
   CompiledObject:     best
@@ -80,7 +79,6 @@ Library dhcpv4
                       ipaddr,
                       cstruct,
                       cstruct.syntax,
-                      lwt.syntax,
                       lwt,
                       tcpip.udpv4
 
@@ -95,7 +93,6 @@ Library "tcpip-stack-direct"
                       ipaddr,
                       cstruct,
                       cstruct.syntax,
-                      lwt.syntax,
                       lwt,
                       tcpip.ethif,
                       tcpip.udpv4,

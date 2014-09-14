@@ -82,21 +82,24 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let listen_udpv4 t ~port callback =
     let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
     let buf = Cstruct.create 4096 in
-    let _t = 
-      while_lwt true do (* TODO cancellation *)
-        Lwt_cstruct.recvfrom fd buf []
-        >>= fun (len, sa) ->
-        let buf = Cstruct.sub buf 0 len in
-        match sa with
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_cstruct.recvfrom fd buf []
+      >>= fun (len, sa) ->
+      let buf = Cstruct.sub buf 0 len in
+      begin match sa with
         | Lwt_unix.ADDR_INET (addr, src_port) ->
           let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
           let dst = Ipaddr.V4.any in (* TODO *)
           ignore_result (callback ~src ~dst ~src_port buf);
-          return ()
-        | _ -> return ()
-      done
+          return_unit
+        | _ -> return_unit
+      end >>= fun () ->
+      continue ()
     in
-    ()
+    ignore_result (loop ())
 
   let listen_tcpv4 t ~port callback =
     let open Lwt_unix in
@@ -105,20 +108,20 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
     bind fd (ADDR_INET (interface, port));
     listen fd 10;
-    let _t = 
-      while_lwt true do (* TODO cancellation *)
-        Lwt_unix.accept fd
-        >>= fun (afd, sa) ->
-        ignore_result (
-          try_lwt
-            callback afd
-            >>= fun () -> return_unit
-          with exn -> return_unit
-        );
-        return ();
-      done
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_unix.accept fd
+      >>= fun (afd, sa) ->
+      ignore_result (
+        Lwt.catch
+          (fun () -> callback afd)
+          (fun exn -> return_unit)
+      );
+      continue ();
     in
-    ()
+    ignore_result (loop ())
 
   let listen t =
     let t,u = Lwt.task () in

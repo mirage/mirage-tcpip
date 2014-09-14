@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 60f4b8467c413713e6314a9236f0300b)
+# DO NOT EDIT (digest: 4dbfc76173b676e113eaca4a43852f4b)
 version = "1.1.6"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -34,8 +34,7 @@ package "udpv4-socket" (
 package "udpv4" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
+ requires = "io-page mirage-types ipaddr cstruct cstruct.syntax lwt tcpip"
  archive(byte) = "udpv4.cma"
  archive(byte, plugin) = "udpv4.cma"
  archive(native) = "udpv4.cmxa"
@@ -70,7 +69,7 @@ package "tcpv4" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip tcpip.ipv4"
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt tcpip tcpip.ipv4"
  archive(byte) = "tcpv4.cma"
  archive(byte, plugin) = "tcpv4.cma"
  archive(native) = "tcpv4.cmxa"
@@ -106,7 +105,7 @@ package "stack-direct" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.ethif tcpip.udpv4 tcpip.tcpv4 tcpip.dhcpv4"
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt tcpip.ethif tcpip.udpv4 tcpip.tcpv4 tcpip.dhcpv4"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
@@ -128,8 +127,7 @@ package "ipv4-unix" (
 package "ipv4" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip"
+ requires = "io-page mirage-types ipaddr cstruct cstruct.syntax lwt tcpip"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
@@ -151,8 +149,7 @@ package "ethif-unix" (
 package "ethif" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "tcpip io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt"
+ requires = "tcpip io-page mirage-types ipaddr cstruct cstruct.syntax lwt"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"
@@ -164,7 +161,7 @@ package "dhcpv4" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "io-page mirage-types ipaddr cstruct cstruct.syntax lwt.syntax lwt tcpip.udpv4"
+ "io-page mirage-types ipaddr cstruct cstruct.syntax lwt tcpip.udpv4"
  archive(byte) = "dhcpv4.cma"
  archive(byte, plugin) = "dhcpv4.cma"
  archive(native) = "dhcpv4.cmxa"
@@ -175,7 +172,7 @@ package "dhcpv4" (
 package "channel" (
  version = "1.1.6"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page mirage-types ipaddr cstruct lwt.syntax lwt"
+ requires = "io-page mirage-types ipaddr cstruct lwt"
  archive(byte) = "channel.cma"
  archive(byte, plugin) = "channel.cma"
  archive(native) = "channel.cmxa"
