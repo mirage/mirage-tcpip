@@ -90,7 +90,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
       match csum with
       | 0 -> true
       | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt) (Ipaddr.V4.to_string id.dest_ip);
-      	 false
+       false
   *)
 
   let wscale_default = 2
@@ -237,12 +237,12 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   let clearpcb t id tx_isn =
     (* TODO: add more info to log msgs *)
-    match (hashtbl_find t.channels id) with
+    match hashtbl_find t.channels id with
     | Some _ ->
       (* printf "TCP: removing pcb from tables\n%!";*)
       Hashtbl.remove t.channels id
     | None ->
-      match (hashtbl_find t.listens id) with
+      match hashtbl_find t.listens id with
       | Some (isn, _) ->
         if isn = tx_isn then begin
           printf "TCP: removing incomplete listen pcb\n%!";
@@ -345,7 +345,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     |true ->
       match get_rst pkt with
       |true -> begin
-          match (hashtbl_find t.connects id) with
+          match hashtbl_find t.connects id with
           | Some (wakener, _) -> begin
               (* URG_TODO: check if RST ack num is valid before it is accepted *)
               Hashtbl.remove t.connects id;
@@ -353,7 +353,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               return_unit
             end
           | None ->
-            match (hashtbl_find t.listens id) with
+            match hashtbl_find t.listens id with
             | Some (_, (_, (pcb, th))) -> begin
                 Hashtbl.remove t.listens id;
                 STATE.tick pcb.state Recv_rst;
@@ -374,7 +374,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
           | true -> begin
               match get_ack pkt with
               | true -> begin
-                  match (hashtbl_find t.connects id) with
+                  match hashtbl_find t.connects id with
                   | Some (wakener, tx_isn) -> begin
                       if Sequence.(to_int32 (incr tx_isn)) = ack_number then begin
                         Hashtbl.remove t.connects id;
@@ -418,7 +418,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
           | false -> begin
               match get_ack pkt with
               | true -> begin
-                  match (hashtbl_find t.listens id) with
+                  match hashtbl_find t.listens id with
                   | Some (tx_isn, (pushf, newconn)) -> begin
                       if Sequence.(to_int32 (incr tx_isn)) = ack_number then begin
                         (* Established connection - promote to active channels *)
@@ -435,7 +435,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                       end
                     end
                   | None ->
-                    match (hashtbl_find t.connects id) with
+                    match hashtbl_find t.connects id with
                     | Some _ ->
                       (* No RST because we are trying to connect on this id *)
                       return_unit
@@ -530,7 +530,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   let rec connecttimer t id tx_isn options window count =
     let rxtime = match count with | 0 -> 3. | 1 -> 6. | 2 -> 12. | 3 -> 24. | _ -> 48. in
     Time.sleep rxtime >>= fun () ->
-    match (hashtbl_find t.connects id) with
+    match hashtbl_find t.connects id with
     | Some (wakener, isn) -> begin
         if isn = tx_isn then begin
           if count > 3 then begin
