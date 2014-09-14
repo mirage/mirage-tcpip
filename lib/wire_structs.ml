@@ -1,62 +1,62 @@
 cstruct ethernet {
-  uint8_t        dst[6];
-  uint8_t        src[6];
-  uint16_t       ethertype
-} as big_endian
+    uint8_t        dst[6];
+    uint8_t        src[6];
+    uint16_t       ethertype
+  } as big_endian
 
 cstruct ipv4 {
-  uint8_t        hlen_version;
-  uint8_t        tos;
-  uint16_t       len;
-  uint16_t       id;
-  uint16_t       off;
-  uint8_t        ttl;
-  uint8_t        proto;
-  uint16_t       csum;
-  uint32_t       src;
-  uint32_t       dst
-} as big_endian
+    uint8_t        hlen_version;
+    uint8_t        tos;
+    uint16_t       len;
+    uint16_t       id;
+    uint16_t       off;
+    uint8_t        ttl;
+    uint8_t        proto;
+    uint16_t       csum;
+    uint32_t       src;
+    uint32_t       dst
+  } as big_endian
 
 cstruct icmpv4 {
-  uint8_t ty;
-  uint8_t code;
-  uint16_t csum;
-  uint16_t id;
-  uint16_t seq
-} as big_endian
+    uint8_t ty;
+    uint8_t code;
+    uint16_t csum;
+    uint16_t id;
+    uint16_t seq
+  } as big_endian
 
 cstruct udpv4 {
-  uint16_t source_port;                                                                               
-  uint16_t dest_port;
-  uint16_t length;                                                                                    
-  uint16_t checksum
-} as big_endian
+    uint16_t source_port;
+    uint16_t dest_port;
+    uint16_t length;
+    uint16_t checksum
+  } as big_endian
 
 module Tcp_wire = struct
   cstruct tcpv4 {
-    uint16_t src_port;
-    uint16_t dst_port;
-    uint32_t sequence;
-    uint32_t ack_number;
-    uint8_t  dataoff;
-    uint8_t  flags;
-    uint16_t window;
-    uint16_t checksum;
-    uint16_t urg_ptr
-  } as big_endian
+      uint16_t src_port;
+      uint16_t dst_port;
+      uint32_t sequence;
+      uint32_t ack_number;
+      uint8_t  dataoff;
+      uint8_t  flags;
+      uint16_t window;
+      uint16_t checksum;
+      uint16_t urg_ptr
+    } as big_endian
 
   cstruct tcpv4_pseudo_header {
-    uint32_t src;
-    uint32_t dst;
-    uint8_t res;
-    uint8_t proto;
-    uint16_t len
-  } as big_endian
+      uint32_t src;
+      uint32_t dst;
+      uint8_t res;
+      uint8_t proto;
+      uint16_t len
+    } as big_endian
 
   open Cstruct
 
   (* XXX note that we overwrite the lower half of dataoff
-   * with 0, so be careful when implemented CWE flag which 
+   * with 0, so be careful when implemented CWE flag which
    * sits there *)
   let get_data_offset buf = ((get_tcpv4_dataoff buf) lsr 4) * 4
   let set_data_offset buf v = set_tcpv4_dataoff buf (v lsl 4)

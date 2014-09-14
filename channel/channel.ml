@@ -51,8 +51,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
   let ibuf_refill t =
     Flow.read t.flow >>= function
     | `Ok buf ->
-        t.ibuf <- Some buf;
-        return ()
+      t.ibuf <- Some buf;
+      return ()
     | `Error _ | `Eof ->
       fail Closed
 
@@ -88,9 +88,9 @@ module Make(Flow:V1_LWT.FLOW) = struct
      stream (and read all available if no length specified *)
   let read_stream ?len t =
     Lwt_stream.from (fun () ->
-      Lwt.catch
-        (fun () -> read_some ?len t >>= fun v -> return (Some v))
-        (function Closed -> return None | e -> fail e)
+        Lwt.catch
+          (fun () -> read_some ?len t >>= fun v -> return (Some v))
+          (function Closed -> return None | e -> fail e)
       )
 
   (* Read until a character is found *)
@@ -121,14 +121,14 @@ module Make(Flow:V1_LWT.FLOW) = struct
       |(false, v) ->
         get (v :: acc)
       |(true, v) -> begin
-        (* chop the CR if present *)
-        let vlen = Cstruct.len v in
-        let v =
-         if vlen > 0 && (Cstruct.get_char v (vlen-1) = '\r') then
-           Cstruct.sub v 0 (vlen-1) else v
-        in
-        return (v :: acc)
-      end
+          (* chop the CR if present *)
+          let vlen = Cstruct.len v in
+          let v =
+            if vlen > 0 && (Cstruct.get_char v (vlen-1) = '\r') then
+              Cstruct.sub v 0 (vlen-1) else v
+          in
+          return (v :: acc)
+        end
     in
     get [] >|= List.rev
 

@@ -18,33 +18,33 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
     in
 
     S.TCPV4.write flow (make_chars how_many start_at) >>= fun () -> 
-      chargen flow how_many ((start_at + 1) mod (String.length charpool))
+    chargen flow how_many ((start_at + 1) mod (String.length charpool))
 
   let rec discard c flow =
     S.TCPV4.read flow >>= fun result -> (
-      match result with
-      | `Eof -> report_and_close c flow "Discard connection closing normally."
-      | `Error _ -> report_and_close c flow "Discard connection read error;
+    match result with
+    | `Eof -> report_and_close c flow "Discard connection closing normally."
+    | `Error _ -> report_and_close c flow "Discard connection read error;
       closing."
-      | _ -> discard c flow
-    )
+    | _ -> discard c flow
+  )
 
 
   let rec echo c flow =
     S.TCPV4.read flow >>= fun result -> (
-      match result with  
-        | `Eof -> report_and_close c flow "Echo connection closure initiated."
-        | `Error e -> 
-          let message = 
-          match e with 
-            | `Timeout -> "Echo connection timed out; closing.\n"
-            | `Refused -> "Echo connection refused; closing.\n"
-            | `Unknown s -> (Printf.sprintf "Echo connection error: %s\n" s)
-             in
-          report_and_close c flow message
-        | `Ok buf ->
-            S.TCPV4.write flow buf >>= fun () -> echo c flow
-        ) 
+    match result with  
+    | `Eof -> report_and_close c flow "Echo connection closure initiated."
+    | `Error e -> 
+      let message = 
+        match e with 
+        | `Timeout -> "Echo connection timed out; closing.\n"
+        | `Refused -> "Echo connection refused; closing.\n"
+        | `Unknown s -> (Printf.sprintf "Echo connection error: %s\n" s)
+      in
+      report_and_close c flow message
+    | `Ok buf ->
+      S.TCPV4.write flow buf >>= fun () -> echo c flow
+  ) 
 
   let start c s =
     (* RFC 862 - read payloads and repeat them back *)

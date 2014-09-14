@@ -15,6 +15,6 @@
  *)
 
 (** Configuration modes for interfaces. 
-   Defaults to DHCP, and individual ids can be assigned static IPs *)
+    Defaults to DHCP, and individual ids can be assigned static IPs *)
 
 val t: Netif.id -> [ `DHCP | `IPv4 of Ipaddr.V4.t * Ipaddr.V4.t * Ipaddr.V4.t list ]

@@ -22,12 +22,12 @@ open Wire_structs.Tcp_wire
 open Wire
 
 cstruct pseudo_header {
-  uint32_t src;
-  uint32_t dst;
-  uint8_t res;
-  uint8_t proto;
-  uint16_t len
-} as big_endian
+    uint32_t src;
+    uint32_t dst;
+    uint8_t res;
+    uint8_t proto;
+    uint16_t len
+  } as big_endian
 
 module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) = struct
 
@@ -195,19 +195,19 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
             end
         end >>= fun _ ->
         begin match data with
-        | None ->
-          STATE.tick pcb.state State.Recv_fin;
-          Lwt.wakeup urx_close_u ();
-          User_buffer.Rx.add_r urx None >>= fun () ->
-          rx_application_t ()
-        | Some data ->
-          let rec queue = function
-            | hd::tl ->
-              User_buffer.Rx.add_r urx (Some hd) >>= fun () ->
-              queue tl
-            | [] -> return () in
-          queue data >>= fun _ ->
-          rx_application_t ()
+          | None ->
+            STATE.tick pcb.state State.Recv_fin;
+            Lwt.wakeup urx_close_u ();
+            User_buffer.Rx.add_r urx None >>= fun () ->
+            rx_application_t ()
+          | Some data ->
+            let rec queue = function
+              | hd::tl ->
+                User_buffer.Rx.add_r urx (Some hd) >>= fun () ->
+                queue tl
+              | [] -> return () in
+            queue data >>= fun _ ->
+            rx_application_t ()
         end
       in
       rx_application_t ()
@@ -412,7 +412,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                       return ()
                     end
                   | None ->
-                      Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+                    Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
                 end
             end
           | false -> begin

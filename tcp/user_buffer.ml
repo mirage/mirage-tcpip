@@ -160,8 +160,8 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     if (List.length bl > 8) then begin
       let b = Io_page.(to_cstruct (get 1)) in
       let copyf doff ab =
-	Cstruct.blit ab 0 b doff (Cstruct.len ab);
-	doff + (Cstruct.len ab)
+        Cstruct.blit ab 0 b doff (Cstruct.len ab);
+        doff + (Cstruct.len ab)
       in
       let l = List.fold_left copyf 0 bl in
       let b = Cstruct.sub b 0 l in
@@ -187,18 +187,18 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     let rec addon_more curr_data l =
       match Lwt_sequence.take_opt_l t.buffer with
       | None ->
-          (* printf "out at 1\n%!";*)
-	  List.rev curr_data
+        (* printf "out at 1\n%!";*)
+        List.rev curr_data
       | Some s ->
-          let s_len = len s in
-          match s_len > l with
-          | true ->
-              (*printf "out at 2 %lu %lu\n%!" s_len l;*)
-              let _ = Lwt_sequence.add_l s t.buffer in
-              List.rev curr_data
-          | false ->
-	      t.bufbytes <- Int32.sub t.bufbytes s_len;
-              addon_more (s::curr_data) (Int32.sub l s_len)
+        let s_len = len s in
+        match s_len > l with
+        | true ->
+          (*printf "out at 2 %lu %lu\n%!" s_len l;*)
+          let _ = Lwt_sequence.add_l s t.buffer in
+          List.rev curr_data
+        | false ->
+          t.bufbytes <- Int32.sub t.bufbytes s_len;
+          addon_more (s::curr_data) (Int32.sub l s_len)
     in
     let get_pkt_to_send () =
       let avail_len = min (available_cwnd t) (Int32.of_int (Window.tx_mss t.wnd)) in
@@ -216,25 +216,25 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
             let _ = Lwt_sequence.add_l remaining t.buffer in
             t.bufbytes <- Int32.sub t.bufbytes avail_len;
             Some [to_send]
-      end
+        end
       | false ->
-          match s_len < avail_len with
-          | true ->
-	      t.bufbytes <- Int32.sub t.bufbytes s_len;
-	      Some (addon_more (s::[]) (Int32.sub avail_len s_len))
-          | false ->
-	      t.bufbytes <- Int32.sub t.bufbytes s_len;
-	      Some [s]
+        match s_len < avail_len with
+        | true ->
+          t.bufbytes <- Int32.sub t.bufbytes s_len;
+          Some (addon_more (s::[]) (Int32.sub avail_len s_len))
+        | false ->
+          t.bufbytes <- Int32.sub t.bufbytes s_len;
+          Some [s]
     in
     match Lwt_sequence.is_empty t.buffer with
     | true -> return ()
     | false ->
-        match get_pkt_to_send () with
-        | None -> return ()
-        | Some pkt ->
-	    let b = compactbufs pkt in
-            TXS.output ~flags:Segment.Psh t.txq b >>= fun () ->
-            clear_buffer t
+      match get_pkt_to_send () with
+      | None -> return ()
+      | Some pkt ->
+        let b = compactbufs pkt in
+        TXS.output ~flags:Segment.Psh t.txq b >>= fun () ->
+        clear_buffer t
 
   (* Chunk up the segments into MSS max for transmission *)
   let transmit_segments ~mss ~txq datav =
@@ -245,10 +245,10 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     let rec chunk datav acc =
       match datav with
       |[] -> begin
-        match acc with
-        |[] -> return ()
-        |_ -> transmit acc
-      end
+          match acc with
+          |[] -> return ()
+          |_ -> transmit acc
+        end
       |hd::tl ->
         let curlen = Cstruct.lenv acc in
         let tlen = Cstruct.len hd + curlen in
@@ -265,50 +265,50 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     let l = lenv datav in
     let mss = Int32.of_int (Window.tx_mss t.wnd) in
     match Lwt_sequence.is_empty t.buffer &&
-      (l = mss || not (Window.tx_inflight t.wnd)) with
+          (l = mss || not (Window.tx_inflight t.wnd)) with
     | false ->
-	t.bufbytes <- Int32.add t.bufbytes l;
-        List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-	if t.bufbytes < mss then
-          return ()
-	else
-	  clear_buffer t
+      t.bufbytes <- Int32.add t.bufbytes l;
+      List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+      if t.bufbytes < mss then
+        return ()
+      else
+        clear_buffer t
     | true ->
-	let avail_len = available_cwnd t in
-        match avail_len < l with
-	| true ->
-	    t.bufbytes <- Int32.add t.bufbytes l;
-            List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-            return ()
-	| false ->
-            let max_size = Window.tx_mss t.wnd in
-            transmit_segments ~mss:max_size ~txq:t.txq datav
+      let avail_len = available_cwnd t in
+      match avail_len < l with
+      | true ->
+        t.bufbytes <- Int32.add t.bufbytes l;
+        List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+        return ()
+      | false ->
+        let max_size = Window.tx_mss t.wnd in
+        transmit_segments ~mss:max_size ~txq:t.txq datav
 
   let write_nodelay t datav =
     let l = lenv datav in
     match Lwt_sequence.is_empty t.buffer with
     | false ->
-	t.bufbytes <- Int32.add t.bufbytes l;
+      t.bufbytes <- Int32.add t.bufbytes l;
+      List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+      return ()
+    | true ->
+      let avail_len = available_cwnd t in
+      match avail_len < l with
+      | true ->
+        t.bufbytes <- Int32.add t.bufbytes l;
         List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
         return ()
-    | true ->
-	let avail_len = available_cwnd t in
-        match avail_len < l with
-	| true ->
-	    t.bufbytes <- Int32.add t.bufbytes l;
-            List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-            return ()
-	| false ->
-            let max_size = Window.tx_mss t.wnd in
-            transmit_segments ~mss:max_size ~txq:t.txq datav
+      | false ->
+        let max_size = Window.tx_mss t.wnd in
+        transmit_segments ~mss:max_size ~txq:t.txq datav
 
 
   let inform_app t =
     match Lwt_sequence.take_opt_l t.writers with
     | None -> return ()
     | Some w ->
-	Lwt.wakeup w ();
-	return ()
+      Lwt.wakeup w ();
+      return ()
 
   (* Indicate that more bytes are available for waiting writers.
      Note that sz does not take window scaling into account, and so

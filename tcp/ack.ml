@@ -63,7 +63,7 @@ end
 
 (* Delayed ACKs *)
 module Delayed (Time:V1_LWT.TIME) : M = struct
- 
+
   module TT = Tcptimer.Make(Time)
 
   type delayed_r = {
@@ -85,21 +85,21 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
     match r.pushpending with
     | true -> return ()
     | false -> r.pushpending <- true;
-	       transmitacknow r ack_number
+      transmitacknow r ack_number
 
 
   let ontimer r s  =
     match r.delayed with
     | false ->
-	Tcptimer.Stoptimer
+      Tcptimer.Stoptimer
     | true -> begin
-	match r.delayedack = s with
-	| false ->
-	    Tcptimer.Continue r.delayedack
-	| true -> 
-	    r.delayed <- false;
-	    let _ = transmitack r s in
-	    Tcptimer.Stoptimer
+        match r.delayedack = s with
+        | false ->
+          Tcptimer.Continue r.delayedack
+        | true -> 
+          r.delayed <- false;
+          let _ = transmitack r s in
+          Tcptimer.Stoptimer
       end
 
 

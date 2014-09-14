@@ -30,9 +30,9 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   type callback = flow -> unit Lwt.t
 
   type error = [
-   | `Unknown of string
-   | `Timeout
-   | `Refused
+    | `Unknown of string
+    | `Timeout
+    | `Refused
   ]
 
   let id t = Pcb.ip t
