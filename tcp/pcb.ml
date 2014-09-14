@@ -29,7 +29,8 @@ cstruct pseudo_header {
     uint16_t len
   } as big_endian
 
-module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) = struct
+module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
+struct
 
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)
@@ -103,10 +104,10 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     let xmit_pcb ip id ~flags ~wnd ~options ~seq datav =
       let window = Int32.to_int (Window.rx_wnd_unscaled wnd) in
       let rx_ack = Some (Window.rx_nxt wnd) in
-      let syn = match flags with Segment.Syn -> true |_ -> false in
-      let fin = match flags with Segment.Fin -> true |_ -> false in
-      let rst = match flags with Segment.Rst -> true |_ -> false in
-      let psh = match flags with Segment.Psh -> true |_ -> false in
+      let syn = match flags with Segment.Syn -> true | _ -> false in
+      let fin = match flags with Segment.Fin -> true | _ -> false in
+      let rst = match flags with Segment.Rst -> true | _ -> false in
+      let psh = match flags with Segment.Psh -> true | _ -> false in
       WIRE.xmit ~ip ~id ~syn ~fin ~rst ~psh ~rx_ack ~seq ~window ~options datav
 
     (* Output an RST response when we dont have a PCB *)
@@ -131,7 +132,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
-      |_ -> return_unit
+      | _ -> return_unit
 
     (* Thread that transmits ACKs in response to received packets,
        thus telling the other side that more can be sent, and
@@ -326,7 +327,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
       ~rx_wnd_scaleoffer ~pushf id
     =
     let tx_mss = List.fold_left (fun a ->
-        function Options.MSS m -> Some m |_ -> a
+        function Options.MSS m -> Some m | _ -> a
       ) None options
     in
     let (rx_wnd_scale, tx_wnd_scale), opts =
@@ -349,7 +350,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
       ~rx_wnd ~rx_wnd_scaleoffer id
     =
     let tx_mss = List.fold_left (fun a ->
-        function Options.MSS m -> Some m |_ -> a
+        function Options.MSS m -> Some m | _ -> a
       ) None options
     in
     let (rx_wnd_scale, tx_wnd_scale), _ =
