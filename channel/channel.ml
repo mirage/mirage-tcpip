@@ -52,7 +52,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     Flow.read t.flow >>= function
     | `Ok buf ->
       t.ibuf <- Some buf;
-      return ()
+      return_unit
     | `Error _ | `Eof ->
       fail Closed
 
@@ -90,7 +90,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     Lwt_stream.from (fun () ->
         Lwt.catch
           (fun () -> read_some ?len t >>= fun v -> return (Some v))
-          (function Closed -> return None | e -> fail e)
+          (function Closed -> return_none | e -> fail e)
       )
 
   (* Read until a character is found *)
@@ -197,7 +197,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let l = List.rev t.obufq in
     t.obufq <- [];
     Flow.writev t.flow l
-    >>= fun _ -> return ()
+    >>= fun _ -> return_unit
 
   let close t =
     flush t

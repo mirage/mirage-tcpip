@@ -27,10 +27,10 @@ type buffer = Cstruct.t
 type callback = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
 
 let id _ = ()
-let disconnect () = return ()
+let disconnect () = return_unit
 let connect () = return (`Ok ())
 
-let input ~tcp ~udp ~default _ _ = return ()
+let input ~tcp ~udp ~default _ _ = return_unit
 let allocate_frame ~proto ~dest_ip t = fail (Failure "Not implemented")
 let write _ _ _ = fail (Failure "Not implemented")
 let writev _ _ _ = fail (Failure "Not implemented")

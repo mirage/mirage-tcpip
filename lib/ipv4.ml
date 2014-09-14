@@ -132,7 +132,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       write t ipv4_frame buf
     |ty ->
       printf "ICMP unknown ty %d\n" ty;
-      return ()
+      return_unit
 
   let input ~tcp ~udp ~default t buf =
     (* buf pointers to to start of IPv4 header here *)
@@ -153,9 +153,9 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     |proto ->
       default ~proto ~src ~dst data
 
-  let default_icmp = fun _ _ _ -> return ()
-  let default_udp = fun ~src ~dst _ -> return ()
-  let default_tcp = fun ~src ~dst _ -> return ()
+  let default_icmp = fun _ _ _ -> return_unit
+  let default_udp = fun ~src ~dst _ -> return_unit
+  let default_tcp = fun ~src ~dst _ -> return_unit
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
@@ -164,7 +164,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let t = { ethif; ip; netmask; gateways } in
     return (`Ok t)
 
-  let disconnect ethif = return ()
+  let disconnect ethif = return_unit
 
   let set_ipv4 t ip =
     t.ip <- ip;
@@ -175,13 +175,13 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
 
   let set_ipv4_netmask t netmask =
     t.netmask <- netmask;
-    return ()
+    return_unit
 
   let get_ipv4_netmask t = t.netmask
 
   let set_ipv4_gateways t gateways =
     t.gateways <- gateways;
-    return ()
+    return_unit
 
   let get_ipv4_gateways {gateways} = gateways
 

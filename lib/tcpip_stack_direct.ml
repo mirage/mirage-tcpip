@@ -120,9 +120,9 @@ module Make
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto ~src ~dst buf -> return ())
+            ~default:(fun ~proto ~src ~dst buf -> return_unit)
             t.ipv4)
-        ~ipv6:(fun b -> return ())
+        ~ipv6:(fun b -> return_unit)
         t.ethif)
 
   let connect id =

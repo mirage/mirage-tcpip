@@ -183,7 +183,7 @@ module Make (Console : V1_LWT.CONSOLE)
           end
         |_ -> Console.log_s t.c "DHCP: ack not for us"
       end
-    | Shutting_down -> return ()
+    | Shutting_down -> return_unit
     | Lease_held info -> Console.log_s t.c "DHCP input: lease already held"
     | Disabled -> Console.log_s t.c "DHCP input: disabled"
 
@@ -202,7 +202,7 @@ module Make (Console : V1_LWT.CONSOLE)
     >>= fun () ->
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>= fun () ->
-    return ()
+    return_unit
 
   (* DHCP state thred *)
   let rec dhcp_thread t =
@@ -238,12 +238,12 @@ module Make (Console : V1_LWT.CONSOLE)
       >>= fun () ->
       (match info.netmask with
        |Some nm -> Ipv4.set_ipv4_netmask ip nm
-       |None -> return ())
+       |None -> return_unit)
       >>= fun () ->
       Ipv4.set_ipv4_gateways ip info.gateways
       >>= fun () ->
       offer_push (Some info);
-      return ()
+      return_unit
     in
     let t = { c; ip; udp; state; new_offer } in
     (* TODO cancellation *)

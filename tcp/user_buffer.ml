@@ -45,7 +45,7 @@ module Rx = struct
     let rx_wnd = max 0l (Int32.sub t.max_size t.cur_size) in
     Window.set_rx_wnd t.wnd rx_wnd;
     match t.watcher with
-    |None -> return ()
+    |None -> return_unit
     |Some w -> Lwt_mvar.put w t.cur_size
 
   let seglen s =
@@ -63,7 +63,7 @@ module Rx = struct
       notify_size_watcher t >>= fun () ->
       th >>= fun () ->
       ignore(Lwt_sequence.add_r s t.q);
-      return ()
+      return_unit
     else match Lwt_sequence.take_opt_l t.readers with
       | None ->
         t.cur_size <- Int32.(add t.cur_size (of_int (seglen s)));
@@ -145,7 +145,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   (* Wait until at least sz bytes are available in the window *)
   let rec wait_for t sz =
     if (available t) >= sz then begin
-      return ()
+      return_unit
     end
     else begin
       let th,u = Lwt.task () in
@@ -173,7 +173,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   (* Wait until the user buffer is flushed *)
   let rec wait_for_flushed t =
     if Lwt_sequence.is_empty t.buffer then begin
-      return ()
+      return_unit
     end
     else begin
       let th,u = Lwt.task () in
@@ -227,10 +227,10 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
           Some [s]
     in
     match Lwt_sequence.is_empty t.buffer with
-    | true -> return ()
+    | true -> return_unit
     | false ->
       match get_pkt_to_send () with
-      | None -> return ()
+      | None -> return_unit
       | Some pkt ->
         let b = compactbufs pkt in
         TXS.output ~flags:Segment.Psh t.txq b >>= fun () ->
@@ -246,7 +246,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       match datav with
       |[] -> begin
           match acc with
-          |[] -> return ()
+          |[] -> return_unit
           |_ -> transmit acc
         end
       |hd::tl ->
@@ -270,7 +270,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       t.bufbytes <- Int32.add t.bufbytes l;
       List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
       if t.bufbytes < mss then
-        return ()
+        return_unit
       else
         clear_buffer t
     | true ->
@@ -279,7 +279,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       | true ->
         t.bufbytes <- Int32.add t.bufbytes l;
         List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-        return ()
+        return_unit
       | false ->
         let max_size = Window.tx_mss t.wnd in
         transmit_segments ~mss:max_size ~txq:t.txq datav
@@ -290,14 +290,14 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     | false ->
       t.bufbytes <- Int32.add t.bufbytes l;
       List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-      return ()
+      return_unit
     | true ->
       let avail_len = available_cwnd t in
       match avail_len < l with
       | true ->
         t.bufbytes <- Int32.add t.bufbytes l;
         List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
-        return ()
+        return_unit
       | false ->
         let max_size = Window.tx_mss t.wnd in
         transmit_segments ~mss:max_size ~txq:t.txq datav
@@ -305,10 +305,10 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
   let inform_app t =
     match Lwt_sequence.take_opt_l t.writers with
-    | None -> return ()
+    | None -> return_unit
     | Some w ->
       Lwt.wakeup w ();
-      return ()
+      return_unit
 
   (* Indicate that more bytes are available for waiting writers.
      Note that sz does not take window scaling into account, and so

@@ -129,7 +129,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
-      |_ -> return ()
+      |_ -> return_unit
 
     (* Thread that transmits ACKs in response to received packets,
        thus telling the other side that more can be sent, and
@@ -183,7 +183,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
         begin match winadv with
-          | None -> return ()
+          | None -> return_unit
           | Some winadv -> begin
               if (winadv > 0) then begin
                 Window.rx_advance wnd winadv;
@@ -205,7 +205,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               | hd::tl ->
                 User_buffer.Rx.add_r urx (Some hd) >>= fun () ->
                 queue tl
-              | [] -> return () in
+              | [] -> return_unit in
             queue data >>= fun _ ->
             rx_application_t ()
         end
@@ -350,7 +350,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               (* URG_TODO: check if RST ack num is valid before it is accepted *)
               Hashtbl.remove t.connects id;
               Lwt.wakeup wakener `Rst;
-              return ()
+              return_unit
             end
           | None ->
             match (hashtbl_find t.listens id) with
@@ -358,11 +358,11 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                 Hashtbl.remove t.listens id;
                 STATE.tick pcb.state Recv_rst;
                 Lwt.cancel th;
-                return ()
+                return_unit
               end
             | None ->
               (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
-              return ()
+              return_unit
         end
       |false -> begin
           let sequence = get_tcpv4_sequence pkt in
@@ -386,11 +386,11 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                           t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer id
                         >>= fun (pcb, th) ->
                         Lwt.wakeup wakener (`Ok (pcb, th));
-                        return ()
+                        return_unit
                       end else begin
                         (* Normally sending a RST reply to a random pkt would be in order but
                            here we stay quiet since we are actively trying to connect this id *)
-                        return ()
+                        return_unit
                       end
                     end
                   | None ->
@@ -409,7 +409,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                       new_server_connection
                         t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer ~pushf id
                       >>= fun newconn ->
-                      return ()
+                      return_unit
                     end
                   | None ->
                     Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
@@ -431,21 +431,21 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                         pushf (fst newconn)
                       end else begin
                         (* No RST because we are trying to connect on this id *)
-                        return ()
+                        return_unit
                       end
                     end
                   | None ->
                     match (hashtbl_find t.connects id) with
                     | Some _ ->
                       (* No RST because we are trying to connect on this id *)
-                      return ()
+                      return_unit
                     | None ->
                       (* ACK but no matching pcb and no listen - send RST *)
                       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
                 end
               | false ->
                 (* What the hell is this packet? No SYN,ACK,RST *)
-                return ()
+                return_unit
             end
         end
 
@@ -536,16 +536,16 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
           if count > 3 then begin
             Hashtbl.remove t.connects id;
             Lwt.wakeup wakener `Timeout;
-            return ()
+            return_unit
           end else begin
             Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
             connecttimer t id tx_isn options window (count + 1)
           end
         end else
-          return ()
+          return_unit
       end
     | None ->
-      return ()
+      return_unit
 
   let connect t ~dest_ip ~dest_port =
     let id = getid t dest_ip dest_port in

@@ -44,7 +44,7 @@ let connect id =
   return (`Ok t)
 
 let disconnect _ =
-  return ()
+  return_unit
 
 let id {interface} =
   match interface with
@@ -100,12 +100,12 @@ let writev fd bufs =
 (* TODO make nodelay a flow option *)
 let write_nodelay fd buf =
   write fd buf
-  >>= fun _ -> return ()
+  >>= fun _ -> return_unit
 
 (* TODO make nodelay a flow option *)
 let writev_nodelay fd bufs =
   writev fd bufs
-  >>= fun _ -> return ()
+  >>= fun _ -> return_unit
 
 let close fd =
   Lwt_unix.close fd
