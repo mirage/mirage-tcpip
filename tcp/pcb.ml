@@ -59,7 +59,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     ip : Ipv4.t;
     mutable localport : int;
     channels: (id, connection) Hashtbl.t;
-    (* server connections the process of connecting - SYN-ACK sent waiting for ACK *)
+    (* server connections the process of connecting - SYN-ACK sent
+       waiting for ACK *)
     listens: (id, (Sequence.t * ((pcb -> unit Lwt.t) * connection))) Hashtbl.t;
     (* clients in the process of connecting *)
     connects: (id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
@@ -89,7 +90,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   (*  let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
       match csum with
       | 0 -> true
-      | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt) (Ipaddr.V4.to_string id.dest_ip);
+      | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt)
+                (Ipaddr.V4.to_string id.dest_ip);
        false
   *)
 
@@ -216,8 +218,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   module Wnd = struct
 
     let thread ~urx ~utx ~wnd ~tx_wnd_update =
-      (* Monitor our transmit window when updates are received remotely,
-         and tell the application that new space is available when it is blocked *)
+      (* Monitor our transmit window when updates are received
+         remotely, and tell the application that new space is
+         available when it is blocked *)
       let rec tx_window_t () =
         Lwt_mvar.take tx_wnd_update >>= fun tx_wnd ->
         UTX.free utx tx_wnd >>= fun () ->
@@ -227,7 +230,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   end
 
-  (* Helper function to apply function with contents of hashtbl, or take default action *)
+  (* Helper function to apply function with contents of hashtbl, or
+     take default action *)
   let with_hashtbl h k fn default =
     try fn (Hashtbl.find h k) with Not_found -> default k
 
@@ -258,11 +262,16 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   let th_frees = ref 0
 
 
-  let new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss ~tx_isn id =
+  let new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
+      ~tx_isn id
+    =
     (* Set up the windowing variables *)
     let rx_isn = Sequence.of_int32 sequence in
     (* Initialise the window handler *)
-    let wnd = Window.t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn in
+    let wnd =
+      Window.t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss
+        ~tx_isn
+    in
     (* When we transmit an ACK for a received segment, rx_ack is written to *)
     let rx_ack = Lwt_mvar.create_empty () in
     (* When we receive an ACK for a transmitted segment, tx_ack is written to *)
@@ -304,16 +313,27 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     return (pcb, th)
 
   let resolve_wnd_scaling options rx_wnd_scaleoffer =
-    let tx_wnd_scale = List.fold_left
-        (fun a -> function Options.Window_size_shift m -> Some m |_ -> a) None options in
+    let tx_wnd_scale = List.fold_left (fun a ->
+        function Options.Window_size_shift m -> Some m | _ -> a
+      ) None options in
     match tx_wnd_scale with
     | None -> (0, 0), []
-    | Some tx_f -> (rx_wnd_scaleoffer, tx_f), (Options.Window_size_shift rx_wnd_scaleoffer :: [])
+    | Some tx_f ->
+      (rx_wnd_scaleoffer, tx_f),
+      (Options.Window_size_shift rx_wnd_scaleoffer :: [])
 
-  let new_server_connection t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer ~pushf id =
-    let tx_mss = List.fold_left (fun a -> function Options.MSS m -> Some m |_ -> a) None options in
-    let (rx_wnd_scale, tx_wnd_scale), opts = resolve_wnd_scaling options rx_wnd_scaleoffer in
-    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss ~tx_isn id
+  let new_server_connection t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd
+      ~rx_wnd_scaleoffer ~pushf id
+    =
+    let tx_mss = List.fold_left (fun a ->
+        function Options.MSS m -> Some m |_ -> a
+      ) None options
+    in
+    let (rx_wnd_scale, tx_wnd_scale), opts =
+      resolve_wnd_scaling options rx_wnd_scaleoffer
+    in
+    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
+      ~tx_isn id
     >>= fun (pcb, th) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack tx_isn);
@@ -325,10 +345,18 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     return (pcb, th)
 
 
-  let new_client_connection t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer id =
-    let tx_mss = List.fold_left (fun a -> function Options.MSS m -> Some m |_ -> a) None options in
-    let (rx_wnd_scale, tx_wnd_scale), _ = resolve_wnd_scaling options rx_wnd_scaleoffer in
-    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss ~tx_isn:(Sequence.incr tx_isn) id
+  let new_client_connection t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn
+      ~rx_wnd ~rx_wnd_scaleoffer id
+    =
+    let tx_mss = List.fold_left (fun a ->
+        function Options.MSS m -> Some m |_ -> a
+      ) None options
+    in
+    let (rx_wnd_scale, tx_wnd_scale), _ =
+      resolve_wnd_scaling options rx_wnd_scaleoffer
+    in
+    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
+      ~tx_isn:(Sequence.incr tx_isn) id
     >>= fun (pcb, th) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
@@ -341,10 +369,10 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   let input_no_pcb t listeners pkt id =
     match verify_checksum id pkt with
-    |false -> return (printf "RX.input: checksum error\n%!")
-    |true ->
+    | false -> return (printf "RX.input: checksum error\n%!")
+    | true ->
       match get_rst pkt with
-      |true -> begin
+      | true -> begin
           match hashtbl_find t.connects id with
           | Some (wakener, _) -> begin
               (* URG_TODO: check if RST ack num is valid before it is accepted *)
@@ -364,7 +392,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
               return_unit
         end
-      |false -> begin
+      | false -> begin
           let sequence = get_tcpv4_sequence pkt in
           let options = get_options pkt in
           let ack_number = get_tcpv4_ack_number pkt in
@@ -376,22 +404,25 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               | true -> begin
                   match hashtbl_find t.connects id with
                   | Some (wakener, tx_isn) -> begin
-                      if Sequence.(to_int32 (incr tx_isn)) = ack_number then begin
+                      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
                         Hashtbl.remove t.connects id;
                         let tx_wnd = get_tcpv4_window pkt in
                         let rx_wnd = 65535 in
-                        (* TODO: fix hardcoded value - it assumes that this value was sent in the SYN *)
+                        (* TODO: fix hardcoded value - it assumes that
+                           this value was sent in the SYN *)
                         let rx_wnd_scaleoffer = wscale_default in
                         new_client_connection
-                          t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer id
+                          t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn
+                          ~rx_wnd ~rx_wnd_scaleoffer id
                         >>= fun (pcb, th) ->
                         Lwt.wakeup wakener (`Ok (pcb, th));
                         return_unit
-                      end else begin
-                        (* Normally sending a RST reply to a random pkt would be in order but
-                           here we stay quiet since we are actively trying to connect this id *)
+                      ) else
+                        (* Normally sending a RST reply to a random
+                           pkt would be in order but here we stay
+                           quiet since we are actively trying to
+                           connect this id *)
                         return_unit
-                      end
                     end
                   | None ->
                     (* Incomming SYN-ACK with no pending connect
@@ -401,13 +432,16 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               | false -> begin
                   match listeners id.local_port with
                   | Some pushf -> begin
-                      let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
+                      let tx_isn =
+                        Sequence.of_int ((Random.int 65535) + 0x1AFE0000)
+                      in
                       let tx_wnd = get_tcpv4_window pkt in
                       (* TODO: make this configurable per listener *)
                       let rx_wnd = 65535 in
                       let rx_wnd_scaleoffer = wscale_default in
                       new_server_connection
-                        t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd ~rx_wnd_scaleoffer ~pushf id
+                        t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd
+                        ~rx_wnd_scaleoffer ~pushf id
                       >>= fun newconn ->
                       return_unit
                     end
@@ -420,8 +454,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
               | true -> begin
                   match hashtbl_find t.listens id with
                   | Some (tx_isn, (pushf, newconn)) -> begin
-                      if Sequence.(to_int32 (incr tx_isn)) = ack_number then begin
-                        (* Established connection - promote to active channels *)
+                      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+                        (* Established connection - promote to active
+                           channels *)
                         Hashtbl.remove t.listens id;
                         Hashtbl.add t.channels id newconn;
                         (* Finish processing ACK, so pcb.state is correct *)
@@ -429,10 +464,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
                         >>= fun () ->
                         (* send new connection up to listener *)
                         pushf (fst newconn)
-                      end else begin
+                      ) else
                         (* No RST because we are trying to connect on this id *)
                         return_unit
-                      end
                     end
                   | None ->
                     match hashtbl_find t.connects id with
@@ -454,7 +488,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   let input t ~listeners ~src ~dst data =
     let source_port = get_tcpv4_src_port data in
     let dest_port = get_tcpv4_dst_port data in
-    let id = { local_port=dest_port; dest_ip=src; local_ip=dst; dest_port=source_port } in
+    let id =
+      { local_port=dest_port; dest_ip=src; local_ip=dst; dest_port=source_port }
+    in
     (* Lookup connection from the active PCB hash *)
     with_hashtbl t.channels id
       (* PCB exists, so continue the connection state machine in tcp_input *)
@@ -499,7 +535,8 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   let writev pcb data = Lwt_list.iter_s (fun d -> write pcb d) data
 
   let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data
-  let writev_nodelay pcb data = Lwt_list.iter_s (fun d -> write_nodelay pcb d) data
+  let writev_nodelay pcb data =
+    Lwt_list.iter_s (fun d -> write_nodelay pcb d) data
 
   (* Close - no more will be written *)
   let close pcb =
@@ -511,14 +548,19 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
-    let islistener t port = false in (* TODO keep a list of active listen ports *)
-    let idinuse t id = (Hashtbl.mem t.channels id) ||
-                       (Hashtbl.mem t.connects id) || (Hashtbl.mem t.listens id) in
-    let inuse t id = (islistener t id.local_port) || (idinuse t id) in
+    let islistener t port =
+      (* TODO keep a list of active listen ports *)
+      false in
+    let idinuse t id =
+      Hashtbl.mem t.channels id ||
+      Hashtbl.mem t.connects id ||
+      Hashtbl.mem t.listens id
+    in
+    let inuse t id = islistener t id.local_port || idinuse t id in
     let rec bumpport t =
       (match t.localport with
-       |65535 -> t.localport <- 10000
-       |_ -> t.localport <- t.localport + 1);
+       | 65535 -> t.localport <- 10000
+       | _ -> t.localport <- t.localport + 1);
       let id = { local_port = t.localport; dest_ip = dest_ip;
                  local_ip = (Ipv4.get_ipv4 t.ip); dest_port = dest_port } in
       if inuse t id then bumpport t else id
@@ -528,7 +570,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   (* SYN retransmission timer *)
   let rec connecttimer t id tx_isn options window count =
-    let rxtime = match count with | 0 -> 3. | 1 -> 6. | 2 -> 12. | 3 -> 24. | _ -> 48. in
+    let rxtime = match count with
+      | 0 -> 3. | 1 -> 6. | 2 -> 12. | 3 -> 24. | _ -> 48.
+    in
     Time.sleep rxtime >>= fun () ->
     match hashtbl_find t.connects id with
     | Some (wakener, isn) -> begin
@@ -552,7 +596,9 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
     let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1BCD0000) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
-    let options = Options.MSS 1460 :: Options.Window_size_shift rx_wnd_scaleoffer :: [] in
+    let options =
+      Options.MSS 1460 :: Options.Window_size_shift rx_wnd_scaleoffer :: []
+    in
     let window = 5840 in
     let th, wakener = Lwt.task () in
     if Hashtbl.mem t.connects id then begin
