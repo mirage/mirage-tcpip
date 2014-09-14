@@ -20,7 +20,6 @@ open Wire_structs
 
 module Make(Netif : V1_LWT.NETWORK) = struct
 
-  type id = Netif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
@@ -46,10 +45,10 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     | 0x0800 -> (* IPv4 *)
       let payload = Cstruct.shift frame sizeof_ethernet in
       ipv4 payload
-    | 0x86dd -> 
+    | 0x86dd ->
       let payload = Cstruct.shift frame sizeof_ethernet in
       ipv6 payload
-    | etype  ->
+    | _etype ->
       let _payload = Cstruct.shift frame sizeof_ethernet in
       (* TODO default etype payload *)
       return_unit
@@ -68,13 +67,8 @@ module Make(Netif : V1_LWT.NETWORK) = struct
       Arpv4.create ~output ~get_mac ~get_etherbuf in
     return (`Ok { netif; arp })
 
-  let disconnect nf = return_unit
-  let mac {netif} = Netif.mac netif
-
+  let disconnect _ = return_unit
   let add_ipv4 t = Arpv4.add_ip t.arp
-  let remove_ipv4 t = Arpv4.remove_ip t.arp
   let query_arpv4 t = Arpv4.query t.arp
-
   let mac t = Netif.mac t.netif
-  let get_netif t = t.netif
 end
