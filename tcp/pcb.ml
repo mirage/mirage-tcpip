@@ -257,9 +257,35 @@ struct
   let pcb_frees = ref 0
   let th_frees = ref 0
 
-  let new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
-      ~tx_isn id
-    =
+  let resolve_wnd_scaling options rx_wnd_scaleoffer =
+    let tx_wnd_scale = List.fold_left (fun a ->
+        function Options.Window_size_shift m -> Some m | _ -> a
+      ) None options in
+    match tx_wnd_scale with
+    | None -> (0, 0), []
+    | Some tx_f ->
+      (rx_wnd_scaleoffer, tx_f),
+      (Options.Window_size_shift rx_wnd_scaleoffer :: [])
+
+  type pcb_params =
+    { tx_wnd: int;
+      sequence: int32;
+      options: Options.t list;
+      tx_isn: Sequence.t;
+      rx_wnd: int;
+      rx_wnd_scaleoffer: int }
+
+  let new_pcb t params id: (pcb * unit Lwt.t * Options.t list) Lwt.t =
+    let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+      params
+    in
+    let tx_mss = List.fold_left (fun a ->
+        function Options.MSS m -> Some m | _ -> a
+      ) None options
+    in
+    let (rx_wnd_scale, tx_wnd_scale), opts =
+      resolve_wnd_scaling options rx_wnd_scaleoffer
+    in
     (* Set up the windowing variables *)
     let rx_isn = Sequence.of_int32 sequence in
     (* Initialise the window handler *)
@@ -307,53 +333,23 @@ struct
     let fnth = fun _ -> th_frees := !th_frees + 1 in
     Gc.finalise fnpcb pcb;
     Gc.finalise fnth th;
-    return (pcb, th)
+    return (pcb, th, opts)
 
-  let resolve_wnd_scaling options rx_wnd_scaleoffer =
-    let tx_wnd_scale = List.fold_left (fun a ->
-        function Options.Window_size_shift m -> Some m | _ -> a
-      ) None options in
-    match tx_wnd_scale with
-    | None -> (0, 0), []
-    | Some tx_f ->
-      (rx_wnd_scaleoffer, tx_f),
-      (Options.Window_size_shift rx_wnd_scaleoffer :: [])
-
-  let new_server_connection t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd
-      ~rx_wnd_scaleoffer ~pushf id
-    =
-    let tx_mss = List.fold_left (fun a ->
-        function Options.MSS m -> Some m | _ -> a
-      ) None options
-    in
-    let (rx_wnd_scale, tx_wnd_scale), opts =
-      resolve_wnd_scaling options rx_wnd_scaleoffer
-    in
-    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
-      ~tx_isn id
-    >>= fun ( (pcb:pcb), th) ->
+  let new_server_connection t params id pushf =
+    new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
-    STATE.tick pcb.state (State.Send_synack tx_isn);
+    STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
-    Hashtbl.replace t.listens id (tx_isn, (pushf, (pcb, th)));
+    Hashtbl.replace t.listens id (params.tx_isn, (pushf, (pcb, th)));
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
     return (pcb, th)
 
-  let new_client_connection t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn
-      ~rx_wnd ~rx_wnd_scaleoffer id
-    =
-    let tx_mss = List.fold_left (fun a ->
-        function Options.MSS m -> Some m | _ -> a
-      ) None options
-    in
-    let (rx_wnd_scale, tx_wnd_scale), _ =
-      resolve_wnd_scaling options rx_wnd_scaleoffer
-    in
-    new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
-      ~tx_isn:(Sequence.incr tx_isn) id
-    >>= fun ( (pcb:pcb), th) ->
+  let new_client_connection t params id ack_number =
+    let tx_isn = params.tx_isn in
+    let params = { params with tx_isn = Sequence.incr tx_isn } in
+    new_pcb t params id >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
@@ -405,9 +401,9 @@ struct
                     (* TODO: fix hardcoded value - it assumes that
                              this value was sent in the SYN *)
                     let rx_wnd_scaleoffer = wscale_default in
-                    new_client_connection
-                      t ~tx_wnd ~sequence ~ack_number ~options ~tx_isn
-                      ~rx_wnd ~rx_wnd_scaleoffer id
+                    new_client_connection t
+                      { tx_wnd; sequence; options; tx_isn; rx_wnd;
+                        rx_wnd_scaleoffer } id ack_number
                     >>= fun (pcb, th) ->
                     Lwt.wakeup wakener (`Ok (pcb, th));
                     return_unit
@@ -432,9 +428,9 @@ struct
                   (* TODO: make this configurable per listener *)
                   let rx_wnd = 65535 in
                   let rx_wnd_scaleoffer = wscale_default in
-                  new_server_connection
-                    t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd
-                    ~rx_wnd_scaleoffer ~pushf id
+                  new_server_connection t
+                    { tx_wnd; sequence; options; tx_isn; rx_wnd;
+                      rx_wnd_scaleoffer } id pushf
                   >>= fun _ ->
                   return_unit
                 | None ->
