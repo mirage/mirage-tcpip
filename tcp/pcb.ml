@@ -42,8 +42,8 @@ struct
   type pcb = {
     id: id;
     wnd: Window.t;            (* Window information *)
-    rxq: RXS.q;               (* Received segments queue for out-of-order data *)
-    txq: TXS.q;               (* Transmit segments queue *)
+    rxq: RXS.t;               (* Received segments queue for out-of-order data *)
+    txq: TXS.t;               (* Transmit segments queue *)
     ack: ACK.t;               (* Ack state *)
     state: State.t;           (* Connection state *)
     urx: User_buffer.Rx.t;    (* App rx buffer *)
@@ -171,7 +171,9 @@ struct
         let ack = get_ack pkt in
         let window = get_tcpv4_window pkt in
         let data = Wire.get_payload pkt in
-        let seg = RXS.make ~sequence ~fin ~syn ~ack ~ack_number ~window ~data in
+        let seg =
+          RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
+        in
         let { rxq; _ } = pcb in
         (* Coalesce any outstanding segments and retrieve ready segments *)
         RXS.input rxq seg
@@ -311,11 +313,11 @@ struct
     let on_close () = clearpcb t id tx_isn in
     let state = State.t ~on_close in
     let txq, _tx_t =
-      TXS.q ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
+      TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
     (* The user application transmit buffer *)
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
-    let rxq = RXS.q ~rx_data ~wnd ~state ~tx_ack in
+    let rxq = RXS.create ~rx_data ~wnd ~state ~tx_ack in
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.incr rx_isn) in
     (* Construct basic PCB in Syn_received state *)

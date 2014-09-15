@@ -109,7 +109,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   type t = {
     wnd: Window.t;
     writers: unit Lwt.u Lwt_sequence.t;
-    txq: TXS.q;
+    txq: TXS.t;
     buffer: Cstruct.t Lwt_sequence.t;
     max_size: int32;
     mutable bufbytes: int32;
