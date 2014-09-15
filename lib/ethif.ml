@@ -16,7 +16,6 @@
  *
  *)
 open Lwt
-open Wire_structs
 
 module Make(Netif : V1_LWT.NETWORK) = struct
 
@@ -40,16 +39,16 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let id t = t.netif
 
   let input ~ipv4 ~ipv6 t frame =
-    match get_ethernet_ethertype frame with
+    match Wire_structs.get_ethernet_ethertype frame with
     | 0x0806 -> Arpv4.input t.arp frame (* ARP *)
     | 0x0800 -> (* IPv4 *)
-      let payload = Cstruct.shift frame sizeof_ethernet in
+      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       ipv4 payload
     | 0x86dd ->
-      let payload = Cstruct.shift frame sizeof_ethernet in
+      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       ipv6 payload
     | _etype ->
-      let _payload = Cstruct.shift frame sizeof_ethernet in
+      let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       (* TODO default etype payload *)
       return_unit
 

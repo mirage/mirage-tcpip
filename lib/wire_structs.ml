@@ -53,29 +53,35 @@ module Tcp_wire = struct
       uint16_t len
     } as big_endian
 
-  open Cstruct
-
   (* XXX note that we overwrite the lower half of dataoff
    * with 0, so be careful when implemented CWE flag which
    * sits there *)
   let get_data_offset buf = ((get_tcpv4_dataoff buf) lsr 4) * 4
   let set_data_offset buf v = set_tcpv4_dataoff buf (v lsl 4)
 
-  let get_fin buf = ((get_uint8 buf 13) land (1 lsl 0)) > 0
-  let get_syn buf = ((get_uint8 buf 13) land (1 lsl 1)) > 0
-  let get_rst buf = ((get_uint8 buf 13) land (1 lsl 2)) > 0
-  let get_psh buf = ((get_uint8 buf 13) land (1 lsl 3)) > 0
-  let get_ack buf = ((get_uint8 buf 13) land (1 lsl 4)) > 0
-  let get_urg buf = ((get_uint8 buf 13) land (1 lsl 5)) > 0
-  let get_ece buf = ((get_uint8 buf 13) land (1 lsl 6)) > 0
-  let get_cwr buf = ((get_uint8 buf 13) land (1 lsl 7)) > 0
+  let get_fin buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 0)) > 0
+  let get_syn buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 1)) > 0
+  let get_rst buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 2)) > 0
+  let get_psh buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 3)) > 0
+  let get_ack buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 4)) > 0
+  let get_urg buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 5)) > 0
+  let get_ece buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 6)) > 0
+  let get_cwr buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 7)) > 0
 
-  let set_fin buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 0))
-  let set_syn buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 1))
-  let set_rst buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 2))
-  let set_psh buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 3))
-  let set_ack buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 4))
-  let set_urg buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 5))
-  let set_ece buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 6))
-  let set_cwr buf = set_uint8 buf 13 ((get_uint8 buf 13) lor (1 lsl 7))
+  let set_fin buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 0))
+  let set_syn buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 1))
+  let set_rst buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 2))
+  let set_psh buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 3))
+  let set_ack buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 4))
+  let set_urg buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 5))
+  let set_ece buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 6))
+  let set_cwr buf =
+    Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 7))
 end

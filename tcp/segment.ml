@@ -16,7 +16,6 @@
 
 open Printf
 open Lwt
-open State
 
 let peek_opt_l seq =
   match Lwt_sequence.take_opt_l seq with
@@ -140,7 +139,7 @@ module Rx(Time:V1_LWT.TIME) = struct
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
         if seg.ack then (
-          StateTick.tick q.state (Recv_ack seg.ack_number);
+          StateTick.tick q.state (State.Recv_ack seg.ack_number);
           let win = window ready in
           let data_in_flight = Window.tx_inflight q.wnd in
           let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
@@ -247,8 +246,9 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
   (* URG_TODO: Add sequence number to the Syn_rcvd rexmit to only
      rexmit most recent *)
   let ontimer xmit st segs wnd seq =
-    match state st with
-    | Syn_rcvd _ | Established | Fin_wait_1 _ | Close_wait | Last_ack _ ->
+    match State.state st with
+    | State.Syn_rcvd _ | State.Established | State.Fin_wait_1 _
+    | State.Close_wait | State.Last_ack _ ->
       begin match peek_opt_l segs with
         | None ->
           Tcptimer.Stoptimer
@@ -262,7 +262,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
             if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
               printf "Max retransmits reached for connection - terminating\n%!";
-              StateTick.tick st Timeout;
+              StateTick.tick st State.Timeout;
               Tcptimer.Stoptimer
             ) else (
               let flags = rexmit_seg.flags in

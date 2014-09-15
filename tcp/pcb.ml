@@ -17,9 +17,8 @@
 
 open Lwt
 open Printf
-open State
-open Wire_structs.Tcp_wire
-open Wire
+
+module Tcp_wire = Wire_structs.Tcp_wire
 
 cstruct pseudo_header {
     uint32_t src;
@@ -40,7 +39,7 @@ struct
   module STATE = State.Make(Time)
 
   type pcb = {
-    id: id;
+    id: Wire.id;
     wnd: Window.t;            (* Window information *)
     rxq: RXS.t;               (* Received segments queue for out-of-order data *)
     txq: TXS.t;               (* Transmit segments queue *)
@@ -59,12 +58,13 @@ struct
   type t = {
     ip : Ipv4.t;
     mutable localport : int;
-    channels: (id, connection) Hashtbl.t;
+    channels: (Wire.id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
        waiting for ACK *)
-    listens: (id, (Sequence.t * ((pcb -> unit Lwt.t) * connection))) Hashtbl.t;
+    listens: (Wire.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
+        Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (Wire.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   let ip { ip; _ } = ip
@@ -122,9 +122,9 @@ struct
       WIRE.xmit ~ip ~id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options []
 
     (* Queue up an immediate close segment *)
-    let close (pcb:pcb) =
-      match state pcb.state with
-      | Established | Close_wait ->
+    let close pcb =
+      match State.state pcb.state with
+      | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
@@ -164,12 +164,14 @@ struct
       | false -> printf "RX.input: checksum error\n%!"; return_unit
       | true ->
         (* URG_TODO: Deal correctly with incomming RST segment *)
-        let sequence = Sequence.of_int32 (get_tcpv4_sequence pkt) in
-        let ack_number = Sequence.of_int32 (get_tcpv4_ack_number pkt) in
-        let fin = get_fin pkt in
-        let syn = get_syn pkt in
-        let ack = get_ack pkt in
-        let window = get_tcpv4_window pkt in
+        let sequence = Sequence.of_int32 (Tcp_wire.get_tcpv4_sequence pkt) in
+        let ack_number =
+          Sequence.of_int32 (Tcp_wire.get_tcpv4_ack_number pkt)
+        in
+        let fin = Tcp_wire.get_fin pkt in
+        let syn = Tcp_wire.get_syn pkt in
+        let ack = Tcp_wire.get_ack pkt in
+        let window = Tcp_wire.get_tcpv4_window pkt in
         let data = Wire.get_payload pkt in
         let seg =
           RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
@@ -277,7 +279,7 @@ struct
       rx_wnd: int;
       rx_wnd_scaleoffer: int }
 
-  let new_pcb t params id: (pcb * unit Lwt.t * Options.t list) Lwt.t =
+  let new_pcb t params id =
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
     in
@@ -372,7 +374,7 @@ struct
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
-        STATE.tick pcb.state Recv_rst;
+        STATE.tick pcb.state State.Recv_rst;
         Lwt.cancel th;
         return_unit
       | None ->
@@ -384,7 +386,7 @@ struct
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         Hashtbl.remove t.connects id;
-        let tx_wnd = get_tcpv4_window pkt in
+        let tx_wnd = Tcp_wire.get_tcpv4_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
            sent in the SYN *)
@@ -406,10 +408,10 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match listeners id.local_port with
+    match listeners id.Wire.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
-      let tx_wnd = get_tcpv4_window pkt in
+      let tx_wnd = Tcp_wire.get_tcpv4_window pkt in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -448,15 +450,15 @@ struct
     match verify_checksum id pkt with
     | false -> printf "RX.input: checksum error\n%!"; return_unit
     | true ->
-      match get_rst pkt with
+      match Tcp_wire.get_rst pkt with
       | true -> process_reset t id
       | false ->
-        let sequence = get_tcpv4_sequence pkt in
-        let options = get_options pkt in
-        let ack_number = get_tcpv4_ack_number pkt in
-        let syn = get_syn pkt in
-        let ack = get_ack pkt in
-        let fin = get_fin pkt in
+        let sequence = Tcp_wire.get_tcpv4_sequence pkt in
+        let options = Wire.get_options pkt in
+        let ack_number = Tcp_wire.get_tcpv4_ack_number pkt in
+        let syn = Tcp_wire.get_syn pkt in
+        let ack = Tcp_wire.get_ack pkt in
+        let fin = Tcp_wire.get_fin pkt in
         match syn, ack with
         | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
                             ~options ~syn ~fin
@@ -469,13 +471,13 @@ struct
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    let source_port = get_tcpv4_src_port data in
-    let dest_port = get_tcpv4_dst_port data in
+    let source_port = Tcp_wire.get_tcpv4_src_port data in
+    let dest_port = Tcp_wire.get_tcpv4_dst_port data in
     let id =
-      { local_port = dest_port;
-        dest_ip    = src;
-        local_ip   = dst;
-        dest_port  = source_port }
+      { Wire.local_port = dest_port;
+        dest_ip         = src;
+        local_ip        = dst;
+        dest_port       = source_port }
     in
     (* Lookup connection from the active PCB hash *)
     with_hashtbl t.channels id
@@ -527,7 +529,7 @@ struct
     Tx.close pcb
 
   let get_dest pcb =
-    (pcb.id.dest_ip, pcb.id.dest_port)
+    pcb.id.Wire.dest_ip, pcb.id.Wire.dest_port
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -539,13 +541,17 @@ struct
       Hashtbl.mem t.connects id ||
       Hashtbl.mem t.listens id
     in
-    let inuse t id = islistener t id.local_port || idinuse t id in
+    let inuse t id = islistener t id.Wire.local_port || idinuse t id in
     let rec bumpport t =
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id = { local_port = t.localport; dest_ip = dest_ip;
-                 local_ip = (Ipv4.get_ipv4 t.ip); dest_port = dest_port } in
+      let id =
+        { Wire.local_port = t.localport;
+          dest_ip         = dest_ip;
+          local_ip        = Ipv4.get_ipv4 t.ip;
+          dest_port       = dest_port }
+      in
       if inuse t id then bumpport t else id
     in
     bumpport t

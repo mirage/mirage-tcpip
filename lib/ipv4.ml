@@ -16,7 +16,6 @@
 
 open Lwt
 open Printf
-open Wire_structs
 
 module Make(Ethif : V1_LWT.ETHIF) = struct
 
@@ -69,30 +68,35 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     (* Something of a layer violation here, but ARP is awkward *)
     Routing.destination_mac t dest_ip >|= Macaddr.to_bytes >>= fun dmac ->
     let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
-    set_ethernet_dst dmac 0 ethernet_frame;
-    set_ethernet_src smac 0 ethernet_frame;
-    set_ethernet_ethertype ethernet_frame 0x0800;
-    let buf = Cstruct.shift ethernet_frame sizeof_ethernet in
+    Wire_structs.set_ethernet_dst dmac 0 ethernet_frame;
+    Wire_structs.set_ethernet_src smac 0 ethernet_frame;
+    Wire_structs.set_ethernet_ethertype ethernet_frame 0x0800;
+    let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     (* Write the constant IPv4 header fields *)
-    set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
-    set_ipv4_tos buf 0;
-    set_ipv4_off buf 0; (* TODO fragmentation *)
-    set_ipv4_ttl buf 38; (* TODO *)
+    Wire_structs.set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
+    Wire_structs.set_ipv4_tos buf 0;
+    Wire_structs.set_ipv4_off buf 0; (* TODO fragmentation *)
+    Wire_structs.set_ipv4_ttl buf 38; (* TODO *)
     let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in
-    set_ipv4_proto buf proto;
-    set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
-    set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
-    let len = sizeof_ethernet + sizeof_ipv4 in
+    Wire_structs.set_ipv4_proto buf proto;
+    Wire_structs.set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
+    Wire_structs.set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
+    let len = Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv4 in
     return (ethernet_frame, len)
 
   let adjust_output_header ~tlen frame =
-    let buf = Cstruct.sub frame sizeof_ethernet sizeof_ipv4 in
+    let buf =
+      Cstruct.sub frame Wire_structs.sizeof_ethernet Wire_structs.sizeof_ipv4
+    in
     (* Set the mutable values in the ipv4 header *)
-    set_ipv4_len buf tlen;
-    set_ipv4_id buf (Random.int 65535); (* TODO *)
-    set_ipv4_csum buf 0;
-    let checksum = Tcpip_checksum.ones_complement (Cstruct.sub buf 0 sizeof_ipv4) in
-    set_ipv4_csum buf checksum
+    Wire_structs.set_ipv4_len buf tlen;
+    Wire_structs.set_ipv4_id buf (Random.int 65535); (* TODO *)
+    Wire_structs.set_ipv4_csum buf 0;
+    let checksum =
+      Tcpip_checksum.ones_complement
+        (Cstruct.sub buf 0 Wire_structs.sizeof_ipv4)
+    in
+    Wire_structs.set_ipv4_csum buf checksum
 
   (* We write a whole frame, truncated from the right where the
    * packet data stops.
@@ -104,22 +108,26 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     Ethif.writev t.ethif [frame;data]
 
   let writev t ethernet_frame bufs =
-    let tlen = Cstruct.len ethernet_frame - sizeof_ethernet + (Cstruct.lenv bufs) in
+    let tlen =
+      Cstruct.len ethernet_frame
+      - Wire_structs.sizeof_ethernet
+      + Cstruct.lenv bufs
+    in
     adjust_output_header ~tlen ethernet_frame;
     Ethif.writev t.ethif (ethernet_frame::bufs)
 
   let icmp_input t src _hdr buf =
-    match get_icmpv4_ty buf with
+    match Wire_structs.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
       return (printf "ICMP: discarding echo reply\n%!")
     |8 -> (* echo request *)
       (* convert the echo request into an echo reply *)
       let csum =
-        let orig_csum = get_icmpv4_csum buf in
+        let orig_csum = Wire_structs.get_icmpv4_csum buf in
         let shift = if orig_csum > 0xffff -0x0800 then 0x0801 else 0x0800 in
         (orig_csum + shift) land 0xffff in
-      set_icmpv4_ty buf 0;
-      set_icmpv4_csum buf csum;
+      Wire_structs.set_icmpv4_ty buf 0;
+      Wire_structs.set_icmpv4_csum buf csum;
       (* stick an IPv4 header on the front and transmit *)
       allocate_frame ~proto:`ICMP ~dest_ip:src t >>= fun (ipv4_frame, ipv4_len) ->
       let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
@@ -130,14 +138,14 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
 
   let input ~tcp ~udp ~default t buf =
     (* buf pointers to to start of IPv4 header here *)
-    let ihl = (get_ipv4_hlen_version buf land 0xf) * 4 in
-    let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
-    let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
-    let payload_len = get_ipv4_len buf - ihl in
+    let ihl = (Wire_structs.get_ipv4_hlen_version buf land 0xf) * 4 in
+    let src = Ipaddr.V4.of_int32 (Wire_structs.get_ipv4_src buf) in
+    let dst = Ipaddr.V4.of_int32 (Wire_structs.get_ipv4_dst buf) in
+    let payload_len = Wire_structs.get_ipv4_len buf - ihl in
     (* XXX this will raise exception for 0-length payload *)
     let hdr = Cstruct.sub buf 0 ihl in
     let data = Cstruct.sub buf ihl payload_len in
-    match get_ipv4_proto buf with
+    match Wire_structs.get_ipv4_proto buf with
     | 1 -> (* ICMP *)
       icmp_input t src hdr data
     | 6 -> (* TCP *)
