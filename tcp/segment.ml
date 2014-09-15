@@ -38,7 +38,7 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type seg = {
+  type segment = {
     sequence: Sequence.t;
     data: Cstruct.t;
     fin: bool;
@@ -48,12 +48,12 @@ module Rx(Time:V1_LWT.TIME) = struct
     window: int;
   }
 
-  let string_of_seg seg =
+  let string_of_segment seg =
     sprintf "TCP: RX seg seq=%s fin=%b syn=%b ack=%b acknum=%s win=%d"
       (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
       (Sequence.to_string seg.ack_number) seg.window
 
-  let make ~sequence ~fin ~syn ~ack ~ack_number ~window ~data =
+  let segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data =
     { sequence; fin; syn; ack; ack_number; window; data }
 
   let len seg =
@@ -63,11 +63,11 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   (* Set of segments, ordered by sequence number *)
   module S = Set.Make(struct
-      type t = seg
+      type t = segment
       let compare a b = Sequence.compare a.sequence b.sequence
     end)
 
-  type q = {
+  type t = {
     mutable segs: S.t;
     rx_data: (Cstruct.t list option * int option) Lwt_mvar.t; (* User receive channel *)
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
@@ -75,11 +75,11 @@ module Rx(Time:V1_LWT.TIME) = struct
     state: State.t;
   }
 
-  let q ~rx_data ~wnd ~state ~tx_ack =
+  let create ~rx_data ~wnd ~state ~tx_ack =
     let segs = S.empty in
     { segs; rx_data; tx_ack; wnd; state }
 
-  let string_of_q t =
+  let to_string t =
     String.concat ", "
       (List.map (fun seg -> sprintf "%lu[%d]" (Sequence.to_int32 seg.sequence) (len seg))
          (S.elements t.segs))
@@ -107,7 +107,7 @@ module Rx(Time:V1_LWT.TIME) = struct
      and a receive queue, update the window,
      extract any ready segments into the user receive queue,
      and signal any acks to the Tx queue *)
-  let input (q:q) seg =
+  let input (q:t) seg =
     (* Check that the segment fits into the valid receive
        window *)
     let force_ack = ref false in
@@ -191,11 +191,11 @@ end
 *)
 
 type tx_flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
-    No_flags
-  |Syn
-  |Fin
-  |Rst
-  |Psh
+  | No_flags
+  | Syn
+  | Fin
+  | Rst
+  | Psh
 
 module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
@@ -219,7 +219,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     (Cstruct.lenv seg.data)
 
   (* Queue of pre-transmission segments *)
-  type q = {
+  type t = {
     segs: seg Lwt_sequence.t;      (* Retransmitted segment queue *)
     xmit: xmit;                    (* Transmit packet to the wire *)
     rx_ack: Sequence.t Lwt_mvar.t; (* RX Ack thread that we've sent one *)
@@ -352,13 +352,15 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     in
     tx_ack_t ()
 
-  let q ~(xmit:xmit) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
+  let create ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
     let segs = Lwt_sequence.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
     let period = Window.rto wnd in
     let rexmit_timer = TT.t ~period ~expire in
-    let q = { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks } in
+    let q =
+      { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
+    in
     let t = rto_t q tx_ack in
     q, t
 
