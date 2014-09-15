@@ -25,13 +25,14 @@ module type TCPV4_DIRECT = V1_LWT.TCPV4
 
 module Make
     (Console : V1_LWT.CONSOLE)
-    (Time    : V1_LWT.TIME) 
+    (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) = struct
+    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) =
+struct
 
   type +'a io = 'a Lwt.t
   type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
@@ -92,7 +93,7 @@ module Make
         | Some offer -> Console.log_s t.c "DHCP offer received and bound"
       end
     | `IPv4 (addr, netmask, gateways) ->
-      Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!" 
+      Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
                            (Ipaddr.V4.to_string addr)
                            (Ipaddr.V4.to_string netmask)
                            (String.concat ", " (List.map Ipaddr.V4.to_string gateways)))
@@ -116,7 +117,7 @@ module Make
       Ethif.input
         ~ipv4:(
           Ipv4.input
-            ~tcp:(Tcpv4.input t.tcpv4 
+            ~tcp:(Tcpv4.input t.tcpv4
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
@@ -152,8 +153,8 @@ module Make
     let _ = listen t in
     configure t t.mode
     >>= fun () ->
-    (* TODO: this is fine for now, because the DHCP state machine isn't fully 
-       implemented and its thread will terminate after one successful lease 
+    (* TODO: this is fine for now, because the DHCP state machine isn't fully
+       implemented and its thread will terminate after one successful lease
        transaction.  For a DHCP thread that runs forever, `configure` will need
        to spawn a background thread, but we need to consider how to inform the
        application stack that the IP address has changed (perhaps via a control
