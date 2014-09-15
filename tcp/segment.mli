@@ -36,7 +36,7 @@ type tx_flags = |No_flags |Syn |Fin |Rst |Psh
 (* Pre-transmission queue *)
 module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
 
-  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
   type q
@@ -46,6 +46,6 @@ module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->
     tx_wnd_update:int Lwt_mvar.t -> q * unit Lwt.t
 
-  val output : ?flags:tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
+  val output : ?flags:tx_flags -> ?options:Options.t list -> q -> Cstruct.t list -> unit Lwt.t
 
 end
