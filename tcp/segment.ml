@@ -20,8 +20,8 @@ open State
 
 let peek_opt_l seq =
   match Lwt_sequence.take_opt_l seq with
-  |None -> None
-  |Some s ->
+  | None -> None
+  | Some s ->
     let _ = Lwt_sequence.add_l s seq in
     Some s
 
@@ -214,7 +214,8 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
   (* Sequence length of the segment *)
   let len seg =
-    (match seg.flags with |No_flags |Psh |Rst -> 0 |Syn |Fin -> 1) +
+    (match seg.flags with No_flags | Psh | Rst -> 0
+                        | Syn | Fin -> 1) +
     (Cstruct.lenv seg.data)
 
   (* Queue of pre-transmission segments *)
@@ -231,7 +232,12 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
 (*  let string_of_seg seg =
     sprintf "[%s%d]"
-      (match seg.flags with |No_flags->"" |Syn->"SYN " |Fin ->"FIN " |Rst -> "RST " |Psh -> "PSH ")
+      (match seg.flags with
+       | No_flags ->""
+       | Syn ->"SYN "
+       | Fin ->"FIN "
+       | Rst -> "RST "
+       | Psh -> "PSH ")
       (len seg)
 *)
 
@@ -243,23 +249,23 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   (* URG_TODO: Add sequence number to the Syn_rcvd rexmit to only rexmit most recent *)
   let ontimer xmit st segs wnd seq =
     match state st with
-    | Syn_rcvd _ | Established | Fin_wait_1 _ | Close_wait | Last_ack _ -> begin
-        match peek_opt_l segs with
+    | Syn_rcvd _ | Established | Fin_wait_1 _ | Close_wait | Last_ack _ ->
+      begin match peek_opt_l segs with
         | None ->
           Tcptimer.Stoptimer
         | Some rexmit_seg ->
           match rexmit_seg.seq = seq with
           | false ->
             (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-               		   (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+               (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
             Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
           | true ->
-            if (Window.max_rexmits_done wnd) then begin
+            if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
               printf "Max retransmits reached for connection - terminating\n%!";
               StateTick.tick st Timeout;
               Tcptimer.Stoptimer
-            end else begin
+            ) else (
               let flags = rexmit_seg.flags in
               let options = [] in (* TODO: put the right options *)
               printf "TCP retransmission on timer seq = %d\n%!"
@@ -267,18 +273,17 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
               let _ = xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
               Window.backoff_rto wnd;
               (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-                               (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+                 (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
               Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
-            end
+            )
       end
     | _ ->
       Tcptimer.Stoptimer
 
-
   let peek_l seq =
     match Lwt_sequence.take_opt_l seq with
-    |None -> assert false
-    |Some s ->
+    | None -> assert false
+    | Some s ->
       let _ = Lwt_sequence.add_l s seq in
       s
 
@@ -335,9 +340,10 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
       let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
-      let dupacktest () = ((0l = (Sequence.to_int32 ack_len)) &&
-                           ((Window.tx_wnd_unscaled q.wnd) = (Int32.of_int win)) &&
-                           (not (Lwt_sequence.is_empty q.segs)))
+      let dupacktest () =
+        0l = Sequence.to_int32 ack_len &&
+        Window.tx_wnd_unscaled q.wnd = Int32.of_int win &&
+        not (Lwt_sequence.is_empty q.segs)
       in
       serviceack (dupacktest ()) ack_len seq win;
       (* Inform the window thread of updates to the transmit window *)
