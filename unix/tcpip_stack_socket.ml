@@ -93,8 +93,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
         | Lwt_unix.ADDR_INET (addr, src_port) ->
           let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
           let dst = Ipaddr.V4.any in (* TODO *)
-          ignore_result (callback ~src ~dst ~src_port buf);
-          return_unit
+          callback ~src ~dst ~src_port buf
         | _ -> return_unit
       end >>= fun () ->
       continue ()
@@ -114,11 +113,10 @@ module Make(Console:V1_LWT.CONSOLE) = struct
         if true then loop () else return_unit in
       Lwt_unix.accept fd
       >>= fun (afd, sa) ->
-      ignore_result (
-        Lwt.catch
-          (fun () -> callback afd)
-          (fun exn -> return_unit)
-      );
+      Lwt.catch
+        (fun () -> callback afd)
+        (fun exn -> return_unit)
+      >>= fun () ->
       continue ();
     in
     ignore_result (loop ())
