@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Wire_structs
 
 module Make(Ipv4: V1_LWT.IPV4) = struct
 
@@ -39,12 +38,15 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
 
   (* FIXME: [t] is not taken into account at all? *)
   let input ~listeners _t ~src ~dst buf =
-    let dst_port = get_udpv4_dest_port buf in
-    let data = Cstruct.sub buf sizeof_udpv4 (get_udpv4_length buf - sizeof_udpv4) in
+    let dst_port = Wire_structs.get_udpv4_dest_port buf in
+    let data =
+      Cstruct.sub buf Wire_structs.sizeof_udpv4
+        (Wire_structs.get_udpv4_length buf - Wire_structs.sizeof_udpv4)
+    in
     match listeners ~dst_port with
     | None -> return_unit
     | Some fn ->
-      let src_port = get_udpv4_source_port buf in
+      let src_port = Wire_structs.get_udpv4_source_port buf in
       fn ~src ~dst ~src_port data
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
@@ -55,11 +57,14 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
     Ipv4.allocate_frame ~proto:`UDP ~dest_ip t.ip
     >>= fun (ipv4_frame, ipv4_len) ->
     let udp_buf = Cstruct.shift ipv4_frame ipv4_len in
-    set_udpv4_source_port udp_buf source_port;
-    set_udpv4_dest_port udp_buf dest_port;
-    set_udpv4_checksum udp_buf 0;
-    set_udpv4_length udp_buf (sizeof_udpv4 + Cstruct.lenv bufs);
-    let ipv4_frame = Cstruct.set_len ipv4_frame (ipv4_len + sizeof_udpv4) in
+    Wire_structs.set_udpv4_source_port udp_buf source_port;
+    Wire_structs.set_udpv4_dest_port udp_buf dest_port;
+    Wire_structs.set_udpv4_checksum udp_buf 0;
+    Wire_structs.set_udpv4_length udp_buf
+      (Wire_structs.sizeof_udpv4 + Cstruct.lenv bufs);
+    let ipv4_frame =
+      Cstruct.set_len ipv4_frame (ipv4_len + Wire_structs.sizeof_udpv4)
+    in
     Ipv4.writev t.ip ipv4_frame bufs
 
   let write ?source_port ~dest_ip ~dest_port t buf =
