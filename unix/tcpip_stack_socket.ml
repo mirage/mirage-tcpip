@@ -90,6 +90,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       end >>= fun () ->
       continue ()
     in
+    (* FIXME: we should not ignore the result *)
     ignore_result (loop ())
 
   let listen_tcpv4 _t ~port callback =
@@ -111,6 +112,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       >>= fun () ->
       continue ();
     in
+    (* FIXME: we should not ignore the result *)
     ignore_result (loop ())
 
   let listen _t =
