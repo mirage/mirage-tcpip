@@ -387,7 +387,7 @@ struct
         let tx_wnd = get_tcpv4_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
-                 sent in the SYN *)
+           sent in the SYN *)
         let rx_wnd_scaleoffer = wscale_default in
         new_client_connection t
           { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
@@ -397,20 +397,18 @@ struct
         return_unit
       ) else
         (* Normally sending a RST reply to a random pkt would be in
-             order but here we stay quiet since we are actively trying
-             to connect this id *)
+           order but here we stay quiet since we are actively trying
+           to connect this id *)
         return_unit
     | None ->
-      (* Incomming SYN-ACK with no pending connect
-         and no matching pcb - send RST *)
+      (* Incomming SYN-ACK with no pending connect and no matching pcb
+         - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
     match listeners id.local_port with
     | Some pushf ->
-      let tx_isn =
-        Sequence.of_int ((Random.int 65535) + 0x1AFE0000)
-      in
+      let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       let tx_wnd = get_tcpv4_window pkt in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
@@ -427,13 +425,11 @@ struct
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
-        (* Established connection - promote to active
-           channels *)
+        (* Established connection - promote to active channels *)
         Hashtbl.remove t.listens id;
         Hashtbl.add t.channels id newconn;
         (* Finish processing ACK, so pcb.state is correct *)
-        Rx.input t pkt newconn
-        >>= fun () ->
+        Rx.input t pkt newconn >>= fun () ->
         (* send new connection up to listener *)
         pushf (fst newconn)
       ) else

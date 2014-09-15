@@ -59,7 +59,7 @@ end
 type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
-(* Pre-transmission queue *)
+(** Pre-transmission queue *)
 module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
