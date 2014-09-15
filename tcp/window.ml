@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Printf
 
 type t = {
@@ -216,7 +215,7 @@ let tx_inflight t =
   t.tx_nxt <> t.snd_una
 
 
-let alert_fast_rexmit t seq =
+let alert_fast_rexmit t _ =
   if not t.fast_recovery then begin
     let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
     let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in

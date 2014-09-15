@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Printf
 open Wire_structs.Tcp_wire
 
 let get_options buf =

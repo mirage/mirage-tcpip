@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Printf
 
 type tr =
   | Stoptimer

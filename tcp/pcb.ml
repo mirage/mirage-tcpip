@@ -67,13 +67,9 @@ struct
     connects: (id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
-  type listener = {
-    t: t;
-    port: int;
-  }
+  let ip { ip; _ } = ip
 
-  let ip {ip} = ip
-
+  (*
   let pbuf =
     Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_pseudo_header
 
@@ -87,14 +83,16 @@ struct
       Tcpip_checksum.ones_complement_list (pbuf::data)
 
   let verify_checksum id pkt =
-    true
-  (*  let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
-      match csum with
-      | 0 -> true
-      | _ -> printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt)
-                (Ipaddr.V4.to_string id.dest_ip);
-       false
+    let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
+    match csum with
+    | 0 -> true
+    | _ ->
+      printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt)
+        (Ipaddr.V4.to_string id.dest_ip);
+      false
   *)
+
+  let verify_checksum _ _ = true
 
   let wscale_default = 2
 
@@ -111,7 +109,7 @@ struct
       WIRE.xmit ~ip ~id ~syn ~fin ~rst ~psh ~rx_ack ~seq ~window ~options datav
 
     (* Output an RST response when we dont have a PCB *)
-    let send_rst {ip} id ~sequence ~ack_number ~syn ~fin =
+    let send_rst { ip; _ } id ~sequence ~ack_number ~syn ~fin =
       let datalen = Int32.add (if syn then 1l else 0l) (if fin then 1l else 0l) in
       let window = 0 in
       let options = [] in
@@ -120,15 +118,15 @@ struct
       WIRE.xmit ~ip ~id ~rst:true ~rx_ack ~seq ~window ~options []
 
     (* Output a SYN packet *)
-    let send_syn {ip} id ~tx_isn ~options ~window =
+    let send_syn { ip; _ } id ~tx_isn ~options ~window =
       WIRE.xmit ~ip ~id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options []
 
     (* Queue up an immediate close segment *)
-    let close pcb =
+    let close (pcb:pcb) =
       match state pcb.state with
       | Established | Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
-        (let {wnd} = pcb in
+        (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
@@ -137,8 +135,8 @@ struct
     (* Thread that transmits ACKs in response to received packets,
        thus telling the other side that more can be sent, and
        also data from the user transmit queue *)
-    let rec thread t pcb ~send_ack ~rx_ack  =
-      let {wnd; ack} = pcb in
+    let thread t pcb ~send_ack ~rx_ack  =
+      let { wnd; ack; _ } = pcb in
 
       (* Transmit an empty ack when prompted by the Ack thread *)
       let rec send_empty_ack () =
@@ -161,7 +159,7 @@ struct
   module Rx = struct
 
     (* Process an incoming TCP packet that has an active PCB *)
-    let input t pkt (pcb,_) =
+    let input _t pkt (pcb,_) =
       match verify_checksum pcb.id pkt with
       | false -> printf "RX.input: checksum error\n%!"; return_unit
       | true ->
@@ -174,14 +172,14 @@ struct
         let window = get_tcpv4_window pkt in
         let data = Wire.get_payload pkt in
         let seg = RXS.make ~sequence ~fin ~syn ~ack ~ack_number ~window ~data in
-        let {rxq} = pcb in
+        let { rxq; _ } = pcb in
         (* Coalesce any outstanding segments and retrieve ready segments *)
         RXS.input rxq seg
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
-    let thread pcb ~rx_data =
-      let {wnd; ack; urx; urx_close_u} = pcb in
+    let thread (pcb:pcb) ~rx_data =
+      let { wnd; ack; urx; urx_close_u; _ } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
@@ -217,7 +215,7 @@ struct
 
   module Wnd = struct
 
-    let thread ~urx ~utx ~wnd ~tx_wnd_update =
+    let thread ~urx:_ ~utx ~wnd:_ ~tx_wnd_update =
       (* Monitor our transmit window when updates are received
          remotely, and tell the application that new space is
          available when it is blocked *)
@@ -286,7 +284,9 @@ struct
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
     let state = State.t ~on_close in
-    let txq, tx_t = TXS.q ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update in
+    let txq, _tx_t =
+      TXS.q ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
+    in
     (* The user application transmit buffer *)
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
     let rxq = RXS.q ~rx_data ~wnd ~state ~tx_ack in
@@ -303,8 +303,8 @@ struct
     in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
-    let fnpcb = fun x -> pcb_frees := !pcb_frees + 1 in
-    let fnth = fun x -> th_frees := !th_frees + 1 in
+    let fnpcb = fun _ -> pcb_frees := !pcb_frees + 1 in
+    let fnth = fun _ -> th_frees := !th_frees + 1 in
     Gc.finalise fnpcb pcb;
     Gc.finalise fnth th;
     return (pcb, th)
@@ -331,7 +331,7 @@ struct
     in
     new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
       ~tx_isn id
-    >>= fun (pcb, th) ->
+    >>= fun ( (pcb:pcb), th) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack tx_isn);
     (* Add the PCB to our listens table *)
@@ -353,7 +353,7 @@ struct
     in
     new_pcb t ~rx_wnd ~rx_wnd_scale ~tx_wnd ~tx_wnd_scale ~sequence ~tx_mss
       ~tx_isn:(Sequence.incr tx_isn) id
-    >>= fun (pcb, th) ->
+    >>= fun ( (pcb:pcb), th) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
@@ -435,7 +435,7 @@ struct
                   new_server_connection
                     t ~tx_wnd ~sequence ~options ~tx_isn ~rx_wnd
                     ~rx_wnd_scaleoffer ~pushf id
-                  >>= fun newconn ->
+                  >>= fun _ ->
                   return_unit
                 | None ->
                   Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
@@ -491,7 +491,7 @@ struct
       (input_no_pcb t listeners data)
 
   (* Blocking read on a PCB *)
-  let rec read pcb =
+  let read pcb =
     User_buffer.Rx.take_l pcb.urx
 
   (* Maximum allowed write *)
@@ -516,8 +516,7 @@ struct
       let remaing_bit = Cstruct.sub data av_len (len - av_len) in
       writefn pcb wfn first_bit  >>= fun () ->
       writefn pcb wfn remaing_bit
-    | av_len ->
-      wfn [data]
+    | _ -> wfn [data]
 
   (* URG_TODO: raise exception when trying to write to closed connection
                instead of quietly returning *)
@@ -538,7 +537,7 @@ struct
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
-    let islistener t port =
+    let islistener _t _port =
       (* TODO keep a list of active listen ports *)
       false in
     let idinuse t id =

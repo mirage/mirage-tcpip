@@ -16,7 +16,6 @@
  *)
 
 open Lwt
-open Printf
 
 (* A bounded queue to receive data segments and let readers block on
    receiving them. Also supports a monitor that is informed when the
@@ -314,7 +313,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
      Note that sz does not take window scaling into account, and so
      should be passed as unscaled (i.e. from the wire) here.
      Window will internally scale it up. *)
-  let free t sz =
+  let free t _sz =
     clear_buffer t >>= fun () ->
     inform_app t
 

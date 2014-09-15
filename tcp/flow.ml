@@ -53,7 +53,7 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     Pcb.writev t views >>= fun () ->
     return (`Ok ())
 
-  let rec write_nodelay t view =
+  let write_nodelay t view =
     Pcb.write_nodelay t view
 
   let writev_nodelay t views =
@@ -63,12 +63,14 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     Pcb.close t
 
   let create_connection tcp (daddr, dport) =
-    Pcb.connect tcp daddr dport >>= function
+    Pcb.connect tcp ~dest_ip:daddr ~dest_port:dport >>= function
     | `Timeout ->
-      Printf.printf "Failed to connect to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+      Printf.printf "Failed to connect to %s:%d\n%!"
+        (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Timeout)
     | `Rst ->
-      Printf.printf "Refused connection to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+      Printf.printf "Refused connection to %s:%d\n%!"
+        (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Refused)
     | `Ok (fl, _) ->
       return (`Ok fl)
@@ -79,6 +81,6 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
 
-  let disconnect t =
+  let disconnect _ =
     return_unit
 end

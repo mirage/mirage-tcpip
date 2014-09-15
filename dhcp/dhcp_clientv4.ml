@@ -103,7 +103,7 @@ module Make (Console : V1_LWT.CONSOLE)
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
   (* Receive a DHCP UDP packet *)
-  let input t ~src ~dst ~src_port buf =
+  let input t ~src:_ ~dst:_ ~src_port:_ buf =
     let ciaddr = Ipaddr.V4.of_int32 (get_dhcp_ciaddr buf) in
     let yiaddr = Ipaddr.V4.of_int32 (get_dhcp_yiaddr buf) in
     let siaddr = Ipaddr.V4.of_int32 (get_dhcp_siaddr buf) in
@@ -184,7 +184,7 @@ module Make (Console : V1_LWT.CONSOLE)
         |_ -> Console.log_s t.c "DHCP: ack not for us"
       end
     | Shutting_down -> return_unit
-    | Lease_held info -> Console.log_s t.c "DHCP input: lease already held"
+    | Lease_held _ -> Console.log_s t.c "DHCP input: lease already held"
     | Disabled -> Console.log_s t.c "DHCP input: disabled"
 
   (* Start a DHCP discovery off on an interface *)

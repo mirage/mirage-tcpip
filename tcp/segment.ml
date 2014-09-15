@@ -48,7 +48,7 @@ module Rx(Time:V1_LWT.TIME) = struct
     window: int;
   }
 
-  let seg_to_string seg =
+  let string_of_seg seg =
     sprintf "TCP: RX seg seq=%s fin=%b syn=%b ack=%b acknum=%s win=%d"
       (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
       (Sequence.to_string seg.ack_number) seg.window
@@ -67,8 +67,6 @@ module Rx(Time:V1_LWT.TIME) = struct
       let compare a b = Sequence.compare a.sequence b.sequence
     end)
 
-  type t = S.t
-
   type q = {
     mutable segs: S.t;
     rx_data: (Cstruct.t list option * int option) Lwt_mvar.t; (* User receive channel *)
@@ -81,7 +79,7 @@ module Rx(Time:V1_LWT.TIME) = struct
     let segs = S.empty in
     { segs; rx_data; tx_ack; wnd; state }
 
-  let to_string t =
+  let string_of_q t =
     String.concat ", "
       (List.map (fun seg -> sprintf "%lu[%d]" (Sequence.to_int32 seg.sequence) (len seg))
          (S.elements t.segs))
@@ -94,9 +92,9 @@ module Rx(Time:V1_LWT.TIME) = struct
     with Not_found -> false
 
   (* If there is a SYN flag in this segment set *)
-  let syn q =
+  (*  let syn q =
     try (S.max_elt q).syn
-    with Not_found -> false
+    with Not_found -> false *)
 
   (* Determine the transmit window, from the last segment *)
   let window q =
@@ -109,7 +107,7 @@ module Rx(Time:V1_LWT.TIME) = struct
      and a receive queue, update the window,
      extract any ready segments into the user receive queue,
      and signal any acks to the Tx queue *)
-  let input q seg =
+  let input (q:q) seg =
     (* Check that the segment fits into the valid receive
        window *)
     let force_ack = ref false in
@@ -231,12 +229,13 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
-  let to_string seg =
+(*  let string_of_seg seg =
     sprintf "[%s%d]"
       (match seg.flags with |No_flags->"" |Syn->"SYN " |Fin ->"FIN " |Rst -> "RST " |Psh -> "PSH ")
       (len seg)
+*)
 
-  let ack_segment q seg =
+  let ack_segment _ _ =
     (* Take any action to the user transmit queue due to this being successfully
        ACKed *)
     ()
@@ -322,7 +321,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
             let rexmit_seg = peek_l q.segs in
             (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
                              (Sequence.to_int rexmit_seg.seq) (Sequence.to_int seq); *)
-            let {wnd} = q in
+            let { wnd; _ } = q in
             let flags=rexmit_seg.flags in
             let options=[] in (* TODO: put the right options *)
             let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
@@ -331,7 +330,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
         | false ->
           q.dup_acks <- 0
       in
-      Lwt_mvar.take tx_ack >>= fun (seq, win) ->
+      Lwt_mvar.take tx_ack >>= fun _ ->
       Window.set_ack_serviced q.wnd true;
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
@@ -366,7 +365,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   let output ?(flags=No_flags) ?(options=[]) q data =
     (* Transmit the packet to the wire
          TODO: deal with transmission soft/hard errors here RFC5461 *)
-    let {wnd} = q in
+    let { wnd; _ } = q in
     let ack = Window.rx_nxt wnd in
     let seq = Window.tx_nxt wnd in
     let seg = { data; flags; seq } in
@@ -382,7 +381,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
         TT.start q.rexmit_timer ~p seg.seq
     in
     q_rexmit () >>= fun () ->
-    q.xmit ~flags ~wnd ~options ~seq data >>= fun view ->
+    q.xmit ~flags ~wnd ~options ~seq data >>= fun _ ->
     (* Inform the RX ack thread that we've just sent one *)
     Lwt_mvar.put q.rx_ack ack
 end

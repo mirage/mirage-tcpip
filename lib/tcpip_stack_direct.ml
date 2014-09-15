@@ -68,10 +68,10 @@ struct
       `Unknown of string
   ]
 
-  let id {id} = id
-  let tcpv4 {tcpv4} = tcpv4
-  let udpv4 {udpv4} = udpv4
-  let ipv4 {ipv4} = ipv4
+  let id { id; _ } = id
+  let tcpv4 { tcpv4; _ } = tcpv4
+  let udpv4 { udpv4; _ } = udpv4
+  let ipv4 { ipv4; _ } = ipv4
 
   let listen_udpv4 t ~port callback =
     Hashtbl.replace t.udpv4_listeners port callback
@@ -85,12 +85,12 @@ struct
         (* TODO: spawn a background thread to reconfigure the interface
            when future offers are received. *)
         let dhcp, offers = Dhcp.create t.c t.ipv4 t.udpv4 in
-        listen_udpv4 t 68 (Dhcp.input dhcp);
+        listen_udpv4 t ~port:68 (Dhcp.input dhcp);
         (* TODO: stop listening to this port when done with DHCP. *)
         Lwt_stream.get offers
         >>= function
         | None -> fail (Failure "No DHCP offer received")
-        | Some offer -> Console.log_s t.c "DHCP offer received and bound"
+        | Some _ -> Console.log_s t.c "DHCP offer received and bound"
       end
     | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
@@ -121,17 +121,17 @@ struct
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto ~src ~dst buf -> return_unit)
+            ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> return_unit)
             t.ipv4)
-        ~ipv6:(fun b -> return_unit)
+        ~ipv6:(fun _ -> return_unit)
         t.ethif)
 
   let connect id =
-    let {V1_LWT.console = c; interface = netif; mode; name } = id in
+    let { V1_LWT.console = c; interface = netif; mode; _ } = id in
     let or_error fn t err =
       fn t
       >>= function
-      | `Error e -> fail (Failure err)
+      | `Error _ -> fail (Failure err)
       | `Ok r -> return r
     in
     Console.log_s c "Manager: connect"

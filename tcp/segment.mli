@@ -14,18 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open State
+(* FIXME: interface *)
 
 module Rx (T:V1_LWT.TIME) : sig
   type seg
+  val string_of_seg: seg -> string
   val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
     ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
 
   type q
+  val string_of_q: q -> string
   val q : rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
     wnd:Window.t -> state:State.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t -> q
-  val to_string : q -> string
   val is_empty : q -> bool
   val input : q -> seg -> unit Lwt.t
 end
