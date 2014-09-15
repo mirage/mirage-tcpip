@@ -15,7 +15,7 @@
  *)
 
 val get_options : Cstruct.t -> Options.t list
-val set_options : Cstruct.t -> Options.ts -> int
+val set_options : Cstruct.t -> Options.t list -> int
 val get_payload : Cstruct.t -> Cstruct.t
 
 type id = {
@@ -28,6 +28,7 @@ type id = {
 module Make(Ipv4:V1_LWT.IPV4) : sig
   val xmit : ip:Ipv4.t -> id:id ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
-    rx_ack:Sequence.t option -> seq:Sequence.t -> window:int -> options:Options.ts ->
+    rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
+    options:Options.t list ->
     Cstruct.t list -> unit Lwt.t
 end

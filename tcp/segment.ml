@@ -203,7 +203,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   module TT = Tcptimer.Make(Time)
   module TX = Window.Make(Clock)
 
-  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
   type seg = {

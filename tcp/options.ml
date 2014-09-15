@@ -19,15 +19,13 @@
 exception Bad_option of string
 
 type t =
-  |Noop
-  |MSS of int                    (* RFC793 *)
-  |Window_size_shift of int      (* RFC1323 2.2 *)
-  |SACK_ok                       (* RFC2018 *)
-  |SACK of (int32 * int32) list  (* RFC2018 *)
-  |Timestamp of int32 * int32    (* RFC1323 3.2 *)
-  |Unknown of int * string       (* RFC793 *)
-
-type ts = t list
+  | Noop
+  | MSS of int                    (* RFC793 *)
+  | Window_size_shift of int      (* RFC1323 2.2 *)
+  | SACK_ok                       (* RFC2018 *)
+  | SACK of (int32 * int32) list  (* RFC2018 *)
+  | Timestamp of int32 * int32    (* RFC1323 3.2 *)
+  | Unknown of int * string       (* RFC793 *)
 
 let report_error n =
   let error = Printf.sprintf "Invalid option %d presented" n in
@@ -47,18 +45,18 @@ let unmarshal buf =
   let i = iter
       (fun buf ->
          match get_uint8 buf 0 with
-         |0 -> None   (* EOF *)
-         |1 -> Some 1 (* NOP *)
-         |n ->
+         | 0 -> None   (* EOF *)
+         | 1 -> Some 1 (* NOP *)
+         | n ->
            try Some (get_uint8 buf 1)
            with Invalid_argument _ -> report_error n
       )
       (fun buf ->
          let option_number = (get_uint8 buf 0) in
          match option_number with
-         |0 -> assert false
-         |1 -> Noop
-         |_ ->
+         | 0 -> assert false
+         | 1 -> Noop
+         | _ ->
            let option_length = (get_uint8 buf 1) in
            try
              match option_number, option_length with
@@ -90,21 +88,21 @@ let write_iter buf =
   let open Cstruct in
   let set_tlen t l = set_uint8 buf 0 t; set_uint8 buf 1 l in
   function
-  |Noop ->
+  | Noop ->
     set_uint8 buf 0 1;
     1
-  |MSS sz ->
+  | MSS sz ->
     set_tlen 2 4;
     BE.set_uint16 buf 2 sz;
     4
-  |Window_size_shift shift ->
+  | Window_size_shift shift ->
     set_tlen 3 3;
     set_uint8 buf 2 shift;
     3
-  |SACK_ok ->
+  | SACK_ok ->
     set_tlen 4 2;
     2
-  |SACK acks ->
+  | SACK acks ->
     let tlen = (List.length acks * 8) + 2 in
     set_tlen 5 tlen;
     let rec fn off = function
@@ -115,12 +113,12 @@ let write_iter buf =
       |[] -> () in
     fn 2 acks;
     tlen
-  |Timestamp (tsval,tsecr) ->
+  | Timestamp (tsval,tsecr) ->
     set_tlen 8 10;
     BE.set_uint32 buf 2 tsval;
     BE.set_uint32 buf 6 tsecr;
     10
-  |Unknown (kind,contents) ->
+  | Unknown (kind,contents) ->
     let tlen = String.length contents in
     set_tlen kind tlen;
     blit_from_string contents 0 buf 0 tlen;
@@ -131,30 +129,30 @@ let marshal buf ts =
   (* Apply the write iterator on each stamp *)
   let rec write fn off buf =
     function
-    |hd::tl ->
+    | hd::tl ->
       let wlen = fn buf hd in
       let buf = shift buf wlen in
       write fn (off+wlen) buf tl
-    |[] -> off
+    | [] -> off
   in
   let tlen = write write_iter 0 buf ts in
   (* add padding to word length *)
   match (4 - (tlen mod 4)) mod 4 with
-  |0 -> tlen
-  |1 -> set_uint8 buf tlen 0; tlen+1
-  |2 -> set_uint8 buf tlen 0; set_uint8 buf (tlen+1) 0; tlen+2
-  |3 -> set_uint8 buf tlen 0; set_uint8 buf (tlen+1) 0; set_uint8 buf (tlen+2) 0; tlen+3
-  |_ -> assert false
+  | 0 -> tlen
+  | 1 -> set_uint8 buf tlen 0; tlen+1
+  | 2 -> set_uint8 buf tlen 0; set_uint8 buf (tlen+1) 0; tlen+2
+  | 3 -> set_uint8 buf tlen 0; set_uint8 buf (tlen+1) 0; set_uint8 buf (tlen+2) 0; tlen+3
+  | _ -> assert false
 
 let to_string = function
-  |Noop -> "Noop"
-  |MSS m -> Printf.sprintf "MSS=%d" m
-  |Window_size_shift b -> Printf.sprintf "Window>>%d" b
-  |SACK_ok -> "SACK_ok"
-  |SACK x -> Printf.(sprintf "SACK=(%s)" (String.concat ","
+  | Noop -> "Noop"
+  | MSS m -> Printf.sprintf "MSS=%d" m
+  | Window_size_shift b -> Printf.sprintf "Window>>%d" b
+  | SACK_ok -> "SACK_ok"
+  | SACK x -> Printf.(sprintf "SACK=(%s)" (String.concat ","
                                             (List.map (fun (l,r) -> sprintf "%lu,%lu" l r) x)))
-  |Timestamp (a,b) -> Printf.sprintf "Timestamp(%lu,%lu)" a b
-  |Unknown (t,_) -> Printf.sprintf "%d?" t
+  | Timestamp (a,b) -> Printf.sprintf "Timestamp(%lu,%lu)" a b
+  | Unknown (t,_) -> Printf.sprintf "%d?" t
 
 let prettyprint s =
   Printf.sprintf "[ %s ]" (String.concat "; " (List.map to_string s))
