@@ -57,12 +57,13 @@ let connect (id:ipv4) =
 let disconnect _ =
   return_unit
 
-let id {interface} =
+let id { interface; _ } =
   Some (Ipaddr_unix.V4.of_inet_addr_exn interface)
 
-let input ~listeners t =
+(* FIXME: how does this work at all ?? *)
+ let input ~listeners:_ _ =
   (* TODO terminate when signalled by disconnect *)
-  let t,u = Lwt.task () in
+  let t, _ = Lwt.task () in
   t
 
 let write ?source_port ~dest_ip ~dest_port t buf =

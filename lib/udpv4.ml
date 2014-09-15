@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Printf
 open Wire_structs
 
 module Make(Ipv4: V1_LWT.IPV4) = struct
@@ -38,7 +37,8 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
 
   let id {ip} = ip
 
-  let input ~listeners t ~src ~dst buf =
+  (* FIXME: [t] is not taken into account at all? *)
+  let input ~listeners _t ~src ~dst buf =
     let dst_port = get_udpv4_dest_port buf in
     let data = Cstruct.sub buf sizeof_udpv4 (get_udpv4_length buf - sizeof_udpv4) in
     match listeners ~dst_port with
@@ -68,5 +68,5 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
   let connect ip =
     return (`Ok { ip })
 
-  let disconnect ip = return_unit
+  let disconnect _ = return_unit
 end

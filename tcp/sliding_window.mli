@@ -17,6 +17,7 @@
 type t
 
 val create : isn:Sequence.t -> mss:Sequence.t -> t
+val valid: t -> Sequence.t -> bool
 
 val get_l : t -> Sequence.t
 val get_m : t -> Sequence.t

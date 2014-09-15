@@ -18,7 +18,6 @@ open Printf
 
 (* Type of sequence number. TODO functorize *)
 type seq = Sequence.t
-type seq_waiters = unit Lwt.u Lwt_sequence.t
 
 (* Window advances left to right only. No going backwards! *)
 type t = {
@@ -74,5 +73,5 @@ let get_l_r t = Sequence.sub t.r t.l
 let get_m_r t = Sequence.sub t.r t.m
 
 let to_string t =
-  sprintf "[%s %s %s]" (Sequence.to_string t.l) (Sequence.to_string t.m) 
+  sprintf "[%s %s %s]" (Sequence.to_string t.l) (Sequence.to_string t.m)
     (Sequence.to_string t.r)

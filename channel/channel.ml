@@ -17,7 +17,6 @@
 (** Buffered reading and writing over the Flow API *)
 
 open Lwt
-open Printf
 
 module Make(Flow:V1_LWT.FLOW) = struct
 
@@ -46,7 +45,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let abort_t, abort_u = Lwt.task () in
     { ibuf; obuf; flow; obufq; opos; abort_t; abort_u }
 
-  let to_flow { flow } = flow
+  let to_flow { flow; _ } = flow
 
   let ibuf_refill t =
     Flow.read t.flow >>= function
@@ -148,7 +147,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     |Some buf when Cstruct.len buf = t.opos -> (* obuf is full *)
       t.obufq <- buf :: t.obufq;
       t.obuf <- None
-    |Some buf when t.opos = 0 -> (* obuf wasnt ever used, so discard *)
+    |Some _ when t.opos = 0 -> (* obuf wasnt ever used, so discard *)
       t.obuf <- None
     |Some buf -> (* partially filled obuf, so resize *)
       let buf = Cstruct.sub buf 0 t.opos in
@@ -192,7 +191,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     write_string t buf 0 (String.length buf);
     write_char t '\n'
 
-  let rec flush t =
+  let flush t =
     queue_obuf t;
     let l = List.rev t.obufq in
     t.obufq <- [];

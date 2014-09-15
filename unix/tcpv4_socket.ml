@@ -61,7 +61,7 @@ let get_dest fd =
       | Some ip -> ip,port
     end
 
-let create_connection t (dst,dst_port) =
+let create_connection _t (dst,dst_port) =
   let fd = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
@@ -110,7 +110,8 @@ let writev_nodelay fd bufs =
 let close fd =
   Lwt_unix.close fd
 
-let input t ~listeners =
+(* FIXME: how does this work at all ?? *)
+let input _t ~listeners:_ =
   (* TODO terminate when signalled by disconnect *)
-  let t,u = Lwt.task () in
+  let t, _ = Lwt.task () in
   t
