@@ -13,7 +13,7 @@ Library tcpip
   Findlibname:        tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
-  CCOpt:	      -O2
+  CCOpt:              -O2
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct
 
 Library ethif
@@ -22,7 +22,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Arpv4
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
 Library ipv4
   CompiledObject:     best
@@ -30,7 +30,7 @@ Library ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Ipv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt,tcpip
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library udpv4
   CompiledObject:     best
@@ -38,7 +38,7 @@ Library udpv4
   Findlibparent:      tcpip
   Findlibname:        udpv4
   Modules:            Udpv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,cstruct.syntax,lwt,tcpip
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library tcpv4
   CompiledObject:     best
@@ -46,12 +46,12 @@ Library tcpv4
   Path:               tcp
   Findlibparent:      tcpip
   Findlibname:        tcpv4
-  Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,Window,Segment,User_buffer,Pcb,Flow
+  Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,
+                      Window,Segment,User_buffer,Pcb,Flow
   BuildDepends:       io-page,
                       mirage-types,
                       ipaddr,
                       cstruct,
-                      cstruct.syntax,
                       lwt,
                       tcpip,
                       tcpip.ipv4
@@ -78,7 +78,6 @@ Library dhcpv4
                       mirage-types,
                       ipaddr,
                       cstruct,
-                      cstruct.syntax,
                       lwt,
                       tcpip.udpv4
 
@@ -92,7 +91,6 @@ Library "tcpip-stack-direct"
                       mirage-types,
                       ipaddr,
                       cstruct,
-                      cstruct.syntax,
                       lwt,
                       tcpip.ethif,
                       tcpip.udpv4,

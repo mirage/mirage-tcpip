@@ -43,7 +43,6 @@
 "tcp/pcb.cmx": for-pack(Tcpv4)
 "tcp/flow.cmx": for-pack(Tcpv4)
 <tcp/*.ml{,i}>: pkg_cstruct
-<tcp/*.ml{,i}>: pkg_cstruct.syntax
 <tcp/*.ml{,i}>: pkg_io-page
 <tcp/*.ml{,i}>: pkg_ipaddr
 <tcp/*.ml{,i}>: pkg_lwt
@@ -60,7 +59,6 @@
 # Library dhcpv4
 "dhcp/dhcpv4.cmxs": use_dhcpv4
 <dhcp/*.ml{,i}>: pkg_cstruct
-<dhcp/*.ml{,i}>: pkg_cstruct.syntax
 <dhcp/*.ml{,i}>: pkg_io-page
 <dhcp/*.ml{,i}>: pkg_ipaddr
 <dhcp/*.ml{,i}>: pkg_lwt
@@ -70,7 +68,6 @@
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_cstruct.syntax
 <lib/*.ml{,i}>: pkg_io-page
 <lib/*.ml{,i}>: pkg_ipaddr
 <lib/*.ml{,i}>: pkg_lwt
@@ -114,7 +111,6 @@
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
 <unix/*.ml{,i}>: pkg_cstruct
 <unix/*.ml{,i}>: pkg_cstruct.lwt
-<unix/*.ml{,i}>: pkg_cstruct.syntax
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_io-page.unix
 <unix/*.ml{,i}>: pkg_ipaddr
@@ -128,3 +124,7 @@
 <unix/*.ml{,i}>: use_udpv4-socket
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
+<tcp/pcb.ml>: pkg_cstruct.syntax
+<lib/wire_structs.ml>: pkg_cstruct.syntax
+<lib/arpv4.ml>: pkg_cstruct.syntax
+<dhcp/dhcp_clientv4.ml>: pkg_cstruct.syntax
