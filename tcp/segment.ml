@@ -151,11 +151,10 @@ module Rx(Time:V1_LWT.TIME) = struct
           let win_has_changed = (Window.ack_win q.wnd) <> win in
           if ((data_in_flight && (Window.ack_serviced q.wnd || not seq_has_changed)) ||
               (not data_in_flight && win_has_changed)) then begin
-            Lwt_mvar.put q.tx_ack (seg.ack_number, win) >>
-            (Window.set_ack_serviced q.wnd false;
-             Window.set_ack_seq q.wnd seg.ack_number;
-             Window.set_ack_win q.wnd win;
-             return ())
+            Window.set_ack_serviced q.wnd false;
+            Window.set_ack_seq q.wnd seg.ack_number;
+            Window.set_ack_win q.wnd win;
+            Lwt_mvar.put q.tx_ack (seg.ack_number, win)
           end else begin
              if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
                Window.set_ack_seq q.wnd seg.ack_number;
