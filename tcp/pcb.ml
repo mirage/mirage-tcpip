@@ -33,7 +33,7 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
 
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)
-  module ACK = Ack.Delayed(Time)
+  module ACK = Ack.Immediate
   module UTX = User_buffer.Tx(Time)(Clock)
   module WIRE = Wire.Make(Ipv4)
   module STATE = State.Make(Time)
