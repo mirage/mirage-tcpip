@@ -16,11 +16,9 @@
  *
  *)
 open Lwt
-open Wire_structs
 
 module Make(Netif : V1_LWT.NETWORK) = struct
 
-  type id = Netif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
@@ -41,18 +39,18 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let id t = t.netif
 
   let input ~ipv4 ~ipv6 t frame =
-    match get_ethernet_ethertype frame with
+    match Wire_structs.get_ethernet_ethertype frame with
     | 0x0806 -> Arpv4.input t.arp frame (* ARP *)
     | 0x0800 -> (* IPv4 *)
-      let payload = Cstruct.shift frame sizeof_ethernet in
+      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       ipv4 payload
-    | 0x86dd -> 
-      let payload = Cstruct.shift frame sizeof_ethernet in
+    | 0x86dd ->
+      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       ipv6 payload
-    | etype  ->
-      let _payload = Cstruct.shift frame sizeof_ethernet in
+    | _etype ->
+      let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
       (* TODO default etype payload *)
-      return ()
+      return_unit
 
   let write t frame =
     Netif.write t.netif frame
@@ -68,13 +66,8 @@ module Make(Netif : V1_LWT.NETWORK) = struct
       Arpv4.create ~output ~get_mac ~get_etherbuf in
     return (`Ok { netif; arp })
 
-  let disconnect nf = return ()
-  let mac {netif} = Netif.mac netif
-
+  let disconnect _ = return_unit
   let add_ipv4 t = Arpv4.add_ip t.arp
-  let remove_ipv4 t = Arpv4.remove_ip t.arp
   let query_arpv4 t = Arpv4.query t.arp
-
   let mac t = Netif.mac t.netif
-  let get_netif t = t.netif
 end

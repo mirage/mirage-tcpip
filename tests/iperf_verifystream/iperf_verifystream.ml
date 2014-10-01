@@ -76,7 +76,7 @@ let iperfclient mgr src_ip dest_ip dport =
       Cstruct.blit_from_string mstr 0 a 0 mlen;
       calcsum a txsum txbnum;
       Net.Flow.write chan a >>
-      match l - mlen with | 0 -> return () | _ -> dowrtite (l - mlen)
+      match l - mlen with | 0 -> return_unit | _ -> dowrtite (l - mlen)
     in
     dowrtite 100000000 >>
     Net.Flow.close chan
@@ -87,7 +87,7 @@ let iperfclient mgr src_ip dest_ip dport =
 					    (dest_ip, dport), iperftx)) in
    printf "Checksum of TX data = 0x%X\n%!" !txsum;
    printf "Iperf client: Done.\n%!";
-   return ()
+   return_unit
   )
 
 
@@ -118,7 +118,7 @@ let iperf (dip,dpt) chan =
         print_data st ts_now;
 	Net.Flow.close chan >>
 	(printf "Checksum of RX data = 0x%X\n%!" !rxsum;
-	 printf "Iperf server: Done - closed connection. \n%!"; return ())
+	 printf "Iperf server: Done - closed connection. \n%!"; return_unit)
     | Some data -> begin
         calcsum data rxsum rxbnum;
 	let l = Cstruct.len data in
@@ -135,7 +135,7 @@ let iperf (dip,dpt) chan =
   in
   iperf_h chan >>
   (Lwt.wakeup server_done_u ();
-   return ())
+   return_unit)
 
 
 let main () =
@@ -166,14 +166,14 @@ let main () =
 	 let _ = Net.Flow.listen mgr (`TCPv4 ((None, port), iperf)) in
 	 printf "Done setting up server \n%!";
 	 Lwt.wakeup server_ready_u ();
-	 return ()
+	 return_unit
 	)
     | _ ->
-	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return_unit)
   ) in
   server_done >>
   (Lwt.cancel mgr_th;
    printf "RX sum = 0x%X, TX sum = 0x%X %s\n%!" !rxsum !txsum
      (if !rxsum = !txsum then " - success" else " - ERROR");
-   return ()
+   return_unit
   )

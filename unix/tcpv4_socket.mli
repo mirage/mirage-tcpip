@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include V1_LWT.TCPV4 with
-      type ipv4 = Ipaddr.V4.t option
-  and type ipv4input = unit Lwt.t
-  and type flow = Lwt_unix.file_descr
+include V1_LWT.TCPV4 with type ipv4 = Ipaddr.V4.t option
+                      and type ipv4input = unit Lwt.t
+                      and type flow = Lwt_unix.file_descr

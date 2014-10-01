@@ -16,29 +16,28 @@
 
 open Printf
 open Lwt
-open State
 
 let peek_opt_l seq =
   match Lwt_sequence.take_opt_l seq with
-  |None -> None
-  |Some s ->
-     let _ = Lwt_sequence.add_l s seq in
-     Some s
+  | None -> None
+  | Some s ->
+    let _ = Lwt_sequence.add_l s seq in
+    Some s
 
 (* The receive queue stores out-of-order segments, and can
    coalesece them on input and pass on an ordered list up the
    stack to the application.
-  
+
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
- *)
+*)
 module Rx(Time:V1_LWT.TIME) = struct
 
   module StateTick = State.Make(Time)
 
-  (* Individual received TCP segment 
+  (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type seg = {
+  type segment = {
     sequence: Sequence.t;
     data: Cstruct.t;
     fin: bool;
@@ -48,28 +47,26 @@ module Rx(Time:V1_LWT.TIME) = struct
     window: int;
   }
 
-  let seg_to_string seg =
+  let string_of_segment seg =
     sprintf "TCP: RX seg seq=%s fin=%b syn=%b ack=%b acknum=%s win=%d"
-       (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
-       (Sequence.to_string seg.ack_number) seg.window
+      (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
+      (Sequence.to_string seg.ack_number) seg.window
 
-  let make ~sequence ~fin ~syn ~ack ~ack_number ~window ~data =
+  let segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data =
     { sequence; fin; syn; ack; ack_number; window; data }
 
-  let len seg = 
+  let len seg =
     (Cstruct.len seg.data) +
     (if seg.fin then 1 else 0) +
     (if seg.syn then 1 else 0)
 
   (* Set of segments, ordered by sequence number *)
   module S = Set.Make(struct
-    type t = seg
-    let compare a b = Sequence.compare a.sequence b.sequence
-  end)
+      type t = segment
+      let compare a b = Sequence.compare a.sequence b.sequence
+    end)
 
-  type t = S.t
-
-  type q = {
+  type t = {
     mutable segs: S.t;
     rx_data: (Cstruct.t list option * int option) Lwt_mvar.t; (* User receive channel *)
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
@@ -77,26 +74,27 @@ module Rx(Time:V1_LWT.TIME) = struct
     state: State.t;
   }
 
-  let q ~rx_data ~wnd ~state ~tx_ack =
+  let create ~rx_data ~wnd ~state ~tx_ack =
     let segs = S.empty in
     { segs; rx_data; tx_ack; wnd; state }
 
   let to_string t =
-    String.concat ", " 
-      (List.map (fun seg -> sprintf "%lu[%d]" (Sequence.to_int32 seg.sequence) (len seg))
-       (S.elements t.segs))
+    String.concat ", "
+      (List.map (fun seg ->
+           sprintf "%lu[%d]" (Sequence.to_int32 seg.sequence) (len seg)
+         ) (S.elements t.segs))
 
-  (* If there is a FIN flag at the end of this segment set.
-     TODO: should look for a FIN and chop off the rest
-     of the set as they may be orphan segments *)
+  (* If there is a FIN flag at the end of this segment set.  TODO:
+     should look for a FIN and chop off the rest of the set as they
+     may be orphan segments *)
   let fin q =
     try (S.max_elt q).fin
     with Not_found -> false
 
   (* If there is a SYN flag in this segment set *)
-  let syn q =
-    try (S.max_elt q).syn
-    with Not_found -> false
+  (*  let syn q =
+      try (S.max_elt q).syn
+      with Not_found -> false *)
 
   (* Determine the transmit window, from the last segment *)
   let window q =
@@ -105,86 +103,83 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let is_empty q = S.is_empty q.segs
 
-  (* Given an input segment, the window information,
-     and a receive queue, update the window,
-     extract any ready segments into the user receive queue,
-     and signal any acks to the Tx queue *)
-  let input q seg =
-    (* Check that the segment fits into the valid receive 
-       window *)
+  (* Given an input segment, the window information, and a receive
+     queue, update the window, extract any ready segments into the
+     user receive queue, and signal any acks to the Tx queue *)
+  let input (q:t) seg =
+    (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
-    match Window.valid q.wnd seg.sequence with
-    |false -> return ()
-    |true -> begin
+    if not (Window.valid q.wnd seg.sequence) then return_unit
+    else
       (* Insert the latest segment *)
       let segs = S.add seg q.segs in
       (* Walk through the set and get a list of contiguous segments *)
       let ready, waiting = S.fold (fun seg acc ->
-        match Sequence.compare seg.sequence (Window.rx_nxt_inseq q.wnd) with
-        |(-1) ->
-           (* Sequence number is in the past, probably an overlapping
-              segment. Drop it for now, but TODO segment coalescing *)
-           force_ack := true;
-           acc
-        |0 ->
-           (* This is the next segment, so put it into the ready set
-              and update the receive ack number *)
-           let (ready,waiting) = acc in
-           Window.rx_advance_inseq q.wnd (len seg);
-           (S.add seg ready), waiting
-        |1 -> 
-           (* Sequence is in the future, so can't use it yet *)
-           force_ack := true;
-           let (ready,waiting) = acc in
-           ready, (S.add seg waiting)
-        |_ -> assert false
+          match Sequence.compare seg.sequence (Window.rx_nxt_inseq q.wnd) with
+          | (-1) ->
+            (* Sequence number is in the past, probably an overlapping
+               segment. Drop it for now, but TODO segment
+               coalescing *)
+            force_ack := true;
+            acc
+          | 0 ->
+            (* This is the next segment, so put it into the ready set
+               and update the receive ack number *)
+            let (ready,waiting) = acc in
+            Window.rx_advance_inseq q.wnd (len seg);
+            (S.add seg ready), waiting
+          | 1 ->
+            (* Sequence is in the future, so can't use it yet *)
+            force_ack := true;
+            let (ready,waiting) = acc in
+            ready, (S.add seg waiting)
+          | _ -> assert false
         ) segs (S.empty, S.empty) in
       q.segs <- waiting;
-
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
-        if seg.ack then begin
-          StateTick.tick q.state (Recv_ack seg.ack_number);
+        if seg.ack then (
+          StateTick.tick q.state (State.Recv_ack seg.ack_number);
           let win = window ready in
           let data_in_flight = Window.tx_inflight q.wnd in
           let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
           let win_has_changed = (Window.ack_win q.wnd) <> win in
-          if ((data_in_flight && (Window.ack_serviced q.wnd || not seq_has_changed)) ||
-              (not data_in_flight && win_has_changed)) then begin
-            Lwt_mvar.put q.tx_ack (seg.ack_number, win) >>
-            (Window.set_ack_serviced q.wnd false;
-             Window.set_ack_seq q.wnd seg.ack_number;
-             Window.set_ack_win q.wnd win;
-             return ())
-          end else begin
-             if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
-               Window.set_ack_seq q.wnd seg.ack_number;
-             Window.set_ack_win q.wnd win;
-            return ()
-          end
-        end else
-          return () in
-
+          if (data_in_flight && (Window.ack_serviced q.wnd
+                                 || not seq_has_changed))
+          || (not data_in_flight && win_has_changed) then (
+            Lwt_mvar.put q.tx_ack (seg.ack_number, win) >>= fun () ->
+            Window.set_ack_serviced q.wnd false;
+            Window.set_ack_seq q.wnd seg.ack_number;
+            Window.set_ack_win q.wnd win;
+            return_unit
+          ) else (
+            if Sequence.gt seg.ack_number (Window.ack_seq q.wnd) then
+              Window.set_ack_seq q.wnd seg.ack_number;
+            Window.set_ack_win q.wnd win;
+            return_unit
+          )
+        ) else
+          return_unit
+      in
       (* Inform the user application of new data *)
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
         let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-          (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l), ((len seg) + acc_w)
-         )ready ([], 0) in
+            (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l), ((len seg) + acc_w)
+          )ready ([], 0) in
         let elems = List.rev elems_r in
 
         let w = if !force_ack || winadv > 0 then Some winadv else None in
-        Lwt_mvar.put q.rx_data (Some elems, w) >>
+        Lwt_mvar.put q.rx_data (Some elems, w) >>= fun () ->
         (* If the last ready segment has a FIN, then mark the receive
            window as closed and tell the application *)
         (if fin ready then begin
-          if S.cardinal waiting != 0 then
-            printf "TCP: warning, rx closed but waiting segs != 0\n%!"; 
-          Lwt_mvar.put q.rx_data (None, Some 0)
-         end else return ())
+            if S.cardinal waiting != 0 then
+              printf "TCP: warning, rx closed but waiting segs != 0\n%!";
+            Lwt_mvar.put q.rx_data (None, Some 0)
+          end else return_unit)
       in
       tx_ack <&> urx_inform
-    end
 
 end
 
@@ -193,20 +188,20 @@ end
 *)
 
 type tx_flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
-    No_flags
-   |Syn
-   |Fin
-   |Rst
-   |Psh
+  | No_flags
+  | Syn
+  | Fin
+  | Rst
+  | Psh
 
-module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
+module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)
   module TX = Window.Make(Clock)
 
-  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
-              seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
+    seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
   type seg = {
     data: Cstruct.t list;
@@ -216,11 +211,13 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
 
   (* Sequence length of the segment *)
   let len seg =
-    (match seg.flags with |No_flags |Psh |Rst -> 0 |Syn |Fin -> 1) +
+    (match seg.flags with
+     | No_flags | Psh | Rst -> 0
+     | Syn | Fin -> 1) +
     (Cstruct.lenv seg.data)
 
   (* Queue of pre-transmission segments *)
-  type q = {
+  type t = {
     segs: seg Lwt_sequence.t;      (* Retransmitted segment queue *)
     xmit: xmit;                    (* Transmit packet to the wire *)
     rx_ack: Sequence.t Lwt_mvar.t; (* RX Ack thread that we've sent one *)
@@ -231,55 +228,62 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
-  let to_string seg =
-    sprintf "[%s%d]" 
-      (match seg.flags with |No_flags->"" |Syn->"SYN " |Fin ->"FIN " |Rst -> "RST " |Psh -> "PSH ")
+(*  let string_of_seg seg =
+    sprintf "[%s%d]"
+      (match seg.flags with
+       | No_flags ->""
+       | Syn ->"SYN "
+       | Fin ->"FIN "
+       | Rst -> "RST "
+       | Psh -> "PSH ")
       (len seg)
+*)
 
-  let ack_segment q seg =
-    (* Take any action to the user transmit queue due to this being successfully
-       ACKed *)
-    ()
+  let ack_segment _ _ = ()
+  (* Take any action to the user transmit queue due to this being
+     successfully ACKed *)
 
-  (* URG_TODO: Add sequence number to the Syn_rcvd rexmit to only rexmit most recent *)
+  (* URG_TODO: Add sequence number to the Syn_rcvd rexmit to only
+     rexmit most recent *)
   let ontimer xmit st segs wnd seq =
-    match state st with
-    | Syn_rcvd _ | Established | Fin_wait_1 _ | Close_wait | Last_ack _ -> begin
-	match peek_opt_l segs with 
-	| None ->
-            Tcptimer.Stoptimer
-	| Some rexmit_seg ->
-            match rexmit_seg.seq = seq with
-            | false ->
-		(* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-		   (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
-		Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
-            | true ->
-		if (Window.max_rexmits_done wnd) then begin
-		  (* TODO - include more in log msg like ipaddrs *)
-		  printf "Max retransmits reached for connection - terminating\n%!";
-		  StateTick.tick st Timeout;
-		  Tcptimer.Stoptimer
-		end else begin
-		  let flags = rexmit_seg.flags in
-		  let options = [] in (* TODO: put the right options *)
-		  printf "TCP retransmission on timer seq = %d\n%!"
-                    (Sequence.to_int rexmit_seg.seq);
-		  let _ = xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
-		  Window.backoff_rto wnd;
-		  (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-                     (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
-		  Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
-		end
-    end
-    | _ -> 
-        Tcptimer.Stoptimer
-
+    match State.state st with
+    | State.Syn_rcvd _ | State.Established | State.Fin_wait_1 _
+    | State.Close_wait | State.Last_ack _ ->
+      begin match peek_opt_l segs with
+        | None ->
+          Tcptimer.Stoptimer
+        | Some rexmit_seg ->
+          match rexmit_seg.seq = seq with
+          | false ->
+            (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
+               (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+            Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
+          | true ->
+            if (Window.max_rexmits_done wnd) then (
+              (* TODO - include more in log msg like ipaddrs *)
+              printf "Max retransmits reached for connection - terminating\n%!";
+              StateTick.tick st State.Timeout;
+              Tcptimer.Stoptimer
+            ) else (
+              let flags = rexmit_seg.flags in
+              let options = [] in (* TODO: put the right options *)
+              printf "TCP retransmission on timer seq = %d\n%!"
+                (Sequence.to_int rexmit_seg.seq);
+              (* FIXME: suspicious ignore *)
+              let _ = xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
+              Window.backoff_rto wnd;
+              (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
+                 (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+              Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
+            )
+      end
+    | _ ->
+      Tcptimer.Stoptimer
 
   let peek_l seq =
     match Lwt_sequence.take_opt_l seq with
-    |None -> assert false
-    |Some s ->
+    | None -> assert false
+    | Some s ->
       let _ = Lwt_sequence.add_l s seq in
       s
 
@@ -288,72 +292,76 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
        segments in our retransmission queue *)
     let rec tx_ack_t () =
       let serviceack dupack ack_len seq win =
-	let rec clearsegs ack_remaining segs =
-	  match ack_remaining > 0l with
+        let rec clearsegs ack_remaining segs =
+          match ack_remaining > 0l with
           | false -> 0l (* here we return 0l instead of ack_remaining in case
                            the ack was an old packet in the network *)
           | true ->
-	      match Lwt_sequence.take_opt_l segs with
-	      | None ->
-                  printf "TCP: Dubious ACK received\n%!";
-                  ack_remaining
-	      | Some s ->
-                  let seg_len = (Int32.of_int (len s)) in
-                  match ack_remaining < seg_len with
-                  | true ->
-		      printf "TCP: Partial ACK received\n%!";
-		      (* return uncleared segment to the sequence *)
-		      let _ = Lwt_sequence.add_l s segs in
-		      ack_remaining
-                  | false ->
-		      ack_segment q s;
-		      clearsegs (Int32.sub ack_remaining seg_len) segs
+            match Lwt_sequence.take_opt_l segs with
+            | None ->
+              printf "TCP: Dubious ACK received\n%!";
+              ack_remaining
+            | Some s ->
+              let seg_len = (Int32.of_int (len s)) in
+              match ack_remaining < seg_len with
+              | true ->
+                printf "TCP: Partial ACK received\n%!";
+                (* return uncleared segment to the sequence *)
+                let _ = Lwt_sequence.add_l s segs in
+                ack_remaining
+              | false ->
+                ack_segment q s;
+                clearsegs (Int32.sub ack_remaining seg_len) segs
         in
         let partleft = clearsegs (Sequence.to_int32 ack_len) q.segs in
         TX.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win;
-	match (dupack || (Window.fast_rec q.wnd)) with
-	| true ->
-            q.dup_acks <- q.dup_acks + 1;
-            if (q.dup_acks = 3) ||
-	       ((q.dup_acks > 3) && ((Sequence.to_int32 ack_len) > 0l)) then begin
-		 (* alert window module to fall into fast recovery *)
-		 Window.alert_fast_rexmit q.wnd seq;
-		 (* retransmit the bottom of the unacked list of packets *)
-		 let rexmit_seg = peek_l q.segs in
-		 (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
-                    (Sequence.to_int rexmit_seg.seq) (Sequence.to_int seq); *)
-		 let {wnd} = q in
-		 let flags=rexmit_seg.flags in
-		 let options=[] in (* TODO: put the right options *)
-		 let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
-		 ()
-               end
-	| false ->
-            q.dup_acks <- 0
+        match (dupack || (Window.fast_rec q.wnd)) with
+        | true ->
+          q.dup_acks <- q.dup_acks + 1;
+          if (q.dup_acks = 3) ||
+             ((q.dup_acks > 3) && ((Sequence.to_int32 ack_len) > 0l)) then begin
+            (* alert window module to fall into fast recovery *)
+            Window.alert_fast_rexmit q.wnd seq;
+            (* retransmit the bottom of the unacked list of packets *)
+            let rexmit_seg = peek_l q.segs in
+            (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
+                             (Sequence.to_int rexmit_seg.seq) (Sequence.to_int seq); *)
+            let { wnd; _ } = q in
+            let flags=rexmit_seg.flags in
+            let options=[] in (* TODO: put the right options *)
+            (* XXX: suspicisous ignore *)
+            let _ = q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
+            ()
+          end
+        | false ->
+          q.dup_acks <- 0
       in
-      lwt (seq, win) = Lwt_mvar.take tx_ack in
+      Lwt_mvar.take tx_ack >>= fun _ ->
       Window.set_ack_serviced q.wnd true;
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
       let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
-      let dupacktest () = ((0l = (Sequence.to_int32 ack_len)) &&
-                           ((Window.tx_wnd_unscaled q.wnd) = (Int32.of_int win)) &&
-                           (not (Lwt_sequence.is_empty q.segs)))
+      let dupacktest () =
+        0l = Sequence.to_int32 ack_len &&
+        Window.tx_wnd_unscaled q.wnd = Int32.of_int win &&
+        not (Lwt_sequence.is_empty q.segs)
       in
       serviceack (dupacktest ()) ack_len seq win;
       (* Inform the window thread of updates to the transmit window *)
-      Lwt_mvar.put q.tx_wnd_update win >>
+      Lwt_mvar.put q.tx_wnd_update win >>= fun () ->
       tx_ack_t ()
     in
     tx_ack_t ()
 
-  let q ~(xmit:xmit) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
+  let create ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
     let segs = Lwt_sequence.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
     let period = Window.rto wnd in
     let rexmit_timer = TT.t ~period ~expire in
-    let q = { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks } in
+    let q =
+      { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
+    in
     let t = rto_t q tx_ack in
     q, t
 
@@ -362,11 +370,11 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
        - The wire transmit function blocks.
      The transmitter should check that the segment size will
      will not be greater than the transmit window.
-   *)
-  let output ?(flags=No_flags) ?(options=[]) q data = 
+  *)
+  let output ?(flags=No_flags) ?(options=[]) q data =
     (* Transmit the packet to the wire
          TODO: deal with transmission soft/hard errors here RFC5461 *)
-    let {wnd} = q in
+    let { wnd; _ } = q in
     let ack = Window.rx_nxt wnd in
     let seq = Window.tx_nxt wnd in
     let seg = { data; flags; seq } in
@@ -375,15 +383,14 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match seq_len > 0 with
-      | false -> return ()
+      | false -> return_unit
       | true ->
-          let _ = Lwt_sequence.add_r seg q.segs in
-          let p = Window.rto q.wnd in
-          TT.start q.rexmit_timer ~p seg.seq
+        let _ = Lwt_sequence.add_r seg q.segs in
+        let p = Window.rto q.wnd in
+        TT.start q.rexmit_timer ~p seg.seq
     in
-    q_rexmit () >> 
-    lwt view = q.xmit ~flags ~wnd ~options ~seq data in
+    q_rexmit () >>= fun () ->
+    q.xmit ~flags ~wnd ~options ~seq data >>= fun _ ->
     (* Inform the RX ack thread that we've just sent one *)
-    Lwt_mvar.put q.rx_ack ack 
+    Lwt_mvar.put q.rx_ack ack
 end
-

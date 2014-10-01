@@ -71,7 +71,7 @@ let iperfclient mgr src_ip dest_ip dport =
    lwt conn = Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
 					    (dest_ip, dport), iperftx)) in
    printf "Iperf client: Done.\n%!";
-   return ()
+   return_unit
   )
 
 
@@ -98,7 +98,7 @@ let iperf (dip,dpt) chan =
         st.last_time <- st.start_time;
         print_data st ts_now;
         Net.Flow.close chan >>
-        (printf "Iperf server: Done - closed connection. \n%!"; return ())
+        (printf "Iperf server: Done - closed connection. \n%!"; return_unit)
     | Some data -> begin
         let l = Cstruct.len data in
         st.bytes <- (Int64.add st.bytes (Int64.of_int l));
@@ -114,7 +114,7 @@ let iperf (dip,dpt) chan =
   in
   iperf_h chan >>
   (Lwt.wakeup server_done_u ();
-   return ())
+   return_unit)
 
 
 let main () =
@@ -144,12 +144,12 @@ let main () =
 	 let _ = Net.Flow.listen mgr (`TCPv4 ((None, port), iperf)) in
 	 printf "Done setting up server \n%!";
 	 Lwt.wakeup server_ready_u ();
-	 return ()
+	 return_unit
 	)
     | _ ->
-	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return_unit)
   ) in
   server_done >>
   (Lwt.cancel mgr_th;
-   return ()
+   return_unit
   )

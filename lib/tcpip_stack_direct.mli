@@ -30,11 +30,11 @@ module Make
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) :
-    V1_LWT.STACKV4
-      with type console = Console.t
-       and type netif   = Netif.t
-       and type mode    = V1_LWT.direct_stack_config
-       and type udpv4   = Udpv4.t
-       and type tcpv4   = Tcpv4.t
-       and module TCPV4 = Tcpv4
-       and module UDPV4 = Udpv4
+  V1_LWT.STACKV4
+  with type console = Console.t
+   and type netif   = Netif.t
+   and type mode    = V1_LWT.direct_stack_config
+   and type udpv4   = Udpv4.t
+   and type tcpv4   = Tcpv4.t
+   and module TCPV4 = Tcpv4
+   and module UDPV4 = Udpv4

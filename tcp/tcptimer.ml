@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Printf
 
 type tr =
   | Stoptimer
@@ -34,11 +33,11 @@ module Make(Time:V1_LWT.TIME) = struct
     {period; expire; running}
 
   let rec timerloop t s =
-    Time.sleep t.period >>
+    Time.sleep t.period >>= fun () ->
     match t.expire s with
     | Stoptimer ->
       t.running <- false;
-      return ()
+      return_unit
     | Continue d ->
       timerloop t d
     | ContinueSetPeriod (p, d) ->
@@ -52,7 +51,7 @@ module Make(Time:V1_LWT.TIME) = struct
       t.period <- p;
       t.running <- true;
       let _ = timerloop t s in
-      return ()
-    end else 
-      return ()
+      return_unit
+    end else
+      return_unit
 end

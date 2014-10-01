@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d7b7f2d5ccaeffdbcb7415ee0fb53e7a)
+# DO NOT EDIT (digest: 1ae28b9a02ee98a349a0c28a0fce9fdc)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -43,11 +43,9 @@
 "tcp/pcb.cmx": for-pack(Tcpv4)
 "tcp/flow.cmx": for-pack(Tcpv4)
 <tcp/*.ml{,i}>: pkg_cstruct
-<tcp/*.ml{,i}>: pkg_cstruct.syntax
 <tcp/*.ml{,i}>: pkg_io-page
 <tcp/*.ml{,i}>: pkg_ipaddr
 <tcp/*.ml{,i}>: pkg_lwt
-<tcp/*.ml{,i}>: pkg_lwt.syntax
 <tcp/*.ml{,i}>: pkg_mirage-types
 <tcp/*.ml{,i}>: use_ipv4
 <tcp/*.ml{,i}>: use_tcpip
@@ -57,27 +55,22 @@
 <channel/*.ml{,i}>: pkg_io-page
 <channel/*.ml{,i}>: pkg_ipaddr
 <channel/*.ml{,i}>: pkg_lwt
-<channel/*.ml{,i}>: pkg_lwt.syntax
 <channel/*.ml{,i}>: pkg_mirage-types
 # Library dhcpv4
 "dhcp/dhcpv4.cmxs": use_dhcpv4
 <dhcp/*.ml{,i}>: pkg_cstruct
-<dhcp/*.ml{,i}>: pkg_cstruct.syntax
 <dhcp/*.ml{,i}>: pkg_io-page
 <dhcp/*.ml{,i}>: pkg_ipaddr
 <dhcp/*.ml{,i}>: pkg_lwt
-<dhcp/*.ml{,i}>: pkg_lwt.syntax
 <dhcp/*.ml{,i}>: pkg_mirage-types
 <dhcp/*.ml{,i}>: use_tcpip
 <dhcp/*.ml{,i}>: use_udpv4
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i}>: pkg_cstruct
-<lib/*.ml{,i}>: pkg_cstruct.syntax
 <lib/*.ml{,i}>: pkg_io-page
 <lib/*.ml{,i}>: pkg_ipaddr
 <lib/*.ml{,i}>: pkg_lwt
-<lib/*.ml{,i}>: pkg_lwt.syntax
 <lib/*.ml{,i}>: pkg_mirage-types
 <lib/*.ml{,i}>: use_dhcpv4
 <lib/*.ml{,i}>: use_ethif
@@ -118,13 +111,11 @@
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
 <unix/*.ml{,i}>: pkg_cstruct
 <unix/*.ml{,i}>: pkg_cstruct.lwt
-<unix/*.ml{,i}>: pkg_cstruct.syntax
 <unix/*.ml{,i}>: pkg_io-page
 <unix/*.ml{,i}>: pkg_io-page.unix
 <unix/*.ml{,i}>: pkg_ipaddr
 <unix/*.ml{,i}>: pkg_ipaddr.unix
 <unix/*.ml{,i}>: pkg_lwt
-<unix/*.ml{,i}>: pkg_lwt.syntax
 <unix/*.ml{,i}>: pkg_lwt.unix
 <unix/*.ml{,i}>: pkg_mirage-types
 <unix/*.ml{,i}>: use_tcpip
@@ -133,3 +124,7 @@
 <unix/*.ml{,i}>: use_udpv4-socket
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
+<tcp/pcb.ml>: pkg_cstruct.syntax
+<lib/wire_structs.ml>: pkg_cstruct.syntax
+<lib/arpv4.ml>: pkg_cstruct.syntax
+<dhcp/dhcp_clientv4.ml>: pkg_cstruct.syntax

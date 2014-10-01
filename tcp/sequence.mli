@@ -36,7 +36,7 @@ val add: t -> t -> t
 
 (* a - b *)
 val sub: t -> t -> t
- 
+
 (* a++ *)
 val incr: t -> t
 

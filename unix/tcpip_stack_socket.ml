@@ -60,76 +60,71 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       `Unknown of string
   ]
 
-  let id {id} = id
-  let udpv4 {udpv4} = udpv4
-  let tcpv4 {tcpv4} = tcpv4
-  let ipv4  _       = ()
+  let id { id; _ } = id
+  let udpv4 { udpv4; _ } = udpv4
+  let tcpv4 { tcpv4; _ } = tcpv4
+  let ipv4 _ = ()
 
   (* List of IP addresses to bind to *)
   let configure t addrs =
     match addrs with
-    | [] -> return ()
+    | [] -> return_unit
     | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
-
-  let udpv4_listeners t ~dst_port =
-    try Some (Hashtbl.find t.udpv4_listeners dst_port)
-    with Not_found -> None
-
-  let tcpv4_listeners t dst_port =
-    try Some (Hashtbl.find t.tcpv4_listeners dst_port)
-    with Not_found -> None
 
   let listen_udpv4 t ~port callback =
     let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
     let buf = Cstruct.create 4096 in
-    let _t = 
-      while_lwt true do (* TODO cancellation *)
-        Lwt_cstruct.recvfrom fd buf []
-        >>= fun (len, sa) ->
-        let buf = Cstruct.sub buf 0 len in
-        match sa with
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_cstruct.recvfrom fd buf []
+      >>= fun (len, sa) ->
+      let buf = Cstruct.sub buf 0 len in
+      begin match sa with
         | Lwt_unix.ADDR_INET (addr, src_port) ->
           let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
           let dst = Ipaddr.V4.any in (* TODO *)
-          ignore_result (callback ~src ~dst ~src_port buf);
-          return ()
-        | _ -> return ()
-      done
+          callback ~src ~dst ~src_port buf
+        | _ -> return_unit
+      end >>= fun () ->
+      continue ()
     in
-    ()
+    (* FIXME: we should not ignore the result *)
+    ignore_result (loop ())
 
-  let listen_tcpv4 t ~port callback =
+  let listen_tcpv4 _t ~port callback =
     let open Lwt_unix in
     let fd = socket PF_INET SOCK_STREAM 0 in
     setsockopt fd SO_REUSEADDR true;
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
     bind fd (ADDR_INET (interface, port));
     listen fd 10;
-    let _t = 
-      while_lwt true do (* TODO cancellation *)
-        Lwt_unix.accept fd
-        >>= fun (afd, sa) ->
-        ignore_result (
-          try_lwt
-            callback afd
-            >>= fun () -> return_unit
-          with exn -> return_unit
-        );
-        return ();
-      done
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_unix.accept fd
+      >>= fun (afd, _) ->
+      Lwt.catch
+        (fun () -> callback afd)
+        (fun _ -> return_unit)
+      >>= fun () ->
+      continue ();
     in
-    ()
+    (* FIXME: we should not ignore the result *)
+    ignore_result (loop ())
 
-  let listen t =
-    let t,u = Lwt.task () in
+  let listen _t =
+    let t, _ = Lwt.task () in
     t (* TODO cancellation *)
 
   let connect id =
-    let {V1_LWT.console = c; interface; mode; name } = id in
+    let { V1_LWT.console = c; interface; _ } = id in
     let or_error fn t err =
       fn t
       >>= function
-      | `Error e -> fail (Failure err)
+      | `Error _ -> fail (Failure err)
       | `Ok r -> return r
     in
     Console.log_s c "Manager: connect"
@@ -147,6 +142,5 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     >>= fun () ->
     return (`Ok t)
 
-  let disconnect t =
-    return ()
+  let disconnect _ = return_unit
 end

@@ -30,9 +30,9 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   type callback = flow -> unit Lwt.t
 
   type error = [
-   | `Unknown of string
-   | `Timeout
-   | `Refused
+    | `Unknown of string
+    | `Timeout
+    | `Refused
   ]
 
   let id t = Pcb.ip t
@@ -41,20 +41,19 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
   let read t =
     (* TODO better error interface in Pcb *)
-    Pcb.read t
-    >>= function
+    Pcb.read t >>= function
     | None -> return `Eof
     | Some t -> return (`Ok t)
 
   let write t view =
-    Pcb.write t view
-    >>= fun () -> return (`Ok ())
+    Pcb.write t view >>= fun () ->
+    return (`Ok ())
 
   let writev t views =
-    Pcb.writev t views
-    >>= fun () -> return (`Ok ())
+    Pcb.writev t views >>= fun () ->
+    return (`Ok ())
 
-  let rec write_nodelay t view =
+  let write_nodelay t view =
     Pcb.write_nodelay t view
 
   let writev_nodelay t views =
@@ -64,13 +63,14 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     Pcb.close t
 
   let create_connection tcp (daddr, dport) =
-    Pcb.connect tcp daddr dport
-    >>= function
-    | `Timeout -> 
-      Printf.printf "Failed to connect to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+    Pcb.connect tcp ~dest_ip:daddr ~dest_port:dport >>= function
+    | `Timeout ->
+      Printf.printf "Failed to connect to %s:%d\n%!"
+        (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Timeout)
-    | `Rst -> 
-      Printf.printf "Refused connection to %s:%d\n%!" (Ipaddr.V4.to_string daddr) dport;
+    | `Rst ->
+      Printf.printf "Refused connection to %s:%d\n%!"
+        (Ipaddr.V4.to_string daddr) dport;
       return (`Error `Refused)
     | `Ok (fl, _) ->
       return (`Ok fl)
@@ -81,6 +81,6 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
 
-  let disconnect t =
-    return ()
+  let disconnect _ =
+    return_unit
 end
