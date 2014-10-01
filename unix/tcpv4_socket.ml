@@ -44,7 +44,7 @@ let connect id =
   return (`Ok t)
 
 let disconnect _ =
-  return ()
+  return_unit
 
 let id {interface} =
   match interface with
@@ -61,27 +61,25 @@ let get_dest fd =
       | Some ip -> ip,port
     end
 
-let create_connection t (dst,dst_port) =
+let create_connection _t (dst,dst_port) =
   let fd = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
-  try_lwt
-    Lwt_unix.connect fd
-      (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
-    >>= fun () ->
-    return (`Ok fd)
-  with exn ->
-    return (`Error (`Unknown (Printexc.to_string exn)))
+  Lwt.catch (fun () ->
+      Lwt_unix.connect fd
+        (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
+      >>= fun () ->
+      return (`Ok fd))
+    (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))
 
 let read fd =
   let buflen = 4096 in
   let buf = Cstruct.create buflen in
-  try_lwt
-    Lwt_cstruct.read fd buf 
-    >>= function
-    | 0 -> return `Eof
-    | n when n = buflen -> return (`Ok buf)
-    | n -> return (`Ok (Cstruct.sub buf 0 n))
-  with exn ->
-    return (`Error (`Unknown (Printexc.to_string exn)))
+  Lwt.catch (fun () ->
+      Lwt_cstruct.read fd buf
+      >>= function
+      | 0 -> return `Eof
+      | n when n = buflen -> return (`Ok buf)
+      | n -> return (`Ok (Cstruct.sub buf 0 n)))
+    (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))
 
 let rec write fd buf =
   Lwt_cstruct.write fd buf
@@ -102,17 +100,18 @@ let writev fd bufs =
 (* TODO make nodelay a flow option *)
 let write_nodelay fd buf =
   write fd buf
-  >>= fun _ -> return ()
+  >>= fun _ -> return_unit
 
 (* TODO make nodelay a flow option *)
 let writev_nodelay fd bufs =
   writev fd bufs
-  >>= fun _ -> return ()
+  >>= fun _ -> return_unit
 
 let close fd =
   Lwt_unix.close fd
 
-let input t ~listeners =
+(* FIXME: how does this work at all ?? *)
+let input _t ~listeners:_ =
   (* TODO terminate when signalled by disconnect *)
-  let t,u = Lwt.task () in
+  let t, _ = Lwt.task () in
   t

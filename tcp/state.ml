@@ -30,7 +30,7 @@ type action =
   | Send_fin of Sequence.t
   | Timeout
 
-type tcpstates = 
+type tcpstate =
   | Closed
   | Listen
   | Syn_rcvd of Sequence.t
@@ -46,18 +46,16 @@ type tcpstates =
 type close_cb = unit -> unit
 
 type t = {
-  on_close: close_cb;  
-  mutable state: tcpstates;
+  on_close: close_cb;
+  mutable state: tcpstate;
 }
-
-exception Bad_transition of (tcpstates * action)
 
 let t ~on_close =
   { on_close; state=Closed }
 
 let state t = t.state
 
-let action_to_string = function
+let string_of_action = function
   | Passive_open -> "Passive_open"
   | Recv_rst -> "Recv_rst"
   | Recv_synack x -> "Recv_synack " ^ (Sequence.to_string x)
@@ -70,7 +68,7 @@ let action_to_string = function
   | Send_fin x -> "Send_fin " ^ (Sequence.to_string x)
   | Timeout -> "Timeout"
 
-let tcpstates_to_string = function
+let string_of_tcpstate = function
   | Closed -> "Closed"
   | Listen -> "Listen"
   | Syn_rcvd x -> "Syn_rcvd " ^ (Sequence.to_string x)
@@ -84,7 +82,7 @@ let tcpstates_to_string = function
   | Time_wait -> "Time_wait"
 
 let to_string t =
-  sprintf "{ %s }" (tcpstates_to_string t.state)
+  sprintf "{ %s }" (string_of_tcpstate t.state)
 
 module Make(Time:V1_LWT.TIME) = struct
 
@@ -99,19 +97,19 @@ module Make(Time:V1_LWT.TIME) = struct
       if i = count then begin
         t.state <- Closed;
         t.on_close ();
-        return ()
+        return_unit
       end else begin
         finwait2timer t i timeout
       end
     | _ ->
-      return ()
+      return_unit
 
   let timewait t twomsl =
     Time.sleep twomsl
     >>= fun () ->
     t.state <- Closed;
     t.on_close ();
-    return ()
+    return_unit
 
   let tick t (i:action) =
     (* printf "%s  - %s ->  " (to_string t) (action_to_string i); *)
@@ -121,12 +119,12 @@ module Make(Time:V1_LWT.TIME) = struct
       | Closed, Passive_open -> Listen
       | Closed, Send_syn a -> Syn_sent a
       | Listen, Send_synack a -> Syn_rcvd a
-      | Syn_rcvd a, Timeout -> t.on_close (); Closed
-      | Syn_rcvd a, Recv_rst -> Closed
-      | Syn_sent a, Timeout -> t.on_close (); Closed
+      | Syn_rcvd _, Timeout -> t.on_close (); Closed
+      | Syn_rcvd _, Recv_rst -> Closed
+      | Syn_sent _, Timeout -> t.on_close (); Closed
       | Syn_sent a, Recv_synack b-> if diffone b a then Established else Syn_sent a
       | Syn_rcvd a, Recv_ack b -> if diffone b a then Established else Syn_rcvd a
-      | Established, Recv_ack a -> Established
+      | Established, Recv_ack _ -> Established
       | Established, Send_fin a -> Fin_wait_1 a
       | Established, Recv_fin -> Close_wait
       | Established, Timeout -> t.on_close (); Closed
@@ -139,15 +137,15 @@ module Make(Time:V1_LWT.TIME) = struct
           Fin_wait_1 a
       | Fin_wait_1 a, Recv_fin -> Closing a
       | Fin_wait_1 a, Recv_finack b -> if diffone b a then Time_wait else Fin_wait_1 a
-      | Fin_wait_1 a, Timeout -> t.on_close (); Closed
+      | Fin_wait_1 _, Timeout -> t.on_close (); Closed
       | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
-      | Fin_wait_2 i, Recv_fin -> let _ = timewait t time_wait_time in Time_wait
+      | Fin_wait_2 _, Recv_fin -> let _ = timewait t time_wait_time in Time_wait
       | Closing a, Recv_ack b -> if diffone b a then Time_wait else Closing a
       | Time_wait, Timeout -> t.on_close (); Closed
       | Close_wait,  Send_fin a -> Last_ack a
       | Close_wait,  Timeout -> t.on_close (); Closed
       | Last_ack a, Recv_ack b -> if diffone b a then (t.on_close (); Closed) else Last_ack a
-      | Last_ack a, Timeout -> t.on_close (); Closed
+      | Last_ack _, Timeout -> t.on_close (); Closed
       | x, _ -> x
     in
     t.state <- tstr t.state i

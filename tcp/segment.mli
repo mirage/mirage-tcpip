@@ -14,37 +14,76 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open State
+(** TCP segments *)
 
+(** The receive queue stores out-of-order segments, and can coalesece
+    them on input and pass on an ordered list up the stack to the
+    application.
+
+    It also looks for control messages and dispatches them to
+    the Rtx queue to ack messages or close channels.
+*)
 module Rx (T:V1_LWT.TIME) : sig
-    type seg
-    val make: sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
-      ack_number:Sequence.t -> window:int -> data:Cstruct.t -> seg
 
-    type q
-    val q : rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
-      wnd:Window.t -> state:State.t ->
-      tx_ack:(Sequence.t * int) Lwt_mvar.t -> q
-    val to_string : q -> string
-    val is_empty : q -> bool
-    val input : q -> seg -> unit Lwt.t
-  end
+  type segment
+  (** Individual received TCP segment *)
 
-type tx_flags = |No_flags |Syn |Fin |Rst |Psh
+  val string_of_segment: segment -> string
 
-(* Pre-transmission queue *)
+  val segment:
+    sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
+    ack_number:Sequence.t -> window:int -> data:Cstruct.t ->
+    segment
+
+  type t
+  (** Queue of receive segments *)
+
+  val to_string: t -> string
+
+  val create:
+    rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
+    wnd:Window.t ->
+    state:State.t ->
+    tx_ack:(Sequence.t * int) Lwt_mvar.t ->
+    t
+
+  val is_empty : t -> bool
+
+  val input : t -> segment -> unit Lwt.t
+  (** Given an input segment, the window information, and a receive
+      queue, update the window, extract any ready segments into the
+      user receive queue, and signal any acks to the Tx queue *)
+
+end
+
+type tx_flags = No_flags | Syn | Fin | Rst | Psh
+(** Either Syn/Fin/Rst allowed, but not combinations *)
+
+(** Pre-transmission queue *)
 module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
 
-    type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.ts ->
-      seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
+  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
+    seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
 
-    type q
+  type t
+  (** Queue of pre-transmission segments *)
 
-    val q : xmit:xmit -> wnd:Window.t -> state:State.t ->
-      rx_ack:Sequence.t Lwt_mvar.t ->
-      tx_ack:(Sequence.t * int) Lwt_mvar.t ->
-      tx_wnd_update:int Lwt_mvar.t -> q * unit Lwt.t
+  val create:
+    xmit:xmit -> wnd:Window.t -> state:State.t ->
+    rx_ack:Sequence.t Lwt_mvar.t ->
+    tx_ack:(Sequence.t * int) Lwt_mvar.t ->
+    tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t
 
-    val output : ?flags:tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
-   
-  end
+  val output:
+    ?flags:tx_flags -> ?options:Options.t list -> t -> Cstruct.t list ->
+    unit Lwt.t
+  (** Queue a segment for transmission. May block if:
+
+      {ul
+        {- There is no transmit window available.}
+        {- The wire transmit function blocks.}}
+
+      The transmitter should check that the segment size will will not
+      be greater than the transmit window.  *)
+
+end

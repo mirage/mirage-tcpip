@@ -31,11 +31,12 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
   type t
 
   module TXS : sig
-    type q = Segment.Tx(Time)(Clock).q
-    val output : ?flags:Segment.tx_flags -> ?options:Options.ts -> q -> Cstruct.t list -> unit Lwt.t
+    type t = Segment.Tx(Time)(Clock).t
+    val output : ?flags:Segment.tx_flags -> ?options:Options.t list -> t ->
+      Cstruct.t list -> unit Lwt.t
   end
 
-  val create: max_size:int32 -> wnd:Window.t -> txq:TXS.q -> t
+  val create: max_size:int32 -> wnd:Window.t -> txq:TXS.t -> t
   val available: t -> int32
   val wait_for: t -> int32 -> unit Lwt.t
   val wait_for_flushed: t -> unit Lwt.t

@@ -15,14 +15,13 @@
  *)
 
 open Lwt
-open Printf
 
 (* General signature for all the ack modules *)
 module type M = sig
   type t
 
   (* ack: put mvar to trigger the transmission of an ack *)
-  val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t 
+  val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
 
   (* called when new data is received *)
   val receive: t -> Sequence.t -> unit Lwt.t
@@ -42,7 +41,7 @@ module Immediate : M = struct
     mutable pushpending: bool;
   }
 
-  let t ~send_ack ~last = 
+  let t ~send_ack ~last:_ =
     let pushpending = false in
     {send_ack; pushpending}
 
@@ -52,18 +51,18 @@ module Immediate : M = struct
 
   let receive t ack_number =
     match t.pushpending with
-    | true -> return ()
+    | true -> return_unit
     | false -> pushack t ack_number
 
-  let transmit t ack_number =
+  let transmit t _ =
     t.pushpending <- false;
-    return ()
+    return_unit
 end
 
 
 (* Delayed ACKs *)
 module Delayed (Time:V1_LWT.TIME) : M = struct
- 
+
   module TT = Tcptimer.Make(Time)
 
   type delayed_r = {
@@ -83,23 +82,23 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true -> return ()
+    | true -> return_unit
     | false -> r.pushpending <- true;
-	       transmitacknow r ack_number
+      transmitacknow r ack_number
 
 
   let ontimer r s  =
     match r.delayed with
     | false ->
-	Tcptimer.Stoptimer
+      Tcptimer.Stoptimer
     | true -> begin
-	match r.delayedack = s with
-	| false ->
-	    Tcptimer.Continue r.delayedack
-	| true -> 
-	    r.delayed <- false;
-	    let _ = transmitack r s in
-	    Tcptimer.Stoptimer
+        match r.delayedack = s with
+        | false ->
+          Tcptimer.Continue r.delayedack
+        | true ->
+          r.delayed <- false;
+          let _ = transmitack r s in
+          Tcptimer.Stoptimer
       end
 
 
@@ -115,7 +114,7 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
 
   (* Advance the received ACK count *)
-  let receive t ack_number = 
+  let receive t ack_number =
     match t.r.delayed with
     | true ->
       t.r.delayed <- false;
@@ -127,16 +126,14 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
 
   (* Force out an ACK *)
-  let pushack t ack_number = 
+  let pushack t ack_number =
     transmitacknow t.r ack_number
 
 
   (* Indicate that an ACK has been transmitted *)
-  let transmit t ack_number =
+  let transmit t _ =
     t.r.delayed <- false;
     t.r.pushpending <- false;
-    return ()
+    return_unit
 
 end
-
-

@@ -53,3 +53,5 @@ val input: t -> Cstruct.t -> unit Lwt.t
     waiting for a response. *)
 val query: t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
 
+(** Prettyprint cache contents *)
+val prettyprint: t -> unit

@@ -37,39 +37,39 @@ type t = {
   get_mac: unit -> Macaddr.t;
   cache: (Ipaddr.V4.t, entry) Hashtbl.t;
   mutable bound_ips: Ipaddr.V4.t list;
- }
+}
 
 cstruct arp {
-  uint8_t dst[6];
-  uint8_t src[6];
-  uint16_t ethertype;
-  uint16_t htype;
-  uint16_t ptype;
-  uint8_t hlen;
-  uint8_t plen;
-  uint16_t op;
-  uint8_t sha[6];
-  uint32_t spa;
-  uint8_t tha[6];
-  uint32_t tpa
-} as big_endian
+    uint8_t dst[6];
+    uint8_t src[6];
+    uint16_t ethertype;
+    uint16_t htype;
+    uint16_t ptype;
+    uint8_t hlen;
+    uint8_t plen;
+    uint16_t op;
+    uint8_t sha[6];
+    uint32_t spa;
+    uint8_t tha[6];
+    uint32_t tpa
+  } as big_endian
 
 cenum op {
-  Op_request = 1;
-  Op_reply
-} as uint16_t
+    Op_request = 1;
+    Op_reply
+  } as uint16_t
 
 (* Prettyprint cache contents *)
 let prettyprint t =
-  printf "ARP info:\n"; 
-  Hashtbl.iter (fun ip entry -> 
-    printf "%s -> %s\n%!" 
-     (Ipaddr.V4.to_string ip)
-     (match entry with
-      | Incomplete _ -> "I"
-      | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
-     )
-  ) t.cache
+  printf "ARP info:\n";
+  Hashtbl.iter (fun ip entry ->
+      printf "%s -> %s\n%!"
+        (Ipaddr.V4.to_string ip)
+        (match entry with
+         | Incomplete _ -> "I"
+         | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+        )
+    ) t.cache
 
 (* Input handler for an ARP packet, registered through attach() *)
 let rec input t frame =
@@ -87,7 +87,7 @@ let rec input t frame =
       let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
       let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
       output t { op=`Reply; sha; tha; spa; tpa }
-    end else return ()
+    end else return_unit
   |2 -> (* Reply *)
     let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
     let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
@@ -100,14 +100,14 @@ let rec input t frame =
       |_ -> ()
     end;
     Hashtbl.replace t.cache spa (Verified sha);
-    return ()
+    return_unit
   |n ->
     printf "ARP: Unknown message %d ignored\n%!" n;
-    return ()
+    return_unit
 
 and output t arp =
   (* Obtain a buffer to write into *)
-  lwt buf = t.get_etherbuf () in
+  t.get_etherbuf () >>= fun buf ->
   (* Write the ARP packet *)
   let dmac = Macaddr.to_bytes arp.tha in
   let smac = Macaddr.to_bytes arp.sha in
@@ -116,13 +116,13 @@ and output t arp =
   let op =
     match arp.op with
     |`Request -> 1
-    |`Reply -> 2 
-    |`Unknown n -> n 
+    |`Reply -> 2
+    |`Unknown n -> n
   in
   set_arp_dst dmac 0 buf;
   set_arp_src smac 0 buf;
   set_arp_ethertype buf 0x0806; (* ARP *)
-  set_arp_htype buf 1; 
+  set_arp_htype buf 1;
   set_arp_ptype buf 0x0800; (* IPv4 *)
   set_arp_hlen buf 6; (* ethernet mac size *)
   set_arp_plen buf 4; (* ipv4 size *)
@@ -141,9 +141,9 @@ let output_garp t =
   let sha = t.get_mac () in
   let tpa = Ipaddr.V4.any in
   Lwt_list.iter_s (fun spa ->
-    printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
-    output t { op=`Reply; tha; sha; tpa; spa }
-  ) t.bound_ips
+      printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
+      output t { op=`Reply; tha; sha; tpa; spa }
+    ) t.bound_ips
 
 (* Send a query for a particular IP *)
 let output_probe t tpa =
@@ -152,7 +152,7 @@ let output_probe t tpa =
   let sha = t.get_mac () in
   (* Source protocol address, pick one of our IP addresses *)
   let spa = match t.bound_ips with
-    | hd::tl -> hd | [] -> Ipaddr.V4.any in
+    | hd::_ -> hd | [] -> Ipaddr.V4.any in
   output t { op=`Request; tha; sha; tpa; spa }
 
 let get_ips t = t.bound_ips
@@ -165,12 +165,12 @@ let set_ips t ips =
 let add_ip t ip =
   if not (List.mem ip t.bound_ips) then
     set_ips t (ip :: t.bound_ips)
-  else return ()
+  else return_unit
 
 let remove_ip t ip =
   if List.mem ip t.bound_ips then
     set_ips t (List.filter ((<>) ip) t.bound_ips)
-  else return ()
+  else return_unit
 
 (* Query the cache for an ARP entry, which may result in the sender sleeping
    waiting for a response *)
@@ -178,18 +178,18 @@ let query t ip =
   if Hashtbl.mem t.cache ip then (
     match Hashtbl.find t.cache ip with
     | Incomplete cond ->
-       (* printf "ARP query: %s -> [incomplete]\n%!" (Ipaddr.V4.to_string ip); *)
-       Lwt_condition.wait cond
+      (* printf "ARP query: %s -> [incomplete]\n%!" (Ipaddr.V4.to_string ip); *)
+      Lwt_condition.wait cond
     | Verified mac ->
-       (* printf "ARP query: %s -> %s\n%!"
+      (* printf "ARP query: %s -> %s\n%!"
          (Ipaddr.V4.to_string ip) (Macaddr.to_string mac); *)
-       return mac
+      return mac
   ) else (
     let cond = Lwt_condition.create () in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
     Hashtbl.add t.cache ip (Incomplete cond);
     (* First request, so send a query packet *)
-    lwt () = output_probe t ip in
+    output_probe t ip >>= fun () ->
     Lwt_condition.wait cond
   )
 

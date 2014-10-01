@@ -99,7 +99,7 @@ let iperfclient_p mgr src_ip dest_ip dport =
      let rec iperf_h chan amt_toget =
        match_lwt Net.Flow.read chan with
        | None ->
-	   return ()
+	   return_unit
        | Some data -> begin
 	   let l = Cstruct.len data in
 	   st.rxbytes_client <- (Int64.add st.rxbytes_client (Int64.of_int l));
@@ -107,7 +107,7 @@ let iperfclient_p mgr src_ip dest_ip dport =
 	   if (l < amt_toget) then begin
 	     iperf_h chan (amt_toget - l)
 	   end else begin
-	     return ()
+	     return_unit
 	   end
        end
      in
@@ -115,7 +115,7 @@ let iperfclient_p mgr src_ip dest_ip dport =
     Net.Flow.close chan >>
     (st.openconn_client <- (Int64.sub st.openconn_client 1L);
      print_data_persec (OS.Clock.time ());
-     return ())
+     return_unit)
   in
   OS.Time.sleep (Random.float spread_time) >>
   Net.Flow.connect mgr (`TCPv4 (Some (Some src_ip, 0),
@@ -130,7 +130,7 @@ let iperf (dip,dpt) chan =
 	(st.openconn_server <- (Int64.sub st.openconn_server 1L);
 	 st.tot_server_conn <- (Int64.add st.tot_server_conn 1L);
 	 print_data_persec (OS.Clock.time ());
-	 return ())
+	 return_unit)
     | Some data -> begin
 	let l = Cstruct.len data in
 	st.rxbytes_server <- (Int64.add st.rxbytes_server (Int64.of_int l));
@@ -180,7 +180,7 @@ let main () =
 	   Gc.compact ();
 	   print_data (OS.Clock.time ());
 	   match n with
-	   | 0 -> return ()
+	   | 0 -> return_unit
 	   | _ -> OS.Time.sleep 1. >> printstats (n -1)
 	  in
 	  printf "All Clients Done\n%!";
@@ -188,7 +188,7 @@ let main () =
 	  printstats 15 >>
 	  (printf "Test completed.\n%!";
 	   Lwt.wakeup test_completed_u ();
-	   return ())
+	   return_unit)
 	 )
 
 	)
@@ -212,7 +212,7 @@ let main () =
 	     printf "All Servers Done\n%!";
 	     printf "Closing all listen ports \n%!";
 	     List.iter Lwt.cancel all;
-	     return ()
+	     return_unit
 	   end else begin
 	     OS.Time.sleep 1. >>
 	     closelisteners all_listeners 
@@ -222,10 +222,10 @@ let main () =
          closelisteners all_listeners
 	)
     | _ ->
-	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return ())
+	(printf "interface %s not used\n%!" (OS.Netif.string_of_id id); return_unit)
   ) in
   test_completed >>
   (Lwt.cancel mgr_th;
-   return ()
+   return_unit
   )
 

@@ -27,7 +27,9 @@ type action =
   | Send_fin of Sequence.t
   | Timeout
 
-type tcpstates = 
+val string_of_action: action -> string
+
+type tcpstate =
   | Closed
   | Listen
   | Syn_rcvd of Sequence.t
@@ -40,16 +42,20 @@ type tcpstates =
   | Closing of Sequence.t
   | Time_wait
 
+val string_of_tcpstate : tcpstate -> string
+
 type close_cb = unit -> unit
 
+(* FIXME: abstract type *)
 type t = {
   on_close: close_cb;
-  mutable state: tcpstates;
+  mutable state: tcpstate;
 }
 
-val state : t -> tcpstates
+val state : t -> tcpstate
 val t : on_close:close_cb -> t
-val tcpstates_to_string : tcpstates -> string
+
+val to_string: t -> string
 
 module Make(Time : V1_LWT.TIME) : sig
   val fin_wait_2_time : float

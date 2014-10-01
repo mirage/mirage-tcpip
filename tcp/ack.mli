@@ -15,14 +15,14 @@
  *)
 
 module type M =
-  sig
-    type t
-    val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
+sig
+  type t
+  val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
 
-    val receive : t -> Sequence.t -> unit Lwt.t
-    val pushack : t -> Sequence.t -> unit Lwt.t
-    val transmit : t -> Sequence.t -> unit Lwt.t
-  end
+  val receive : t -> Sequence.t -> unit Lwt.t
+  val pushack : t -> Sequence.t -> unit Lwt.t
+  val transmit : t -> Sequence.t -> unit Lwt.t
+end
 
 module Immediate : M
 
