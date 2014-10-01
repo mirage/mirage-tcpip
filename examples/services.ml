@@ -6,7 +6,7 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
     C.log c message;
     S.TCPV4.close flow
 
-  let rec chargen flow how_many start_at =
+  let rec chargen c flow how_many start_at =
     let charpool =
       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ "
     in
@@ -17,8 +17,12 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
       Cstruct.set_len buf (String.length output)
     in
 
-    S.TCPV4.write flow (make_chars how_many start_at) >>= fun () -> 
-      chargen flow how_many ((start_at + 1) mod (String.length charpool))
+    S.TCPV4.write flow (make_chars how_many start_at) >>= fun result -> 
+      match result with
+      | `Eof -> report_and_close c flow "Chargen connection closed normally."
+      | `Error _ -> report_and_close c flow "Chargen connection write error;
+      closing."
+      | `Ok _ -> chargen c flow how_many ((start_at + 1) mod (String.length charpool))
 
   let rec discard c flow =
     S.TCPV4.read flow >>= fun result -> (
@@ -26,7 +30,7 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
       | `Eof -> report_and_close c flow "Discard connection closing normally."
       | `Error _ -> report_and_close c flow "Discard connection read error;
       closing."
-      | _ -> discard c flow
+      | `Ok _ -> discard c flow
     )
 
 
@@ -43,7 +47,12 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
              in
           report_and_close c flow message
         | `Ok buf ->
-            S.TCPV4.write flow buf >>= fun () -> echo c flow
+            S.TCPV4.write flow buf >>= fun result -> 
+              match result with
+              | `Eof -> report_and_close c flow "Chargen connection closed normally."
+              | `Error _ -> report_and_close c flow "Chargen connection write
+              error; closing."
+              | `Ok _ -> echo c flow
         ) 
 
   let start c s =
@@ -54,7 +63,7 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
     S.listen_tcpv4 s ~port:9 (discard c);
 
     (* RFC 864 - write data without regard for input *)
-    S.listen_tcpv4 s ~port:19 (fun flow -> chargen flow 75 0); 
+    S.listen_tcpv4 s ~port:19 (fun flow -> chargen c flow 75 0); 
 
     S.listen s
 
