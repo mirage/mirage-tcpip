@@ -85,3 +85,12 @@ module Tcp_wire = struct
   let set_cwr buf =
     Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 7))
 end
+
+cstruct ipv6 {
+    uint32_t       version_flow;
+    uint16_t       len;  (* payload length (includes extensions) *)
+    uint8_t        nhdr; (* next header *)
+    uint8_t        hlim; (* hop limit *)
+    uint8_t        src[16];
+    uint8_t        dst[16]
+  } as big_endian
