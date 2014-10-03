@@ -94,3 +94,9 @@ cstruct ipv6 {
     uint8_t        src[16];
     uint8_t        dst[16]
   } as big_endian
+
+cstruct icmpv6 {
+    uint8_t        ty;
+    uint8_t        code;
+    uint16_t       csum
+  } as big_endian
