@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2010-2011 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
+ * Copyright (c) 2014 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,10 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   type buffer = Cstruct.t
   type ipv6addr = Ipaddr.V6.t
   type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
+
+  type t = {
+    ethif : Ethif.t
+  }
 
   (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
   let ipaddr_of_cstruct cs =
