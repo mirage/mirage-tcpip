@@ -32,6 +32,14 @@ Library ipv4
   Modules:            Ipv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
+Library ipv6
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        ipv6
+  Modules:            Ipv6
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
+
 Library udpv4
   CompiledObject:     best
   Path:               lib

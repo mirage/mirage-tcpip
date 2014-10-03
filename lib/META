@@ -80,7 +80,7 @@ package "stack-unix" (
  version = "2.0.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console.unix mirage-types.lwt io-page.unix"
+ "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console-unix mirage-types.lwt io-page.unix"
  archive(byte) = "tcpip-stack-unix.cma"
  archive(byte, plugin) = "tcpip-stack-unix.cma"
  archive(native) = "tcpip-stack-unix.cmxa"
@@ -110,6 +110,17 @@ package "stack-direct" (
  archive(native) = "tcpip-stack-direct.cmxa"
  archive(native, plugin) = "tcpip-stack-direct.cmxs"
  exists_if = "tcpip-stack-direct.cma"
+)
+
+package "ipv6" (
+ version = "1.1.6"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
+ archive(byte) = "ipv6.cma"
+ archive(byte, plugin) = "ipv6.cma"
+ archive(native) = "ipv6.cmxa"
+ archive(native, plugin) = "ipv6.cmxs"
+ exists_if = "ipv6.cma"
 )
 
 package "ipv4-unix" (

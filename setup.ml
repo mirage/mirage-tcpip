@@ -6840,6 +6840,44 @@ let setup_t =
                    });
                Library
                  ({
+                     cs_name = "ipv6";
+                     cs_data = PropList.Data.create ();
+                     cs_plugin_data = []
+                  },
+                   {
+                      bs_build = [(OASISExpr.EBool true, true)];
+                      bs_install = [(OASISExpr.EBool true, true)];
+                      bs_path = "lib";
+                      bs_compiled_object = Best;
+                      bs_build_depends =
+                        [
+                           FindlibPackage ("io-page", None);
+                           FindlibPackage ("mirage-types", None);
+                           FindlibPackage ("ipaddr", None);
+                           FindlibPackage ("cstruct", None);
+                           FindlibPackage ("lwt", None);
+                           InternalLibrary "tcpip"
+                        ];
+                      bs_build_tools = [ExternalTool "ocamlbuild"];
+                      bs_c_sources = [];
+                      bs_data_files = [];
+                      bs_ccopt = [(OASISExpr.EBool true, [])];
+                      bs_cclib = [(OASISExpr.EBool true, [])];
+                      bs_dlllib = [(OASISExpr.EBool true, [])];
+                      bs_dllpath = [(OASISExpr.EBool true, [])];
+                      bs_byteopt = [(OASISExpr.EBool true, [])];
+                      bs_nativeopt = [(OASISExpr.EBool true, [])]
+                   },
+                   {
+                      lib_modules = ["Ipv6"];
+                      lib_pack = false;
+                      lib_internal_modules = [];
+                      lib_findlib_parent = Some "tcpip";
+                      lib_findlib_name = Some "ipv6";
+                      lib_findlib_containers = []
+                   });
+               Library
+                 ({
                      cs_name = "udpv4";
                      cs_data = PropList.Data.create ();
                      cs_plugin_data = []
