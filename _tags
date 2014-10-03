@@ -27,6 +27,8 @@ true: annot, bin_annot
 "lib/ethif.cmxs": use_ethif
 # Library ipv4
 "lib/ipv4.cmxs": use_ipv4
+# Library ipv6
+"lib/ipv6.cmxs": use_ipv6
 # Library udpv4
 "lib/udpv4.cmxs": use_udpv4
 # Library tcpv4

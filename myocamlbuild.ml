@@ -612,6 +612,7 @@ let package_default =
           ("tcpip", ["lib"], []);
           ("ethif", ["lib"], []);
           ("ipv4", ["lib"], []);
+          ("ipv6", ["lib"], []);
           ("udpv4", ["lib"], []);
           ("tcpv4", ["tcp"], []);
           ("channel", ["channel"], []);
