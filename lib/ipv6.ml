@@ -76,8 +76,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         Wire_structs.get_ipv6_dst buf;
         pbuf; buf1 ]
 
-  (* let output t buf = *)
-
   module Icmpv6 = struct
 
     (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
@@ -132,8 +130,8 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       get_ip : unit -> Ipaddr.V6.t
     }
 
-    let solicited_node_multicast_addr =
-      Ipaddr.V6.(to_cstruct (match of_string "ff02::1:ff00:0" with Some x -> x | None -> assert false))
+    let solicited_node_prefix =
+      Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
     cstruct ns {
         uint32_t reserved;
@@ -145,25 +143,32 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
     let ns_output t ip =
       t.get_ipv6buf () >>= fun buf ->
+      (* Fill IPv6 Header *)
       Wire_structs.set_ipv6_version_flow buf 0x06000000l; (* IPv6 *)
       Wire_structs.set_ipv6_nhdr buf 58; (* ICMP *)
       Wire_structs.set_ipv6_hlim buf 255; (* hop limit *)
       Ipaddr.V6.to_cstruct_raw (t.get_ip ()) (Wire_structs.get_ipv6_src buf) 0;
-      Ipaddr.V6.to_cstruct_raw ip (Wire_structs.get_ipv6_dst buf) 0;
-      Cstruct.blit solicited_node_multicast_addr 0 (Wire_structs.get_ipv6_dst buf) 0 13;
+      let solicited_node_ip = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+      Printf.printf "NS: who-has %s (-> %s)\n%!" (Ipaddr.V6.to_string ip) (Ipaddr.V6.to_string solicited_node_ip);
+      Ipaddr.V6.to_cstruct_raw solicited_node_ip (Wire_structs.get_ipv6_dst buf) 0;
       let icmpbuf = Cstruct.shift buf Wire_structs.sizeof_ipv6 in
+      (* Fill ICMPv6 Header *)
       Wire_structs.set_icmpv6_ty icmpbuf 135; (* NS *)
       Wire_structs.set_icmpv6_code icmpbuf 0;
       let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
+      (* Fill ICMPv6 Payload *)
       set_ns_reserved nsbuf 0l;
       Ipaddr.V6.to_cstruct_raw ip (get_ns_target nsbuf) 0;
       set_ns_opt_ty nsbuf 1;
       set_ns_opt_len nsbuf 1;
       Macaddr.to_cstruct_raw (get_ns_mac nsbuf) 0 (t.get_mac ());
-      let buf = Cstruct.sub buf 0 (Wire_structs.sizeof_ipv6 + Wire_structs.sizeof_icmpv6 + sizeof_ns) in
-      let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in (* ICMP Checksum *)
+      (* Fill ICMPv6 Checksum *)
+      let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in
       Wire_structs.set_icmpv6_csum icmpbuf csum;
-      Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns); (* FIXME set in Ipv6.output ? *)
+      (* Fill IPv6 packet size *)
+      Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns);
+      let buf = Cstruct.sub buf 0 (Wire_structs.sizeof_ipv6 + Wire_structs.sizeof_icmpv6 + sizeof_ns) in
+      Cstruct.hexdump buf;
       t.output buf
 
     (* buf points to the ipv6 packet,
