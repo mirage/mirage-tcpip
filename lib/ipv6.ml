@@ -40,6 +40,10 @@ module Macaddr = struct
   include Macaddr
   let to_cstruct_raw cs off x =
     Cstruct.blit_from_string (to_bytes x) 0 cs off 6
+  let of_cstruct cs =
+    if Cstruct.len cs <> 6
+    then raise (Parse_error ("MAC is exactly 6 bytes", Cstruct.to_string cs))
+    else match of_bytes (Cstruct.to_string cs) with Some x -> x | None -> assert false
 end
 
 let (>>=) = Lwt.(>>=)
@@ -162,20 +166,44 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns); (* FIXME set in Ipv6.output ? *)
       t.output buf
 
-    let na_input t buf =
-      Lwt.return_unit (* TODO *)
+    (* buf points to the ipv6 packet,
+       off points to the icmpv6 packet *)
+    let na_input t buf off =
+      let icmpbuf = Cstruct.shift buf off in
+      let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
+      let ip = Ipaddr.V6.of_cstruct (get_ns_target nsbuf) in
+      (* if Wire_structs.get_ipv6.hlim buf <> 255 then *)
+      (*   Lwt.return_unit *)
+      (* else if Wire_structs.get_icmpv6_csum icmpbuf <> checksum buf ~proto:58 off then *)
+      (*   Lwt.return_unit *)
+      (* else if Wire_structs.get_icmpv6_code icmpbuf <> 0 then *)
+      (*   Lwt.return_unit *)
+      (* else if Cstruct.len icmpbuf < 24 then *)
+      (*   Lwt.return_unit *)
+      (* else if Ipaddr.V6.Prefix (mem target multicast) then *)
+      (*   Lwt.return_unit *)
+      (* else *)
+      let mac = Macaddr.of_cstruct (get_ns_mac nsbuf) in
+      Printf.printf "NA: updating %s -> %s\n%!" (Ipaddr.V6.to_string ip) (Macaddr.to_string mac);
+      if Hashtbl.mem t.cache ip then begin
+        match Hashtbl.find t.cache ip with
+        | Incomplete cond -> Lwt_condition.broadcast cond mac
+        | Verified _ -> ()
+      end;
+      Hashtbl.replace t.cache ip (Verified mac);
+      Lwt.return_unit
 
     let query t ip =
       if Hashtbl.mem t.cache ip then begin
         match Hashtbl.find t.cache ip with
         | Incomplete cond ->
-          Printf.printf "ICMP6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
+          Printf.printf "ND6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
           Lwt_condition.wait cond
         | Verified mac ->
           Lwt.return mac
       end else begin
         let cond = Lwt_condition.create () in
-        Printf.printf "ICMP6 query: %s -> [proble]\n%!" (Ipaddr.V6.to_string ip);
+        Printf.printf "ND6 query: %s -> [proble]\n%!" (Ipaddr.V6.to_string ip);
         Hashtbl.add t.cache ip (Incomplete cond);
         ns_output t ip >>= fun () ->
         Lwt_condition.wait cond
