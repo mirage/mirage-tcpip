@@ -78,15 +78,13 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   (* buf : beginning of ipv6 packet
      off : beginning of higher-layer protocol packet *)
   let cksum buf ~proto off =
-    let buf1 = Cstruct.shift buf off in
-    Cstruct.BE.set_uint32 pbuf 0 (Int32.of_int (Cstruct.len buf1));
+    let icmpbuf = Cstruct.shift buf off in
+    Cstruct.BE.set_uint32 pbuf 0 (Int32.of_int (Cstruct.len icmpbuf));
     Cstruct.BE.set_uint32 pbuf 4 (Int32.of_int proto);
     Tcpip_checksum.ones_complement_list
-      [ Wire_structs.get_ipv6_src buf;
-        Wire_structs.get_ipv6_dst buf;
-        pbuf; buf1 ]
+      [ Wire_structs.get_ipv6_src buf; Wire_structs.get_ipv6_dst buf; pbuf; icmpbuf ]
 
-  module Ndv6 = struct
+  module Ndpv6 = struct
     type entry =
       | Incomplete of Macaddr.t Lwt_condition.t
       | Verified of Macaddr.t
@@ -172,13 +170,13 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       if Hashtbl.mem t.cache ip then begin
         match Hashtbl.find t.cache ip with
         | Incomplete cond ->
-          Printf.printf "ND6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
+          Printf.printf "NDP6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
           Lwt_condition.wait cond
         | Verified mac ->
           Lwt.return mac
       end else begin
         let cond = Lwt_condition.create () in
-        Printf.printf "ND6 query: %s -> [proble]\n%!" (Ipaddr.V6.to_string ip);
+        Printf.printf "NDP6 query: %s -> [probe]\n%!" (Ipaddr.V6.to_string ip);
         Hashtbl.add t.cache ip (Incomplete cond);
         ns_output t ip >>= fun () ->
         Lwt_condition.wait cond
@@ -195,7 +193,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   type t = {
     ethif : Ethif.t;
-    nd : Ndv6.t;
+    nd : Ndpv6.t;
     mutable ip : Ipaddr.V6.t;
     mutable netmask : int;
     mutable gateways : Ipaddr.V6.t list
@@ -219,11 +217,11 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       | ip when Ipaddr.V6.is_multicast ip ->
         Lwt.return (multicast_mac ip)
       | ip when is_local t ip ->
-        Ndv6.query t.nd ip
+        Ndpv6.query t.nd ip
       | ip ->
         begin
           match t.gateways with
-          | hd :: _ -> Ndv6.query t.nd hd
+          | hd :: _ -> Ndpv6.query t.nd hd
           | [] ->
             Printf.printf "IP6: no route to %s\n%!" (Ipaddr.V6.to_string ip);
             Lwt.fail (No_route_to_destination_address ip)
@@ -240,12 +238,12 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
        off : offset of the start of icmpv6 packet *)
   let icmp_input t buf off =
     let icmp6 = Cstruct.shift buf off in
-    let csum = Wire_structs.get_icmpv6_csum icmp6 in
-    let csum' = cksum buf ~proto:58 off in
-    if csum != csum' then begin
-      Printf.printf "ICMP6 checksum error: got %x, expected %x\n%!" csum' csum;
+    let csum = cksum buf ~proto:58 off in
+    if not (csum = 0) then begin
+      Printf.printf "ICMP6 checksum error (0x%x)\n%!" csum;
       Lwt.return_unit (* checksum does not match, drop packet *)
-    end else
+    end else begin
+      Printf.printf "ICMP6 checksum correct!\n%!";
       match Wire_structs.get_icmpv6_ty icmp6 with
       | 128 (* TODO Echo request *) ->
         let nip6 = Cstruct.create Wire_structs.sizeof_ipv6 in (* FIXME alloc *)
@@ -266,11 +264,13 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         else
           Lwt.return_unit (* TODO *)
       | 136 (* NA *) ->
-        Ndv6.na_input t.nd buf off
+        Ndpv6.na_input t.nd buf off
       | _ ->
         Lwt.return_unit (* TODO *)
+    end
 
   let input ~tcp ~udp ~default _t buf =
+    let buf = Cstruct.sub buf 0 (Wire_structs.get_ipv6_len buf + Wire_structs.sizeof_ipv6) in
     Printf.printf "IP6:%!";
     Cstruct.hexdump buf;
     let src = Wire_structs.get_ipv6_src buf in
@@ -312,7 +312,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   let connect e =
     Lwt.return (`Ok { ethif = e;
-      nd = Ndv6.create ();
+      nd = Ndpv6.create ();
       ip = Ipaddr.V6.unspecified;
       netmask = 104;
       gateways = [] })
