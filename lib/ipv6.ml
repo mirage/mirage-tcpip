@@ -14,6 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(*
+- Transmission of IPv6 packets over Ethernet networks
+ http://tools.ietf.org/html/rfc2464
+
+- IPv6 Stateless Address Autoconfiguration
+ https://tools.ietf.org/html/rfc2462
+
+- Neighbor Discovery for IP Version 6 (IPv6)
+ https://tools.ietf.org/html/rfc2461
+
+- Internet Control Message Protocol (ICMPv6) for the Internet Protocol Version 6 (IPv6) Specification
+ http://tools.ietf.org/html/rfc2463
+*)
+
 (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
 module Ipaddr = struct
   module V6 = struct
@@ -169,14 +183,54 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         ns_output t ip >>= fun () ->
         Lwt_condition.wait cond
       end
+
+    let create () =
+      { cache = Hashtbl.create 0;
+        bound_ips = [];
+        get_ipv6buf = (fun () -> Lwt.return (Io_page.to_cstruct (Io_page.get 1)));
+        output = (fun _ -> Lwt.return_unit);
+        get_mac = (fun _ -> Macaddr.broadcast);
+        get_ip = (fun _ -> Ipaddr.V6.unspecified) }
   end
 
   type t = {
     ethif : Ethif.t;
-    nd : Ndv6.t
+    nd : Ndv6.t;
+    mutable ip : Ipaddr.V6.t;
+    mutable netmask : int;
+    mutable gateways : Ipaddr.V6.t list
   }
 
-    (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
+  module Routing = struct
+    exception No_route_to_destination_address of Ipaddr.V6.t
+
+    let is_local t ip =
+      Ipaddr.V6.Prefix.(mem ip (make t.netmask t.ip))
+
+    let multicast_mac =
+      let pbuf = Cstruct.create 6 in
+      Cstruct.BE.set_uint16 pbuf 0 0x3333;
+      fun ip ->
+        let _, _, _, n = Ipaddr.V6.to_int32 ip in
+        Cstruct.BE.set_uint32 pbuf 2 n;
+        Macaddr.of_cstruct pbuf
+
+    let destination_mac t = function
+      | ip when Ipaddr.V6.is_multicast ip ->
+        Lwt.return (multicast_mac ip)
+      | ip when is_local t ip ->
+        Ndv6.query t.nd ip
+      | ip ->
+        begin
+          match t.gateways with
+          | hd :: _ -> Ndv6.query t.nd hd
+          | [] ->
+            Printf.printf "IP6: no route to %s\n%!" (Ipaddr.V6.to_string ip);
+            Lwt.fail (No_route_to_destination_address ip)
+        end
+  end
+
+  (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
        [off] points to the icmp6 packet. *)
   let icmp_reflect nip6 nicmp6 data =
     (* TODO *)
@@ -187,8 +241,9 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   let icmp_input t buf off =
     let icmp6 = Cstruct.shift buf off in
     let csum = Wire_structs.get_icmpv6_csum icmp6 in
-    if csum != cksum buf ~proto:58 off then begin
-      Printf.printf "ICMP6 checksum error\n%!";
+    let csum' = cksum buf ~proto:58 off in
+    if csum != csum' then begin
+      Printf.printf "ICMP6 checksum error: got %x, expected %x\n%!" csum' csum;
       Lwt.return_unit (* checksum does not match, drop packet *)
     end else
       match Wire_structs.get_icmpv6_ty icmp6 with
@@ -216,6 +271,8 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         Lwt.return_unit (* TODO *)
 
   let input ~tcp ~udp ~default _t buf =
+    Printf.printf "IP6:%!";
+    Cstruct.hexdump buf;
     let src = Wire_structs.get_ipv6_src buf in
     let dst = Wire_structs.get_ipv6_dst buf in
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
@@ -252,4 +309,11 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         default ~proto:n ~src ~dst buf
     in
     loop true (Wire_structs.get_ipv6_nhdr buf) Wire_structs.sizeof_ipv6
+
+  let connect e =
+    Lwt.return (`Ok { ethif = e;
+      nd = Ndv6.create ();
+      ip = Ipaddr.V6.unspecified;
+      netmask = 104;
+      gateways = [] })
 end
