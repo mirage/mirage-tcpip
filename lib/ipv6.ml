@@ -55,10 +55,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   type ipv6addr = Ipaddr.V6.t
   type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
 
-  type t = {
-    ethif : Ethif.t
-  }
-
   (* This will have to be moved somewhere else later, since the same computation
      is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
      bad name since it is used for other protocols as well. *)
@@ -75,46 +71,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       [ Wire_structs.get_ipv6_src buf;
         Wire_structs.get_ipv6_dst buf;
         pbuf; buf1 ]
-
-  module Icmpv6 = struct
-
-    (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
-       [off] points to the icmp6 packet. *)
-    let reflect nip6 nicmp6 data =
-      (* TODO *)
-      Lwt.return_unit
-
-    (* buf : full ipv6 packet
-       off : offset of the start of icmpv6 packet *)
-    let input t buf off =
-      let icmp6 = Cstruct.shift buf off in
-      let csum = Wire_structs.get_icmpv6_csum icmp6 in
-      if csum != cksum buf ~proto:58 off then begin
-        Printf.printf "ICMP6 checksum error\n%!";
-        Lwt.return_unit (* checksum does not match, drop packet *)
-      end else
-        match Wire_structs.get_icmpv6_ty icmp6 with
-        | 128 (* TODO Echo request *) ->
-          let nip6 = Cstruct.create Wire_structs.sizeof_ipv6 in (* FIXME alloc *)
-          let nicmp6 = Cstruct.create Wire_structs.sizeof_icmpv6 in (* FIXME alloc *)
-          Cstruct.blit buf 0 nip6 0 Wire_structs.sizeof_ipv6;
-          Cstruct.blit buf off nicmp6 0 Wire_structs.sizeof_icmpv6;
-          let data = Cstruct.shift buf (off + Wire_structs.sizeof_icmpv6) in
-          Wire_structs.set_icmpv6_ty nicmp6 129;
-          Wire_structs.set_icmpv6_code nicmp6 0;
-          reflect nip6 nicmp6 data
-        | 129 (* Echo reply *) ->
-          Lwt.return (Printf.printf "ICMP6: discarding echo reply\n%!")
-        | 135 (* NS/NA *) ->
-          if Wire_structs.get_ipv6_hlim buf <> 255 then
-            (* off-link sender spoofing local icmpv6 messages:
-               drop packet *)
-            Lwt.return_unit
-          else
-            Lwt.return_unit (* TODO *)
-        | _ ->
-          Lwt.return_unit (* TODO *)
-  end
 
   module Ndv6 = struct
     type entry =
@@ -215,6 +171,50 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       end
   end
 
+  type t = {
+    ethif : Ethif.t;
+    nd : Ndv6.t
+  }
+
+    (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
+       [off] points to the icmp6 packet. *)
+  let icmp_reflect nip6 nicmp6 data =
+    (* TODO *)
+    Lwt.return_unit
+
+    (* buf : full ipv6 packet
+       off : offset of the start of icmpv6 packet *)
+  let icmp_input t buf off =
+    let icmp6 = Cstruct.shift buf off in
+    let csum = Wire_structs.get_icmpv6_csum icmp6 in
+    if csum != cksum buf ~proto:58 off then begin
+      Printf.printf "ICMP6 checksum error\n%!";
+      Lwt.return_unit (* checksum does not match, drop packet *)
+    end else
+      match Wire_structs.get_icmpv6_ty icmp6 with
+      | 128 (* TODO Echo request *) ->
+        let nip6 = Cstruct.create Wire_structs.sizeof_ipv6 in (* FIXME alloc *)
+        let nicmp6 = Cstruct.create Wire_structs.sizeof_icmpv6 in (* FIXME alloc *)
+        Cstruct.blit buf 0 nip6 0 Wire_structs.sizeof_ipv6;
+        Cstruct.blit buf off nicmp6 0 Wire_structs.sizeof_icmpv6;
+        let data = Cstruct.shift buf (off + Wire_structs.sizeof_icmpv6) in
+        Wire_structs.set_icmpv6_ty nicmp6 129;
+        Wire_structs.set_icmpv6_code nicmp6 0;
+        icmp_reflect nip6 nicmp6 data
+      | 129 (* Echo reply *) ->
+        Lwt.return (Printf.printf "ICMP6: discarding echo reply\n%!")
+      | 135 (* NS *) ->
+        if Wire_structs.get_ipv6_hlim buf <> 255 then
+          (* off-link sender spoofing local icmpv6 messages:
+             drop packet *)
+          Lwt.return_unit
+        else
+          Lwt.return_unit (* TODO *)
+      | 136 (* NA *) ->
+        Ndv6.na_input t.nd buf off
+      | _ ->
+        Lwt.return_unit (* TODO *)
+
   let input ~tcp ~udp ~default _t buf =
     let src = Wire_structs.get_ipv6_src buf in
     let dst = Wire_structs.get_ipv6_dst buf in
@@ -238,7 +238,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       | 59 (* NO NEXT HEADER *) ->
         Lwt.return_unit
       | 58 (* ICMP *) ->
-        Icmpv6.input _t buf off
+        icmp_input _t buf off
       | 17 (* UDP *) ->
         udp (Cstruct.shift buf off)
       | 6 (* TCP *) ->
