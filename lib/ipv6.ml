@@ -87,153 +87,144 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Tcpip_checksum.ones_complement_list
       [ Wire_structs.get_ipv6_src buf; Wire_structs.get_ipv6_dst buf; pbuf; icmpbuf ]
 
-  module Ndpv6 = struct
-    type entry =
-      | Incomplete of Macaddr.t Lwt_condition.t
-      | Verified of Macaddr.t
-
-    type t = {
-      cache: (Ipaddr.V6.t, entry) Hashtbl.t;
-      mutable bound_ips : Ipaddr.V6.t list;
-      get_ipv6buf : unit -> Cstruct.t Lwt.t;
-      output : Cstruct.t -> unit Lwt.t;
-      get_mac : unit -> Macaddr.t;
-      get_ip : unit -> Ipaddr.V6.t
-    }
-
-    let solicited_node_prefix =
-      Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
-
-    cstruct ns {
-        uint32_t reserved;
-        uint8_t  target[16];
-        uint8_t  opt_ty;
-        uint8_t  opt_len;
-        uint8_t  mac[6]
-      } as big_endian
-
-    let ns_output t ip =
-      t.get_ipv6buf () >>= fun buf ->
-      (* Fill IPv6 Header *)
-      Wire_structs.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-      Wire_structs.set_ipv6_nhdr buf 58; (* ICMP *)
-      Wire_structs.set_ipv6_hlim buf 255; (* hop limit *)
-      Ipaddr.V6.to_cstruct_raw (t.get_ip ()) (Wire_structs.get_ipv6_src buf) 0;
-      let solicited_node_ip = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-      Printf.printf "NS: who-has %s (-> %s)\n%!" (Ipaddr.V6.to_string ip) (Ipaddr.V6.to_string solicited_node_ip);
-      Ipaddr.V6.to_cstruct_raw solicited_node_ip (Wire_structs.get_ipv6_dst buf) 0;
-      let icmpbuf = Cstruct.shift buf Wire_structs.sizeof_ipv6 in
-      (* Fill ICMPv6 Header *)
-      Wire_structs.set_icmpv6_ty icmpbuf 135; (* NS *)
-      Wire_structs.set_icmpv6_code icmpbuf 0;
-      let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
-      (* Fill ICMPv6 Payload *)
-      set_ns_reserved nsbuf 0l;
-      Ipaddr.V6.to_cstruct_raw ip (get_ns_target nsbuf) 0;
-      set_ns_opt_ty nsbuf 1;
-      set_ns_opt_len nsbuf 1;
-      Macaddr.to_cstruct_raw (t.get_mac ()) (get_ns_mac nsbuf) 0;
-      (* Fill ICMPv6 Checksum *)
-      let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in
-      Wire_structs.set_icmpv6_csum icmpbuf csum;
-      (* Fill IPv6 packet size *)
-      Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns);
-      let buf = Cstruct.sub buf 0 (Wire_structs.sizeof_ipv6 + Wire_structs.sizeof_icmpv6 + sizeof_ns) in
-      Cstruct.hexdump buf;
-      t.output buf
-
-    (* buf points to the ipv6 packet,
-       off points to the icmpv6 packet *)
-    let na_input t buf off =
-      let icmpbuf = Cstruct.shift buf off in
-      let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
-      let ip = Ipaddr.V6.of_cstruct (get_ns_target nsbuf) in
-      (* if Wire_structs.get_ipv6.hlim buf <> 255 then *)
-      (*   Lwt.return_unit *)
-      (* else if Wire_structs.get_icmpv6_csum icmpbuf <> checksum buf ~proto:58 off then *)
-      (*   Lwt.return_unit *)
-      (* else if Wire_structs.get_icmpv6_code icmpbuf <> 0 then *)
-      (*   Lwt.return_unit *)
-      (* else if Cstruct.len icmpbuf < 24 then *)
-      (*   Lwt.return_unit *)
-      (* else if Ipaddr.V6.Prefix (mem target multicast) then *)
-      (*   Lwt.return_unit *)
-      (* else *)
-      let mac = Macaddr.of_cstruct (get_ns_mac nsbuf) in
-      Printf.printf "NA: updating %s -> %s\n%!" (Ipaddr.V6.to_string ip) (Macaddr.to_string mac);
-      if Hashtbl.mem t.cache ip then begin
-        match Hashtbl.find t.cache ip with
-        | Incomplete cond -> Lwt_condition.broadcast cond mac
-        | Verified _ -> ()
-      end;
-      Hashtbl.replace t.cache ip (Verified mac);
-      Lwt.return_unit
-
-    let query t ip =
-      if Hashtbl.mem t.cache ip then begin
-        match Hashtbl.find t.cache ip with
-        | Incomplete cond ->
-          Printf.printf "NDP6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
-          Lwt_condition.wait cond
-        | Verified mac ->
-          Lwt.return mac
-      end else begin
-        let cond = Lwt_condition.create () in
-        Printf.printf "NDP6 query: %s -> [probe]\n%!" (Ipaddr.V6.to_string ip);
-        Hashtbl.add t.cache ip (Incomplete cond);
-        ns_output t ip >>= fun () ->
-        Lwt_condition.wait cond
-      end
-
-    let create () =
-      { cache = Hashtbl.create 0;
-        bound_ips = [];
-        get_ipv6buf = (fun () -> Lwt.return (Io_page.to_cstruct (Io_page.get 1)));
-        output = (fun _ -> Lwt.return_unit);
-        get_mac = (fun _ -> Macaddr.broadcast);
-        get_ip = (fun _ -> Ipaddr.V6.unspecified) }
-  end
+  type entry =
+    | Incomplete of Macaddr.t Lwt_condition.t
+    | Verified of Macaddr.t
 
   type t = {
     ethif : Ethif.t;
-    nd : Ndpv6.t;
+    cache: (Ipaddr.V6.t, entry) Hashtbl.t;
+    mutable bound_ips : Ipaddr.V6.t list;
     mutable ip : Ipaddr.V6.t;
     mutable netmask : int;
     mutable gateways : Ipaddr.V6.t list
   }
 
-  module Routing = struct
-    exception No_route_to_destination_address of Ipaddr.V6.t
+  let solicited_node_prefix =
+    Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
-    let is_local t ip =
-      Ipaddr.V6.Prefix.(mem ip (make t.netmask t.ip))
+  exception No_route_to_destination_address of Ipaddr.V6.t
 
-    let multicast_mac =
-      let pbuf = Cstruct.create 6 in
-      Cstruct.BE.set_uint16 pbuf 0 0x3333;
-      fun ip ->
-        let _, _, _, n = Ipaddr.V6.to_int32 ip in
-        Cstruct.BE.set_uint32 pbuf 2 n;
-        Macaddr.of_cstruct pbuf
+  let is_local t ip =
+    Ipaddr.V6.Prefix.(mem ip (make t.netmask t.ip))
 
-    let destination_mac t = function
-      | ip when Ipaddr.V6.is_multicast ip ->
-        Lwt.return (multicast_mac ip)
-      | ip when is_local t ip ->
-        Ndpv6.query t.nd ip
-      | ip ->
-        begin
-          match t.gateways with
-          | hd :: _ -> Ndpv6.query t.nd hd
-          | [] ->
-            Printf.printf "IP6: no route to %s\n%!" (Ipaddr.V6.to_string ip);
-            Lwt.fail (No_route_to_destination_address ip)
-        end
-  end
+  let multicast_mac =
+    let pbuf = Cstruct.create 6 in
+    Cstruct.BE.set_uint16 pbuf 0 0x3333;
+    fun ip ->
+      let _, _, _, n = Ipaddr.V6.to_int32 ip in
+      Cstruct.BE.set_uint32 pbuf 2 n;
+      Macaddr.of_cstruct pbuf
 
-  let allocate_frame ~proto ~dest_ip t =
+  cstruct ns {
+      uint32_t reserved;
+      uint8_t  target[16];
+      uint8_t  opt_ty;
+      uint8_t  opt_len;
+      uint8_t  mac[6]
+    } as big_endian
+
+  (* buf points to the ipv6 packet,
+     off points to the icmpv6 packet *)
+  let nd_na_input t buf off =
+    let icmpbuf = Cstruct.shift buf off in
+    let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
+    let ip = Ipaddr.V6.of_cstruct (get_ns_target nsbuf) in
+    (* if Wire_structs.get_ipv6.hlim buf <> 255 then *)
+    (*   Lwt.return_unit *)
+    (* else if Wire_structs.get_icmpv6_csum icmpbuf <> checksum buf ~proto:58 off then *)
+    (*   Lwt.return_unit *)
+    (* else if Wire_structs.get_icmpv6_code icmpbuf <> 0 then *)
+    (*   Lwt.return_unit *)
+    (* else if Cstruct.len icmpbuf < 24 then *)
+    (*   Lwt.return_unit *)
+    (* else if Ipaddr.V6.Prefix (mem target multicast) then *)
+    (*   Lwt.return_unit *)
+    (* else *)
+    let mac = Macaddr.of_cstruct (get_ns_mac nsbuf) in
+    Printf.printf "NA: updating %s -> %s\n%!" (Ipaddr.V6.to_string ip) (Macaddr.to_string mac);
+    if Hashtbl.mem t.cache ip then begin
+      match Hashtbl.find t.cache ip with
+      | Incomplete cond -> Lwt_condition.broadcast cond mac
+      | Verified _ -> ()
+    end;
+    Hashtbl.replace t.cache ip (Verified mac);
+    Lwt.return_unit
+
+  let rec nd_ns_output t ip =
+    let solicited_node_ip = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+    Printf.printf "NS: who-has %s (-> %s)\n%!" (Ipaddr.V6.to_string ip) (Ipaddr.V6.to_string solicited_node_ip);
+    allocate_frame ~proto:`ICMP ~dest_ip:solicited_node_ip t >>= fun buf ->
+    (* Fill IPv6 Header *)
+    let ipbuf = Cstruct.shift buf Wire_structs.sizeof_ethernet in
+    Wire_structs.set_ipv6_hlim ipbuf 255; (* hop limit *)
+    let icmpbuf = Cstruct.shift ipbuf Wire_structs.sizeof_ipv6 in
+    (* Fill ICMPv6 Header *)
+    Wire_structs.set_icmpv6_ty icmpbuf 135; (* NS *)
+    Wire_structs.set_icmpv6_code icmpbuf 0;
+    let nsbuf = Cstruct.shift icmpbuf Wire_structs.sizeof_icmpv6 in
+    (* Fill ICMPv6 Payload *)
+    set_ns_reserved nsbuf 0l;
+    Ipaddr.V6.to_cstruct_raw ip (get_ns_target nsbuf) 0;
+    set_ns_opt_ty nsbuf 1;
+    set_ns_opt_len nsbuf 1;
+    Macaddr.to_cstruct_raw (Ethif.mac t.ethif) (get_ns_mac nsbuf) 0;
+    (* Fill ICMPv6 Checksum *)
+    let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in
+    Wire_structs.set_icmpv6_csum icmpbuf csum;
+    (* Fill IPv6 packet size *)
+    Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns);
+    let buf = Cstruct.sub buf 0 (Wire_structs.sizeof_ipv6 + Wire_structs.sizeof_icmpv6 + sizeof_ns) in
+    Cstruct.hexdump buf;
+    Lwt.return_unit (* FIXME *)
+    (* write t buf *)
+
+  and nd_query t ip =
+    if Hashtbl.mem t.cache ip then begin
+      match Hashtbl.find t.cache ip with
+      | Incomplete cond ->
+        Printf.printf "NDP6 query: %s -> [incomplete]\n%!" (Ipaddr.V6.to_string ip);
+        Lwt_condition.wait cond
+      | Verified mac ->
+        Lwt.return mac
+    end else begin
+      let cond = Lwt_condition.create () in
+      Printf.printf "NDP6 query: %s -> [probe]\n%!" (Ipaddr.V6.to_string ip);
+      Hashtbl.add t.cache ip (Incomplete cond);
+      nd_ns_output t ip >>= fun () ->
+      Lwt_condition.wait cond
+    end
+
+  (* let create ~get_ipv6buf = *)
+  (*   { cache = Hashtbl.create 0; *)
+  (*     bound_ips = []; *)
+  (*     get_ipv6buf; *)
+  (*     output = (fun _ -> Lwt.return_unit); *)
+  (*     get_mac = (fun _ -> Macaddr.broadcast) } *)
+
+  (* module Routing = struct *)
+  and destination_mac t = function
+    | ip when Ipaddr.V6.is_multicast ip ->
+      Lwt.return (multicast_mac ip)
+    | ip when is_local t ip ->
+      nd_query t ip
+    | ip ->
+      begin
+        match t.gateways with
+        | hd :: _ -> nd_query t hd
+        | [] ->
+          Printf.printf "IP6: no route to %s\n%!" (Ipaddr.V6.to_string ip);
+          Lwt.fail (No_route_to_destination_address ip)
+      end
+  (* end *)
+
+  (* Allocate a new IPv4 frame. Returns the frame with the first
+     [Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv6] bytes filled
+     out. It is the caller's responsability to adjust the [ipv6_len] field/
+     restrict the view and add a payload prior to sending. *)
+  and allocate_frame ~proto ~dest_ip t =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-    Routing.destination_mac t dest_ip >>= fun dmac ->
+    destination_mac t dest_ip >>= fun dmac ->
     Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw (Ethif.mac t.ethif) (Wire_structs.get_ethernet_src ethernet_frame) 0;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd;
@@ -245,8 +236,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Wire_structs.set_ipv6_hlim buf 64; (* Same as IPv4 TTL ? TODO *)
     Ipaddr.V6.to_cstruct_raw t.ip (Wire_structs.get_ipv6_src buf) 0;
     Ipaddr.V6.to_cstruct_raw dest_ip (Wire_structs.get_ipv6_dst buf) 0;
-    let len = Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv6 in
-    Lwt.return (ethernet_frame, len)
+    Lwt.return ethernet_frame
 
   (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
        [off] points to the icmp6 packet. *)
@@ -284,7 +274,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         else
           Lwt.return_unit (* TODO *)
       | 136 (* NA *) ->
-        Ndpv6.na_input t.nd buf off
+        nd_na_input t buf off
       | _ ->
         Lwt.return_unit (* TODO *)
     end
@@ -332,8 +322,9 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   let connect e =
     Lwt.return (`Ok { ethif = e;
-      nd = Ndpv6.create ();
-      ip = Ipaddr.V6.unspecified;
-      netmask = 104;
-      gateways = [] })
+                      cache = Hashtbl.create 0;
+                      bound_ips = [];
+                      ip = Ipaddr.V6.unspecified;
+                      netmask = 104;
+                      gateways = [] })
 end
