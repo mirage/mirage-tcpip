@@ -83,6 +83,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   let cksum buf ~proto off =
     let icmpbuf = Cstruct.shift buf off in
     Cstruct.BE.set_uint32 pbuf 0 (Int32.of_int (Cstruct.len icmpbuf));
+    let proto = match proto with `ICMP -> 58 | `TCP -> 6 | `UDP -> 17 in
     Cstruct.BE.set_uint32 pbuf 4 (Int32.of_int proto);
     Tcpip_checksum.ones_complement_list
       [ Wire_structs.get_ipv6_src buf; Wire_structs.get_ipv6_dst buf; pbuf; icmpbuf ]
@@ -151,6 +152,14 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Hashtbl.replace t.cache ip (Verified mac);
     Lwt.return_unit
 
+  let adjust_output_header buf =
+    let buf = Cstruct.shift buf Wire_structs.sizeof_ethernet in
+    Wire_structs.set_ipv6_len buf (Cstruct.len buf - Wire_structs.sizeof_ipv6)
+
+  let write t buf =
+    adjust_output_header buf;
+    Ethif.write t.ethif buf
+
   let rec nd_ns_output t ip =
     let solicited_node_ip = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
     Printf.printf "NS: who-has %s (-> %s)\n%!" (Ipaddr.V6.to_string ip) (Ipaddr.V6.to_string solicited_node_ip);
@@ -170,14 +179,13 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     set_ns_opt_len nsbuf 1;
     Macaddr.to_cstruct_raw (Ethif.mac t.ethif) (get_ns_mac nsbuf) 0;
     (* Fill ICMPv6 Checksum *)
-    let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in
+    let csum = cksum buf ~proto:`ICMP Wire_structs.sizeof_icmpv6 in
     Wire_structs.set_icmpv6_csum icmpbuf csum;
     (* Fill IPv6 packet size *)
     Wire_structs.set_ipv6_len buf (Wire_structs.sizeof_icmpv6 + sizeof_ns);
     let buf = Cstruct.sub buf 0 (Wire_structs.sizeof_ipv6 + Wire_structs.sizeof_icmpv6 + sizeof_ns) in
     Cstruct.hexdump buf;
-    Lwt.return_unit (* FIXME *)
-    (* write t buf *)
+    write t buf
 
   and nd_query t ip =
     if Hashtbl.mem t.cache ip then begin
@@ -231,7 +239,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     (* Write the constant IPv6 header fields *)
     Wire_structs.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-    let proto = match proto with `ICMP -> 1 | `TCP -> 6 | `UDP -> 17 in
+    let proto = match proto with `ICMP -> 58 | `TCP -> 6 | `UDP -> 17 in
     Wire_structs.set_ipv6_nhdr buf proto; (* ICMP *)
     Wire_structs.set_ipv6_hlim buf 64; (* Same as IPv4 TTL ? TODO *)
     Ipaddr.V6.to_cstruct_raw t.ip (Wire_structs.get_ipv6_src buf) 0;
@@ -248,7 +256,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
        off : offset of the start of icmpv6 packet *)
   let icmp_input t buf off =
     let icmp6 = Cstruct.shift buf off in
-    let csum = cksum buf ~proto:58 off in
+    let csum = cksum buf ~proto:`ICMP off in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x)\n%!" csum;
       Lwt.return_unit (* checksum does not match, drop packet *)
