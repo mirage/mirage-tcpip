@@ -55,7 +55,7 @@ module Ipaddr = struct
 end
 module Macaddr = struct
   include Macaddr
-  let to_cstruct_raw cs off x =
+  let to_cstruct_raw x cs off =
     Cstruct.blit_from_string (to_bytes x) 0 cs off 6
   let of_cstruct cs =
     if Cstruct.len cs <> 6
@@ -132,7 +132,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       Ipaddr.V6.to_cstruct_raw ip (get_ns_target nsbuf) 0;
       set_ns_opt_ty nsbuf 1;
       set_ns_opt_len nsbuf 1;
-      Macaddr.to_cstruct_raw (get_ns_mac nsbuf) 0 (t.get_mac ());
+      Macaddr.to_cstruct_raw (t.get_mac ()) (get_ns_mac nsbuf) 0;
       (* Fill ICMPv6 Checksum *)
       let csum = cksum buf ~proto:58 Wire_structs.sizeof_icmpv6 in
       Wire_structs.set_icmpv6_csum icmpbuf csum;
@@ -230,6 +230,23 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
             Lwt.fail (No_route_to_destination_address ip)
         end
   end
+
+  let allocate_frame ~proto ~dest_ip t =
+    let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
+    Routing.destination_mac t dest_ip >>= fun dmac ->
+    Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
+    Macaddr.to_cstruct_raw (Ethif.mac t.ethif) (Wire_structs.get_ethernet_src ethernet_frame) 0;
+    Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd;
+    let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
+    (* Write the constant IPv6 header fields *)
+    Wire_structs.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
+    let proto = match proto with `ICMP -> 1 | `TCP -> 6 | `UDP -> 17 in
+    Wire_structs.set_ipv6_nhdr buf proto; (* ICMP *)
+    Wire_structs.set_ipv6_hlim buf 64; (* Same as IPv4 TTL ? TODO *)
+    Ipaddr.V6.to_cstruct_raw t.ip (Wire_structs.get_ipv6_src buf) 0;
+    Ipaddr.V6.to_cstruct_raw dest_ip (Wire_structs.get_ipv6_dst buf) 0;
+    let len = Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv6 in
+    Lwt.return (ethernet_frame, len)
 
   (* reflect the ip6 packet back to the source. [buf] points to the ip6 packet,
        [off] points to the icmp6 packet. *)
