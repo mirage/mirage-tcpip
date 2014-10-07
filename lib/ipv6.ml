@@ -125,6 +125,18 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       uint8_t  mac[6]
     } as big_endian
 
+  (* Stateless Autoconfiguration *)
+
+  let link_local_addr mac =
+    let bmac = Macaddr.to_bytes mac in
+    let c i = Char.code (Bytes.get bmac i) in
+    Ipaddr.V6.make
+      0xfe80 0 0 0
+      ((c 0 lxor 2) lsl 8 + c 1)
+      (c 2 lsl 8 + 0xff)
+      (0xfe00 + c 3)
+      (c 4 lsl 8 + c 5)
+
   (* buf points to the ipv6 packet,
      off points to the icmpv6 packet *)
   let nd_na_input t ~src icmpbuf =
