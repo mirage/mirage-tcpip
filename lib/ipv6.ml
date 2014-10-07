@@ -26,6 +26,9 @@
 
 - Internet Control Message Protocol (ICMPv6) for the Internet Protocol Version 6 (IPv6) Specification
  http://tools.ietf.org/html/rfc2463
+
+- IPv6 Node Requirements
+ http://tools.ietf.org/html/rfc6434
 *)
 
 (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
