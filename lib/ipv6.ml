@@ -112,7 +112,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     let ns_output t ip =
       t.get_ipv6buf () >>= fun buf ->
       (* Fill IPv6 Header *)
-      Wire_structs.set_ipv6_version_flow buf 0x06000000l; (* IPv6 *)
+      Wire_structs.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
       Wire_structs.set_ipv6_nhdr buf 58; (* ICMP *)
       Wire_structs.set_ipv6_hlim buf 255; (* hop limit *)
       Ipaddr.V6.to_cstruct_raw (t.get_ip ()) (Wire_structs.get_ipv6_src buf) 0;
