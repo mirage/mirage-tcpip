@@ -334,10 +334,11 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     loop true (Wire_structs.get_ipv6_nhdr buf) Wire_structs.sizeof_ipv6
 
   let connect e =
+    let i = Ipaddr.V6.of_string_exn in
     Lwt.return (`Ok { ethif = e;
                       cache = Hashtbl.create 0;
-                      bound_ips = [];
-                      ip = Ipaddr.V6.unspecified;
-                      netmask = 104;
-                      gateways = [] })
+                      bound_ips = [ i "::ffff:10.0.0.2" ];
+                      ip = i "::ffff:10.0.0.2";
+                      netmask = 120;
+                      gateways = [ i "::ffff:10.0.0.1" ] })
 end
