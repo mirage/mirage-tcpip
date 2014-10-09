@@ -421,11 +421,13 @@ end = struct
         begin
           match t <= st.tick, tn < Defaults.max_multicast_solicit with
           | true, true ->
+            Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
             let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
             let nb = {nb with state = INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msgs)} in
             IpMap.add ip nb nb_cache, pending
           | true, false ->
+            Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
             nb_cache, pending (* discard entry *)
           | _ ->
@@ -435,6 +437,7 @@ end = struct
         begin
           match t <= st.tick with
           | true ->
+            Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
             IpMap.add ip {nb with state = STALE mac } nb_cache, pending
           | false ->
             nb_cache, pending
@@ -443,6 +446,7 @@ end = struct
         begin
           match t <= st.tick with
           | true ->
+            Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose source address *)
             let msg = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
             let nb = {nb with state = PROBE (st.tick + nb.retrans_timer, 0, dmac)} in
@@ -454,11 +458,13 @@ end = struct
         begin
           match t <= st.tick, tn < Defaults.max_unicast_solicit with
           | true, true ->
+            Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let msg = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
             let nb = {nb with state = PROBE (st.tick + nb.retrans_timer, tn + 1, dmac)} in
             IpMap.add ip nb nb_cache, (msg :: pending)
           | true, false ->
+            Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             nb_cache, pending (* discard entry *)
           | _ ->
             nb_cache, pending
