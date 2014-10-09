@@ -361,16 +361,14 @@ end = struct
     | Redirect
 
   let on_unsolicited nb mac kind =
-    match nb.state, mac, kind with
-    | INCOMPLETE (_, _, pending), Some mac, _ ->
+    match nb.state, kind with
+    | INCOMPLETE (_, _, pending), _ ->
       { nb with state = STALE mac }, pending
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-      Some mac, _ when mac <> old_mac ->
+    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), _
+      when mac <> old_mac ->
       { nb with state = STALE mac }, None
-    | INCOMPLETE _, None, NS ->
-      nb, None
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-      Some mac, (NS | RA) when mac = old_mac ->
+    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), (NS | RA)
+      when mac = old_mac ->
       nb, None
     | _ ->
       nb, None
@@ -533,7 +531,7 @@ end = struct
           | Some mac ->
             Printf.printf "RA: Hello from %s (%s)\n%!" (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
             let st, nb = get_neighbour st ~ip:src ~mac in
-            let nb, pending = on_unsolicited nb (Some mac) RA in
+            let nb, pending = on_unsolicited nb mac RA in
             let st = {st with nb_cache = IpMap.add src nb st.nb_cache} in (* FIXME add to default router list *)
             (* `Ok (st, match pending with None -> `None | Some x -> `Response x) *)
             assert false
@@ -543,9 +541,6 @@ end = struct
       | 135 (* NS *) ->
         let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
         Printf.printf "NDP: %s wants to know our mac addr\n%!" (Ipaddr.V6.to_string target);
-        let is_router = Ipv6_wire.get_icmpv6_nsna_router buf in
-        let solicited = Ipv6_wire.get_icmpv6_nsna_solicited buf in
-        let override = Ipv6_wire.get_icmpv6_nsna_override buf in
         let rec loop opts =
           match next_option opts with
           | None -> None
@@ -560,13 +555,12 @@ end = struct
         in
         let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
         let is_unspec = Ipaddr.V6.(compare unspecified src) = 0 in
-        let _ = (* FIXME *)
+        let st = (* FIXME *)
           match mac, is_unspec with
           | Some mac, false ->
             let st, nb = get_neighbour st ~ip:src ~mac in (* CHECK *)
-            let nb, pending = on_unsolicited nb (Some mac) NS in (* TODO handle pending *)
+            let nb, pending = on_unsolicited nb mac NS in (* TODO handle pending *)
             {st with nb_cache = IpMap.add src nb st.nb_cache}
-            (* FIXME update or CREATE NC entry *)
           | _ ->
             st
         in
