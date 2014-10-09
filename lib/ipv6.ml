@@ -129,7 +129,7 @@ end = struct
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
 
   type nd_state =
-    | INCOMPLETE of int * int * (Ipaddr.V6.t * int * Cstruct.t) option
+    | INCOMPLETE of int * int * (Macaddr.t -> Cstruct.t) option
     | REACHABLE  of int * Macaddr.t
     | STALE      of Macaddr.t
     | DELAY      of int * Macaddr.t
@@ -217,7 +217,7 @@ end = struct
       (0xfe00 + c 3)
       (c 4 lsl 8 + c 5)
 
-  let alloc_frame ~smac ~dmac ~src ~dst ~proto =
+  let alloc_frame ~smac ~dmac ~src ~dst ?(hlim = 64) ~proto () =
     let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
@@ -226,7 +226,7 @@ end = struct
     (* Write the constant IPv6 header fields *)
     Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
     Ipv6_wire.set_ipv6_nhdr buf proto; (* (proto_num proto); *)
-    Ipv6_wire.set_ipv6_hlim buf 64; (* Same as IPv4 TTL ? TODO *)
+    Ipv6_wire.set_ipv6_hlim buf hlim; (* Same as IPv4 TTL ? TODO *)
     Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
     Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
     ethernet_frame
@@ -247,7 +247,7 @@ end = struct
   let (<+>) cs1 cs2 = Cs.append [ cs1; cs2 ]
 
   let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
-    let frame = alloc_frame ~smac ~dmac ~src ~dst ~proto:58 (* `ICMP *) in
+    let frame = alloc_frame ~smac ~dmac ~src ~dst ~proto:58 () (* `ICMP *) in
     let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
     Ipv6_wire.set_ipv6_hlim ipbuf 255; (* hop limit *)
     let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_icmpv6_nsna + Ipv6_wire.sizeof_icmpv6_opt + 6) in
@@ -258,7 +258,7 @@ end = struct
     Ipv6_wire.set_icmpv6_nsna_reserved icmpbuf 0l;
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_icmpv6_nsna_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_icmpv6_nsna in
-    Ipv6_wire.set_icmpv6_opt_ty optbuf 1;
+    Ipv6_wire.set_icmpv6_opt_ty optbuf 1; (* Source link-layer address *)
     Ipv6_wire.set_icmpv6_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
@@ -273,6 +273,24 @@ end = struct
 
   let alloc_ns_unicast ~smac ~dmac ~src ~dst =
     alloc_ns ~smac ~dmac ~src ~dst ~target:dst
+
+  let alloc_na_data ~smac ~src ~target ~dst ~solicited =
+    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_icmpv6_nsna + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    (* Fill ICMPv6 Header *)
+    Ipv6_wire.set_icmpv6_nsna_ty icmpbuf 136; (* NA *)
+    Ipv6_wire.set_icmpv6_nsna_code icmpbuf 0;
+    (* Fill ICMPv6 Payload *)
+    Ipv6_wire.set_icmpv6_nsna_reserved icmpbuf
+      (if solicited then 0x60000000l else 0x20000000l);
+    Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_icmpv6_nsna_target icmpbuf) 0;
+    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_icmpv6_nsna in
+    Ipv6_wire.set_icmpv6_opt_ty optbuf 2; (* Taret link-layer address *)
+    Ipv6_wire.set_icmpv6_opt_len optbuf 1;
+    Macaddr.to_cstruct_raw smac optbuf 2;
+    (* Fill ICMPv6 Checksum *)
+    let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) icmpbuf in
+    Ipv6_wire.set_icmpv6_csum icmpbuf csum;
+    icmpbuf
 
   let select_source_address st =
     match st.my_ips with
@@ -313,11 +331,11 @@ end = struct
      required by an upper level protocol because it is not clear if the packet has been
      queued or sent directly.  Maybe it should take as argument a function (Cstruct.t -> unit) that
      will do the checksumming just before the packet is sent ? *)
-  let output st ~dst ~proto data =
+  let output st ~dst ?hlim ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
       let src = select_source_address st in
-      let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~proto in
+      let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ?hlim ~proto () in
       Ok (st, Response (frame <+> data))
     else
       match next_hop st dst with
@@ -325,23 +343,25 @@ end = struct
         Fail (No_route_to_host dst)
       | Some ip ->
         let src = select_source_address st in
+        let msg dmac =
+          let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto () in
+          frame <+> data
+        in
         if IpMap.mem ip st.nb_cache then
           let nb = IpMap.find ip st.nb_cache in
           match nb.state with
           | INCOMPLETE (t, nt, _) ->
-            let nb = {nb with state = INCOMPLETE (t, nt, Some (src, proto, data))} in
+            let nb = {nb with state = INCOMPLETE (t, nt, Some msg)} in
             let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
             Ok (st, Nothing)
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto in
-            Ok (st, Response (frame <+> data))
+            Ok (st, Response (msg dmac))
           | STALE dmac ->
-            let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto in
             let nb = {nb with state = DELAY (st.tick + Defaults.delay_first_probe_time, dmac)} in
             let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
-            Ok (st, Response (frame <+> data))
+            Ok (st, Response (msg dmac))
         else
-          let nb = fresh_nb_entry st.tick (Some (src, proto, data)) in
+          let nb = fresh_nb_entry st.tick (Some msg) in
           let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
           let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
           Ok (st, Response msg)
@@ -355,12 +375,12 @@ end = struct
   let on_nbh_adv tick ip nb mac is_router solicited override =
     match nb.state, mac, solicited, override with
     | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
-      let pending = map_option (fun x -> dmac, x) pending in
+      let pending = map_option (fun x -> x dmac) pending in
       (* FIXME create the actual messages with the received dmac *)
       Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = STALE dmac}, pending
     | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
-      let pending = map_option (fun x -> dmac, x) pending in
+      let pending = map_option (fun x -> x dmac) pending in
       (* FIXME create the actual messages with the received dmac *)
       Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = REACHABLE (tick + nb.reachable_time, dmac) }, pending
@@ -417,15 +437,15 @@ end = struct
     let st = {st with tick = st.tick + 1} in
     let process ip nb (nb_cache, pending) =
       match nb.state with
-      | INCOMPLETE (t, tn, msgs) ->
+      | INCOMPLETE (t, tn, msg) ->
         begin
           match t <= st.tick, tn < Defaults.max_multicast_solicit with
           | true, true ->
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
-            let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
-            let nb = {nb with state = INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msgs)} in
-            IpMap.add ip nb nb_cache, pending
+            let ns = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
+            let nb = {nb with state = INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msg)} in
+            IpMap.add ip nb nb_cache, (ns :: pending)
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
@@ -448,9 +468,9 @@ end = struct
           | true ->
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose source address *)
-            let msg = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
+            let ns = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
             let nb = {nb with state = PROBE (st.tick + nb.retrans_timer, 0, dmac)} in
-            IpMap.add ip nb nb_cache, (msg :: pending)
+            IpMap.add ip nb nb_cache, (ns :: pending)
           | false ->
             nb_cache, pending
         end
@@ -584,8 +604,8 @@ end = struct
           | _ ->
             st
         in
-        (* FIXME send NA *)
-        assert false
+        output st ~dst ~proto:58 ~hlim:255
+          (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
       | 136 (* NA *) ->
         let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
         let is_router = Ipv6_wire.get_icmpv6_nsna_router buf in
@@ -608,12 +628,6 @@ end = struct
         if IpMap.mem target st.nb_cache then
           let nb = IpMap.find target st.nb_cache in
           let nb, resp = on_nbh_adv st.tick target nb mac is_router solicited override in
-          let resp =
-            map_option
-              (fun (dmac, (src, proto, data)) ->
-                 alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:target ~proto <+> data)
-              resp
-          in
           Ok (st, match resp with None -> Nothing | Some m -> Response m)
         else
           Ok (st, Nothing)
