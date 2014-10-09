@@ -86,17 +86,75 @@ module Tcp_wire = struct
     Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 7))
 end
 
-cstruct ipv6 {
-    uint32_t       version_flow;
-    uint16_t       len;  (* payload length (includes extensions) *)
-    uint8_t        nhdr; (* next header *)
-    uint8_t        hlim; (* hop limit *)
-    uint8_t        src[16];
-    uint8_t        dst[16]
-  } as big_endian
+module Ipv6_wire = struct
+  cstruct ipv6 {
+      uint32_t       version_flow;
+      uint16_t       len;  (* payload length (includes extensions) *)
+      uint8_t        nhdr; (* next header *)
+      uint8_t        hlim; (* hop limit *)
+      uint8_t        src[16];
+      uint8_t        dst[16]
+    } as big_endian
 
-cstruct icmpv6 {
-    uint8_t        ty;
-    uint8_t        code;
-    uint16_t       csum
-  } as big_endian
+  cstruct icmpv6 {
+      uint8_t        ty;
+      uint8_t        code;
+      uint16_t       csum
+    } as big_endian
+
+  cstruct icmpv6_nsna {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved;
+      uint8_t  target[16]
+    } as big_endian
+
+  let get_icmpv6_nsna_router buf =
+    (Cstruct.get_uint8 buf 4 land 0x80) <> 0
+
+  let get_icmpv6_nsna_solicited buf =
+    (Cstruct.get_uint8 buf 4 land 0x40) <> 0
+
+  let get_icmpv6_nsna_override buf =
+    (Cstruct.get_uint8 buf 4 land 0x20) <> 0
+
+  cstruct icmpv6_rs {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved
+    } as big_endian
+
+  cstruct icmpv6_opt_prefix {
+      uint8_t    ty;
+      uint8_t    len;
+      uint8_t    pref_len;
+      uint8_t    reserved;
+      uint32_t   valid_lifetime;
+      uint32_t   preferred_lifetime;
+      uint32_t   reserved2;
+      uint8_t    prefix[16]
+    } as big_endian
+
+  let get_icmpv6_opt_prefix_on_link buf =
+    (get_icmpv6_opt_prefix_reserved buf land 1 lsl 7) <> 0
+
+  cstruct icmpv6_opt {
+      uint8_t  ty;
+      uint8_t  len
+    } as big_endian
+
+  cstruct icmpv6_ra {
+      uint8_t   ty;
+      uint8_t   code;
+      uint16_t  csum;
+      uint8_t   chl;
+      uint8_t   reserved;
+      uint16_t  rtlt; (* Router Lifetime *)
+      uint32_t  reacht; (* Reachable Time *)
+      uint32_t  retrans (* Retrans Timer *)
+    } as big_endian
+
+  let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4
+end
