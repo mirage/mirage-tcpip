@@ -274,38 +274,77 @@ end = struct
   let alloc_ns_unicast ~smac ~dmac ~src ~dst =
     alloc_ns ~smac ~dmac ~src ~dst ~target:dst
 
-  (* let next_hop st ip = *)
-  (*   if List.exists (Ipaddr.V6.Prefix.mem ip) st.pre_list then *)
-  (*     `Ok ip *)
-  (*   else if List.length st.rt_list > 0 then *)
-  (*     `Ok (List.nth st.rt_list (Random.int (List.length st.rt_list))) *)
-  (*   else *)
-  (*     `Fail (`No_route_to_host ip) *)
+  let select_source_address st =
+    match st.my_ips with
+    | ip :: _ -> ip
+    | [] -> Ipaddr.V6.unspecified
 
-  (* let output st ~dst ~proto datav = *)
-  (*   if Ipaddr.V6.is_multicast dst then *)
-  (*     let dmac = multicast_mac dst in *)
-  (*     let src = choose_src st in *)
-  (*     let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~proto in *)
-  (*     `Ok (st, `Response (frame :: datav)) *)
-  (*   else *)
-  (*     let nh = next_hop st dst in *)
-  (*     if IpaddrMap.mem dst st.dst_cache then *)
-  (*       let next_hop = IpaddrMap.find dst st.dst_cache in *)
-  (*       let nh_info = Ipaddr.find next_hop st.nbh_cache in *)
-  (*       match nh_info.reach with *)
-  (*       | INCOMPLETE pending -> *)
-  (*         `Ok ({st with nbh_cache = IpaddrMap.add next_hop {nh_info with pending = (proto, datav) :: st.pending}}, *)
-  (*              `Response [], None) *)
-  (*       | REACHABLE dmac -> *)
-  (*         let frame = alloc_frame ~mac:st.my_mac ~dmac ~src ~dst ~proto in *)
-  (*         `Ok (st, `Response [ frame :: datav ]) *)
-  (*       | STALE dmac -> *)
-  (*     else (\* next-hop *\) *)
-  (*       let nbh_cache = IpaddrMap.add nh { reach = INCOMPLETE (st.tick, 0, [ proto, datav ]); *)
-  (*                                          is_router = false } st.nbh_cache in *)
-  (*       let ... = alloc_ns_output in *)
-  (*       `Ok ({st with nbh_cache}, `Response [...]) *)
+  let fresh_nb_entry tick data =
+    let reachable_time =
+      let rt = float Defaults.reachable_time in
+      let d = Defaults.(max_random_factor -. min_random_factor) in
+      truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
+    in
+    { state = INCOMPLETE (tick + reachable_time, 0, data);
+      link_mtu = Defaults.link_mtu;
+      cur_hop_limit = 64; (* TODO *)
+      base_reachable_time = Defaults.reachable_time;
+      reachable_time;
+      retrans_timer = Defaults.retrans_timer;
+      is_router = false }
+
+  let get_neighbour st ~ip ~state =
+    if IpMap.mem ip st.nb_cache then
+      st, IpMap.find ip st.nb_cache
+    else
+      let nb = fresh_nb_entry st.tick None in
+      let nb = {nb with state} in
+      {st with nb_cache = IpMap.add ip nb st.nb_cache}, nb
+
+  let next_hop st ip =
+    if PrefixMap.exists (fun pref _ -> Ipaddr.V6.Prefix.mem ip pref) st.pre_list then
+      Some ip
+    else if not (IpMap.is_empty st.rt_list) then
+      Some (fst (IpMap.choose st.rt_list)) (* FIXME router selection *)
+    else
+      None
+
+  (* FIXME this interface makes it impossible to compute the checksum eventually
+     required by an upper level protocol because it is not clear if the packet has been
+     queued or sent directly.  Maybe it should take as argument a function (Cstruct.t -> unit) that
+     will do the checksumming just before the packet is sent ? *)
+  let output st ~dst ~proto data =
+    if Ipaddr.V6.is_multicast dst then
+      let dmac = multicast_mac dst in
+      let src = select_source_address st in
+      let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~proto in
+      Ok (st, Response (frame <+> data))
+    else
+      match next_hop st dst with
+      | None ->
+        Fail (No_route_to_host dst)
+      | Some ip ->
+        let src = select_source_address st in
+        if IpMap.mem ip st.nb_cache then
+          let nb = IpMap.find ip st.nb_cache in
+          match nb.state with
+          | INCOMPLETE (t, nt, _) ->
+            let nb = {nb with state = INCOMPLETE (t, nt, Some (src, proto, data))} in
+            let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
+            Ok (st, Nothing)
+          | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
+            let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto in
+            Ok (st, Response (frame <+> data))
+          | STALE dmac ->
+            let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto in
+            let nb = {nb with state = DELAY (st.tick + Defaults.delay_first_probe_time, dmac)} in
+            let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
+            Ok (st, Response (frame <+> data))
+        else
+          let nb = fresh_nb_entry st.tick (Some (src, proto, data)) in
+          let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
+          let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
+          Ok (st, Response msg)
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
@@ -318,25 +357,25 @@ end = struct
     | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
       let pending = map_option (fun x -> dmac, x) pending in
       (* FIXME create the actual messages with the received dmac *)
-      Printf.printf "NDP: %s is now STALE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = STALE dmac}, pending
     | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
       let pending = map_option (fun x -> dmac, x) pending in
       (* FIXME create the actual messages with the received dmac *)
-      Printf.printf "NDP: %s is now REACHABLE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = REACHABLE (tick + nb.reachable_time, dmac) }, pending
     | INCOMPLETE _, None, _, _ ->
       {nb with is_router}, None
     | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
-      Printf.printf "NDP: %s is now REACHABLE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = REACHABLE (tick + nb.reachable_time, mac)}, None
     | PROBE (_, _, mac), None, true, false ->
-      Printf.printf "NDP: %s is now REACHABLE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = REACHABLE (tick + nb.reachable_time, mac)}, None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
       {nb with is_router}, None
     | REACHABLE (_, old_mac), Some mac, true, false when mac <> old_mac ->
-      Printf.printf "NDP: %s is now STALE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = STALE old_mac}, None (* TODO check old_mac or mac *)
     | (STALE old_mac | PROBE (_, _, old_mac) | DELAY (_, old_mac)),
       Some mac, true, false when mac <> old_mac ->
@@ -350,7 +389,7 @@ end = struct
       nb, None
     | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
       Some mac, false, true when mac <> old_mac ->
-      Printf.printf "NDP: %s is now STALE\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
       {nb with state = STALE mac}, None
     | _ ->
       nb, None
@@ -372,11 +411,6 @@ end = struct
       nb, None
     | _ ->
       nb, None
-
-  let select_source_address st =
-    match st.my_ips with
-    | ip :: _ -> ip
-    | [] -> Ipaddr.V6.unspecified
 
   (* val tick : state -> state * Cstruct.t list *)
   let tick st =
@@ -442,26 +476,6 @@ end = struct
       Some (Cstruct.split buf (Ipv6_wire.get_icmpv6_opt_len buf * 8))
     else
       None
-
-  let get_neighbour st ~ip ~mac =
-    if IpMap.mem ip st.nb_cache then
-      st, IpMap.find ip st.nb_cache
-    else
-      let reachable_time =
-        let rt = float Defaults.reachable_time in
-        let d = Defaults.(max_random_factor -. min_random_factor) in
-        truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
-      in
-      let entry =
-        { state = STALE mac;
-          link_mtu = Defaults.link_mtu;
-          cur_hop_limit = 64; (* TODO *)
-          base_reachable_time = Defaults.reachable_time;
-          reachable_time;
-          retrans_timer = Defaults.retrans_timer;
-          is_router = false }
-      in
-      {st with nb_cache = IpMap.add ip entry st.nb_cache}, entry
 
   let handle_prefix st buf =
     let on_link = Ipv6_wire.get_icmpv6_opt_prefix_on_link buf in
@@ -530,7 +544,7 @@ end = struct
           match mac with
           | Some mac ->
             Printf.printf "RA: Hello from %s (%s)\n%!" (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
-            let st, nb = get_neighbour st ~ip:src ~mac in
+            let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
             let nb, pending = on_unsolicited nb mac RA in
             let st = {st with nb_cache = IpMap.add src nb st.nb_cache} in (* FIXME add to default router list *)
             (* `Ok (st, match pending with None -> `None | Some x -> `Response x) *)
@@ -558,7 +572,7 @@ end = struct
         let st = (* FIXME *)
           match mac, is_unspec with
           | Some mac, false ->
-            let st, nb = get_neighbour st ~ip:src ~mac in (* CHECK *)
+            let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
             let nb, pending = on_unsolicited nb mac NS in (* TODO handle pending *)
             {st with nb_cache = IpMap.add src nb st.nb_cache}
           | _ ->
