@@ -339,78 +339,6 @@ end = struct
 
   let map_option f = function None -> None | Some x -> Some (f x)
 
-  (* val : nb_data -> Macaddr.t option -> bool -> bool -> bool -> nb * (Ipaddr.V6.t * Cstruct.t) option *)
-  let on_nbh_adv tick reachable_time ip nb mac is_router solicited override =
-    match nb.state, mac, solicited, override with
-    | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
-      let pending = map_option (fun x -> x dmac) pending in
-      (* FIXME create the actual messages with the received dmac *)
-      Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- STALE dmac;
-      pending
-    | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
-      let pending = map_option (fun x -> x dmac) pending in
-      (* FIXME create the actual messages with the received dmac *)
-      Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + reachable_time, dmac);
-      pending
-    | INCOMPLETE _, None, _, _ ->
-      nb.is_router <- is_router;
-      None
-    | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
-      Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + reachable_time, mac);
-      None
-    | PROBE (_, _, mac), None, true, false ->
-      Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + reachable_time, mac);
-      None
-    | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-      nb.is_router <- is_router;
-      None
-    | REACHABLE (_, old_mac), Some mac, true, false when mac <> old_mac ->
-      Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- STALE old_mac;
-      None (* TODO check old_mac or mac *)
-    | (STALE old_mac | PROBE (_, _, old_mac) | DELAY (_, old_mac)),
-      Some mac, true, false when mac <> old_mac ->
-      None
-    | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some mac, true, true ->
-      nb.state <- REACHABLE (tick + reachable_time, mac);
-      None
-    | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), _, false, false ->
-      None
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-      Some mac, false, true when mac = old_mac ->
-      None
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-      Some mac, false, true when mac <> old_mac ->
-      Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- STALE mac;
-      None
-    | _ ->
-      None
-
-  type unsolicited =
-    | NS
-    | RA
-    | Redirect
-
-  let on_unsolicited nb mac kind =
-    match nb.state, kind with
-    | INCOMPLETE (_, _, pending), _ ->
-      nb.state <- STALE mac;
-      pending
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), _
-      when mac <> old_mac ->
-      nb.state <- STALE mac;
-      None
-    | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), (NS | RA)
-      when mac = old_mac ->
-      None
-    | _ ->
-      None
-
   (* val tick : state -> state * Cstruct.t list *)
   let tick st =
     st.tick <- st.tick + 1;
@@ -646,8 +574,58 @@ end = struct
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
     if Hashtbl.mem st.nb_cache target then
       let nb = Hashtbl.find st.nb_cache target in
-      let resp = on_nbh_adv st.tick st.reachable_time target nb mac is_router solicited override in
-      begin match resp with None -> Nothing | Some m -> Response m end
+      let resp =
+        match nb.state, mac, solicited, override with
+        | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
+          let pending = map_option (fun x -> x dmac) pending in
+          (* FIXME create the actual messages with the received dmac *)
+          Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- STALE dmac;
+          pending
+        | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
+          let pending = map_option (fun x -> x dmac) pending in
+          (* FIXME create the actual messages with the received dmac *)
+          Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- REACHABLE (st.tick + st.reachable_time, dmac);
+          pending
+        | INCOMPLETE _, None, _, _ ->
+          nb.is_router <- is_router;
+          None
+        | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
+          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
+          None
+        | PROBE (_, _, mac), None, true, false ->
+          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
+          None
+        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
+          nb.is_router <- is_router;
+          None
+        | REACHABLE (_, old_mac), Some mac, true, false when mac <> old_mac ->
+          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- STALE old_mac;
+          None (* TODO check old_mac or mac *)
+        | (STALE old_mac | PROBE (_, _, old_mac) | DELAY (_, old_mac)),
+          Some mac, true, false when mac <> old_mac ->
+          None
+        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some mac, true, true ->
+          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
+          None
+        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), _, false, false ->
+          None
+        | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
+          Some mac, false, true when mac = old_mac ->
+          None
+        | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
+          Some mac, false, true when mac <> old_mac ->
+          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+          nb.state <- STALE mac;
+          None
+        | _ ->
+          None
+      in
+      match resp with None -> Nothing | Some m -> Response m
     else
       Nothing
 
