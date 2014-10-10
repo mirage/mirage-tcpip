@@ -90,13 +90,12 @@ module Cs = struct
   let append csl =
     let cs = Cstruct.create (Cstruct.lenv csl) in
     let rec loop off = function
-      | [] -> ()
+      | [] -> cs
       | cs1 :: csl ->
         Cstruct.blit cs1 0 cs off (Cstruct.len cs1);
         loop (off + Cstruct.len cs1) csl
     in
-    loop 0 csl;
-    cs
+    loop 0 csl
 end
 
 module Engine : sig
@@ -180,8 +179,7 @@ end = struct
      is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
      bad name since it is used for other protocols as well. *)
   let pbuf =
-    Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0
-      Ipv6_wire.sizeof_ipv6_pseudo_header
+    Cstruct.create Ipv6_wire.sizeof_ipv6_pseudo_header
 
   let cksum ~src ~dst ~proto data =
     Ipaddr.V6.to_cstruct_raw src pbuf 0;
@@ -215,7 +213,7 @@ end = struct
       (0xfe00 + c 3)
       (c 4 lsl 8 + c 5)
 
-  let alloc_frame ~smac ~dmac ~src ~dst ?(hlim = 64) ~proto () =
+  let alloc_frame ~smac ~dmac ~src ~dst ?(hlim = 64) ~len ~proto () =
     let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
@@ -223,6 +221,7 @@ end = struct
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     (* Write the constant IPv6 header fields *)
     Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
+    Ipv6_wire.set_ipv6_len buf len;
     Ipv6_wire.set_ipv6_nhdr buf proto;
     Ipv6_wire.set_ipv6_hlim buf hlim; (* Same as IPv4 TTL ? TODO *)
     Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
@@ -232,10 +231,8 @@ end = struct
   let (<+>) cs1 cs2 = Cs.append [ cs1; cs2 ]
 
   let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
-    let frame = alloc_frame ~smac ~dmac ~src ~dst ~proto:58 () (* `ICMP *) in
-    let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-    Ipv6_wire.set_ipv6_hlim ipbuf 255; (* hop limit *)
     let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_icmpv6_nsna + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len:(Cstruct.len icmpbuf) ~proto:58 () (* `ICMP *) in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_icmpv6_nsna_ty icmpbuf 135; (* NS *)
     Ipv6_wire.set_icmpv6_nsna_code icmpbuf 0;
@@ -322,7 +319,7 @@ end = struct
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
       let src = select_source_address st in
-      let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ?hlim ~proto () in
+      let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
       Ok (st, Response (frame <+> data))
     else
       match next_hop st dst with
@@ -331,7 +328,7 @@ end = struct
       | Some ip ->
         let src = select_source_address st in
         let msg dmac =
-          let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~proto () in
+          let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~len:(Cstruct.len data) ~proto () in
           frame <+> data
         in
         if IpMap.mem ip st.nb_cache then
@@ -421,7 +418,6 @@ end = struct
 
   (* val tick : state -> state * Cstruct.t list *)
   let tick st =
-    Printf.printf "tick %d\n%!" st.tick;
     let st = {st with tick = st.tick + 1} in
     let process ip nb (nb_cache, pending) =
       match nb.state with
@@ -702,6 +698,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       default ~proto:n ~src ~dst buf
     | Ok (st, Response packet) ->
       t.state <- st;
+      Printf.printf "Sending ...%!";
+      Cstruct.hexdump packet;
       Ethif.write t.ethif packet
     | Ok (st, Nothing) ->
       t.state <- st;
@@ -719,6 +717,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     let rec ticker () =
       let st, pending = Engine.tick t.state in
       t.state <- st;
+      List.iter (fun packet ->
+          Printf.printf "Sending ...%!";
+          Cstruct.hexdump packet) pending;
       Lwt_list.iter_s (Ethif.write t.ethif) pending >>= fun () ->
       Lwt.pick [ (Time.sleep 1.0 >>= fun () -> Lwt.return `Ok);
                  (waiter >>= fun () -> Lwt.return `Stop) ] >>= function
