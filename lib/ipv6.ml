@@ -133,21 +133,21 @@ end = struct
 
   type nb_info =
     { mutable state               : nd_state;
-      mutable link_mtu            : int;
-      mutable cur_hop_limit       : int;
-      mutable base_reachable_time : int; (* default Defaults.reachable_time *)
-      mutable reachable_time      : int;
-      mutable retrans_timer       : int; (* Defaults.retrans_timer *)
       mutable is_router           : bool }
 
   (* TODO add destination cache *)
   type state =
-    { nb_cache         : (Ipaddr.V6.t, nb_info) Hashtbl.t;
-      mutable pre_list : (Ipaddr.V6.Prefix.t * int) list;
-      mutable rt_list  : (Ipaddr.V6.t * int) list; (* invalidation timer *)
-      my_mac           : Macaddr.t;
-      mutable my_ips   : Ipaddr.V6.t list;
-      mutable tick     : int }
+    { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
+      mutable pre_list            : (Ipaddr.V6.Prefix.t * int) list;
+      mutable rt_list             : (Ipaddr.V6.t * int) list; (* invalidation timer *)
+      my_mac                      : Macaddr.t;
+      mutable my_ips              : Ipaddr.V6.t list;
+      mutable tick                : int;
+      mutable link_mtu            : int;
+      mutable cur_hop_limit       : int;
+      mutable base_reachable_time : int; (* default Defaults.reachable_time *)
+      mutable reachable_time      : int;
+      mutable retrans_timer       : int } (* Defaults.retrans_timer *)
 
   type alert =
     | Icmp_checksum_failed
@@ -273,25 +273,15 @@ end = struct
     | ip :: _ -> ip
     | [] -> Ipaddr.V6.unspecified
 
-  let fresh_nb_entry tick data =
-    let reachable_time =
-      let rt = float Defaults.reachable_time in
-      let d = Defaults.(max_random_factor -. min_random_factor) in
-      truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
-    in
+  let fresh_nb_entry tick reachable_time data =
     { state = INCOMPLETE (tick + reachable_time, 0, data);
-      link_mtu = Defaults.link_mtu;
-      cur_hop_limit = 64; (* TODO *)
-      base_reachable_time = Defaults.reachable_time;
-      reachable_time;
-      retrans_timer = Defaults.retrans_timer;
       is_router = false }
 
   let get_neighbour st ~ip ~state =
     if Hashtbl.mem st.nb_cache ip then
       Hashtbl.find st.nb_cache ip
     else
-      let nb = fresh_nb_entry st.tick None in
+      let nb = fresh_nb_entry st.tick st.reachable_time None in
       nb.state <- state;
       Hashtbl.add st.nb_cache ip nb;
       nb
@@ -339,7 +329,7 @@ end = struct
             nb.state <- DELAY (st.tick + Defaults.delay_first_probe_time, dmac);
             Response (msg dmac)
         else
-          let nb = fresh_nb_entry st.tick (Some msg) in
+          let nb = fresh_nb_entry st.tick st.reachable_time (Some msg) in
           Hashtbl.add st.nb_cache ip nb;
           let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
           Response msg
@@ -350,7 +340,7 @@ end = struct
   let map_option f = function None -> None | Some x -> Some (f x)
 
   (* val : nb_data -> Macaddr.t option -> bool -> bool -> bool -> nb * (Ipaddr.V6.t * Cstruct.t) option *)
-  let on_nbh_adv tick ip nb mac is_router solicited override =
+  let on_nbh_adv tick reachable_time ip nb mac is_router solicited override =
     match nb.state, mac, solicited, override with
     | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
       let pending = map_option (fun x -> x dmac) pending in
@@ -362,18 +352,18 @@ end = struct
       let pending = map_option (fun x -> x dmac) pending in
       (* FIXME create the actual messages with the received dmac *)
       Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + nb.reachable_time, dmac);
+      nb.state <- REACHABLE (tick + reachable_time, dmac);
       pending
     | INCOMPLETE _, None, _, _ ->
       nb.is_router <- is_router;
       None
     | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
       Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      nb.state <- REACHABLE (tick + reachable_time, mac);
       None
     | PROBE (_, _, mac), None, true, false ->
       Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      nb.state <- REACHABLE (tick + reachable_time, mac);
       None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
       nb.is_router <- is_router;
@@ -386,7 +376,7 @@ end = struct
       Some mac, true, false when mac <> old_mac ->
       None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some mac, true, true ->
-      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      nb.state <- REACHABLE (tick + reachable_time, mac);
       None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), _, false, false ->
       None
@@ -433,7 +423,7 @@ end = struct
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
             let ns = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
-            nb.state <- INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msg);
+            nb.state <- INCOMPLETE (st.tick + st.retrans_timer, tn + 1, msg);
             ns :: pending
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -460,7 +450,7 @@ end = struct
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose source address *)
             let ns = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
-            nb.state <- PROBE (st.tick + nb.retrans_timer, 0, dmac);
+            nb.state <- PROBE (st.tick + st.retrans_timer, 0, dmac);
             ns :: pending
           | false ->
             pending
@@ -472,7 +462,7 @@ end = struct
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let msg = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
-            nb.state <- PROBE (st.tick + nb.retrans_timer, tn + 1, dmac);
+            nb.state <- PROBE (st.tick + st.retrans_timer, tn + 1, dmac);
             msg :: pending
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -621,7 +611,7 @@ end = struct
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
     if Hashtbl.mem st.nb_cache target then
       let nb = Hashtbl.find st.nb_cache target in
-      let resp = on_nbh_adv st.tick target nb mac is_router solicited override in
+      let resp = on_nbh_adv st.tick st.reachable_time target nb mac is_router solicited override in
       begin match resp with None -> Nothing | Some m -> Response m end
     else
       Nothing
@@ -686,12 +676,24 @@ end = struct
     loop st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
   let create mac =
+    let reachable_time =
+      let rt = float Defaults.reachable_time in
+      let d = Defaults.(max_random_factor -. min_random_factor) in
+      truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
+    in
     { nb_cache = Hashtbl.create 0;
       pre_list = [];
       rt_list = [];
       my_mac = mac;
       my_ips = [];
-      tick = 0 }
+      tick = 0;
+
+      link_mtu = Defaults.link_mtu;
+      cur_hop_limit = 64; (* TODO *)
+      base_reachable_time = Defaults.reachable_time;
+      reachable_time;
+      retrans_timer = Defaults.retrans_timer;
+    }
 end
 
 let (>>=) = Lwt.(>>=)
