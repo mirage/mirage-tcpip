@@ -557,20 +557,15 @@ end = struct
     let is_router = Ipv6_wire.get_na_router buf in
     let solicited = Ipv6_wire.get_na_solicited buf in
     let override = Ipv6_wire.get_na_override buf in
-    (* let rec loop opts = *)
-    (*   match next_option opts with *)
-    (*   | None -> None *)
-    (*   | Some (opt, opts) -> *)
-    (*     begin *)
-    (*       match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with *)
-    (*       | 2, 1 -> *)
-    (*         Some (Macaddr.of_cstruct (Cstruct.shift opt 2)) *)
-    (*       | _ -> *)
-    (*         loop opts *)
-    (*     end *)
-    (* in *)
-    (* let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_na) in *)
-    let mac = None in (* FIXME FIXME FIXME *)
+    let rec process_options ty len opt mac =
+      match ty, len with
+      | 2, 1 ->
+        Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
+      | _ ->
+        mac
+    in
+    let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
+    let mac = fold_options process_options opts None in
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
     if Hashtbl.mem st.nb_cache target then
       let nb = Hashtbl.find st.nb_cache target in
