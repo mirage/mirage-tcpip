@@ -86,6 +86,19 @@ end
 
 module Ipv6_wire = Wire_structs.Ipv6_wire
 
+module Cs = struct
+  let append csl =
+    let cs = Cstruct.create (Cstruct.lenv csl) in
+    let rec loop off = function
+      | [] -> ()
+      | cs1 :: csl ->
+        Cstruct.blit cs1 0 cs off (Cstruct.len cs1);
+        loop (off + Cstruct.len cs1) csl
+    in
+    loop 0 csl;
+    cs
+end
+
 module Engine : sig
   type state
 
@@ -112,19 +125,6 @@ module Engine : sig
   val handle_input : state -> Cstruct.t -> ret
   val create : Macaddr.t -> state
 end = struct
-  (* type proto = *)
-  (*   [ `ICMP *)
-  (*   | `TCP *)
-  (*   | `UDP *)
-  (*   | `OTHER of int ] *)
-
-  (* let proto_num (p : proto) = *)
-  (*   match p with *)
-  (*   | `ICMP    -> 58 *)
-  (*   | `TCP     -> 6 *)
-  (*   | `UDP     -> 17 *)
-  (*   | `OTHER n -> n *)
-
   module IpMap     = Map.Make (Ipaddr.V6)
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
 
@@ -183,13 +183,11 @@ end = struct
     Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0
       Ipv6_wire.sizeof_ipv6_pseudo_header
 
-  (* buf : beginning of ipv6 packet
-     off : beginning of higher-layer protocol packet *)
-  let cksum ~src ~dst ~proto (data : Cstruct.t) =
+  let cksum ~src ~dst ~proto data =
     Ipaddr.V6.to_cstruct_raw src pbuf 0;
     Ipaddr.V6.to_cstruct_raw dst pbuf 16;
     Cstruct.BE.set_uint32 pbuf 32 (Int32.of_int (Cstruct.len data));
-    Cstruct.BE.set_uint32 pbuf 36 (Int32.of_int proto); (* (proto_num proto)); *)
+    Cstruct.BE.set_uint32 pbuf 36 (Int32.of_int proto);
     Tcpip_checksum.ones_complement_list [ pbuf; data ]
 
   let solicited_node_prefix =
@@ -225,24 +223,11 @@ end = struct
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     (* Write the constant IPv6 header fields *)
     Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-    Ipv6_wire.set_ipv6_nhdr buf proto; (* (proto_num proto); *)
+    Ipv6_wire.set_ipv6_nhdr buf proto;
     Ipv6_wire.set_ipv6_hlim buf hlim; (* Same as IPv4 TTL ? TODO *)
     Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
     Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
     ethernet_frame
-
-  module Cs = struct
-    let append csl =
-      let cs = Cstruct.create (Cstruct.lenv csl) in
-      let rec loop off = function
-        | [] -> ()
-        | cs1 :: csl ->
-          Cstruct.blit cs1 0 cs off (Cstruct.len cs1);
-          loop (off + Cstruct.len cs1) csl
-      in
-      loop 0 csl;
-      cs
-  end
 
   let (<+>) cs1 cs2 = Cs.append [ cs1; cs2 ]
 
@@ -436,6 +421,7 @@ end = struct
 
   (* val tick : state -> state * Cstruct.t list *)
   let tick st =
+    Printf.printf "tick %d\n%!" st.tick;
     let st = {st with tick = st.tick + 1} in
     let process ip nb (nb_cache, pending) =
       match nb.state with
@@ -574,13 +560,15 @@ end = struct
           | Some mac ->
             Printf.printf "RA: Adding %s (%s) to the Default Router List\n%!"
               (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
+            (* FIXME use the values of Reachable Time and Retrans Timer included
+               in the icmp buf *)
             let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
             let nb, pending = on_unsolicited nb mac RA in
             let st =
               {st with
                nb_cache = IpMap.add src nb st.nb_cache;
                rt_list = if rtlt > 0 then IpMap.add src rtlt st.rt_list else st.rt_list}
-            in (* FIXME add to default router list *)
+            in
             Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
           | None ->
             Ok (st, Nothing)
