@@ -331,6 +331,8 @@ end = struct
      required by an upper level protocol because it is not clear if the packet has been
      queued or sent directly.  Maybe it should take as argument a function (Cstruct.t -> unit) that
      will do the checksumming just before the packet is sent ? *)
+
+  (* TODO ? data : ~src:Ipaddr.V6.t -> Cstruc.t, src = select_source_address st ? *)
   let output st ~dst ?hlim ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
@@ -525,7 +527,7 @@ end = struct
       st
 
   (* buf : icmp packet *)
-  let handle_icmp_input st ~src ~dst buf : ret =
+  let handle_icmp_input st ~src ~dst buf =
     let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) buf in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x)\n%!" csum;
@@ -566,15 +568,20 @@ end = struct
             end
         in
         let st, mac, mtu = loop st None None opts in
+        let rtlt = Ipv6_wire.get_icmpv6_ra_rtlt buf in
         begin
           match mac with
           | Some mac ->
-            Printf.printf "RA: Hello from %s (%s)\n%!" (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
+            Printf.printf "RA: Adding %s (%s) to the Default Router List\n%!"
+              (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
             let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
             let nb, pending = on_unsolicited nb mac RA in
-            let st = {st with nb_cache = IpMap.add src nb st.nb_cache} in (* FIXME add to default router list *)
-            (* `Ok (st, match pending with None -> `None | Some x -> `Response x) *)
-            assert false
+            let st =
+              {st with
+               nb_cache = IpMap.add src nb st.nb_cache;
+               rt_list = if rtlt > 0 then IpMap.add src rtlt st.rt_list else st.rt_list}
+            in (* FIXME add to default router list *)
+            Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
           | None ->
             Ok (st, Nothing)
         end
