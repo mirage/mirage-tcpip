@@ -508,8 +508,108 @@ end = struct
     | false, _, _, _ ->
       st
 
+  let ra_input st src dst buf =
+    let opts = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_ra in
+    let rec loop st mac mtu opts =
+      match next_option opts with
+      | None ->
+        st, mac, mtu
+      | Some (opt, opts) ->
+        begin
+          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
+          | 1, 1 -> (* Source Link-Layer Address *)
+            loop st (Some (Macaddr.of_cstruct (Cstruct.shift opt 2))) mtu opts
+          | 5, 1 -> (* MTU *)
+            let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
+            let mtu =
+              if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
+                Some new_mtu
+              else
+                mtu
+            in
+            loop st mac mtu opts
+          | 3, 4 -> (* Prefix Information *)
+            loop (handle_prefix st opt) mac mtu opts
+          | _ ->
+            loop st mac mtu opts
+        end
+    in
+    let st, mac, mtu = loop st None None opts in
+    let rtlt = Ipv6_wire.get_icmpv6_ra_rtlt buf in
+    match mac with
+    | Some mac ->
+      Printf.printf "RA: Adding %s (%s) to the Default Router List\n%!"
+        (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
+      (* FIXME use the values of Reachable Time and Retrans Timer included
+         in the icmp buf *)
+      let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
+      let nb, pending = on_unsolicited nb mac RA in
+      let st =
+        {st with
+         nb_cache = IpMap.add src nb st.nb_cache;
+         rt_list = if rtlt > 0 then IpMap.add src (rtlt + st.tick) st.rt_list else st.rt_list}
+      in
+      Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
+    | None ->
+      Ok (st, Nothing)
+
+  let ns_input st src dst buf =
+    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
+    Printf.printf "NDP: %s wants to know our mac addr\n%!" (Ipaddr.V6.to_string target);
+    let rec loop opts =
+      match next_option opts with
+      | None -> None
+      | Some (opt, opts) ->
+        begin
+          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
+          | 2, 1 ->
+            Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
+          | _ ->
+            loop opts
+        end
+    in
+    let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
+    let is_unspec = Ipaddr.V6.(compare unspecified src) = 0 in
+    let st = (* FIXME *)
+      match mac, is_unspec with
+      | Some mac, false ->
+        let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
+        let nb, pending = on_unsolicited nb mac NS in (* TODO handle pending *)
+        {st with nb_cache = IpMap.add src nb st.nb_cache}
+      | _ ->
+        st
+    in
+    output st ~dst ~proto:58 ~hlim:255
+      (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
+
+  let na_input st src dst buf =
+    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
+    let is_router = Ipv6_wire.get_icmpv6_nsna_router buf in
+    let solicited = Ipv6_wire.get_icmpv6_nsna_solicited buf in
+    let override = Ipv6_wire.get_icmpv6_nsna_override buf in
+    let rec loop opts =
+      match next_option opts with
+      | None -> None
+      | Some (opt, opts) ->
+        begin
+          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
+          | 2, 1 ->
+            Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
+          | _ ->
+            loop opts
+        end
+    in
+    let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
+    (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
+    if IpMap.mem target st.nb_cache then
+      let nb = IpMap.find target st.nb_cache in
+      let nb, resp = on_nbh_adv st.tick target nb mac is_router solicited override in
+      Ok (st, match resp with None -> Nothing | Some m -> Response m)
+    else
+      Ok (st, Nothing)
+
   (* buf : icmp packet *)
-  let handle_icmp_input st ~src ~dst buf =
+  let icmp_input st ~src ~dst buf =
     let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) buf in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x)\n%!" csum;
@@ -517,111 +617,17 @@ end = struct
     end else
       match Ipv6_wire.get_icmpv6_ty buf with
       | 129 (* Echo reply *) ->
-        Printf.printf "ICMP6: discarding echo reply\n%!";
+        Printf.printf "ICMP6: Discarding Echo Reply\n%!";
         Ok (st, Nothing)
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
         Ok (st, Nothing)
       | 134 (* RA *) ->
-        (* FIXME add router to default router list *)
-        let opts = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_ra in
-        let rec loop st mac mtu opts =
-          match next_option opts with
-          | None ->
-            st, mac, mtu
-          | Some (opt, opts) ->
-            begin
-              match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-              | 1, 1 -> (* Source Link-Layer Address *)
-                loop st (Some (Macaddr.of_cstruct (Cstruct.shift opt 2))) mtu opts
-              | 5, 1 -> (* MTU *)
-                let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
-                let mtu =
-                  if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
-                    Some new_mtu
-                  else
-                    mtu
-                in
-                loop st mac mtu opts
-              | 3, 4 -> (* Prefix Information *)
-                loop (handle_prefix st opt) mac mtu opts
-              | _ ->
-                loop st mac mtu opts
-            end
-        in
-        let st, mac, mtu = loop st None None opts in
-        let rtlt = Ipv6_wire.get_icmpv6_ra_rtlt buf in
-        begin
-          match mac with
-          | Some mac ->
-            Printf.printf "RA: Adding %s (%s) to the Default Router List\n%!"
-              (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
-            (* FIXME use the values of Reachable Time and Retrans Timer included
-               in the icmp buf *)
-            let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
-            let nb, pending = on_unsolicited nb mac RA in
-            let st =
-              {st with
-               nb_cache = IpMap.add src nb st.nb_cache;
-               rt_list = if rtlt > 0 then IpMap.add src (rtlt + st.tick) st.rt_list else st.rt_list}
-            in
-            Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
-          | None ->
-            Ok (st, Nothing)
-        end
+        ra_input st src dst buf
       | 135 (* NS *) ->
-        let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
-        Printf.printf "NDP: %s wants to know our mac addr\n%!" (Ipaddr.V6.to_string target);
-        let rec loop opts =
-          match next_option opts with
-          | None -> None
-          | Some (opt, opts) ->
-            begin
-              match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-              | 2, 1 ->
-                Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-              | _ ->
-                loop opts
-            end
-        in
-        let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
-        let is_unspec = Ipaddr.V6.(compare unspecified src) = 0 in
-        let st = (* FIXME *)
-          match mac, is_unspec with
-          | Some mac, false ->
-            let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
-            let nb, pending = on_unsolicited nb mac NS in (* TODO handle pending *)
-            {st with nb_cache = IpMap.add src nb st.nb_cache}
-          | _ ->
-            st
-        in
-        output st ~dst ~proto:58 ~hlim:255
-          (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
+        ns_input st src dst buf
       | 136 (* NA *) ->
-        let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
-        let is_router = Ipv6_wire.get_icmpv6_nsna_router buf in
-        let solicited = Ipv6_wire.get_icmpv6_nsna_solicited buf in
-        let override = Ipv6_wire.get_icmpv6_nsna_override buf in
-        let rec loop opts =
-          match next_option opts with
-          | None -> None
-          | Some (opt, opts) ->
-            begin
-              match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-              | 2, 1 ->
-                Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-              | _ ->
-                loop opts
-            end
-        in
-        let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
-        (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
-        if IpMap.mem target st.nb_cache then
-          let nb = IpMap.find target st.nb_cache in
-          let nb, resp = on_nbh_adv st.tick target nb mac is_router solicited override in
-          Ok (st, match resp with None -> Nothing | Some m -> Response m)
-        else
-          Ok (st, Nothing)
+        na_input st src dst buf
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
         Ok (st, Nothing)
@@ -648,7 +654,7 @@ end = struct
       | 59 (* NO NEXT HEADER *) ->
         Ok (st, Nothing)
       | 58 (* ICMP *) ->
-        handle_icmp_input st ~src ~dst (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+        icmp_input st ~src ~dst (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
       | 17 (* UDP *) ->
         Ok (st, Data (UDP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6))
       | 6 (* TCP *) ->
