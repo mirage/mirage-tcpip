@@ -102,7 +102,7 @@ module Ipv6_wire = struct
       uint16_t       csum
     } as big_endian
 
-  cstruct icmpv6_nsna {
+  cstruct ns {
       uint8_t  ty;
       uint8_t  code;
       uint16_t csum;
@@ -110,16 +110,24 @@ module Ipv6_wire = struct
       uint8_t  target[16]
     } as big_endian
 
-  let get_icmpv6_nsna_router buf =
+  cstruct na {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved;
+      uint8_t  target[16]
+    } as big_endian
+
+  let get_na_router buf =
     (Cstruct.get_uint8 buf 4 land 0x80) <> 0
 
-  let get_icmpv6_nsna_solicited buf =
+  let get_na_solicited buf =
     (Cstruct.get_uint8 buf 4 land 0x40) <> 0
 
-  let get_icmpv6_nsna_override buf =
+  let get_na_override buf =
     (Cstruct.get_uint8 buf 4 land 0x20) <> 0
 
-  cstruct icmpv6_rs {
+  cstruct rs {
       uint8_t  ty;
       uint8_t  code;
       uint16_t csum;
@@ -145,15 +153,15 @@ module Ipv6_wire = struct
       uint8_t  len
     } as big_endian
 
-  cstruct icmpv6_ra {
+  cstruct ra {
       uint8_t   ty;
       uint8_t   code;
       uint16_t  csum;
-      uint8_t   chl;
+      uint8_t   curr_hop_limit;
       uint8_t   reserved;
       uint16_t  rtlt; (* Router Lifetime *)
-      uint32_t  reacht; (* Reachable Time *)
-      uint32_t  retrans (* Retrans Timer *)
+      uint32_t  reachable_time; (* Reachable Time *)
+      uint32_t  retrans_timer (* Retrans Timer *)
     } as big_endian
 
   let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4

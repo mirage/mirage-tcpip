@@ -144,7 +144,7 @@ end = struct
       mutable my_ips              : Ipaddr.V6.t list;
       mutable tick                : int;
       mutable link_mtu            : int;
-      mutable cur_hop_limit       : int;
+      mutable curr_hop_limit       : int;
       mutable base_reachable_time : int; (* default Defaults.reachable_time *)
       mutable reachable_time      : int;
       mutable retrans_timer       : int } (* Defaults.retrans_timer *)
@@ -225,15 +225,15 @@ end = struct
   let (<+>) cs1 cs2 = Cs.append [ cs1; cs2 ]
 
   let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_icmpv6_nsna + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_icmpv6_opt + 6) in
     let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len:(Cstruct.len icmpbuf) ~proto:58 () (* `ICMP *) in
     (* Fill ICMPv6 Header *)
-    Ipv6_wire.set_icmpv6_nsna_ty icmpbuf 135; (* NS *)
-    Ipv6_wire.set_icmpv6_nsna_code icmpbuf 0;
+    Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
+    Ipv6_wire.set_ns_code icmpbuf 0;
     (* Fill ICMPv6 Payload *)
-    Ipv6_wire.set_icmpv6_nsna_reserved icmpbuf 0l;
-    Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_icmpv6_nsna_target icmpbuf) 0;
-    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_icmpv6_nsna in
+    Ipv6_wire.set_ns_reserved icmpbuf 0l;
+    Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_ns_target icmpbuf) 0;
+    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
     Ipv6_wire.set_icmpv6_opt_ty optbuf 1; (* Source link-layer address *)
     Ipv6_wire.set_icmpv6_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
@@ -251,15 +251,15 @@ end = struct
     alloc_ns ~smac ~dmac ~src ~dst ~target:dst
 
   let alloc_na_data ~smac ~src ~target ~dst ~solicited =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_icmpv6_nsna + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_icmpv6_opt + 6) in
     (* Fill ICMPv6 Header *)
-    Ipv6_wire.set_icmpv6_nsna_ty icmpbuf 136; (* NA *)
-    Ipv6_wire.set_icmpv6_nsna_code icmpbuf 0;
+    Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
+    Ipv6_wire.set_na_code icmpbuf 0;
     (* Fill ICMPv6 Payload *)
-    Ipv6_wire.set_icmpv6_nsna_reserved icmpbuf
+    Ipv6_wire.set_na_reserved icmpbuf
       (if solicited then 0x60000000l else 0x20000000l);
-    Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_icmpv6_nsna_target icmpbuf) 0;
-    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_icmpv6_nsna in
+    Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_na_target icmpbuf) 0;
+    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
     Ipv6_wire.set_icmpv6_opt_ty optbuf 2; (* Taret link-layer address *)
     Ipv6_wire.set_icmpv6_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
@@ -480,11 +480,15 @@ end = struct
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
     pending
 
-  let next_option buf =
-    if Cstruct.len buf >= Ipv6_wire.sizeof_icmpv6_opt then
-      Some (Cstruct.split buf (Ipv6_wire.get_icmpv6_opt_len buf * 8))
+  let rec fold_options f opts i =
+    if Cstruct.len opts >= Ipv6_wire.sizeof_icmpv6_opt then
+      (* TODO check for invalid len == 0 *)
+      let opt, opts = Cstruct.split opts (Ipv6_wire.get_icmpv6_opt_len opts * 8) in
+      let i = f (Ipv6_wire.get_icmpv6_opt_ty opt) (Ipv6_wire.get_icmpv6_opt_len opt) opt i in
+      fold_options f opts i
+      (* Some (Cstruct.split buf (Ipv6_wire.get_icmpv6_opt_len buf * 8)) *)
     else
-      None
+      i
 
   let handle_prefix st buf =
     let on_link = Ipv6_wire.get_icmpv6_opt_prefix_on_link buf in
@@ -514,100 +518,131 @@ end = struct
     | false, _, _, _ ->
       ()
 
+  let compute_reachable_time rt =
+    rt (* TODO *)
+
   let ra_input st src dst buf =
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_ra in
-    let rec loop mac mtu opts =
-      match next_option opts with
-      | None ->
-        mac, mtu
-      | Some (opt, opts) ->
-        begin
-          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-          | 1, 1 -> (* Source Link-Layer Address *)
-            loop (Some (Macaddr.of_cstruct (Cstruct.shift opt 2))) mtu opts
-          | 5, 1 -> (* MTU *)
-            let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
-            let mtu =
-              if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
-                Some new_mtu
-              else
-                mtu
-            in
-            loop mac mtu opts
-          | 3, 4 -> (* Prefix Information *)
-            handle_prefix st opt;
-            loop mac mtu opts
-          | _ ->
-            loop mac mtu opts
-        end
+    Printf.printf "NDP: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
+
+    let chl = Ipv6_wire.get_ra_curr_hop_limit buf in
+    if chl <> 0 then begin
+      st.curr_hop_limit <- chl;
+      Printf.printf "NDP: curr_hop_lim %d\n%!" chl
+    end;
+
+    let rt = Ipv6_wire.get_ra_reachable_time buf |> Int32.to_int in
+    if rt <> 0 && st.base_reachable_time <> rt then begin
+      st.base_reachable_time <- rt / 1000;
+      st.reachable_time <- compute_reachable_time rt / 1000
+    end;
+
+    let rt = Ipv6_wire.get_ra_retrans_timer buf |> Int32.to_int in
+    if rt <> 0 then begin
+      st.retrans_timer <- rt / 1000
+    end;
+
+    (* Options processing *)
+    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
+
+    let process_option ty len opt pending =
+      match ty, len with
+      | 1, 1 -> (* SLLA *)
+        Printf.printf "NDP: Processing SLLA option in RA\n%!";
+        let new_mac = Macaddr.of_cstruct (Cstruct.shift opt 2) in
+        let nb =
+          try
+            Hashtbl.find st.nb_cache src
+          with
+          | Not_found ->
+            assert false (* FIXME Add NC entry *)
+        in
+        let pending = match nb.state with
+          | INCOMPLETE (_, _, pending) ->
+            nb.state <- STALE new_mac;
+            map_option (fun x -> x new_mac) pending
+          | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
+            if mac <> new_mac then nb.state <- STALE new_mac;
+            pending
+        in
+        nb.is_router <- true;
+        pending
+      | 5, 1 -> (* MTU *)
+        Printf.printf "NDP: Processing MTU option in RA\n%!";
+        let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
+        if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
+          st.link_mtu <- new_mtu;
+        None
+      | 3, 4 -> (* Prefix Information *)
+        Printf.printf "NDP: Processing PREFIX option in RA\n%!";
+        (* FIXME *)
+        (* handle_prefix st opt; *)
+        None
+      | ty, _ ->
+        Printf.printf "NDP: ND option (%d) not supported in RA\n%!" ty;
+        pending
     in
-    let mac, mtu = loop None None opts in
-    let rtlt = Ipv6_wire.get_icmpv6_ra_rtlt buf in
-    match mac with
-    | Some mac ->
-      Printf.printf "RA: Adding %s (%s) to the Default Router List\n%!"
-        (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
-      (* FIXME use the values of Reachable Time and Retrans Timer included
-         in the icmp buf *)
-      let nb = get_neighbour st ~ip:src ~state:(STALE mac) in
-      let pending = on_unsolicited nb mac RA in
-      Hashtbl.replace st.nb_cache src nb;
-      if rtlt > 0 then begin
-        let rt_list = List.remove_assoc src st.rt_list in
-        st.rt_list <- (src, rtlt + st.tick) :: rt_list
-        (* Hashtbl.replace st.rt_list src (rtlt + st.tick) *)
-      end;
-      begin match pending with None -> Nothing | Some x -> Response (x mac) end
-    | None ->
-      Nothing
+    let pending = fold_options process_option opts None in
+    let rtlt = Ipv6_wire.get_ra_rtlt buf in
+    Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
+    if rtlt > 0 then begin
+      let rt_list = List.remove_assoc src st.rt_list in
+      st.rt_list <- (src, rtlt + st.tick) :: rt_list
+    end;
+    match pending with None -> Nothing | Some x -> Response x
 
   let ns_input st src dst buf =
-    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
-    Printf.printf "NDP: %s wants to know our mac addr\n%!" (Ipaddr.V6.to_string target);
-    let rec loop opts =
-      match next_option opts with
-      | None -> None
-      | Some (opt, opts) ->
-        begin
-          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-          | 2, 1 ->
-            Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-          | _ ->
-            loop opts
-        end
+    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
+    Printf.printf "NDP: Received NS from %s to %s with target address %s\n%!"
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+    let rec process_option ty len opt pending =
+      match ty, len with
+      | 2, 1 -> (* SLLA *) (* FIXME fail if DAD (src = unspec) *)
+        let new_mac = Macaddr.of_cstruct (Cstruct.shift opt 2) in
+        let nb =
+          try
+            Hashtbl.find st.nb_cache src
+          with
+          | Not_found ->
+            assert false (* FIXME create NC entry *)
+        in
+        let pending = match nb.state with
+          | INCOMPLETE (_, _, pending) ->
+            nb.state <- STALE new_mac;
+            map_option (fun x -> x new_mac) pending
+          | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
+            if mac <> new_mac then nb.state <- STALE new_mac;
+            pending
+        in
+        pending
+      | ty, _ ->
+        Printf.printf "NDP: ND option (%d) not supported in NS\n%!" ty;
+        pending
     in
-    let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
-    let is_unspec = Ipaddr.V6.(compare unspecified src) = 0 in
-    let () = (* FIXME *)
-      match mac, is_unspec with
-      | Some mac, false ->
-        let nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
-        let pending = on_unsolicited nb mac NS in (* TODO handle pending *)
-        ()
-      | _ ->
-        ()
-    in
+    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
+    let pending = fold_options process_option opts None in
+    (* FIXME handle pending *)
     output st ~dst ~proto:58 ~hlim:255
       (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
 
   let na_input st src dst buf =
-    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
-    let is_router = Ipv6_wire.get_icmpv6_nsna_router buf in
-    let solicited = Ipv6_wire.get_icmpv6_nsna_solicited buf in
-    let override = Ipv6_wire.get_icmpv6_nsna_override buf in
-    let rec loop opts =
-      match next_option opts with
-      | None -> None
-      | Some (opt, opts) ->
-        begin
-          match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
-          | 2, 1 ->
-            Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-          | _ ->
-            loop opts
-        end
-    in
-    let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
+    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+    let is_router = Ipv6_wire.get_na_router buf in
+    let solicited = Ipv6_wire.get_na_solicited buf in
+    let override = Ipv6_wire.get_na_override buf in
+    (* let rec loop opts = *)
+    (*   match next_option opts with *)
+    (*   | None -> None *)
+    (*   | Some (opt, opts) -> *)
+    (*     begin *)
+    (*       match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with *)
+    (*       | 2, 1 -> *)
+    (*         Some (Macaddr.of_cstruct (Cstruct.shift opt 2)) *)
+    (*       | _ -> *)
+    (*         loop opts *)
+    (*     end *)
+    (* in *)
+    (* let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_na) in *)
+    let mac = None in (* FIXME FIXME FIXME *)
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
     if Hashtbl.mem st.nb_cache target then
       let nb = Hashtbl.find st.nb_cache target in
@@ -689,7 +724,7 @@ end = struct
       tick = 0;
 
       link_mtu = Defaults.link_mtu;
-      cur_hop_limit = 64; (* TODO *)
+      curr_hop_limit = 64; (* TODO *)
       base_reachable_time = Defaults.reachable_time;
       reachable_time;
       retrans_timer = Defaults.retrans_timer;
