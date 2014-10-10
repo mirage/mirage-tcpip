@@ -554,73 +554,69 @@ end = struct
 
   let na_input st src dst buf =
     let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+
+    Printf.printf "NDP: Received NA from %s to %s with target address %s\n%!"
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+
     let is_router = Ipv6_wire.get_na_router buf in
     let solicited = Ipv6_wire.get_na_solicited buf in
     let override = Ipv6_wire.get_na_override buf in
+
+    (* TODO check hlim = 255, code = 0, target not mcast, not (solicited && mcast (dst)) *)
+
     let rec process_options ty len opt mac =
       match ty, len with
       | 2, 1 ->
         Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-      | _ ->
+      | ty, _ ->
+        Printf.printf "NDP: ND option (%d) not supported in NA\n%!" ty;
         mac
     in
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
-    let mac = fold_options process_options opts None in
+    let new_mac = fold_options process_options opts None in
+
+    (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
+
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
     if Hashtbl.mem st.nb_cache target then
       let nb = Hashtbl.find st.nb_cache target in
-      let resp =
-        match nb.state, mac, solicited, override with
-        | INCOMPLETE (_, _, pending), Some dmac, false, _ ->
-          let pending = map_option (fun x -> x dmac) pending in
-          (* FIXME create the actual messages with the received dmac *)
-          Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- STALE dmac;
-          pending
-        | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
-          let pending = map_option (fun x -> x dmac) pending in
-          (* FIXME create the actual messages with the received dmac *)
-          Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- REACHABLE (st.tick + st.reachable_time, dmac);
-          pending
-        | INCOMPLETE _, None, _, _ ->
-          nb.is_router <- is_router;
-          None
-        | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
-          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
-          None
-        | PROBE (_, _, mac), None, true, false ->
-          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
-          None
-        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-          nb.is_router <- is_router;
-          None
-        | REACHABLE (_, old_mac), Some mac, true, false when mac <> old_mac ->
-          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- STALE old_mac;
-          None (* TODO check old_mac or mac *)
-        | (STALE old_mac | PROBE (_, _, old_mac) | DELAY (_, old_mac)),
-          Some mac, true, false when mac <> old_mac ->
-          None
-        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some mac, true, true ->
-          nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
-          None
-        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), _, false, false ->
-          None
-        | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-          Some mac, false, true when mac = old_mac ->
-          None
-        | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
-          Some mac, false, true when mac <> old_mac ->
-          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
-          nb.state <- STALE mac;
-          None
-        | _ ->
-          None
-      in
-      match resp with None -> Nothing | Some m -> Response m
+      match nb.state, new_mac, solicited, override with
+      | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
+        Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- STALE new_mac;
+        (match pending with None -> Nothing | Some x -> Response (x new_mac))
+      | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
+        Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        (match pending with None -> Nothing | Some x -> Response (x new_mac))
+      | INCOMPLETE _, None, _, _ ->
+        nb.is_router <- is_router;
+        Nothing
+      | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        Nothing
+      | PROBE (_, _, mac), None, true, false ->
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
+        Nothing
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
+        nb.is_router <- is_router;
+        Nothing
+      | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- STALE mac;
+        Nothing (* TODO check mac or new_mac *)
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
+        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        Nothing
+      | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
+        Some new_mac, false, true when mac <> new_mac ->
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        nb.state <- STALE mac;
+        Nothing
+      | _ ->
+        Nothing
     else
       Nothing
 
