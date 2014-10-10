@@ -111,16 +111,13 @@ module Engine : sig
     | UDP
     | Other of int
 
-  type ret_data =
+  type ret =
     | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
     | Response of Cstruct.t
     | Nothing
-
-  type ret =
-    | Ok of state * ret_data
     | Fail of alert
 
-  val tick : state -> state * Cstruct.t list
+  val tick : state -> Cstruct.t list
   val handle_input : state -> Cstruct.t -> ret
   val create : Macaddr.t -> state
 end = struct
@@ -134,23 +131,23 @@ end = struct
     | DELAY      of int * Macaddr.t
     | PROBE      of int * int * Macaddr.t
 
-  type nbh_info =
-    { state               : nd_state;
-      link_mtu            : int;
-      cur_hop_limit       : int;
-      base_reachable_time : int; (* default Defaults.reachable_time *)
-      reachable_time      : int;
-      retrans_timer       : int; (* Defaults.retrans_timer *)
-      is_router           : bool }
+  type nb_info =
+    { mutable state               : nd_state;
+      mutable link_mtu            : int;
+      mutable cur_hop_limit       : int;
+      mutable base_reachable_time : int; (* default Defaults.reachable_time *)
+      mutable reachable_time      : int;
+      mutable retrans_timer       : int; (* Defaults.retrans_timer *)
+      mutable is_router           : bool }
 
+  (* TODO add destination cache *)
   type state =
-    { nb_cache  : nbh_info IpMap.t;
-      (* dst_cache : Ipaddr.V6.t IpaddrMap.t; *)
-      pre_list  : int PrefixMap.t; (* invalidation timer *)
-      rt_list   : int IpMap.t; (* invalidation timer *)
-      my_mac    : Macaddr.t;
-      my_ips    : Ipaddr.V6.t list;
-      tick      : int }
+    { nb_cache         : (Ipaddr.V6.t, nb_info) Hashtbl.t;
+      mutable pre_list : (Ipaddr.V6.Prefix.t * int) list;
+      mutable rt_list  : (Ipaddr.V6.t * int) list; (* invalidation timer *)
+      my_mac           : Macaddr.t;
+      mutable my_ips   : Ipaddr.V6.t list;
+      mutable tick     : int }
 
   type alert =
     | Icmp_checksum_failed
@@ -162,13 +159,10 @@ end = struct
     | UDP
     | Other of int
 
-  type ret_data =
+  type ret =
     | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
     | Response of Cstruct.t
     | Nothing
-
-  type ret =
-    | Ok of state * ret_data
     | Fail of alert
 
   (* type send_ret = *)
@@ -192,7 +186,7 @@ end = struct
     Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
   let is_local st ip =
-    PrefixMap.exists (fun pref _ -> Ipaddr.V6.Prefix.mem ip pref) st.pre_list
+    List.exists (fun (pref, _) -> Ipaddr.V6.Prefix.mem ip pref) st.pre_list
 
   let multicast_mac =
     let pbuf = Cstruct.create 6 in
@@ -294,18 +288,20 @@ end = struct
       is_router = false }
 
   let get_neighbour st ~ip ~state =
-    if IpMap.mem ip st.nb_cache then
-      st, IpMap.find ip st.nb_cache
+    if Hashtbl.mem st.nb_cache ip then
+      Hashtbl.find st.nb_cache ip
     else
       let nb = fresh_nb_entry st.tick None in
-      let nb = {nb with state} in
-      {st with nb_cache = IpMap.add ip nb st.nb_cache}, nb
+      nb.state <- state;
+      Hashtbl.add st.nb_cache ip nb;
+      nb
 
   let next_hop st ip =
-    if PrefixMap.exists (fun pref _ -> Ipaddr.V6.Prefix.mem ip pref) st.pre_list then
+    if is_local st ip then
       Some ip
-    else if not (IpMap.is_empty st.rt_list) then
-      Some (fst (IpMap.choose st.rt_list)) (* FIXME router selection *)
+    else if not (List.length st.rt_list = 0) then
+       (* TODO Default Router Selection 6.3.6 *)
+      Some (fst (List.nth st.rt_list (Random.int (List.length st.rt_list))))
     else
       None
 
@@ -320,7 +316,7 @@ end = struct
       let dmac = multicast_mac dst in
       let src = select_source_address st in
       let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
-      Ok (st, Response (frame <+> data))
+      Response (frame <+> data)
     else
       match next_hop st dst with
       | None ->
@@ -331,24 +327,22 @@ end = struct
           let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~len:(Cstruct.len data) ~proto () in
           frame <+> data
         in
-        if IpMap.mem ip st.nb_cache then
-          let nb = IpMap.find ip st.nb_cache in
+        if Hashtbl.mem st.nb_cache ip then
+          let nb = Hashtbl.find st.nb_cache ip in
           match nb.state with
           | INCOMPLETE (t, nt, _) ->
-            let nb = {nb with state = INCOMPLETE (t, nt, Some msg)} in
-            let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
-            Ok (st, Nothing)
+            nb.state <- INCOMPLETE (t, nt, Some msg);
+            Nothing
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            Ok (st, Response (msg dmac))
+            Response (msg dmac)
           | STALE dmac ->
-            let nb = {nb with state = DELAY (st.tick + Defaults.delay_first_probe_time, dmac)} in
-            let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
-            Ok (st, Response (msg dmac))
+            nb.state <- DELAY (st.tick + Defaults.delay_first_probe_time, dmac);
+            Response (msg dmac)
         else
           let nb = fresh_nb_entry st.tick (Some msg) in
-          let st = {st with nb_cache = IpMap.add ip nb st.nb_cache} in
+          Hashtbl.add st.nb_cache ip nb;
           let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
-          Ok (st, Response msg)
+          Response msg
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
@@ -362,41 +356,50 @@ end = struct
       let pending = map_option (fun x -> x dmac) pending in
       (* FIXME create the actual messages with the received dmac *)
       Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = STALE dmac}, pending
+      nb.state <- STALE dmac;
+      pending
     | INCOMPLETE (_, _, pending), Some dmac, true, _ ->
       let pending = map_option (fun x -> x dmac) pending in
       (* FIXME create the actual messages with the received dmac *)
       Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = REACHABLE (tick + nb.reachable_time, dmac) }, pending
+      nb.state <- REACHABLE (tick + nb.reachable_time, dmac);
+      pending
     | INCOMPLETE _, None, _, _ ->
-      {nb with is_router}, None
+      nb.is_router <- is_router;
+      None
     | PROBE (_, _, old_mac), Some mac, true, false when old_mac = mac ->
       Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = REACHABLE (tick + nb.reachable_time, mac)}, None
+      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      None
     | PROBE (_, _, mac), None, true, false ->
       Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = REACHABLE (tick + nb.reachable_time, mac)}, None
+      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-      {nb with is_router}, None
+      nb.is_router <- is_router;
+      None
     | REACHABLE (_, old_mac), Some mac, true, false when mac <> old_mac ->
       Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = STALE old_mac}, None (* TODO check old_mac or mac *)
+      nb.state <- STALE old_mac;
+      None (* TODO check old_mac or mac *)
     | (STALE old_mac | PROBE (_, _, old_mac) | DELAY (_, old_mac)),
       Some mac, true, false when mac <> old_mac ->
-      nb, None
+      None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some mac, true, true ->
-      {nb with state = REACHABLE (tick + nb.reachable_time, mac)}, None
+      nb.state <- REACHABLE (tick + nb.reachable_time, mac);
+      None
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), _, false, false ->
-      nb, None
+      None
     | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
       Some mac, false, true when mac = old_mac ->
-      nb, None
+      None
     | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)),
       Some mac, false, true when mac <> old_mac ->
       Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-      {nb with state = STALE mac}, None
+      nb.state <- STALE mac;
+      None
     | _ ->
-      nb, None
+      None
 
   type unsolicited =
     | NS
@@ -406,20 +409,22 @@ end = struct
   let on_unsolicited nb mac kind =
     match nb.state, kind with
     | INCOMPLETE (_, _, pending), _ ->
-      { nb with state = STALE mac }, pending
+      nb.state <- STALE mac;
+      pending
     | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), _
       when mac <> old_mac ->
-      { nb with state = STALE mac }, None
+      nb.state <- STALE mac;
+      None
     | (REACHABLE (_, old_mac) | STALE old_mac | DELAY (_, old_mac) | PROBE (_, _, old_mac)), (NS | RA)
       when mac = old_mac ->
-      nb, None
+      None
     | _ ->
-      nb, None
+      None
 
   (* val tick : state -> state * Cstruct.t list *)
   let tick st =
-    let st = {st with tick = st.tick + 1} in
-    let process ip nb (nb_cache, pending) =
+    st.tick <- st.tick + 1;
+    let process ip nb pending =
       match nb.state with
       | INCOMPLETE (t, tn, msg) ->
         begin
@@ -428,23 +433,25 @@ end = struct
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
             let ns = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
-            let nb = {nb with state = INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msg)} in
-            IpMap.add ip nb nb_cache, (ns :: pending)
+            nb.state <- INCOMPLETE (st.tick + nb.retrans_timer, tn + 1, msg);
+            ns :: pending
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
-            nb_cache, pending (* discard entry *)
+            Hashtbl.remove st.nb_cache ip;
+            pending (* discard entry *)
           | _ ->
-            nb_cache, pending
+            pending
         end
       | REACHABLE (t, mac) ->
         begin
           match t <= st.tick with
           | true ->
             Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-            IpMap.add ip {nb with state = STALE mac } nb_cache, pending
+            nb.state <- STALE mac;
+            pending
           | false ->
-            nb_cache, pending
+            pending
         end
       | DELAY (t, dmac) ->
         begin
@@ -453,10 +460,10 @@ end = struct
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose source address *)
             let ns = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
-            let nb = {nb with state = PROBE (st.tick + nb.retrans_timer, 0, dmac)} in
-            IpMap.add ip nb nb_cache, (ns :: pending)
+            nb.state <- PROBE (st.tick + nb.retrans_timer, 0, dmac);
+            ns :: pending
           | false ->
-            nb_cache, pending
+            pending
         end
       | PROBE (t, tn, dmac) ->
         begin
@@ -465,21 +472,23 @@ end = struct
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let msg = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
-            let nb = {nb with state = PROBE (st.tick + nb.retrans_timer, tn + 1, dmac)} in
-            IpMap.add ip nb nb_cache, (msg :: pending)
+            nb.state <- PROBE (st.tick + nb.retrans_timer, tn + 1, dmac);
+            msg :: pending
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
-            nb_cache, pending (* discard entry *)
+            Hashtbl.remove st.nb_cache ip;
+            pending (* discard entry *)
           | _ ->
-            nb_cache, pending
+            pending
         end
       | _ ->
-        nb_cache, pending
+        pending
     in
-    let nb_cache, pending = IpMap.fold process st.nb_cache (IpMap.empty, []) in
-    let rt_list = IpMap.filter (fun _ t -> t > st.tick) st.rt_list in
+    let pending = Hashtbl.fold process st.nb_cache [] in
+    st.rt_list <- List.filter (fun (_, t) -> t < st.tick) st.rt_list;
+    (* TODO expire prefixes *)
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
-    {st with nb_cache; rt_list}, pending
+    pending
 
   let next_option buf =
     if Cstruct.len buf >= Ipv6_wire.sizeof_icmpv6_opt then
@@ -495,30 +504,37 @@ end = struct
         (Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_opt_prefix_prefix buf))
     in
     let vlt = Int32.to_int (Ipv6_wire.get_icmpv6_opt_prefix_valid_lifetime buf) in
-    match on_link, PrefixMap.mem pref st.pre_list, Ipaddr.V6.Prefix.(compare pref link) = 0, vlt with
-    | true, _, true, _ ->
-      st
+    let already_exists = List.mem_assoc pref st.pre_list in
+    match on_link, already_exists, Ipaddr.V6.Prefix.(compare pref link) = 0, vlt with
+    | true, _, true, _
     | true, false, false, 0 ->
-      st
+      ()
     | true, true, false, 0 ->
-      {st with pre_list = PrefixMap.remove pref st.pre_list}
-    | true, _, false, n ->
-      Printf.printf "NDP: Adding prefix %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
-      {st with pre_list = PrefixMap.add pref n st.pre_list}
+      Printf.printf "NDP: Removing prefix: %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
+      st.pre_list <- List.remove_assoc pref st.pre_list
+    (* Hashtbl.remove st.pre_list pref *)
+    | true, true, false, n ->
+      Printf.printf "NDP: Refreshing prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+      let pre_list = List.remove_assoc pref st.pre_list in
+      st.pre_list <- (pref, n) :: pre_list
+    | true, false, false, n ->
+      Printf.printf "NDP: Adding prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+      st.pre_list <- (pref, n) :: st.pre_list
+      (* Hashtbl.replace st.pre_list pref n *)
     | false, _, _, _ ->
-      st
+      ()
 
   let ra_input st src dst buf =
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_ra in
-    let rec loop st mac mtu opts =
+    let rec loop mac mtu opts =
       match next_option opts with
       | None ->
-        st, mac, mtu
+        mac, mtu
       | Some (opt, opts) ->
         begin
           match Ipv6_wire.get_icmpv6_opt_ty opt, Ipv6_wire.get_icmpv6_opt_len opt with
           | 1, 1 -> (* Source Link-Layer Address *)
-            loop st (Some (Macaddr.of_cstruct (Cstruct.shift opt 2))) mtu opts
+            loop (Some (Macaddr.of_cstruct (Cstruct.shift opt 2))) mtu opts
           | 5, 1 -> (* MTU *)
             let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
             let mtu =
@@ -527,14 +543,15 @@ end = struct
               else
                 mtu
             in
-            loop st mac mtu opts
+            loop mac mtu opts
           | 3, 4 -> (* Prefix Information *)
-            loop (handle_prefix st opt) mac mtu opts
+            handle_prefix st opt;
+            loop mac mtu opts
           | _ ->
-            loop st mac mtu opts
+            loop mac mtu opts
         end
     in
-    let st, mac, mtu = loop st None None opts in
+    let mac, mtu = loop None None opts in
     let rtlt = Ipv6_wire.get_icmpv6_ra_rtlt buf in
     match mac with
     | Some mac ->
@@ -542,16 +559,17 @@ end = struct
         (Ipaddr.V6.to_string src) (Macaddr.to_string mac);
       (* FIXME use the values of Reachable Time and Retrans Timer included
          in the icmp buf *)
-      let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in
-      let nb, pending = on_unsolicited nb mac RA in
-      let st =
-        {st with
-         nb_cache = IpMap.add src nb st.nb_cache;
-         rt_list = if rtlt > 0 then IpMap.add src (rtlt + st.tick) st.rt_list else st.rt_list}
-      in
-      Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
+      let nb = get_neighbour st ~ip:src ~state:(STALE mac) in
+      let pending = on_unsolicited nb mac RA in
+      Hashtbl.replace st.nb_cache src nb;
+      if rtlt > 0 then begin
+        let rt_list = List.remove_assoc src st.rt_list in
+        st.rt_list <- (src, rtlt + st.tick) :: rt_list
+        (* Hashtbl.replace st.rt_list src (rtlt + st.tick) *)
+      end;
+      begin match pending with None -> Nothing | Some x -> Response (x mac) end
     | None ->
-      Ok (st, Nothing)
+      Nothing
 
   let ns_input st src dst buf =
     let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_nsna_target buf) in
@@ -570,14 +588,14 @@ end = struct
     in
     let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
     let is_unspec = Ipaddr.V6.(compare unspecified src) = 0 in
-    let st = (* FIXME *)
+    let () = (* FIXME *)
       match mac, is_unspec with
       | Some mac, false ->
-        let st, nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
-        let nb, pending = on_unsolicited nb mac NS in (* TODO handle pending *)
-        {st with nb_cache = IpMap.add src nb st.nb_cache}
+        let nb = get_neighbour st ~ip:src ~state:(STALE mac) in (* CHECK *)
+        let pending = on_unsolicited nb mac NS in (* TODO handle pending *)
+        ()
       | _ ->
-        st
+        ()
     in
     output st ~dst ~proto:58 ~hlim:255
       (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
@@ -601,12 +619,12 @@ end = struct
     in
     let mac = loop (Cstruct.shift buf Ipv6_wire.sizeof_icmpv6_nsna) in
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
-    if IpMap.mem target st.nb_cache then
-      let nb = IpMap.find target st.nb_cache in
-      let nb, resp = on_nbh_adv st.tick target nb mac is_router solicited override in
-      Ok (st, match resp with None -> Nothing | Some m -> Response m)
+    if Hashtbl.mem st.nb_cache target then
+      let nb = Hashtbl.find st.nb_cache target in
+      let resp = on_nbh_adv st.tick target nb mac is_router solicited override in
+      begin match resp with None -> Nothing | Some m -> Response m end
     else
-      Ok (st, Nothing)
+      Nothing
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf =
@@ -618,10 +636,10 @@ end = struct
       match Ipv6_wire.get_icmpv6_ty buf with
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
-        Ok (st, Nothing)
+        Nothing
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
-        Ok (st, Nothing)
+        Nothing
       | 134 (* RA *) ->
         ra_input st src dst buf
       | 135 (* NS *) ->
@@ -630,7 +648,7 @@ end = struct
         na_input st src dst buf
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
-        Ok (st, Nothing)
+        Nothing
 
   let handle_input st buf =
     let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
@@ -652,25 +670,25 @@ end = struct
       | 51 (* TODO AH *)
       | 135 (* TODO Mobility Header *)
       | 59 (* NO NEXT HEADER *) ->
-        Ok (st, Nothing)
+        Nothing
       | 58 (* ICMP *) ->
         icmp_input st ~src ~dst (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
       | 17 (* UDP *) ->
-        Ok (st, Data (UDP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6))
+        Data (UDP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
       | 6 (* TCP *) ->
-        Ok (st, Data (TCP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6))
+        Data (TCP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
       | n when 143 <= n && n <= 255 ->
         (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
-        Ok (st, Nothing)
+        Nothing
       | n ->
-        Ok (st, Data (Other n, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6))
+        Data (Other n, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
     in
     loop st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
   let create mac =
-    { nb_cache = IpMap.empty;
-      pre_list = PrefixMap.empty;
-      rt_list = IpMap.empty;
+    { nb_cache = Hashtbl.create 0;
+      pre_list = [];
+      rt_list = [];
       my_mac = mac;
       my_ips = [];
       tick = 0 }
@@ -693,22 +711,17 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
   let input t ~tcp ~udp ~default buf =
     let open Engine in
     match handle_input t.state buf with
-    | Ok (st, Data (TCP, src, dst, buf)) ->
-      t.state <- st;
+    | Data (TCP, src, dst, buf) ->
       tcp ~src ~dst buf
-    | Ok (st, Data (UDP, src, dst, buf)) ->
-      t.state <- st;
+    | Data (UDP, src, dst, buf) ->
       udp ~src ~dst buf
-    | Ok (st, Data (Other n, src, dst, buf)) ->
-      t.state <- st;
+    | Data (Other n, src, dst, buf) ->
       default ~proto:n ~src ~dst buf
-    | Ok (st, Response packet) ->
-      t.state <- st;
+    | Response packet ->
       Printf.printf "Sending ...%!";
       Cstruct.hexdump packet;
       Ethif.write t.ethif packet
-    | Ok (st, Nothing) ->
-      t.state <- st;
+    | Nothing ->
       Lwt.return_unit
     | Fail _ ->
       Lwt.fail (Failure "Ipv6.input")
@@ -721,8 +734,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     let waiter, stop_ticker = Lwt.wait () in
     let t = { ethif; state = Engine.create (Ethif.mac ethif); stop_ticker } in
     let rec ticker () =
-      let st, pending = Engine.tick t.state in
-      t.state <- st;
+      let pending = Engine.tick t.state in
       List.iter (fun packet ->
           Printf.printf "Sending ...%!";
           Cstruct.hexdump packet) pending;
