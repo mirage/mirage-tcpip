@@ -567,7 +567,7 @@ end = struct
             let st =
               {st with
                nb_cache = IpMap.add src nb st.nb_cache;
-               rt_list = if rtlt > 0 then IpMap.add src rtlt st.rt_list else st.rt_list}
+               rt_list = if rtlt > 0 then IpMap.add src (rtlt + st.tick) st.rt_list else st.rt_list}
             in
             Ok (st, match pending with None -> Nothing | Some x -> Response (x mac))
           | None ->
