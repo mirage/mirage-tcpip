@@ -331,7 +331,7 @@ end = struct
       | Some ip ->
         let src = select_source_address st in
         let msg dmac =
-          let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst:ip ~proto () in
+          let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~proto () in
           frame <+> data
         in
         if IpMap.mem ip st.nb_cache then
