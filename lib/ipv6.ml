@@ -464,6 +464,12 @@ end = struct
   let compute_reachable_time rt =
     rt (* TODO *)
 
+  let add_nc_entry st ~ip ~is_router ~state =
+    Printf.printf "Adding neighbor with ip addr %s\n%!" (Ipaddr.V6.to_string ip);
+    let nb = { state; is_router } in
+    Hashtbl.replace st.nb_cache ip nb;
+    nb
+
   let ra_input st src dst buf =
     Printf.printf "NDP: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
@@ -497,7 +503,7 @@ end = struct
             Hashtbl.find st.nb_cache src
           with
           | Not_found ->
-            assert false (* FIXME Add NC entry *)
+            add_nc_entry st ~ip:src ~is_router:true ~state:(STALE new_mac)
         in
         let pending = match nb.state with
           | INCOMPLETE (_, _, pending) ->
@@ -550,7 +556,7 @@ end = struct
             Hashtbl.find st.nb_cache src
           with
           | Not_found ->
-            assert false (* FIXME create NC entry *)
+            add_nc_entry st ~ip:src ~is_router:false ~state:(STALE new_mac)
         in
         let pending = match nb.state with
           | INCOMPLETE (_, _, pending) ->
