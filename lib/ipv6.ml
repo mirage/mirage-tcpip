@@ -143,7 +143,7 @@ end = struct
       mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
       mutable tick                : int;
       mutable link_mtu            : int;
-      mutable curr_hop_limit       : int;
+      mutable curr_hop_limit      : int;
       mutable base_reachable_time : int; (* default Defaults.reachable_time *)
       mutable reachable_time      : int;
       mutable retrans_timer       : int } (* Defaults.retrans_timer *)
@@ -186,7 +186,6 @@ end = struct
       Cstruct.BE.set_uint32 pbuf 2 n;
       Macaddr.of_cstruct pbuf
 
-  (* Stateless Autoconfiguration *)
   let link_local_addr mac =
     let bmac = Macaddr.to_bytes mac in
     let c i = Char.code (Bytes.get bmac i) in
@@ -207,7 +206,7 @@ end = struct
     Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
     Ipv6_wire.set_ipv6_len buf len;
     Ipv6_wire.set_ipv6_nhdr buf proto;
-    Ipv6_wire.set_ipv6_hlim buf hlim; (* Same as IPv4 TTL ? TODO *)
+    Ipv6_wire.set_ipv6_hlim buf hlim;
     Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
     Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
     ethernet_frame
@@ -224,11 +223,11 @@ end = struct
     Ipv6_wire.set_ns_reserved icmpbuf 0l;
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_ns_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-    Ipv6_wire.set_icmpv6_opt_ty optbuf 1; (* Source link-layer address *)
+    Ipv6_wire.set_icmpv6_opt_ty optbuf 1; (* SLLA *)
     Ipv6_wire.set_icmpv6_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
-    let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) icmpbuf in
+    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
     frame <+> icmpbuf
 
@@ -250,11 +249,11 @@ end = struct
       (if solicited then 0x60000000l else 0x20000000l);
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_na_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-    Ipv6_wire.set_icmpv6_opt_ty optbuf 2; (* Taret link-layer address *)
+    Ipv6_wire.set_icmpv6_opt_ty optbuf 2; (* TLLA *)
     Ipv6_wire.set_icmpv6_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
-    let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) icmpbuf in
+    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
     icmpbuf
 
@@ -288,12 +287,6 @@ end = struct
     else
       None
 
-  (* FIXME this interface makes it impossible to compute the checksum eventually
-     required by an upper level protocol because it is not clear if the packet has been
-     queued or sent directly.  Maybe it should take as argument a function (Cstruct.t -> unit) that
-     will do the checksumming just before the packet is sent ? *)
-
-  (* TODO ? data : ~src:Ipaddr.V6.t -> Cstruc.t, src = select_source_address st ? *)
   let output st ~dst ?hlim ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
@@ -350,7 +343,7 @@ end = struct
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
             Hashtbl.remove st.nb_cache ip;
-            pending (* discard entry *)
+            pending
           | _ ->
             pending
         end
@@ -369,7 +362,7 @@ end = struct
           match t <= st.tick with
           | true ->
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
-            let src = select_source_address st in (* FIXME choose source address *)
+            let src = select_source_address st in
             let ns = alloc_ns_unicast ~smac:st.my_mac ~dmac ~src ~dst:ip in
             nb.state <- PROBE (st.tick + st.retrans_timer, 0, dmac);
             ns :: pending
@@ -388,7 +381,7 @@ end = struct
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             Hashtbl.remove st.nb_cache ip;
-            pending (* discard entry *)
+            pending
           | _ ->
             pending
         end
@@ -407,7 +400,6 @@ end = struct
       let opt, opts = Cstruct.split opts (Ipv6_wire.get_icmpv6_opt_len opts * 8) in
       let i = f (Ipv6_wire.get_icmpv6_opt_ty opt) (Ipv6_wire.get_icmpv6_opt_len opt) opt i in
       fold_options f opts i
-      (* Some (Cstruct.split buf (Ipv6_wire.get_icmpv6_opt_len buf * 8)) *)
     else
       i
 
@@ -496,16 +488,17 @@ end = struct
         let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
         if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
           st.link_mtu <- new_mtu;
-        None
+        pending
       | 3, 4 -> (* Prefix Information *)
         Printf.printf "NDP: Processing PREFIX option in RA\n%!";
         (* FIXME *)
         (* handle_prefix st opt; *)
-        None
+        pending
       | ty, _ ->
         Printf.printf "NDP: ND option (%d) not supported in RA\n%!" ty;
         pending
     in
+    (* TODO update the is_router flag even if there was no SLLA *)
     let pending = fold_options process_option opts None in
     let rtlt = Ipv6_wire.get_ra_rtlt buf in
     Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
@@ -715,7 +708,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
 
   type t =
     { ethif : Ethif.t;
-      mutable state : Engine.state;
+      state : Engine.state;
       stop_ticker : unit Lwt.u }
 
   let input t ~tcp ~udp ~default buf =
