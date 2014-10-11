@@ -394,7 +394,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       st.prefix_list <- (pref, st.tick + n) :: st.prefix_list
 
   let compute_reachable_time rt =
-    rt (* TODO *)
+    let rt = float rt in
+    let d = Defaults.(max_random_factor -. min_random_factor) in
+    truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
 
   let add_nc_entry st ~ip ~is_router ~state =
     Printf.printf "Adding neighbor with ip addr %s\n%!" (Ipaddr.V6.to_string ip);
@@ -694,11 +696,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       | `Stop ->
         Lwt.return_unit
     in
-    let reachable_time =
-      let rt = float Defaults.reachable_time in
-      let d = Defaults.(max_random_factor -. min_random_factor) in
-      truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
-    in
     let st =
       { nb_cache    = Hashtbl.create 0;
         prefix_list = [];
@@ -710,7 +707,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
         link_mtu            = Defaults.link_mtu;
         curr_hop_limit      = 64; (* TODO *)
         base_reachable_time = Defaults.reachable_time;
-        reachable_time;
+        reachable_time      = compute_reachable_time Defaults.reachable_time;
         retrans_timer       = Defaults.retrans_timer }
     in
     Lwt.async (fun () -> ticker st);
