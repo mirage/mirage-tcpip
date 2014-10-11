@@ -111,11 +111,19 @@ module Engine : sig
     | UDP
     | Other of int
 
-  type ret =
+  type ret_data =
     | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
-    | Response of Cstruct.t
-    | Nothing
     | Fail of alert
+    | Nothing
+
+  type ret =
+    ret_data * Cstruct.t list
+
+  (* type ret = *)
+  (*   | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t *)
+  (*   | Response of Cstruct.t list *)
+  (*   | Nothing *)
+  (*   | Fail of alert *)
 
   val tick : state -> Cstruct.t list
   val handle_input : state -> Cstruct.t -> ret
@@ -159,11 +167,18 @@ end = struct
     | UDP
     | Other of int
 
-  type ret =
+  type ret_data =
     | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
-    | Response of Cstruct.t
-    | Nothing
     | Fail of alert
+    | Nothing
+
+  type ret =
+    ret_data * Cstruct.t list
+
+    (* | Data of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t *)
+    (* | Response of Cstruct.t list *)
+    (* | Nothing *)
+    (* | Fail of alert *)
 
   (* type send_ret = *)
   (*   [ `Ok of state * [ `Response of Cstruct.t list list ] *)
@@ -306,11 +321,11 @@ end = struct
       let dmac = multicast_mac dst in
       let src = select_source_address st in
       let frame = alloc_frame ~smac:st.my_mac ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
-      Response (frame <+> data)
+      Nothing, [ frame <+> data ]
     else
       match next_hop st dst with
       | None ->
-        Fail (No_route_to_host dst)
+        Fail (No_route_to_host dst), []
       | Some ip ->
         let src = select_source_address st in
         let msg dmac =
@@ -322,17 +337,17 @@ end = struct
           match nb.state with
           | INCOMPLETE (t, nt, _) ->
             nb.state <- INCOMPLETE (t, nt, Some msg);
-            Nothing
+            Nothing, []
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            Response (msg dmac)
+            Nothing, [ msg dmac ]
           | STALE dmac ->
             nb.state <- DELAY (st.tick + Defaults.delay_first_probe_time, dmac);
-            Response (msg dmac)
+            Nothing, [ msg dmac ]
         else
           let nb = fresh_nb_entry st.tick st.reachable_time (Some msg) in
           Hashtbl.add st.nb_cache ip nb;
           let msg = alloc_ns_multicast ~smac:st.my_mac ~src ~target:ip in
-          Response msg
+          Nothing, [ msg ]
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
@@ -516,12 +531,16 @@ end = struct
       let rt_list = List.remove_assoc src st.rt_list in
       st.rt_list <- (src, rtlt + st.tick) :: rt_list
     end;
-    match pending with None -> Nothing | Some x -> Response x
+    Nothing, match pending with None -> [] | Some x -> [ x ]
 
   let ns_input st src dst buf =
     let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
+
     Printf.printf "NDP: Received NS from %s to %s with target address %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+
+    (* TODO check hlim = 255, target not mcast, code = 0 *)
+
     let rec process_option ty len opt pending =
       match ty, len with
       | 2, 1 -> (* SLLA *) (* FIXME fail if DAD (src = unspec) *)
@@ -548,9 +567,17 @@ end = struct
     in
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
     let pending = fold_options process_option opts None in
-    (* FIXME handle pending *)
-    output st ~dst ~proto:58 ~hlim:255
-      (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
+
+    if List.mem target st.my_ips then begin
+      let r, pending1 =
+        output st ~dst ~proto:58 ~hlim:255
+          (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
+      in
+      match pending with
+      | None -> r, pending1
+      | Some x -> r, x :: pending1
+    end else
+      Nothing, []
 
   let na_input st src dst buf =
     let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
@@ -584,56 +611,56 @@ end = struct
       | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
         Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- STALE new_mac;
-        (match pending with None -> Nothing | Some x -> Response (x new_mac))
+        Nothing, (match pending with None -> [] | Some x -> [ x new_mac ])
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
         Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
-        (match pending with None -> Nothing | Some x -> Response (x new_mac))
+        Nothing, (match pending with None -> [] | Some x -> [ x new_mac ])
       | INCOMPLETE _, None, _, _ ->
         nb.is_router <- is_router;
-        Nothing
+        Nothing, []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
-        Nothing
+        Nothing, []
       | PROBE (_, _, mac), None, true, false ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
-        Nothing
+        Nothing, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
         nb.is_router <- is_router;
-        Nothing
+        Nothing, []
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
         Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- STALE mac;
-        Nothing (* TODO check mac or new_mac *)
+        Nothing, [] (* TODO check mac or new_mac *)
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
         nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
-        Nothing
+        Nothing, []
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
         Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
         nb.state <- STALE mac;
-        Nothing
+        Nothing, []
       | _ ->
-        Nothing
+        Nothing, []
     else
-      Nothing
+      Nothing, []
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf =
     let csum = cksum ~src ~dst ~proto:58 (* `ICMP *) buf in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x)\n%!" csum;
-      Fail Icmp_checksum_failed
+      Fail Icmp_checksum_failed, []
     end else
       match Ipv6_wire.get_icmpv6_ty buf with
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
-        Nothing
+        Nothing, []
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
-        Nothing
+        Nothing, []
       | 134 (* RA *) ->
         ra_input st src dst buf
       | 135 (* NS *) ->
@@ -642,7 +669,7 @@ end = struct
         na_input st src dst buf
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
-        Nothing
+        Nothing, []
 
   let handle_input st buf =
     let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
@@ -664,18 +691,18 @@ end = struct
       | 51 (* TODO AH *)
       | 135 (* TODO Mobility Header *)
       | 59 (* NO NEXT HEADER *) ->
-        Nothing
+        Nothing, []
       | 58 (* ICMP *) ->
         icmp_input st ~src ~dst (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
       | 17 (* UDP *) ->
-        Data (UDP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+        Data (UDP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6), []
       | 6 (* TCP *) ->
-        Data (TCP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+        Data (TCP, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6), []
       | n when 143 <= n && n <= 255 ->
         (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
-        Nothing
+        Nothing, []
       | n ->
-        Data (Other n, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+        Data (Other n, src, dst, Cstruct.shift buf Ipv6_wire.sizeof_ipv6), []
     in
     loop st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
@@ -716,17 +743,19 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
 
   let input t ~tcp ~udp ~default buf =
     let open Engine in
-    match handle_input t.state buf with
+    let r, packets = handle_input t.state buf in
+    Lwt_list.iter_s begin fun packet ->
+      Printf.printf "Sending ...%!";
+      Cstruct.hexdump packet;
+      Ethif.write t.ethif packet
+    end packets >>= fun () ->
+    match r with
     | Data (TCP, src, dst, buf) ->
       tcp ~src ~dst buf
     | Data (UDP, src, dst, buf) ->
       udp ~src ~dst buf
     | Data (Other n, src, dst, buf) ->
       default ~proto:n ~src ~dst buf
-    | Response packet ->
-      Printf.printf "Sending ...%!";
-      Cstruct.hexdump packet;
-      Ethif.write t.ethif packet
     | Nothing ->
       Lwt.return_unit
     | Fail _ ->
