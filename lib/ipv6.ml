@@ -130,13 +130,17 @@ end = struct
     { mutable state               : nd_state;
       mutable is_router           : bool }
 
+  type addr_state =
+    | TENTATIVE
+    | ASSIGNED
+
   (* TODO add destination cache *)
   type state =
     { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
       mutable prefix_list         : (Ipaddr.V6.Prefix.t * int) list;
       mutable rt_list             : (Ipaddr.V6.t * int) list; (* invalidation timer *)
       my_mac                      : Macaddr.t;
-      mutable my_ips              : Ipaddr.V6.t list;
+      mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
       mutable tick                : int;
       mutable link_mtu            : int;
       mutable curr_hop_limit       : int;
@@ -255,9 +259,12 @@ end = struct
     icmpbuf
 
   let select_source_address st =
-    match st.my_ips with
-    | ip :: _ -> ip
-    | [] -> Ipaddr.V6.unspecified
+    let rec loop = function
+      | (ip, ASSIGNED) :: _ -> ip
+      | (_, TENTATIVE) :: rest -> loop rest
+      | [] -> Ipaddr.V6.unspecified
+    in
+    loop st.my_ips
 
   let fresh_nb_entry tick reachable_time data =
     { state = INCOMPLETE (tick + reachable_time, 0, data);
@@ -543,7 +550,7 @@ end = struct
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
     let pending = fold_options process_option opts None in
 
-    if List.mem target st.my_ips then begin
+    if List.mem_assoc target st.my_ips then begin
       let pending1 =
         output st ~dst ~proto:58 ~hlim:255
           (alloc_na_data ~smac:st.my_mac ~src:dst ~target ~dst:src ~solicited:true)
