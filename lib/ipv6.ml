@@ -185,7 +185,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     ethernet_frame
 
   let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_opt + 6) in
     let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len:(Cstruct.len icmpbuf) ~proto:58 () (* `ICMP *) in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
@@ -194,8 +194,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     Ipv6_wire.set_ns_reserved icmpbuf 0l;
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_ns_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-    Ipv6_wire.set_icmpv6_opt_ty optbuf 1; (* SLLA *)
-    Ipv6_wire.set_icmpv6_opt_len optbuf 1;
+    Ipv6_wire.set_opt_ty optbuf 1; (* SLLA *)
+    Ipv6_wire.set_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
@@ -211,7 +211,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     alloc_ns ~smac ~dmac ~src ~dst ~target:dst
 
   let alloc_na_data ~smac ~src ~target ~dst ~solicited =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_icmpv6_opt + 6) in
+    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_opt + 6) in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
     Ipv6_wire.set_na_code icmpbuf 0;
@@ -220,8 +220,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       (if solicited then 0x60000000l else 0x20000000l);
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_na_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-    Ipv6_wire.set_icmpv6_opt_ty optbuf 2; (* TLLA *)
-    Ipv6_wire.set_icmpv6_opt_len optbuf 1;
+    Ipv6_wire.set_opt_ty optbuf 2; (* TLLA *)
+    Ipv6_wire.set_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
@@ -369,39 +369,29 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     Lwt.return_unit
 
   let rec fold_options f opts i =
-    if Cstruct.len opts >= Ipv6_wire.sizeof_icmpv6_opt then
+    if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
       (* TODO check for invalid len == 0 *)
-      let opt, opts = Cstruct.split opts (Ipv6_wire.get_icmpv6_opt_len opts * 8) in
-      let i = f (Ipv6_wire.get_icmpv6_opt_ty opt) (Ipv6_wire.get_icmpv6_opt_len opt) opt i in
+      let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
+      let i = f (Ipv6_wire.get_opt_ty opt) (Ipv6_wire.get_opt_len opt) opt i in
       fold_options f opts i
     else
       i
 
-  let handle_prefix st buf =
-    let on_link = Ipv6_wire.get_icmpv6_opt_prefix_on_link buf in
-    let pref =
-      Ipaddr.V6.Prefix.make
-        (Ipv6_wire.get_icmpv6_opt_prefix_pref_len buf)
-        (Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_opt_prefix_prefix buf))
-    in
-    let vlt = Int32.to_int (Ipv6_wire.get_icmpv6_opt_prefix_valid_lifetime buf) in
+  let update_prefix st pref ~valid =
     let already_exists = List.mem_assoc pref st.prefix_list in
-    match on_link, already_exists, Ipaddr.V6.Prefix.(compare pref link) = 0, vlt with
-    | true, _, true, _
-    | true, false, false, 0 ->
+    match already_exists, valid with
+    | false, 0 ->
       ()
-    | true, true, false, 0 ->
-      Printf.printf "NDP: Removing prefix: %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
+    | true, 0 ->
+      Printf.printf "NDP: Removing prefix %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
       st.prefix_list <- List.remove_assoc pref st.prefix_list
-    | true, true, false, n ->
-      Printf.printf "NDP: Refreshing prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+    | true, n ->
+      Printf.printf "NDP: Refreshing prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
       let prefix_list = List.remove_assoc pref st.prefix_list in
-      st.prefix_list <- (pref, n) :: prefix_list
-    | true, false, false, n ->
-      Printf.printf "NDP: Adding prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      st.prefix_list <- (pref, n) :: st.prefix_list
-    | false, _, _, _ ->
-      ()
+      st.prefix_list <- (pref, st.tick + n) :: prefix_list
+    | false, n ->
+      Printf.printf "NDP: Adding prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+      st.prefix_list <- (pref, st.tick + n) :: st.prefix_list
 
   let compute_reachable_time rt =
     rt (* TODO *)
@@ -471,8 +461,19 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
         Lwt.return_unit
       | 3, 4 -> (* Prefix Information *)
         Printf.printf "NDP: Processing PREFIX option in RA\n%!";
-        (* FIXME *)
-        (* handle_prefix st opt; *)
+        let pref =
+          Ipaddr.V6.Prefix.make
+            (Ipv6_wire.get_opt_prefix_prefix_len opt)
+            (Ipaddr.V6.of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt))
+        in
+        (* FIXME overflow, sign *)
+        (* FIXME handle valid lifetime *)
+        let valid_ltime = Ipv6_wire.get_opt_prefix_valid_ltime opt |> Int32.to_int in
+        let preferred_ltime = Ipv6_wire.get_opt_prefix_preferred_ltime opt |> Int32.to_int in
+        if valid_ltime >= preferred_ltime && not (Ipaddr.V6.Prefix.link = pref) then begin
+          if Ipv6_wire.get_opt_prefix_on_link opt then update_prefix st pref ~valid:valid_ltime;
+          (* TODO SLAAC if Ipv6_wire.get_opt_prefix_autonomous then () *)
+        end;
         Lwt.return_unit
       | ty, _ ->
         Printf.printf "NDP: ND option (%d) not supported in RA\n%!" ty;
