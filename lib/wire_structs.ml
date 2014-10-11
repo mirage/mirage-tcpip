@@ -134,21 +134,21 @@ module Ipv6_wire = struct
       uint32_t reserved
     } as big_endian
 
-  cstruct icmpv6_opt_prefix {
+  cstruct opt_prefix {
       uint8_t    ty;
       uint8_t    len;
-      uint8_t    pref_len;
-      uint8_t    reserved;
-      uint32_t   valid_lifetime;
-      uint32_t   preferred_lifetime;
+      uint8_t    prefix_len;
+      uint8_t    reserved1;
+      uint32_t   valid_ltime;
+      uint32_t   preferred_ltime;
       uint32_t   reserved2;
       uint8_t    prefix[16]
     } as big_endian
 
-  let get_icmpv6_opt_prefix_on_link buf =
-    (get_icmpv6_opt_prefix_reserved buf land 1 lsl 7) <> 0
+  let get_opt_prefix_on_link buf =
+    (get_opt_prefix_reserved1 buf land 1 lsl 7) <> 0
 
-  cstruct icmpv6_opt {
+  cstruct opt {
       uint8_t  ty;
       uint8_t  len
     } as big_endian
