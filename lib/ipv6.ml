@@ -133,7 +133,7 @@ end = struct
   (* TODO add destination cache *)
   type state =
     { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
-      mutable pre_list            : (Ipaddr.V6.Prefix.t * int) list;
+      mutable prefix_list         : (Ipaddr.V6.Prefix.t * int) list;
       mutable rt_list             : (Ipaddr.V6.t * int) list; (* invalidation timer *)
       my_mac                      : Macaddr.t;
       mutable my_ips              : Ipaddr.V6.t list;
@@ -172,7 +172,7 @@ end = struct
     Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
   let is_local st ip =
-    List.exists (fun (pref, _) -> Ipaddr.V6.Prefix.mem ip pref) st.pre_list
+    List.exists (fun (pref, _) -> Ipaddr.V6.Prefix.mem ip pref) st.prefix_list
 
   let multicast_mac =
     let pbuf = Cstruct.create 6 in
@@ -412,23 +412,21 @@ end = struct
         (Ipaddr.V6.of_cstruct (Ipv6_wire.get_icmpv6_opt_prefix_prefix buf))
     in
     let vlt = Int32.to_int (Ipv6_wire.get_icmpv6_opt_prefix_valid_lifetime buf) in
-    let already_exists = List.mem_assoc pref st.pre_list in
+    let already_exists = List.mem_assoc pref st.prefix_list in
     match on_link, already_exists, Ipaddr.V6.Prefix.(compare pref link) = 0, vlt with
     | true, _, true, _
     | true, false, false, 0 ->
       ()
     | true, true, false, 0 ->
       Printf.printf "NDP: Removing prefix: %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
-      st.pre_list <- List.remove_assoc pref st.pre_list
-    (* Hashtbl.remove st.pre_list pref *)
+      st.prefix_list <- List.remove_assoc pref st.prefix_list
     | true, true, false, n ->
       Printf.printf "NDP: Refreshing prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      let pre_list = List.remove_assoc pref st.pre_list in
-      st.pre_list <- (pref, n) :: pre_list
+      let prefix_list = List.remove_assoc pref st.prefix_list in
+      st.prefix_list <- (pref, n) :: prefix_list
     | true, false, false, n ->
       Printf.printf "NDP: Adding prefix: %s invalid-in: %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      st.pre_list <- (pref, n) :: st.pre_list
-      (* Hashtbl.replace st.pre_list pref n *)
+      st.prefix_list <- (pref, n) :: st.prefix_list
     | false, _, _, _ ->
       ()
 
@@ -685,19 +683,18 @@ end = struct
       let d = Defaults.(max_random_factor -. min_random_factor) in
       truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
     in
-    { nb_cache = Hashtbl.create 0;
-      pre_list = [];
-      rt_list = [];
-      my_mac = mac;
-      my_ips = [];
-      tick = 0;
+    { nb_cache    = Hashtbl.create 0;
+      prefix_list = [];
+      rt_list     = [];
+      my_mac      = mac;
+      my_ips      = [];
+      tick        = 0;
 
-      link_mtu = Defaults.link_mtu;
-      curr_hop_limit = 64; (* TODO *)
+      link_mtu            = Defaults.link_mtu;
+      curr_hop_limit      = 64; (* TODO *)
       base_reachable_time = Defaults.reachable_time;
       reachable_time;
-      retrans_timer = Defaults.retrans_timer;
-    }
+      retrans_timer       = Defaults.retrans_timer }
 end
 
 let (>>=) = Lwt.(>>=)
