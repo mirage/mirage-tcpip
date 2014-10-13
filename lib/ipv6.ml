@@ -649,12 +649,20 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
         Lwt.return_unit
     end
 
+  let is_my_addr st ip =
+    List.exists begin function
+      | (ip', ASSIGNED) -> ip' = ip
+      | (_, TENTATIVE)  -> false
+    end st.my_ips
+
   let input st ~tcp ~udp ~default buf =
     let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
     let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
 
-    (* Printf.printf "Got IPv6 Packet (proto:%d) %s -> %s\n%!" *)
-    (*   (Ipv6_wire.get_ipv6_nhdr buf) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst); *)
+    (* TODO check version = 6 *)
+
+    Printf.printf "IPv6 packet received from %s to %s\n%!"
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
     let rec loop st first hdr buf =
@@ -683,7 +691,15 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       | n ->
         default ~proto:n ~src ~dst buf
     in
-    loop st true (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+
+    if Ipaddr.V6.Prefix.(mem src multicast) then begin
+      Printf.printf "Dropping packet, src is mcast\n%!";
+      Lwt.return_unit
+    end else if not (is_my_addr st dst) && not (Ipaddr.V6.Prefix.(mem dst multicast)) then begin
+      Printf.printf "Dropping packet, not for me\n%!";
+      Lwt.return_unit
+    end else
+      loop st true (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
 
   let connect ethif =
     let waiter, stop_ticker = Lwt.wait () in
