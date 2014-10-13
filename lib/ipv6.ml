@@ -623,6 +623,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     end else
       Lwt.return_unit
 
+  (* buf : packet that caused the error *)
+  let icmp_error st ~code ~param buf =
+    Lwt.return_unit
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf =
@@ -664,14 +667,53 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     Printf.printf "IPv6 packet received from %s to %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
+    let rec process_option st optlen hdr buf =
+      let rec loop optlen buf =
+        if optlen > 0 then begin
+          match Ipv6_wire.get_opt_ty buf with
+          | 0 ->
+            Printf.printf "Processing PAD1 option\n%!";
+            loop (optlen-1) (Cstruct.shift buf 1)
+          | 1 ->
+            Printf.printf "Processing PADN option\n%!";
+            let len = Ipv6_wire.get_opt_len buf in
+            loop (optlen-len-2) (Cstruct.shift buf (len + 2))
+          | _ as n ->
+            Printf.printf "Processing unknown option, MSB %x\n" n;
+            let len = Ipv6_wire.get_opt_len buf in
+            match n land 0xc0 with
+            | 0 ->
+              loop (optlen-len-2) (Cstruct.shift buf (len + 2))
+            | 0x40 ->
+              (* discard the packet *)
+              Lwt.return_unit
+            | 0x80 ->
+              (* TODO discard, send icmp error *)
+              Lwt.return_unit
+            | 0xc0 ->
+              (* TODO discard, send icmp error if dest is not mcast *)
+              Lwt.return_unit
+            | _ ->
+              assert false
+        end else
+          process st false hdr buf
+      in
+      loop optlen buf
+
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
-    let rec loop st first hdr buf =
+    and process st first hdr buf =
       match hdr with
-      | 0 when first -> (* HOPOPT *)
-        loop st false (Cstruct.get_uint8 buf 0) (Cstruct.shift buf (8 + 8 * Cstruct.get_uint8 buf 1))
-      | 0 (* HOPOPT should only appear in first position. So we drop this packet. *) ->
-        Lwt.return_unit
-      | 60 (* TODO IPv6-Opts *)
+      | 0 (* HOPTOPT *) ->
+        Printf.printf "Proessing HOPOPT header\n";
+        if first then
+          let optlen = (Ipv6_wire.get_opt_len buf * 8) - 8 in
+          process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
+        else
+          Lwt.return_unit
+      | 60 (* IPv6-Opts *) ->
+        Printf.printf "Processing DESTOPT header\n%!";
+        let optlen = (Ipv6_wire.get_opt_len buf * 8) - 8 in
+        process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
       | 43 (* TODO IPv6-Route *)
       | 44 (* TODO IPv6-Frag *)
       | 50 (* TODO ESP *)
@@ -699,7 +741,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       Printf.printf "Dropping packet, not for me\n%!";
       Lwt.return_unit
     end else
-      loop st true (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+      process st true (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
 
   let connect ethif =
     let waiter, stop_ticker = Lwt.wait () in
