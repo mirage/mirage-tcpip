@@ -496,13 +496,23 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     fold_options (fun ty code opt t -> t >>= fun () -> process_option ty code opt) opts Lwt.return_unit
     >>= fun () ->
 
-    let rtlt = Ipv6_wire.get_ra_rtlt buf in
-    Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
-    if rtlt > 0 then begin
-      let rt_list = List.remove_assoc src st.rt_list in
-      st.rt_list <- (src, rtlt + st.tick) :: rt_list
+    let ltime = Ipv6_wire.get_ra_rtlt buf in
+    begin match List.mem_assoc src st.rt_list with
+      | true ->
+        let rt_list = List.remove_assoc src st.rt_list in
+        if ltime > 0 then begin
+          Printf.printf "RA: Refreshing Router %s ltime %d\n%!" (Ipaddr.V6.to_string src) ltime;
+          st.rt_list <- (src, ltime + st.tick) :: rt_list
+        end else begin
+          Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.V6.to_string src);
+          st.rt_list <- rt_list
+        end
+      | false ->
+        if ltime > 0 then begin
+          Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
+          st.rt_list <- (src, ltime + st.tick) :: st.rt_list
+        end
     end;
-
     Lwt.return_unit
 
   let ns_input st ~src ~dst buf =
@@ -714,7 +724,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     and process st first hdr buf =
       match hdr with
       | 0 (* HOPTOPT *) ->
-        Printf.printf "Proessing HOPOPT header\n";
+        Printf.printf "Processing HOPOPT header\n";
         if first then
           let optlen = (Ipv6_wire.get_opt_len buf * 8) - 8 in
           process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
