@@ -88,7 +88,13 @@ module Ipv6_wire = Wire_structs.Ipv6_wire
 
 let (>>=) = Lwt.(>>=)
 
-module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
+module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
+  type ethif = Ethif.t
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipv6addr = Ipaddr.V6.t
+  type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
+
   module IpMap     = Map.Make (Ipaddr.V6)
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
 
@@ -120,6 +126,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
       mutable base_reachable_time : int; (* default Defaults.reachable_time *)
       mutable reachable_time      : int;
       mutable retrans_timer       : int } (* Defaults.retrans_timer *)
+
+  type t = state
+
+  let id { ethif } = ethif
 
   exception No_route_to_host of Ipaddr.V6.t
 
@@ -770,4 +780,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     in
     Lwt.async (fun () -> ticker st);
     Lwt.return (`Ok st)
+
+  let get_ipv6_gateways st =
+    List.map fst st.rt_list
+
+  let get_ipv6 st =
+    List.map fst (List.filter (function (_, TENTATIVE) -> false | (_, ASSIGNED) -> true) st.my_ips)
 end
