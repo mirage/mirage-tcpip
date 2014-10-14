@@ -726,13 +726,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | 0 (* HOPTOPT *) ->
         Printf.printf "Processing HOPOPT header\n";
         if first then
-          let optlen = (Ipv6_wire.get_opt_len buf * 8) - 8 in
+          let optlen = (Ipv6_wire.get_opt_len buf * 8) + 6 in
           process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
         else
           Lwt.return_unit
       | 60 (* IPv6-Opts *) ->
         Printf.printf "Processing DESTOPT header\n%!";
-        let optlen = (Ipv6_wire.get_opt_len buf * 8) - 8 in
+        let optlen = (Ipv6_wire.get_opt_len buf * 8) + 6 in
         process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
       | 43 (* TODO IPv6-Route *)
       | 44 (* TODO IPv6-Frag *)
