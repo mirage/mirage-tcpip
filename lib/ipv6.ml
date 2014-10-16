@@ -648,7 +648,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Lwt.return_unit
 
   (* buf : icmp packet *)
-  let icmp_input st ~src ~dst buf =
+  let icmp_input st ~src ~dst buf poff =
+    let buf = Cstruct.shift buf poff in
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) buf in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
@@ -687,7 +688,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Printf.printf "IPv6 packet received from %s to %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
-    let rec process_option st optlen hdr buf =
+    let rec process_option st poff =
+      let pbuf = Cstruct.shift buf poff in
+      let hdr = Ipv6_wire.get_opt_ty pbuf in
+      let optlen = (Ipv6_wire.get_opt_len pbuf * 8) + 6 in
       let rec loop optlen buf =
         if optlen > 0 then begin
           match Ipv6_wire.get_opt_ty buf with
@@ -716,24 +720,22 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             | _ ->
               assert false
         end else
-          process st false hdr buf
+          process st false hdr (poff + optlen + 2)
       in
-      loop optlen buf
+      loop optlen (Cstruct.shift pbuf 2)
 
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
-    and process st first hdr buf =
+    and process st first hdr poff =
       match hdr with
       | 0 (* HOPTOPT *) ->
         Printf.printf "Processing HOPOPT header\n";
         if first then
-          let optlen = (Ipv6_wire.get_opt_len buf * 8) + 6 in
-          process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
+          process_option st poff
         else
           Lwt.return_unit
       | 60 (* IPv6-Opts *) ->
         Printf.printf "Processing DESTOPT header\n%!";
-        let optlen = (Ipv6_wire.get_opt_len buf * 8) + 6 in
-        process_option st optlen (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf 2)
+        process_option st poff
       | 43 (* TODO IPv6-Route *)
       | 44 (* TODO IPv6-Frag *)
       | 50 (* TODO ESP *)
@@ -742,16 +744,16 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | 59 (* NO NEXT HEADER *) ->
         Lwt.return_unit
       | 58 (* ICMP *) ->
-        icmp_input st ~src ~dst buf
+        icmp_input st ~src ~dst buf poff
       | 17 (* UDP *) ->
-        udp ~src ~dst buf
+        udp ~src ~dst (Cstruct.shift buf poff)
       | 6 (* TCP *) ->
-        tcp ~src ~dst buf
+        tcp ~src ~dst (Cstruct.shift buf poff)
       | n when 143 <= n && n <= 255 ->
         (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
         Lwt.return_unit
       | n ->
-        default ~proto:n ~src ~dst buf
+        default ~proto:n ~src ~dst (Cstruct.shift buf poff)
     in
 
     if Ipaddr.V6.Prefix.(mem src multicast) then begin
@@ -761,7 +763,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Printf.printf "Dropping packet, not for me\n%!";
       Lwt.return_unit
     end else
-      process st true (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+      process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
   let connect ethif =
     let waiter, stop_ticker = Lwt.wait () in
