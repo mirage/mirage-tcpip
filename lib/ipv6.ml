@@ -653,7 +653,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Ipv6_wire.set_icmpv6_ty icmpbuf 129; (* ECHO REPLY *)
     Ipv6_wire.set_icmpv6_code icmpbuf 0;
     if poff > Ipv6_wire.sizeof_ipv6 then begin
-      Cstruct.blit buf poff buf Ipv6_wire.sizeof_ipv6 (Ipv6_wire.get_ipv6_len buf - poff - Ipv6_wire.sizeof_ipv6);
+      Cstruct.blit buf poff buf Ipv6_wire.sizeof_ipv6 (Ipv6_wire.get_ipv6_len buf - poff + Ipv6_wire.sizeof_ipv6);
       Ipv6_wire.set_ipv6_nhdr buf 58; (* ICMP6 *)
     end;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
