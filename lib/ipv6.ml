@@ -312,8 +312,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     let process ip nb =
       match nb.state with
       | INCOMPLETE (t, tn, msg) ->
-        begin
-          match t <= st.tick, tn < Defaults.max_multicast_solicit with
+        begin match t <= st.tick, tn < Defaults.max_multicast_solicit with
           | true, true ->
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
@@ -329,8 +328,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Lwt.return_unit
         end
       | REACHABLE (t, mac) ->
-        begin
-          match t <= st.tick with
+        begin match t <= st.tick with
           | true ->
             Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
             nb.state <- STALE mac;
@@ -339,8 +337,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Lwt.return_unit
         end
       | DELAY (t, dmac) ->
-        begin
-          match t <= st.tick with
+        begin match t <= st.tick with
           | true ->
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
@@ -351,8 +348,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Lwt.return_unit
         end
       | PROBE (t, tn, dmac) ->
-        begin
-          match t <= st.tick, tn < Defaults.max_unicast_solicit with
+        begin match t <= st.tick, tn < Defaults.max_unicast_solicit with
           | true, true ->
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
@@ -450,12 +446,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             add_nc_entry st ~ip:src ~is_router:true ~state:(STALE new_mac)
         in
         nb.is_router <- true;
-        begin
-          match nb.state with
+        begin match nb.state with
           | INCOMPLETE (_, _, pending) ->
             nb.state <- STALE new_mac;
-            begin
-              match pending with
+            begin match pending with
               | None ->
                 Lwt.return_unit
               | Some x ->
@@ -534,8 +528,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           | Not_found ->
             add_nc_entry st ~ip:src ~is_router:false ~state:(STALE new_mac)
         in
-        begin
-          match nb.state with
+        begin match nb.state with
           | INCOMPLETE (_, _, pending) ->
             nb.state <- STALE new_mac;
             begin
@@ -685,11 +678,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         (* RFC 4861, 2.6.2 *)
         Lwt.return_unit
       | 134 (* RA *) ->
-        ra_input st src dst buf
+        ra_input st ~src ~dst buf
       | 135 (* NS *) ->
-        ns_input st src dst buf
+        ns_input st ~src ~dst buf
       | 136 (* NA *) ->
-        na_input st src dst buf
+        na_input st ~src ~dst buf
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
         Lwt.return_unit
