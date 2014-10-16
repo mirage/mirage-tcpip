@@ -268,10 +268,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     else
       None
 
-  let output st ~dst ?hlim ~proto data =
+  let output st ?(src = select_source_address st) ~dst ?hlim ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
-      let src = select_source_address st in
+      (* let src = select_source_address st in *)
       let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
       Ethif.writev st.ethif [ frame; data ]
     else
@@ -279,7 +279,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | None ->
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
-        let src = select_source_address st in
+        (* let src = select_source_address st in *)
         let msg dmac =
           let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ~proto () in
           [ frame; data ]
@@ -643,9 +643,29 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else
       Lwt.return_unit
 
-  (* buf : packet that caused the error *)
-  let icmp_error st ~code ~param buf =
+  (* buf : packet that caused the error, poff = icmp payload start *)
+  let icmp_error st ~code ~param buf poff =
+    (* TODO *)
     Lwt.return_unit
+
+  let echo_request_input st ~src ~dst buf poff =
+    Printf.printf "Received Echo Request from %s to %s\n%!"
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
+    let dst = src
+    and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
+    (* we reuse the incoming packet *)
+    Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
+    Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
+    let icmpbuf = Cstruct.shift buf poff in
+    Ipv6_wire.set_icmpv6_ty icmpbuf 129; (* ECHO REPLY *)
+    Ipv6_wire.set_icmpv6_code icmpbuf 0;
+    if poff > Ipv6_wire.sizeof_ipv6 then begin
+      Cstruct.blit buf poff buf Ipv6_wire.sizeof_ipv6 (Ipv6_wire.get_ipv6_len buf - poff - Ipv6_wire.sizeof_ipv6);
+      Ipv6_wire.set_ipv6_nhdr buf 58; (* ICMP6 *)
+    end;
+    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+    Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 icmpbuf);
+    output st ~src ~dst ~proto:58 buf
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf poff =
@@ -656,6 +676,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Lwt.return_unit
     end else begin
       match Ipv6_wire.get_icmpv6_ty buf with
+      | 128 -> (* Echo request *)
+        echo_request_input st ~src ~dst buf poff
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
         Lwt.return_unit
