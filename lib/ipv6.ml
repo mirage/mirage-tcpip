@@ -644,7 +644,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Lwt.return_unit
 
   (* buf : packet that caused the error, poff = icmp payload start *)
-  let icmp_error st ~code ~param buf poff =
+  let icmp_error_output st ~typ ~code ~param buf poff =
     (* TODO *)
     Lwt.return_unit
 
@@ -712,39 +712,44 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     let rec process_option st poff =
       let pbuf = Cstruct.shift buf poff in
-      let hdr = Ipv6_wire.get_opt_ty pbuf in
-      let optlen = (Ipv6_wire.get_opt_len pbuf * 8) + 6 in
-      let rec loop optlen buf =
-        if optlen > 0 then begin
-          match Ipv6_wire.get_opt_ty buf with
+      let nhdr = Ipv6_wire.get_opt_ty pbuf in
+      let olen = Ipv6_wire.get_opt_len pbuf * 8 + 8 in
+      let oend = olen + poff in
+      let rec loop ooff =
+        if ooff < oend then begin
+          let obuf = Cstruct.shift buf ooff in
+          match Ipv6_wire.get_opt_ty obuf with
           | 0 ->
             Printf.printf "Processing PAD1 option\n%!";
-            loop (optlen-1) (Cstruct.shift buf 1)
+            loop (ooff+1)
           | 1 ->
             Printf.printf "Processing PADN option\n%!";
-            let len = Ipv6_wire.get_opt_len buf in
-            loop (optlen-len-2) (Cstruct.shift buf (len + 2))
+            let len = Ipv6_wire.get_opt_len obuf in
+            loop (ooff+len+2)
           | _ as n ->
             Printf.printf "Processing unknown option, MSB %x\n" n;
-            let len = Ipv6_wire.get_opt_len buf in
+            let len = Ipv6_wire.get_opt_len obuf in
             match n land 0xc0 with
             | 0 ->
-              loop (optlen-len-2) (Cstruct.shift buf (len + 2))
+              loop (ooff+len+2)
             | 0x40 ->
               (* discard the packet *)
               Lwt.return_unit
             | 0x80 ->
-              (* TODO discard, send icmp error *)
-              Lwt.return_unit
+              (* discard, send icmp error *)
+              icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf poff
             | 0xc0 ->
-              (* TODO discard, send icmp error if dest is not mcast *)
-              Lwt.return_unit
+              (* discard, send icmp error if dest is not mcast *)
+              if Ipaddr.V6.is_multicast dst then
+                Lwt.return_unit
+              else
+                icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf poff
             | _ ->
               assert false
         end else
-          process st false hdr (poff + optlen + 2)
+          process st false nhdr oend
       in
-      loop optlen (Cstruct.shift pbuf 2)
+      loop (poff+2)
 
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
     and process st first hdr poff =
