@@ -189,7 +189,7 @@ Library "tcpip-stack-unix"
                       ipaddr.unix,
                       mirage-unix,
                       mirage-clock-unix,
-                      mirage-console-unix,
+                      mirage-console.unix,
                       mirage-types.lwt,
                       io-page.unix
 
