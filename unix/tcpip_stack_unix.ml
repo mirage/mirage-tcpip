@@ -15,7 +15,7 @@
  *)
 
 include Tcpip_stack_direct.Make
-    (Console)
+    (Console_unix)
     (OS.Time)
     (Random)
     (Netif)

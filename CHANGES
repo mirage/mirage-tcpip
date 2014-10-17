@@ -1,5 +1,6 @@
-1.1.7 (trunk):
+2.0.0 (trunk):
 * Moved 1s complement checksum C code here from mirage-platform.
+* Depend on Console_unix and Console_xen instead of Console.
 
 1.1.6 (20-July-2014):
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
