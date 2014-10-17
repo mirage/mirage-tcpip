@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1ae28b9a02ee98a349a0c28a0fce9fdc)
+# DO NOT EDIT (digest: 7b4a9a78ca0f5dfcf24d5212f9cd6a7e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -93,7 +93,7 @@
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
 <unix/*.ml{,i}>: pkg_mirage-clock-unix
-<unix/*.ml{,i}>: pkg_mirage-console-unix
+<unix/*.ml{,i}>: pkg_mirage-console.unix
 <unix/*.ml{,i}>: pkg_mirage-net-unix
 <unix/*.ml{,i}>: pkg_mirage-types.lwt
 <unix/*.ml{,i}>: pkg_mirage-unix
