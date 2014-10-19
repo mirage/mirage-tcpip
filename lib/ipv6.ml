@@ -131,11 +131,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
 
   type nd_state =
-    | INCOMPLETE of int * int * (Macaddr.t -> Cstruct.t list) option
-    | REACHABLE  of int * Macaddr.t
+    | INCOMPLETE of Timer.t * int * (Macaddr.t -> Cstruct.t list) option
+    | REACHABLE  of Timer.t * Macaddr.t
     | STALE      of Macaddr.t
-    | DELAY      of int * Macaddr.t
-    | PROBE      of int * int * Macaddr.t
+    | DELAY      of Timer.t * Macaddr.t
+    | PROBE      of Timer.t * int * Macaddr.t
 
   type nb_info =
     { mutable state               : nd_state;
@@ -148,11 +148,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   (* TODO add destination cache *)
   type state =
     { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
-      mutable prefix_list         : (Ipaddr.V6.Prefix.t * int) list;
-      mutable rt_list             : (Ipaddr.V6.t * int) list; (* invalidation timer *)
+      mutable prefix_list         : (Ipaddr.V6.Prefix.t * Timer.t) list;
+      mutable rt_list             : (Ipaddr.V6.t * Timer.t) list; (* invalidation timer *)
       ethif                       : Ethif.t;
       mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
-      mutable tick                : int;
       mutable link_mtu            : int;
       mutable curr_hop_limit      : int;
       mutable base_reachable_time : int; (* default Defaults.reachable_time *)
@@ -278,15 +277,16 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     in
     loop st.my_ips
 
-  let fresh_nb_entry tick reachable_time data =
-    { state = INCOMPLETE (tick + reachable_time, 0, data);
+  let fresh_nb_entry reachable_time data =
+    (* FIXME int reachable_time *)
+    { state = INCOMPLETE (Timer.create (float reachable_time), 0, data);
       is_router = false }
 
   let get_neighbour st ~ip ~state =
     if Hashtbl.mem st.nb_cache ip then
       Hashtbl.find st.nb_cache ip
     else
-      let nb = fresh_nb_entry st.tick st.reachable_time None in
+      let nb = fresh_nb_entry st.reachable_time None in
       nb.state <- state;
       Hashtbl.add st.nb_cache ip nb;
       nb
@@ -325,10 +325,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
             Ethif.writev st.ethif (msg dmac)
           | STALE dmac ->
-            nb.state <- DELAY (st.tick + Defaults.delay_first_probe_time, dmac);
+            (* FIXME int Defaults.delay_first_probe_time *)
+            nb.state <- DELAY (Timer.create (float Defaults.delay_first_probe_time), dmac);
             Ethif.writev st.ethif (msg dmac)
         else
-          let nb = fresh_nb_entry st.tick st.reachable_time (Some msg) in
+          let nb = fresh_nb_entry st.reachable_time (Some msg) in
           Hashtbl.add st.nb_cache ip nb;
           let msg = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
           Ethif.writev st.ethif msg
@@ -340,16 +341,16 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   (* val tick : state -> unit Lwt.t *)
   let tick st =
-    st.tick <- st.tick + 1;
     let process ip nb =
       match nb.state with
       | INCOMPLETE (t, tn, msg) ->
-        begin match t <= st.tick, tn < Defaults.max_multicast_solicit with
+        begin match Timer.expired t, tn < Defaults.max_multicast_solicit with
           | true, true ->
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
-            let ns = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
-            nb.state <- INCOMPLETE (st.tick + st.retrans_timer, tn + 1, msg);
+            let ns  = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
+            (* FIXME int st.retrans_timer *)
+            nb.state <- INCOMPLETE (Timer.create (float st.retrans_timer), tn + 1, msg);
             Ethif.writev st.ethif ns
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -360,7 +361,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Lwt.return_unit
         end
       | REACHABLE (t, mac) ->
-        begin match t <= st.tick with
+        begin match Timer.expired t with
           | true ->
             Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
             nb.state <- STALE mac;
@@ -369,23 +370,25 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Lwt.return_unit
         end
       | DELAY (t, dmac) ->
-        begin match t <= st.tick with
+        begin match Timer.expired t with
           | true ->
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
-            let ns = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
-            nb.state <- PROBE (st.tick + st.retrans_timer, 0, dmac);
+            let ns  = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
+            (* FIXME int st.retrans_timer *)
+            nb.state <- PROBE (Timer.create (float st.retrans_timer), 0, dmac);
             Ethif.writev st.ethif ns
           | false ->
             Lwt.return_unit
         end
       | PROBE (t, tn, dmac) ->
-        begin match t <= st.tick, tn < Defaults.max_unicast_solicit with
+        begin match Timer.expired t, tn < Defaults.max_unicast_solicit with
           | true, true ->
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let msg = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
-            nb.state <- PROBE (st.tick + st.retrans_timer, tn + 1, dmac);
+            (* FIXME int st.retrans_timer *)
+            nb.state <- PROBE (Timer.create (float st.retrans_timer), tn + 1, dmac);
             Ethif.writev st.ethif msg
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -400,7 +403,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     Hashtbl.fold (fun k v t -> t >>= fun () -> process k v) st.nb_cache Lwt.return_unit >>= fun () ->
 
-    st.rt_list <- List.filter (fun (_, t) -> t < st.tick) st.rt_list;
+    if List.exists (fun (_, t) -> Timer.expired t) st.rt_list then
+      st.rt_list <- List.filter (fun (_, t) -> not (Timer.expired t)) st.rt_list;
     (* TODO expire prefixes *)
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
 
@@ -426,10 +430,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     | true, n ->
       Printf.printf "NDP: Refreshing prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
       let prefix_list = List.remove_assoc pref st.prefix_list in
-      st.prefix_list <- (pref, st.tick + n) :: prefix_list
+      st.prefix_list <- (pref, Timer.create (float n)) :: prefix_list
     | false, n ->
       Printf.printf "NDP: Adding prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      st.prefix_list <- (pref, st.tick + n) :: st.prefix_list
+      st.prefix_list <- (pref, Timer.create (float n)) :: st.prefix_list
 
   let compute_reachable_time rt =
     let rt = float rt in
@@ -528,7 +532,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         let rt_list = List.remove_assoc src st.rt_list in
         if ltime > 0 then begin
           Printf.printf "RA: Refreshing Router %s ltime %d\n%!" (Ipaddr.V6.to_string src) ltime;
-          st.rt_list <- (src, ltime + st.tick) :: rt_list
+          st.rt_list <- (src, Timer.create (float ltime)) :: rt_list
         end else begin
           Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.V6.to_string src);
           st.rt_list <- rt_list
@@ -536,7 +540,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | false ->
         if ltime > 0 then begin
           Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
-          st.rt_list <- (src, ltime + st.tick) :: st.rt_list
+          st.rt_list <- (src, Timer.create (float ltime)) :: st.rt_list
         end
     end;
     Lwt.return_unit
@@ -633,7 +637,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         end
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
         Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
         begin match pending with
           | None ->
             Lwt.return_unit
@@ -645,11 +649,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         Lwt.return_unit
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
         Lwt.return_unit
       | PROBE (_, _, mac), None, true, false ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (st.tick + st.reachable_time, mac);
+        nb.state <- REACHABLE (Timer.create (float st.reachable_time), mac);
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
         nb.is_router <- is_router;
@@ -659,7 +663,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         nb.state <- STALE mac; (* TODO check mac or new_mac *)
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        nb.state <- REACHABLE (st.tick + st.reachable_time, new_mac);
+        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
         Lwt.return_unit
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
@@ -821,23 +825,12 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
   let connect ethif =
-    let waiter, stop_ticker = Lwt.wait () in
-    let rec ticker st =
-      tick st >>= fun () ->
-      Lwt.pick [ (Time.sleep 1.0 >>= fun () -> Lwt.return `Ok);
-                 (waiter         >>= fun () -> Lwt.return `Stop) ] >>= function
-      | `Ok ->
-        ticker st
-      | `Stop ->
-        Lwt.return_unit
-    in
     let st =
       { nb_cache    = Hashtbl.create 0;
         prefix_list = [];
         rt_list     = [];
         ethif;
         my_ips      = [];
-        tick        = 0;
 
         link_mtu            = Defaults.link_mtu;
         curr_hop_limit      = 64; (* TODO *)
@@ -845,7 +838,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         reachable_time      = compute_reachable_time Defaults.reachable_time;
         retrans_timer       = Defaults.retrans_timer }
     in
-    Lwt.async (fun () -> ticker st);
+    let rec ticker () = Timer.wait_any () >>= fun () -> tick st >>= ticker in
+    Lwt.async ticker;
     Lwt.return (`Ok st)
 
   let get_ipv6_gateways st =
