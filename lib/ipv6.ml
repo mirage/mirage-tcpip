@@ -268,10 +268,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     else
       None
 
-  let output st ?(src = select_source_address st) ~dst ?hlim ~proto data =
+  let output st ~src ~dst ?hlim ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
-      (* let src = select_source_address st in *)
       let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
       Ethif.writev st.ethif [ frame; data ]
     else
@@ -279,7 +278,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | None ->
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
-        (* let src = select_source_address st in *)
         let msg dmac =
           let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ~proto () in
           [ frame; data ]
@@ -553,8 +551,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     >>= fun () ->
 
     if List.mem_assoc target st.my_ips then begin
-      output st ~dst ~proto:58 ~hlim:255
-        (alloc_na_data ~smac:(Ethif.mac st.ethif) ~src:dst ~target ~dst:src ~solicited:true)
+      let src = target and dst = src in (* FIXME src & dst *)
+      let data = alloc_na_data ~smac:(Ethif.mac st.ethif) ~src ~target ~dst:src ~solicited:true in
+      Printf.printf "Sending NA to %s from %s with target address %s\n%!"
+        (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string target);
+      output st ~src ~dst ~proto:58 ~hlim:255 data
     end else
       Lwt.return_unit
 
