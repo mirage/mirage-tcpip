@@ -710,10 +710,28 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else
       Lwt.return_unit
 
-  (* buf : packet that caused the error, poff = icmp payload start *)
-  let icmp_error_output st ~typ ~code ~param buf poff =
-    (* TODO *)
-    Lwt.return_unit
+  let is_icmp_error buf =
+    let rec loop hdr buf =
+      match hdr with
+      | 58 ->
+        begin match Ipv6_wire.get_icmpv6_ty buf with
+          | 1 | 2 | 3 | 4 | 100 | 101 | 127 -> true
+          | _ -> false
+        end
+      | 0 | 43 | 60 ->
+        loop (Ipv6_wire.get_opt_ty buf) (Cstruct.shift buf (Ipv6_wire.get_opt_len buf))
+      | _ ->
+        false
+    in
+    loop (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
+
+  (* buf : packet that caused the error *)
+  let icmp_error_output st ~typ ~code ~param buf =
+    if not (is_icmp_error buf) then begin
+      (* TODO *)
+      Lwt.return_unit
+    end else
+      Lwt.return_unit
 
   let echo_request_input st ~src ~dst buf poff =
     Printf.printf "Received Echo Request from %s to %s\n%!"
@@ -804,13 +822,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
               Lwt.return_unit
             | 0x80 ->
               (* discard, send icmp error *)
-              icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf poff
+              icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf
             | 0xc0 ->
               (* discard, send icmp error if dest is not mcast *)
               if Ipaddr.V6.is_multicast dst then
                 Lwt.return_unit
               else
-                icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf poff
+                icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf
             | _ ->
               assert false
         end else
