@@ -89,23 +89,56 @@ module Ipv6_wire = Wire_structs.Ipv6_wire
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
+module Tvar : sig
+  type 'a t
+  val create : 'a -> 'a t
+  val create_empty : unit -> _ t
+  val put : 'a t -> 'a -> unit
+  val take : 'a t -> 'a Lwt.t
+end = struct
+  type 'a t =
+    { mutable contents : 'a option;
+      readers : 'a Lwt.u Lwt_sequence.t }
+  let create x =
+    { contents = Some x; readers = Lwt_sequence.create () }
+  let create_empty () =
+    { contents = None; readers = Lwt_sequence.create () }
+  let put tvar x =
+    match tvar.contents with
+    | None ->
+      begin match Lwt_sequence.take_opt_l tvar.readers with
+        | None ->
+          tvar.contents <- Some x
+        | Some w ->
+          Lwt.wakeup_later w x
+      end
+    | Some _ ->
+      ()
+  let take tvar =
+    match tvar.contents with
+    | Some v ->
+      tvar.contents <- None;
+      Lwt.return v
+    | None ->
+      Lwt.add_task_r tvar.readers
+end
+
 module Timer (T : V2_LWT.TIME) : sig
   type t
   val create : float -> t
   val expired : t -> bool
   val cancel : t -> unit
   val cancel_all : unit -> unit
-  val wait : t -> unit Lwt.t
+  (* val wait : t -> unit Lwt.t *)
   val wait_any : unit -> unit Lwt.t
 end = struct
+  let all = Tvar.create_empty ()
   let cancel_all, do_cancel_all = Lwt.task ()
-  let any = Lwt_condition.create ()
   type t = unit Lwt.t * unit Lwt.u
   let create n =
     let cancel_one, do_cancel_one = Lwt.wait () in
     let sleep = T.sleep n in
-    Lwt.ignore_result
-      (Lwt.pick [ sleep >|= Lwt_condition.broadcast any; cancel_one; cancel_all ]);
+    Lwt.ignore_result (Lwt.pick [ sleep >|= Tvar.put all; cancel_one; cancel_all ]);
     sleep, do_cancel_one
   let expired (t, _) =
     not (Lwt.is_sleeping t)
@@ -113,10 +146,10 @@ end = struct
     Lwt.wakeup u ()
   let cancel_all () =
     Lwt.wakeup do_cancel_all ()
-  let wait (t, _) =
-    t
+  (* let wait (t, _) = *)
+  (*   t *)
   let wait_any () =
-    Lwt_condition.wait any
+    Tvar.take all
 end
 
 module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
