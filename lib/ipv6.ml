@@ -87,6 +87,37 @@ end
 module Ipv6_wire = Wire_structs.Ipv6_wire
 
 let (>>=) = Lwt.(>>=)
+let (>|=) = Lwt.(>|=)
+
+module Timer (T : V2_LWT.TIME) : sig
+  type t
+  val create : float -> t
+  val expired : t -> bool
+  val cancel : t -> unit
+  val cancel_all : unit -> unit
+  val wait : t -> unit Lwt.t
+  val wait_any : unit -> unit Lwt.t
+end = struct
+  let cancel_all, do_cancel_all = Lwt.task ()
+  let any = Lwt_condition.create ()
+  type t = unit Lwt.t * unit Lwt.u
+  let create n =
+    let cancel_one, do_cancel_one = Lwt.wait () in
+    let sleep = T.sleep n in
+    Lwt.ignore_result
+      (Lwt.pick [ sleep >|= Lwt_condition.broadcast any; cancel_one; cancel_all ]);
+    sleep, do_cancel_one
+  let expired (t, _) =
+    not (Lwt.is_sleeping t)
+  let cancel (_, u) =
+    Lwt.wakeup u ()
+  let cancel_all () =
+    Lwt.wakeup do_cancel_all ()
+  let wait (t, _) =
+    t
+  let wait_any () =
+    Lwt_condition.wait any
+end
 
 module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   type ethif = Ethif.t
@@ -95,6 +126,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   type ipv6addr = Ipaddr.V6.t
   type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
 
+  module Timer     = Timer (Time)
   module IpMap     = Map.Make (Ipaddr.V6)
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
 
