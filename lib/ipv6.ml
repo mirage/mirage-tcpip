@@ -141,7 +141,9 @@ end = struct
     Lwt.ignore_result (Lwt.pick [ sleep >|= Tvar.put all; cancel_one; cancel_all ]);
     sleep, do_cancel_one
   let expired (t, _) =
-    not (Lwt.is_sleeping t)
+    match Lwt.state t with
+    | Lwt.Return _ -> true
+    | _ -> false
   let cancel (_, u) =
     Lwt.wakeup u ()
   let cancel_all () =
