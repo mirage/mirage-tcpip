@@ -179,7 +179,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       (0xfe00 + c 3)
       (c 4 lsl 8 + c 5)
 
-  let alloc_frame ~smac ~dmac ~src ~dst ?(hlim = 64) ~len ~proto () =
+  let alloc_frame ~smac ~dmac ~src ~dst ~hlim ~len ~proto () =
     let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
@@ -268,10 +268,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     else
       None
 
-  let output st ~src ~dst ?hlim ~proto data =
+  let output st ~src ~dst ?(hlim = st.curr_hop_limit) ~proto data =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
-      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ?hlim ~proto () in
+      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ~hlim ~proto () in
       Ethif.writev st.ethif [ frame; data ]
     else
       match next_hop st dst with
@@ -279,7 +279,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
         let msg dmac =
-          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ~proto () in
+          let frame =
+            alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~hlim ~len:(Cstruct.len data) ~proto ()
+          in
           [ frame; data ]
         in
         if Hashtbl.mem st.nb_cache ip then
