@@ -67,7 +67,7 @@ module Macaddr = struct
 end
 
 module Defaults = struct
-  let max_ptr_solicitation_delay = 1
+  let max_rtr_solicitation_delay = 1.0
   let ptr_solicitation_interval  = 4
   let max_rtr_solicitations      = 3
   let max_multicast_solicit      = 3
@@ -75,13 +75,15 @@ module Defaults = struct
   let max_anycast_delay_time     = 1
   let max_neighbor_advertisement = 3
   let reachable_time             = 30
-  let retrans_timer              = 1
+  let retrans_timer              = 1.0
   let delay_first_probe_time     = 5
   let min_random_factor          = 0.5
   let max_random_factor          = 1.5
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
   let min_link_mtu               = 1280
+
+  let dup_addr_detect_transmits  = 1
 end
 
 module Ipv6_wire = Wire_structs.Ipv6_wire
@@ -177,8 +179,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       mutable is_router           : bool }
 
   type addr_state =
-    | TENTATIVE
-    | ASSIGNED
+    | TENTATIVE of float option * float option * int * Timer.t
+    | PREFERRED of Timer.t option * float option
+    | DEPRECATED of Timer.t option
 
   (* TODO add destination cache *)
   type state =
@@ -191,7 +194,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       mutable curr_hop_limit      : int;
       mutable base_reachable_time : int; (* default Defaults.reachable_time *)
       mutable reachable_time      : int;
-      mutable retrans_timer       : int } (* Defaults.retrans_timer *)
+      mutable retrans_timer       : float } (* Defaults.retrans_timer *)
 
   type t = state
 
@@ -323,8 +326,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   let select_source_address st =
     let rec loop = function
-      | (ip, ASSIGNED) :: _ -> ip
-      | (_, TENTATIVE) :: rest -> loop rest
+      | (_, TENTATIVE _) :: rest -> loop rest
+      | (ip, _) :: _ -> ip (* FIXME *)
       | [] -> Ipaddr.V6.unspecified
     in
     loop st.my_ips
@@ -402,7 +405,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
             let ns  = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
             (* FIXME int st.retrans_timer *)
-            nb.state <- INCOMPLETE (Timer.create (float st.retrans_timer), tn + 1, msg);
+            nb.state <- INCOMPLETE (Timer.create st.retrans_timer, tn + 1, msg);
             Ethif.writev st.ethif ns
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -428,7 +431,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let src = select_source_address st in
             let ns  = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
             (* FIXME int st.retrans_timer *)
-            nb.state <- PROBE (Timer.create (float st.retrans_timer), 0, dmac);
+            nb.state <- PROBE (Timer.create st.retrans_timer, 0, dmac);
             Ethif.writev st.ethif ns
           | false ->
             Lwt.return_unit
@@ -440,7 +443,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let src = select_source_address st in
             let msg = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
             (* FIXME int st.retrans_timer *)
-            nb.state <- PROBE (Timer.create (float st.retrans_timer), tn + 1, dmac);
+            nb.state <- PROBE (Timer.create st.retrans_timer, tn + 1, dmac);
             Ethif.writev st.ethif msg
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
@@ -515,7 +518,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     let rt = Ipv6_wire.get_ra_retrans_timer buf |> Int32.to_int in
     if rt <> 0 then begin
-      st.retrans_timer <- rt / 1000
+      st.retrans_timer <- float rt /. 1000.
     end;
 
     (* Options processing *)
@@ -803,8 +806,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   let is_my_addr st ip =
     List.exists begin function
-      | (ip', ASSIGNED) -> ip' = ip
-      | (_, TENTATIVE)  -> false
+      | _, TENTATIVE _ -> false
+      | ip', _ -> Ipaddr.V6.compare ip' ip = 0
     end st.my_ips
 
   let input st ~tcp ~udp ~default buf =
@@ -898,6 +901,12 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else
       process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
+  let add_ip st ?preferred ?valid ip =
+    assert (not (List.mem_assq ip st.my_ips));
+    st.my_ips <- (ip, TENTATIVE (preferred, valid, 0, Timer.create st.retrans_timer)) :: st.my_ips;
+    let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
+    output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav
+
   let connect ethif =
     let st =
       { nb_cache    = Hashtbl.create 0;
@@ -914,11 +923,12 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     in
     let rec ticker () = Timer.wait_any () >>= fun () -> tick st >>= ticker in
     Lwt.async ticker;
+    add_ip st (link_local_addr (Ethif.mac ethif)) >>= fun () ->
     Lwt.return (`Ok st)
 
   let get_ipv6_gateways st =
     List.map fst st.rt_list
 
   let get_ipv6 st =
-    List.map fst (List.filter (function (_, TENTATIVE) -> false | (_, ASSIGNED) -> true) st.my_ips)
+    List.map fst (List.filter (function (_, TENTATIVE _) -> false | _ -> true) st.my_ips)
 end
