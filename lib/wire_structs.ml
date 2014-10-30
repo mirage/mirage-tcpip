@@ -147,7 +147,10 @@ module Ipv6_wire = struct
     } as big_endian
 
   let get_opt_prefix_on_link buf =
-    (get_opt_prefix_reserved1 buf land 1 lsl 7) <> 0
+    get_opt_prefix_reserved1 buf land 0x80 <> 0
+
+  let get_opt_prefix_autonomous buf =
+    get_opt_prefix_reserved1 buf land 0x40 <> 0
 
   cstruct opt {
       uint8_t  ty;
