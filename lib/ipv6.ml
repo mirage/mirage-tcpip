@@ -217,9 +217,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   let cksum ~src ~dst ~proto data =
     Ipaddr.V6.to_cstruct_raw src pbuf 0;
     Ipaddr.V6.to_cstruct_raw dst pbuf 16;
-    Cstruct.BE.set_uint32 pbuf 32 (Int32.of_int (Cstruct.len data));
+    Cstruct.BE.set_uint32 pbuf 32 (Int32.of_int (Cstruct.lenv data));
     Cstruct.BE.set_uint32 pbuf 36 (Int32.of_int proto);
-    Tcpip_checksum.ones_complement_list [ pbuf; data ]
+    Tcpip_checksum.ones_complement_list (pbuf :: data)
 
   let solicited_node_prefix =
     Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
@@ -265,9 +265,21 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
     ethernet_frame
 
+  let alloc_icmp_error ~src ~dst ~ty ~code ?(reserved = 0l) buf =
+    let left = Defaults.min_link_mtu - (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_icmpv6) in
+    let buf = Cstruct.sub buf 0 (min (Cstruct.len buf) left) in
+    let icmpbuf = Io_page.to_cstruct (Io_page.get 1) in
+    Ipv6_wire.set_icmpv6_ty icmpbuf ty;
+    Ipv6_wire.set_icmpv6_code icmpbuf code;
+    Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
+    let csum = cksum ~src ~dst ~proto:58 [ icmpbuf; buf ] in
+    Ipv6_wire.set_icmpv6_csum icmpbuf csum;
+    [ icmpbuf ; buf ]
+
   let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_opt + 6) in
-    let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len:(Cstruct.len icmpbuf) ~proto:58 () (* `ICMP *) in
+    let len = Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_opt + 6 in
+    let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len ~proto:58 () (* `ICMP *) in
+    let icmpbuf = Cstruct.shift frame Ipv6_wire.sizeof_ipv6 in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
     Ipv6_wire.set_ns_code icmpbuf 0;
@@ -279,9 +291,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Ipv6_wire.set_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
-    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
+    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ] in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
-    [ frame; icmpbuf ]
+    [ frame ]
 
   let alloc_ns_multicast ~smac ~src ~target =
     let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix target in
@@ -305,7 +317,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Ipv6_wire.set_opt_len optbuf 1;
     Macaddr.to_cstruct_raw smac optbuf 2;
     (* Fill ICMPv6 Checksum *)
-    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) icmpbuf in
+    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ] in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
     icmpbuf
 
@@ -340,21 +352,21 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     else
       None
 
-  let output st ~src ~dst ?(hlim = st.curr_hop_limit) ~proto data =
+  let output st ~src ~dst ?(hlim = st.curr_hop_limit) ~proto datav =
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
-      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.len data) ~hlim ~proto () in
-      Ethif.writev st.ethif [ frame; data ]
+      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.lenv datav) ~hlim ~proto () in
+      Ethif.writev st.ethif (frame :: datav)
     else
       match next_hop st dst with
       | None ->
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
         let msg =
-          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~src ~dst ~hlim ~len:(Cstruct.len data) ~proto () in
+          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~src ~dst ~hlim ~len:(Cstruct.lenv datav) ~proto () in
           fun dmac ->
             Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst frame) 0;
-            [ frame; data ]
+            frame :: datav
         in
         if Hashtbl.mem st.nb_cache ip then
           let nb = Hashtbl.find st.nb_cache ip in
@@ -633,7 +645,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       let data = alloc_na_data ~smac:(Ethif.mac st.ethif) ~src ~target ~dst:src ~solicited:true in
       Printf.printf "Sending NA to %s from %s with target address %s\n%!"
         (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string target);
-      output st ~src ~dst ~proto:58 ~hlim:255 data
+      output st ~src ~dst ~proto:58 ~hlim:255 [ data ]
     end else
       Lwt.return_unit
 
@@ -731,12 +743,16 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     loop (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
 
   (* buf : packet that caused the error *)
-  let icmp_error_output st ~typ ~code ~param buf =
-    if not (is_icmp_error buf) then begin
-      (* TODO *)
+  let icmp_error_output st ~src ~dst ~ty ~code ~reserved buf =
+    if is_icmp_error buf || Ipaddr.V6.(compare unspecified src) = 0 then
       Lwt.return_unit
-    end else
-      Lwt.return_unit
+    else
+      let dst = src
+      and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
+      let datav = alloc_icmp_error ~src ~dst ~ty ~code ~reserved buf in
+      Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n"
+        ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
+      output st ~src ~dst ~hlim:255 ~proto:58 datav
 
   let echo_request_input st ~src ~dst buf poff =
     Printf.printf "Received Echo Request from %s to %s\n%!"
@@ -754,13 +770,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Ipv6_wire.set_ipv6_nhdr buf 58; (* ICMP6 *)
     end;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 icmpbuf);
-    output st ~src ~dst ~proto:58 buf
+    Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [ icmpbuf ]);
+    output st ~src ~dst ~proto:58 [ buf ]
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf poff =
     let buf = Cstruct.shift buf poff in
-    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) buf in
+    let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ buf ] in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
       Lwt.return_unit
@@ -827,13 +843,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
               Lwt.return_unit
             | 0x80 ->
               (* discard, send icmp error *)
-              icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf
+              icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
             | 0xc0 ->
               (* discard, send icmp error if dest is not mcast *)
               if Ipaddr.V6.is_multicast dst then
                 Lwt.return_unit
               else
-                icmp_error_output st ~typ:4 ~code:2 ~param:ooff buf
+                icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
             | _ ->
               assert false
         end else
