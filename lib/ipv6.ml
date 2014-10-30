@@ -179,8 +179,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       mutable is_router           : bool }
 
   type addr_state =
-    | TENTATIVE of float option * float option * int * Timer.t
-    | PREFERRED of Timer.t option * float option
+    | TENTATIVE of (float * float option) option * int * Timer.t
+    | PREFERRED of (Timer.t * float option) option
     | DEPRECATED of Timer.t option
 
   (* TODO add destination cache *)
@@ -392,7 +392,21 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
 
-  let map_option f = function None -> None | Some x -> Some (f x)
+  let rec fmap_p f l =
+    let rec loop = function
+      | x :: xs ->
+        let fxs = fmap_p f xs
+        and fx = f x in
+        fx >>= begin function
+          | None -> fxs
+          | Some x ->
+            fxs >>= fun xs ->
+            Lwt.return (x :: xs)
+        end
+      | [] ->
+        Lwt.return_nil
+    in
+    loop l
 
   (* val tick : state -> unit Lwt.t *)
   let tick st =
@@ -463,7 +477,54 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     (* TODO expire prefixes *)
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
 
-    Lwt.return_unit
+    if List.exists
+        (function (_, TENTATIVE (_, _, t))
+                | (_, PREFERRED (Some (t, _)))
+                | (_, DEPRECATED (Some t)) -> Timer.expired t
+                | _ -> false)
+        st.my_ips
+    then begin
+      let rec aux = function
+        | (ip, TENTATIVE (lt, n, t)) as addr ->
+          begin match Timer.expired t, n + 1 >= Defaults.dup_addr_detect_transmits with
+            | true, true ->
+              let lt = match lt with
+                | None -> None
+                | Some (t, vlt) -> Some (Timer.create t, vlt)
+              in
+              Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n" (Ipaddr.V6.to_string ip);
+              Lwt.return (Some (ip, PREFERRED lt))
+            | true, false ->
+              let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
+              output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav >>= fun () ->
+              Lwt.return (Some (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)))
+            | false, _ ->
+              Lwt.return (Some addr)
+          end
+        | ip, PREFERRED (Some (t, vlt)) as addr ->
+          begin match Timer.expired t with
+            | true ->
+              Printf.printf "DAD : Address %s is now DEPRECATED\n" (Ipaddr.V6.to_string ip);
+              Lwt.return (Some (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))))
+            | false ->
+              Lwt.return (Some addr)
+          end
+        | ip, DEPRECATED (Some t) as addr ->
+          begin match Timer.expired t with
+            | true ->
+              Printf.printf "DAD : Address %s expired, removing\n" (Ipaddr.V6.to_string ip);
+              Lwt.return None
+            | false ->
+              Lwt.return (Some addr)
+          end
+        | addr ->
+          Lwt.return (Some addr)
+      in
+      fmap_p aux st.my_ips >>= fun my_ips ->
+      st.my_ips <- my_ips;
+      Lwt.return_unit
+    end else
+      Lwt.return_unit
 
   let rec fold_options f opts i =
     if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
@@ -901,9 +962,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else
       process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
-  let add_ip st ?preferred ?valid ip =
+  let add_ip st ?ltime ip =
     assert (not (List.mem_assq ip st.my_ips));
-    st.my_ips <- (ip, TENTATIVE (preferred, valid, 0, Timer.create st.retrans_timer)) :: st.my_ips;
+    st.my_ips <- (ip, TENTATIVE (ltime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
     let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
     output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav
 
