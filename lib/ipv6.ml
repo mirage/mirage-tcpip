@@ -238,15 +238,20 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Cstruct.BE.set_uint32 pbuf 2 n;
       Macaddr.of_cstruct pbuf
 
-  let link_local_addr mac =
+  let interface_addr mac =
     let bmac = Macaddr.to_bytes mac in
     let c i = Char.code (Bytes.get bmac i) in
     Ipaddr.V6.make
-      0xfe80 0 0 0
+      0 0 0 0
       ((c 0 lxor 2) lsl 8 + c 1)
       (c 2 lsl 8 + 0xff)
       (0xfe00 + c 3)
       (c 4 lsl 8 + c 5)
+
+  let link_local_addr mac =
+    Ipaddr.V6.(Prefix.network_address
+                 (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
+                 (interface_addr mac))
 
   let alloc_frame ~smac ?dmac ~src ~dst ~hlim ~len ~proto () =
     let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
@@ -562,6 +567,23 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Hashtbl.replace st.nb_cache ip nb;
     nb
 
+  let lookup_prefix st pref =
+    let rec loop = function
+      | (ip, _) :: _ when Ipaddr.V6.Prefix.mem ip pref ->
+        Some ip
+      | _ :: rest ->
+        loop rest
+      | [] ->
+        None
+    in
+    loop st.my_ips
+
+  let add_ip st ?ltime ip =
+    assert (not (List.mem_assq ip st.my_ips));
+    st.my_ips <- (ip, TENTATIVE (ltime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
+    let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
+    output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav
+
   let ra_input st ~src ~dst buf =
     Printf.printf "NDP: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
@@ -626,13 +648,24 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         in
         (* FIXME overflow, sign *)
         (* FIXME handle valid lifetime *)
+        (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
         let valid_ltime = Ipv6_wire.get_opt_prefix_valid_ltime opt |> Int32.to_int in
         let preferred_ltime = Ipv6_wire.get_opt_prefix_preferred_ltime opt |> Int32.to_int in
-        if valid_ltime >= preferred_ltime && not (Ipaddr.V6.Prefix.link = pref) then begin
+        if valid_ltime < preferred_ltime || Ipaddr.V6.Prefix.link = pref then
+          Lwt.return_unit
+        else begin
           if Ipv6_wire.get_opt_prefix_on_link opt then update_prefix st pref ~valid:valid_ltime;
-          (* TODO SLAAC if Ipv6_wire.get_opt_prefix_autonomous then () *)
-        end;
-        Lwt.return_unit
+          if Ipv6_wire.get_opt_prefix_autonomous opt && valid_ltime > 0 then begin
+            match lookup_prefix st pref with
+            | Some addr ->
+              (* TODO handle already configured SLAAC address 5.5.3 e). *)
+              Lwt.return_unit
+            | None ->
+              let ip = Ipaddr.V6.Prefix.network_address pref (interface_addr (Ethif.mac st.ethif)) in
+              add_ip st ~ltime:(float preferred_ltime, Some (float valid_ltime)) ip
+          end else
+            Lwt.return_unit
+        end
       | ty, _ ->
         Printf.printf "NDP: ND option (%d) not supported in RA\n%!" ty;
         Lwt.return_unit
@@ -961,12 +994,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Lwt.return_unit
     end else
       process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
-
-  let add_ip st ?ltime ip =
-    assert (not (List.mem_assq ip st.my_ips));
-    st.my_ips <- (ip, TENTATIVE (ltime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
-    let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
-    output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav
 
   let connect ethif =
     let st =
