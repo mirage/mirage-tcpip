@@ -245,9 +245,14 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       (0xfe00 + c 3)
       (c 4 lsl 8 + c 5)
 
-  let alloc_frame ~smac ~dmac ~src ~dst ~hlim ~len ~proto () =
+  let alloc_frame ~smac ?dmac ~src ~dst ~hlim ~len ~proto () =
     let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
-    Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
+    begin
+      match dmac with
+      | None -> ()
+      | Some dmac ->
+        Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0
+    end;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
@@ -345,11 +350,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | None ->
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
-        let msg dmac =
-          let frame =
-            alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~hlim ~len:(Cstruct.len data) ~proto ()
-          in
-          [ frame; data ]
+        let msg =
+          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~src ~dst ~hlim ~len:(Cstruct.len data) ~proto () in
+          fun dmac ->
+            Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst frame) 0;
+            [ frame; data ]
         in
         if Hashtbl.mem st.nb_cache ip then
           let nb = Hashtbl.find st.nb_cache ip in
