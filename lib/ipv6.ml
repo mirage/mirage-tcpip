@@ -678,8 +678,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           end else
             Lwt.return_unit
         end
-      | ty, _ ->
-        Printf.printf "NDP: ND option (%d) not supported in RA\n%!" ty;
+      | ty, len ->
+        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in RA\n%!" ty len;
         Lwt.return_unit
     in
 
@@ -716,7 +716,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     let rec process_option ty len opt =
       match ty, len with
-      | 2, 1 -> (* SLLA *) (* FIXME fail if DAD (src = unspec) *)
+      | 1, 1 -> (* SLLA *) (* FIXME fail if DAD (src = unspec) *)
         let new_mac = Macaddr.of_cstruct (Cstruct.shift opt 2) in
         let nb =
           try
@@ -739,8 +739,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             if mac <> new_mac then nb.state <- STALE new_mac;
             Lwt.return_unit
         end
-      | ty, _ ->
-        Printf.printf "NDP: ND option (%d) not supported in NS\n%!" ty;
+      | ty, len ->
+        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NS\n%!" ty len;
         Lwt.return_unit
     in
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
@@ -774,8 +774,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       match ty, len with
       | 2, 1 ->
         Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-      | ty, _ ->
-        Printf.printf "NDP: ND option (%d) not supported in NA\n%!" ty;
+      | ty, len ->
+        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NA\n%!" ty len;
         mac
     in
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
