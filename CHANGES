@@ -1,6 +1,8 @@
-2.0.0 (trunk):
+2.0.0 (2014-11-02):
 * Moved 1s complement checksum C code here from mirage-platform.
-* Depend on Console_unix and Console_xen instead of Console.
+* Depend on `Console_unix` and `Console_xen` instead of `Console`.
+* [socket] Do not return an `Eof` when writing 0-length buffer (#76).
+* [socket] Accept callbacks now run in async threads instead of being serialised (#75).
 
 1.1.6 (20-July-2014):
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
