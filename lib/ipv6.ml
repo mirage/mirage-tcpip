@@ -129,31 +129,32 @@ module Timer (T : V2_LWT.TIME) : sig
   type t
   val create : float -> t
   val expired : t -> bool
-  val cancel : t -> unit
-  val cancel_all : unit -> unit
+  (* val cancel : t -> unit *)
+  (* val cancel_all : unit -> unit *)
   (* val wait : t -> unit Lwt.t *)
-  val wait_any : unit -> unit Lwt.t
+  (* val wait_any : unit -> unit Lwt.t *)
 end = struct
-  let all = Tvar.create_empty ()
-  let cancel_all, do_cancel_all = Lwt.task ()
-  type t = unit Lwt.t * unit Lwt.u
+  (* let all = Tvar.create_empty () *)
+  (* let cancel_all, do_cancel_all = Lwt.task () *)
+  type t = unit Lwt.t
   let create n =
-    let cancel_one, do_cancel_one = Lwt.wait () in
-    let sleep = T.sleep n in
-    Lwt.ignore_result (Lwt.pick [ sleep >|= Tvar.put all; cancel_one; cancel_all ]);
-    sleep, do_cancel_one
-  let expired (t, _) =
+    T.sleep n
+    (* let cancel_one, do_cancel_one = Lwt.wait () in *)
+    (* let sleep = T.sleep n in *)
+    (* Lwt.ignore_result (Lwt.pick [ sleep >|= Tvar.put all; cancel_one; cancel_all ]); *)
+    (* sleep, do_cancel_one *)
+  let expired t =
     match Lwt.state t with
     | Lwt.Return _ -> true
     | _ -> false
-  let cancel (_, u) =
-    Lwt.wakeup u ()
-  let cancel_all () =
-    Lwt.wakeup do_cancel_all ()
-  (* let wait (t, _) = *)
-  (*   t *)
-  let wait_any () =
-    Tvar.take all
+  (* let cancel (_, u) = *)
+  (*   Lwt.wakeup u () *)
+  (* let cancel_all () = *)
+  (*   Lwt.wakeup do_cancel_all () *)
+  (* (\* let wait (t, _) = *\) *)
+  (* (\*   t *\) *)
+  (* let wait_any () = *)
+  (*   Tvar.take all *)
 end
 
 module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
@@ -186,7 +187,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   (* TODO add destination cache *)
   type state =
     { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
-      mutable prefix_list         : (Ipaddr.V6.Prefix.t * Timer.t) list;
+      mutable prefix_list         : (Ipaddr.V6.Prefix.t * Timer.t option) list;
       mutable rt_list             : (Ipaddr.V6.t * Timer.t) list; (* invalidation timer *)
       ethif                       : Ethif.t;
       mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
@@ -253,41 +254,46 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
                  (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
                  (interface_addr mac))
 
-  let alloc_frame ~smac ?dmac ~src ~dst ~hlim ~len ~proto () =
-    let ethernet_frame = Cstruct.create (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
-    begin
-      match dmac with
-      | None -> ()
-      | Some dmac ->
-        Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0
-    end;
+  let alloc_frame ~smac ~dmac ~src ~dst =
+    let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
+    let ethernet_frame = Cstruct.sub ethernet_frame 0 (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
+    Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     (* Write the constant IPv6 header fields *)
     Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-    Ipv6_wire.set_ipv6_len buf len;
-    Ipv6_wire.set_ipv6_nhdr buf proto;
-    Ipv6_wire.set_ipv6_hlim buf hlim;
     Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
     Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
+    (* Ipv6_wire.set_ipv6_hlim buf hlim; *)
     ethernet_frame
 
-  let alloc_icmp_error ~src ~dst ~ty ~code ?(reserved = 0l) buf =
-    let left = Defaults.min_link_mtu - (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_icmpv6) in
-    let buf = Cstruct.sub buf 0 (min (Cstruct.len buf) left) in
-    let icmpbuf = Io_page.to_cstruct (Io_page.get 1) in
+  let alloc_icmp_error ~src ~dst ~ty ~code ?(reserved = 0l) buf frame =
+    let maxbuf =
+      Defaults.min_link_mtu - (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_icmpv6)
+    in
+    (* FIXME ? hlim = 255 *)
+    let buf = Cstruct.sub buf 0 (min (Cstruct.len buf) maxbuf) in
+    let frame = Cstruct.add_len frame Ipv6_wire.sizeof_icmpv6 in
+    let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+    Ipv6_wire.set_ipv6_nhdr ipbuf 58;
+    Ipv6_wire.set_ipv6_len ipbuf (Cstruct.len buf + Ipv6_wire.sizeof_icmpv6);
+    let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     Ipv6_wire.set_icmpv6_ty icmpbuf ty;
     Ipv6_wire.set_icmpv6_code icmpbuf code;
     Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
     let csum = cksum ~src ~dst ~proto:58 [ icmpbuf; buf ] in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
-    [ icmpbuf ; buf ]
+    [ frame; buf ]
 
-  let rec alloc_ns ~smac ~dmac ~src ~dst ~target =
+  let alloc_ns ~target frame =
     let len = Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_opt + 6 in
-    let frame = alloc_frame ~smac ~dmac ~src ~dst ~hlim:255 ~len ~proto:58 () (* `ICMP *) in
-    let icmpbuf = Cstruct.shift frame Ipv6_wire.sizeof_ipv6 in
+    let frame = Cstruct.add_len frame len in
+    let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+    Ipv6_wire.set_ipv6_nhdr ipbuf 58; (* ICMP *)
+    Ipv6_wire.set_ipv6_hlim ipbuf 255;
+    Ipv6_wire.set_ipv6_len ipbuf len;
+    let icmpbuf = Cstruct.shift frame (Ipv6_wire.sizeof_ipv6 + Wire_structs.sizeof_ethernet) in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
     Ipv6_wire.set_ns_code icmpbuf 0;
@@ -297,37 +303,38 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
     Ipv6_wire.set_opt_ty optbuf 1; (* SLLA *)
     Ipv6_wire.set_opt_len optbuf 1;
-    Macaddr.to_cstruct_raw smac optbuf 2;
+    Cstruct.blit (Wire_structs.get_ethernet_src frame) 0 optbuf 2 6;
     (* Fill ICMPv6 Checksum *)
+    let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src ipbuf) in
+    let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst ipbuf) in
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ] in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
     [ frame ]
 
-  let alloc_ns_multicast ~smac ~src ~target =
-    let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix target in
-    let dmac = multicast_mac dst in
-    alloc_ns ~smac ~dmac ~src ~dst ~target
-
-  let alloc_ns_unicast ~smac ~dmac ~src ~dst =
-    alloc_ns ~smac ~dmac ~src ~dst ~target:dst
-
-  let alloc_na_data ~smac ~src ~target ~dst ~solicited =
-    let icmpbuf = Cstruct.create (Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_opt + 6) in
+  let alloc_na_data ~target ~solicited frame =
+    let len = Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_opt + 6 in
+    let frame = Cstruct.add_len frame len in
+    let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+    Ipv6_wire.set_ipv6_nhdr ipbuf 58;
+    Ipv6_wire.set_ipv6_hlim ipbuf 255;
+    Ipv6_wire.set_ipv6_len ipbuf len;
+    let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     (* Fill ICMPv6 Header *)
     Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
     Ipv6_wire.set_na_code icmpbuf 0;
     (* Fill ICMPv6 Payload *)
-    Ipv6_wire.set_na_reserved icmpbuf
-      (if solicited then 0x60000000l else 0x20000000l);
+    Ipv6_wire.set_na_reserved icmpbuf (if solicited then 0x60000000l else 0x20000000l);
     Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_na_target icmpbuf) 0;
     let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
     Ipv6_wire.set_opt_ty optbuf 2; (* TLLA *)
     Ipv6_wire.set_opt_len optbuf 1;
-    Macaddr.to_cstruct_raw smac optbuf 2;
+    Cstruct.blit (Wire_structs.get_ethernet_src frame) 0 optbuf 2 6;
     (* Fill ICMPv6 Checksum *)
+    let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src ipbuf) in
+    let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst ipbuf) in
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ] in
     Ipv6_wire.set_icmpv6_csum icmpbuf csum;
-    icmpbuf
+    [ frame ]
 
   let select_source_address st =
     let rec loop = function
@@ -360,21 +367,22 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     else
       None
 
-  let output st ~src ~dst ?(hlim = st.curr_hop_limit) ~proto datav =
+  let rec output st ~src ~dst datav =
+    Printf.printf "output: %s -> %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
-      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst ~len:(Cstruct.lenv datav) ~hlim ~proto () in
-      Ethif.writev st.ethif (frame :: datav)
+      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
+      Ethif.writev st.ethif (datav frame)
     else
       match next_hop st dst with
       | None ->
         Lwt.fail (No_route_to_host dst)
       | Some ip ->
-        let msg =
-          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~src ~dst ~hlim ~len:(Cstruct.lenv datav) ~proto () in
-          fun dmac ->
-            Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst frame) 0;
-            frame :: datav
+        let msg dmac =
+          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
+          let datav = datav frame in
+          Printf.printf "route resolved : %s -> %s\n%!" (Ipaddr.V6.to_string dst) (Macaddr.to_string dmac);
+          datav
         in
         if Hashtbl.mem st.nb_cache ip then
           let nb = Hashtbl.find st.nb_cache ip in
@@ -391,8 +399,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         else
           let nb = fresh_nb_entry st.reachable_time (Some msg) in
           Hashtbl.add st.nb_cache ip nb;
-          let msg = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
-          Ethif.writev st.ethif msg
+          let datav = alloc_ns ~target:ip in
+          let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+          output st ~src ~dst datav
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
@@ -422,10 +431,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           | true, true ->
             Printf.printf "NDP: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
-            let ns  = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src ~target:ip in
+            let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+            let datav = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- INCOMPLETE (Timer.create st.retrans_timer, tn + 1, msg);
-            Ethif.writev st.ethif ns
+            output st ~src ~dst datav
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
@@ -448,10 +458,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           | true ->
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
-            let ns  = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
+            let datav  = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, 0, dmac);
-            Ethif.writev st.ethif ns
+            output st ~src ~dst:ip datav
           | false ->
             Lwt.return_unit
         end
@@ -460,10 +470,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           | true, true ->
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
-            let msg = alloc_ns_unicast ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst:ip in
+            let datav = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, tn + 1, dmac);
-            Ethif.writev st.ethif msg
+            output st ~src ~dst:ip datav
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             Hashtbl.remove st.nb_cache ip;
@@ -497,11 +507,12 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
                 | None -> None
                 | Some (t, vlt) -> Some (Timer.create t, vlt)
               in
-              Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n" (Ipaddr.V6.to_string ip);
+              Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
               Lwt.return (Some (ip, PREFERRED lt))
             | true, false ->
-              let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
-              output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav >>= fun () ->
+              let datav = alloc_ns ~target:ip in
+              let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+              output st ~src:Ipaddr.V6.unspecified ~dst datav >>= fun () ->
               Lwt.return (Some (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)))
             | false, _ ->
               Lwt.return (Some addr)
@@ -509,7 +520,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         | ip, PREFERRED (Some (t, vlt)) as addr ->
           begin match Timer.expired t with
             | true ->
-              Printf.printf "DAD : Address %s is now DEPRECATED\n" (Ipaddr.V6.to_string ip);
+              Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
               Lwt.return (Some (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))))
             | false ->
               Lwt.return (Some addr)
@@ -517,7 +528,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         | ip, DEPRECATED (Some t) as addr ->
           begin match Timer.expired t with
             | true ->
-              Printf.printf "DAD : Address %s expired, removing\n" (Ipaddr.V6.to_string ip);
+              Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
               Lwt.return None
             | false ->
               Lwt.return (Some addr)
@@ -551,10 +562,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     | true, n ->
       Printf.printf "NDP: Refreshing prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
       let prefix_list = List.remove_assoc pref st.prefix_list in
-      st.prefix_list <- (pref, Timer.create (float n)) :: prefix_list
+      st.prefix_list <- (pref, Some (Timer.create (float n))) :: prefix_list
     | false, n ->
       Printf.printf "NDP: Adding prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      st.prefix_list <- (pref, Timer.create (float n)) :: st.prefix_list
+      st.prefix_list <- (pref, Some (Timer.create (float n))) :: st.prefix_list
 
   let compute_reachable_time rt =
     let rt = float rt in
@@ -581,8 +592,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   let add_ip st ?ltime ip =
     assert (not (List.mem_assq ip st.my_ips));
     st.my_ips <- (ip, TENTATIVE (ltime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
-    let datav = alloc_ns_multicast ~smac:(Ethif.mac st.ethif) ~src:Ipaddr.V6.unspecified ~target:ip in
-    output st ~src:Ipaddr.V6.unspecified ~dst:ip ~proto:58 datav
+    let datav = alloc_ns ~target:ip in
+    let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+    output st ~src:Ipaddr.V6.unspecified ~dst datav
 
   let ra_input st ~src ~dst buf =
     Printf.printf "NDP: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
@@ -739,10 +751,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     if List.mem_assoc target st.my_ips then begin
       let src = target and dst = src in (* FIXME src & dst *)
-      let data = alloc_na_data ~smac:(Ethif.mac st.ethif) ~src ~target ~dst:src ~solicited:true in
+      let datav = alloc_na_data ~target ~solicited:true in
       Printf.printf "Sending NA to %s from %s with target address %s\n%!"
         (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string target);
-      output st ~src ~dst ~proto:58 ~hlim:255 [ data ]
+      output st ~src ~dst datav
     end else
       Lwt.return_unit
 
@@ -847,28 +859,29 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       let dst = src
       and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
       let datav = alloc_icmp_error ~src ~dst ~ty ~code ~reserved buf in
-      Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n"
+      Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n%!"
         ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
-      output st ~src ~dst ~hlim:255 ~proto:58 datav
+      output st ~src ~dst datav
 
-  let echo_request_input st ~src ~dst buf poff =
-    Printf.printf "Received Echo Request from %s to %s\n%!"
-      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
+  let echo_request_input st ~src ~dst buf =
+    Printf.printf "Received Echo Request from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
     let dst = src
     and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
-    (* we reuse the incoming packet *)
-    Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst buf) 0;
-    Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src buf) 0;
-    let icmpbuf = Cstruct.shift buf poff in
-    Ipv6_wire.set_icmpv6_ty icmpbuf 129; (* ECHO REPLY *)
-    Ipv6_wire.set_icmpv6_code icmpbuf 0;
-    if poff > Ipv6_wire.sizeof_ipv6 then begin
-      Cstruct.blit buf poff buf Ipv6_wire.sizeof_ipv6 (Ipv6_wire.get_ipv6_len buf - poff + Ipv6_wire.sizeof_ipv6);
-      Ipv6_wire.set_ipv6_nhdr buf 58; (* ICMP6 *)
-    end;
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [ icmpbuf ]);
-    output st ~src ~dst ~proto:58 [ buf ]
+    let datav frame =
+      let frame = Cstruct.add_len frame Ipv6_wire.sizeof_icmpv6 in
+      let ipbuf = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+      Ipv6_wire.set_ipv6_nhdr ipbuf 58; (* ICMP6 *)
+      Ipv6_wire.set_ipv6_len ipbuf (Cstruct.len buf);
+      let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
+      Ipv6_wire.set_icmpv6_ty icmpbuf 129; (* ECHO REPLY *)
+      Ipv6_wire.set_icmpv6_code icmpbuf 0;
+      Ipv6_wire.set_icmpv6_reserved icmpbuf (Ipv6_wire.get_icmpv6_reserved buf);
+      let data = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6 in
+      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+      Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [icmpbuf; data]);
+      [frame; data]
+    in
+    output st ~src ~dst datav
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf poff =
@@ -880,7 +893,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else begin
       match Ipv6_wire.get_icmpv6_ty buf with
       | 128 -> (* Echo request *)
-        echo_request_input st ~src ~dst buf poff
+        echo_request_input st ~src ~dst buf
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
         Lwt.return_unit
@@ -930,7 +943,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let len = Ipv6_wire.get_opt_len obuf in
             loop (ooff+len+2)
           | _ as n ->
-            Printf.printf "Processing unknown option, MSB %x\n" n;
+            Printf.printf "Processing unknown option, MSB %x\n%!" n;
             let len = Ipv6_wire.get_opt_len obuf in
             match n land 0xc0 with
             | 0 ->
@@ -958,7 +971,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     and process st first hdr poff =
       match hdr with
       | 0 (* HOPTOPT *) ->
-        Printf.printf "Processing HOPOPT header\n";
+        Printf.printf "Processing HOPOPT header\n%!";
         if first then
           process_option st poff
         else
@@ -998,7 +1011,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   let connect ethif =
     let st =
       { nb_cache    = Hashtbl.create 0;
-        prefix_list = [];
+        prefix_list = [Ipaddr.V6.Prefix.make 64 (Ipaddr.V6.make 0xfe80 0 0 0 0 0 0 0), None];
         rt_list     = [];
         ethif;
         my_ips      = [];
@@ -1009,7 +1022,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         reachable_time      = compute_reachable_time Defaults.reachable_time;
         retrans_timer       = Defaults.retrans_timer }
     in
-    let rec ticker () = Timer.wait_any () >>= fun () -> tick st >>= ticker in
+    Time.sleep 10. >>= fun () ->
+    Printf.printf "Starting\n%!";
+    let rec ticker () = Time.sleep 1.0 >>= fun () -> tick st >>= ticker in
     Lwt.async ticker;
     add_ip st (link_local_addr (Ethif.mac ethif)) >>= fun () ->
     Lwt.return (`Ok st)
