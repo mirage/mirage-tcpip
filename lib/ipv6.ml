@@ -380,9 +380,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | Some ip ->
         let msg dmac =
           let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
-          let datav = datav frame in
-          Printf.printf "route resolved : %s -> %s\n%!" (Ipaddr.V6.to_string dst) (Macaddr.to_string dmac);
-          datav
+          datav frame
         in
         if Hashtbl.mem st.nb_cache ip then
           let nb = Hashtbl.find st.nb_cache ip in
