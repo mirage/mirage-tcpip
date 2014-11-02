@@ -84,8 +84,8 @@ let read fd =
 let rec write fd buf =
   Lwt_cstruct.write fd buf
   >>= function
-  | 0 -> return `Eof
   | n when n = Cstruct.len buf -> return (`Ok ())
+  | 0 -> return `Eof
   | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
 
 let writev fd bufs =
