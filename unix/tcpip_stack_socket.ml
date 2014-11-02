@@ -106,9 +106,12 @@ module Make(Console:V1_LWT.CONSOLE) = struct
         if true then loop () else return_unit in
       Lwt_unix.accept fd
       >>= fun (afd, _) ->
-      Lwt.catch
-        (fun () -> callback afd)
-        (fun _ -> return_unit)
+      Lwt.async (fun () ->
+        Lwt.catch
+          (fun () -> callback afd)
+          (fun _ -> return_unit)
+        );
+        return_unit
       >>= fun () ->
       continue ();
     in
