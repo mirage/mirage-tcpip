@@ -750,7 +750,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     (* TODO check hlim = 255, target not mcast, code = 0 *)
 
     let rec process_option = function
-      | SLLA new_mac -> (* FIXME fail if DAD (src = unspec) *)
+      | SLLA new_mac :: _ -> (* FIXME fail if DAD (src = unspec) *)
         let nb =
           try
             Hashtbl.find st.nb_cache src
@@ -761,32 +761,42 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         begin match nb.state with
           | INCOMPLETE (_, _, pending) ->
             nb.state <- STALE new_mac;
-            begin
-              match pending with
+            begin match pending with
               | None ->
-                Lwt.return_unit
+                []
               | Some x ->
-                Ethif.writev st.ethif (x new_mac)
+                [`Write (x new_mac)]
             end
           | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
             if mac <> new_mac then nb.state <- STALE new_mac;
-            Lwt.return_unit
+            []
         end
-      | _ ->
+      | _ :: rest ->
+        process_option rest
+      | [] ->
         (* Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NS\n%!" ty len; *)
-        Lwt.return_unit
+        []
     in
 
-    Lwt_list.iter_s process_option opts >>= fun () ->
+    let pkts = process_option opts in
 
-    if List.mem_assoc ns_target st.my_ips then begin
-      let src = ns_target and dst = src in (* FIXME src & dst *)
-      let datav = alloc_na_data ~target:ns_target ~solicited:true in
-      Printf.printf "Sending NA to %s from %s with target address %s\n%!"
-        (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
-      output st ~src ~dst datav
-    end else
-      Lwt.return_unit
+    let pkts =
+      if List.mem_assoc ns_target st.my_ips then begin
+        let src = ns_target and dst = src in (* FIXME src & dst *)
+        let datav = alloc_na_data ~target:ns_target ~solicited:true in
+        Printf.printf "Sending NA to %s from %s with target address %s\n%!"
+          (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
+        `Output (src, dst, datav) :: pkts
+      end else
+        pkts
+    in
+
+    Lwt_list.iter_s begin function
+      | `Write pkt ->
+        Ethif.writev st.ethif pkt
+      | `Output (src, dst, datav) ->
+        output st src dst datav
+    end pkts
 
   type na = {
     na_router : bool;
