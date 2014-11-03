@@ -140,8 +140,8 @@ module Ipv6_wire = struct
       uint8_t    len;
       uint8_t    prefix_len;
       uint8_t    reserved1;
-      uint32_t   valid_ltime;
-      uint32_t   preferred_ltime;
+      uint32_t   valid_lifetime;
+      uint32_t   preferred_lifetime;
       uint32_t   reserved2;
       uint8_t    prefix[16]
     } as big_endian
@@ -161,11 +161,11 @@ module Ipv6_wire = struct
       uint8_t   ty;
       uint8_t   code;
       uint16_t  csum;
-      uint8_t   curr_hop_limit;
+      uint8_t   cur_hop_limit;
       uint8_t   reserved;
-      uint16_t  rtlt; (* Router Lifetime *)
-      uint32_t  reachable_time; (* Reachable Time *)
-      uint32_t  retrans_timer (* Retrans Timer *)
+      uint16_t  router_lifetime;
+      uint32_t  reachable_time;
+      uint32_t  retrans_timer
     } as big_endian
 
   let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4

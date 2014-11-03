@@ -6856,7 +6856,8 @@ let setup_t =
                            FindlibPackage ("ipaddr", None);
                            FindlibPackage ("cstruct", None);
                            FindlibPackage ("lwt", None);
-                           InternalLibrary "tcpip"
+                           InternalLibrary "tcpip";
+                           FindlibPackage ("uint", None)
                         ];
                       bs_build_tools = [ExternalTool "ocamlbuild"];
                       bs_c_sources = [];
