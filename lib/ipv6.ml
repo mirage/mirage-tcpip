@@ -74,7 +74,7 @@ module Defaults = struct
   let max_unicast_solicit        = 3
   let max_anycast_delay_time     = 1
   let max_neighbor_advertisement = 3
-  let reachable_time             = 30
+  let reachable_time             = 30.0
   let retrans_timer              = 1.0
   let delay_first_probe_time     = 5
   let min_random_factor          = 0.5
@@ -192,9 +192,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       ethif                       : Ethif.t;
       mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
       mutable link_mtu            : int;
-      mutable curr_hop_limit      : int;
-      mutable base_reachable_time : int; (* default Defaults.reachable_time *)
-      mutable reachable_time      : int;
+      mutable cur_hop_limit       : int;
+      mutable base_reachable_time : float; (* default Defaults.reachable_time *)
+      mutable reachable_time      : float;
       mutable retrans_timer       : float } (* Defaults.retrans_timer *)
 
   type t = state
@@ -346,7 +346,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   let fresh_nb_entry reachable_time data =
     (* FIXME int reachable_time *)
-    { state = INCOMPLETE (Timer.create (float reachable_time), 0, data);
+    { state = INCOMPLETE (Timer.create reachable_time, 0, data);
       is_router = false }
 
   let get_neighbour st ~ip ~state =
@@ -552,23 +552,22 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   let update_prefix st pref ~valid =
     let already_exists = List.mem_assoc pref st.prefix_list in
     match already_exists, valid with
-    | false, 0 ->
+    | false, 0.0 ->
       ()
-    | true, 0 ->
+    | true, 0.0 ->
       Printf.printf "NDP: Removing prefix %s\n%!" (Ipaddr.V6.Prefix.to_string pref);
       st.prefix_list <- List.remove_assoc pref st.prefix_list
     | true, n ->
-      Printf.printf "NDP: Refreshing prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+      Printf.printf "NDP: Refreshing prefix %s, lifetime %f\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
       let prefix_list = List.remove_assoc pref st.prefix_list in
-      st.prefix_list <- (pref, Some (Timer.create (float n))) :: prefix_list
+      st.prefix_list <- (pref, Some (Timer.create n)) :: prefix_list
     | false, n ->
-      Printf.printf "NDP: Adding prefix %s, lifetime %d\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
-      st.prefix_list <- (pref, Some (Timer.create (float n))) :: st.prefix_list
+      Printf.printf "NDP: Adding prefix %s, lifetime %f\n%!" (Ipaddr.V6.Prefix.to_string pref) n;
+      st.prefix_list <- (pref, Some (Timer.create n)) :: st.prefix_list
 
-  let compute_reachable_time rt =
-    let rt = float rt in
-    let d = Defaults.(max_random_factor -. min_random_factor) in
-    truncate (Random.float (d *. rt) +. Defaults.min_random_factor *. rt)
+  let compute_reachable_time t =
+    let d = Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor)) in
+    d *. t
 
   let add_nc_entry st ~ip ~is_router ~state =
     Printf.printf "Adding neighbor with ip addr %s\n%!" (Ipaddr.V6.to_string ip);
@@ -594,34 +593,83 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
     output st ~src:Ipaddr.V6.unspecified ~dst datav
 
-  let ra_input st ~src ~dst buf =
+  type nd_option_prefix = {
+    prf_on_link : bool;
+    prf_autonomous : bool;
+    prf_valid_lifetime : float;
+    prf_preferred_lifetime : float;
+    prf_prefix : Ipaddr.V6.Prefix.t
+  }
+
+  type nd_option =
+    | SLLA of Macaddr.t
+    | TLLA of Macaddr.t
+    | Prefix of nd_option_prefix
+    | MTU of int
+
+  type ra = {
+    ra_cur_hop_limit : int;
+    ra_router_lifetime : float;
+    ra_reachable_time : float;
+    ra_retrans_timer : float
+  }
+
+  let float_of_uint32 n = Uint32.to_float @@ Uint32.of_int32 n
+
+  let rec parse_nd_options opts =
+    if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
+      (* TODO check for invalid len == 0 *)
+      let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
+      match Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt with
+      | 1, 1 ->
+        SLLA (Macaddr.of_cstruct (Cstruct.shift opt 2)) :: parse_nd_options opts
+      | 2, 1 ->
+        TLLA (Macaddr.of_cstruct (Cstruct.shift opt 2)) :: parse_nd_options opts
+      | 5, 1 ->
+        MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4)) :: parse_nd_options opts
+      | 3, 4 ->
+        let prf_prefix =
+          Ipaddr.V6.Prefix.make
+            (Ipv6_wire.get_opt_prefix_prefix_len opt)
+            (Ipaddr.V6.of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt)) in
+        let prf_on_link = Ipv6_wire.get_opt_prefix_on_link opt in
+        let prf_autonomous = Ipv6_wire.get_opt_prefix_autonomous opt in
+        let prf_valid_lifetime = float_of_uint32 @@ Ipv6_wire.get_opt_prefix_valid_lifetime opt in
+        let prf_preferred_lifetime = float_of_uint32 @@ Ipv6_wire.get_opt_prefix_preferred_lifetime opt in
+        Prefix {prf_on_link; prf_autonomous; prf_valid_lifetime; prf_preferred_lifetime; prf_prefix} ::
+        parse_nd_options opts
+      | ty, len ->
+        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in RA\n%!" ty len;
+        parse_nd_options opts
+    else
+      []
+
+  let parse_ra buf =
+    let ra_cur_hop_limit = Ipv6_wire.get_ra_cur_hop_limit buf in
+    let ra_router_lifetime = float_of_int @@ Ipv6_wire.get_ra_router_lifetime buf in
+    let ra_reachable_time = (float_of_uint32 @@ Ipv6_wire.get_ra_reachable_time buf) /. 1000.0 in
+    let ra_retrans_timer = (float_of_uint32 @@ Ipv6_wire.get_ra_retrans_timer buf) /. 1000.0 in
+    let opts = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_ra) in
+    {ra_cur_hop_limit; ra_router_lifetime; ra_reachable_time; ra_retrans_timer}, opts
+
+  let handle_ra st ~src ~dst ra opts =
     Printf.printf "NDP: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
-    let chl = Ipv6_wire.get_ra_curr_hop_limit buf in
-    if chl <> 0 then begin
-      st.curr_hop_limit <- chl;
-      Printf.printf "NDP: curr_hop_lim %d\n%!" chl
+    if ra.ra_cur_hop_limit <> 0 then begin
+      st.cur_hop_limit <- ra.ra_cur_hop_limit;
+      Printf.printf "NDP: curr_hop_lim %d\n%!" ra.ra_cur_hop_limit
     end;
 
-    let rt = Ipv6_wire.get_ra_reachable_time buf |> Int32.to_int in
-    if rt <> 0 && st.base_reachable_time <> rt then begin
-      st.base_reachable_time <- rt / 1000;
-      st.reachable_time <- compute_reachable_time rt / 1000
+    if ra.ra_reachable_time <> 0.0 && st.base_reachable_time <> ra.ra_reachable_time then begin
+      st.base_reachable_time <- ra.ra_reachable_time;
+      st.reachable_time <- compute_reachable_time ra.ra_reachable_time
     end;
 
-    let rt = Ipv6_wire.get_ra_retrans_timer buf |> Int32.to_int in
-    if rt <> 0 then begin
-      st.retrans_timer <- float rt /. 1000.
-    end;
+    if ra.ra_retrans_timer <> 0.0 then st.retrans_timer <- ra.ra_retrans_timer;
 
-    (* Options processing *)
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
-
-    let process_option ty len opt =
-      match ty, len with
-      | 1, 1 -> (* SLLA *)
+    let process_option = function
+      | SLLA new_mac ->
         Printf.printf "NDP: Processing SLLA option in RA\n%!";
-        let new_mac = Macaddr.of_cstruct (Cstruct.shift opt 2) in
         let nb =
           try
             Hashtbl.find st.nb_cache src
@@ -643,63 +691,49 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             if mac <> new_mac then nb.state <- STALE new_mac;
             Lwt.return_unit
         end
-      | 5, 1 -> (* MTU *)
+      | MTU new_mtu ->
         Printf.printf "NDP: Processing MTU option in RA\n%!";
-        let new_mtu = Int32.to_int (Cstruct.BE.get_uint32 opt 4) in
-        if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then
-          st.link_mtu <- new_mtu;
+        if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then st.link_mtu <- new_mtu;
         Lwt.return_unit
-      | 3, 4 -> (* Prefix Information *)
+      | Prefix prf ->
         Printf.printf "NDP: Processing PREFIX option in RA\n%!";
-        let pref =
-          Ipaddr.V6.Prefix.make
-            (Ipv6_wire.get_opt_prefix_prefix_len opt)
-            (Ipaddr.V6.of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt))
-        in
-        (* FIXME overflow, sign *)
-        (* FIXME handle valid lifetime *)
         (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
-        let valid_ltime = Ipv6_wire.get_opt_prefix_valid_ltime opt |> Int32.to_int in
-        let preferred_ltime = Ipv6_wire.get_opt_prefix_preferred_ltime opt |> Int32.to_int in
-        if valid_ltime < preferred_ltime || Ipaddr.V6.Prefix.link = pref then
+        if prf.prf_valid_lifetime < prf.prf_preferred_lifetime || Ipaddr.V6.Prefix.link = prf.prf_prefix then
           Lwt.return_unit
         else begin
-          if Ipv6_wire.get_opt_prefix_on_link opt then update_prefix st pref ~valid:valid_ltime;
-          if Ipv6_wire.get_opt_prefix_autonomous opt && valid_ltime > 0 then begin
-            match lookup_prefix st pref with
+          if prf.prf_on_link then update_prefix st prf.prf_prefix ~valid:prf.prf_valid_lifetime;
+          if prf.prf_autonomous && prf.prf_valid_lifetime > 0.0 then begin
+            match lookup_prefix st prf.prf_prefix with
             | Some addr ->
               (* TODO handle already configured SLAAC address 5.5.3 e). *)
               Lwt.return_unit
             | None ->
-              let ip = Ipaddr.V6.Prefix.network_address pref (interface_addr (Ethif.mac st.ethif)) in
-              add_ip st ~ltime:(float preferred_ltime, Some (float valid_ltime)) ip
+              let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (interface_addr (Ethif.mac st.ethif)) in
+              add_ip st ~ltime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip
           end else
             Lwt.return_unit
         end
-      | ty, len ->
-        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in RA\n%!" ty len;
+      | _ ->
         Lwt.return_unit
     in
 
     (* TODO update the is_router flag even if there was no SLLA *)
-    fold_options (fun ty code opt t -> t >>= fun () -> process_option ty code opt) opts Lwt.return_unit
-    >>= fun () ->
+    Lwt_list.iter_s process_option opts >>= fun () ->
 
-    let ltime = Ipv6_wire.get_ra_rtlt buf in
     begin match List.mem_assoc src st.rt_list with
       | true ->
         let rt_list = List.remove_assoc src st.rt_list in
-        if ltime > 0 then begin
-          Printf.printf "RA: Refreshing Router %s ltime %d\n%!" (Ipaddr.V6.to_string src) ltime;
-          st.rt_list <- (src, Timer.create (float ltime)) :: rt_list
+        if ra.ra_router_lifetime > 0.0 then begin
+          Printf.printf "RA: Refreshing Router %s ltime %f\n%!" (Ipaddr.V6.to_string src) ra.ra_router_lifetime;
+          st.rt_list <- (src, Timer.create ra.ra_router_lifetime) :: rt_list
         end else begin
           Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.V6.to_string src);
           st.rt_list <- rt_list
         end
       | false ->
-        if ltime > 0 then begin
+        if ra.ra_router_lifetime > 0.0 then begin
           Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.V6.to_string src);
-          st.rt_list <- (src, Timer.create (float ltime)) :: st.rt_list
+          st.rt_list <- (src, Timer.create ra.ra_router_lifetime) :: st.rt_list
         end
     end;
     Lwt.return_unit
@@ -796,7 +830,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         end
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
         Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
         begin match pending with
           | None ->
             Lwt.return_unit
@@ -808,11 +842,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         Lwt.return_unit
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
         Lwt.return_unit
       | PROBE (_, _, mac), None, true, false ->
         Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
-        nb.state <- REACHABLE (Timer.create (float st.reachable_time), mac);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
         nb.is_router <- is_router;
@@ -822,7 +856,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         nb.state <- STALE mac; (* TODO check mac or new_mac *)
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        nb.state <- REACHABLE (Timer.create (float st.reachable_time), new_mac);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
         Lwt.return_unit
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
@@ -899,7 +933,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         (* RFC 4861, 2.6.2 *)
         Lwt.return_unit
       | 134 (* RA *) ->
-        ra_input st ~src ~dst buf
+        let ra, opts = parse_ra buf in
+        handle_ra st ~src ~dst ra opts
       | 135 (* NS *) ->
         ns_input st ~src ~dst buf
       | 136 (* NA *) ->
@@ -1015,7 +1050,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         my_ips      = [];
 
         link_mtu            = Defaults.link_mtu;
-        curr_hop_limit      = 64; (* TODO *)
+        cur_hop_limit       = 64; (* TODO *)
         base_reachable_time = Defaults.reachable_time;
         reachable_time      = compute_reachable_time Defaults.reachable_time;
         retrans_timer       = Defaults.retrans_timer }
