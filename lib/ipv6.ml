@@ -363,11 +363,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       None
 
   let rec output st ~src ~dst datav =
-    Printf.printf "output: %s -> %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
-    if Ipaddr.V6.is_multicast dst then
+    let output_multicast dst datav =
       let dmac = multicast_mac dst in
       let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
       [`Write (datav frame)]
+    in
+    if Ipaddr.V6.is_multicast dst then
+      output_multicast dst datav
     else
       match next_hop st dst with
       | None ->
@@ -394,7 +396,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           Hashtbl.add st.nb_cache ip nb;
           let datav = alloc_ns ~target:ip in
           let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-          output st ~src ~dst datav
+          output_multicast dst datav
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
