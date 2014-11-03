@@ -586,12 +586,14 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     in
     loop st.my_ips
 
-  let add_ip st ?ltime ip =
+  let add_ip st ?lifetime ip =
     assert (not (List.mem_assq ip st.my_ips));
-    st.my_ips <- (ip, TENTATIVE (ltime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
+    st.my_ips <- (ip, TENTATIVE (lifetime, 0, Timer.create st.retrans_timer)) :: st.my_ips;
     let datav = alloc_ns ~target:ip in
+    let src = Ipaddr.V6.unspecified in
     let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-    output st ~src:Ipaddr.V6.unspecified ~dst datav
+    `Output (src, dst, datav)
+    (* output st ~src:Ipaddr.V6.unspecified ~dst datav *)
 
   type nd_option_prefix = {
     prf_on_link : bool;
@@ -667,8 +669,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     if ra.ra_retrans_timer <> 0.0 then st.retrans_timer <- ra.ra_retrans_timer;
 
-    let process_option = function
-      | SLLA new_mac ->
+    let rec process_option = function
+      | SLLA new_mac :: rest ->
         Printf.printf "NDP: Processing SLLA option in RA\n%!";
         let nb =
           try
@@ -683,42 +685,53 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             nb.state <- STALE new_mac;
             begin match pending with
               | None ->
-                Lwt.return_unit
+                process_option rest
               | Some x ->
-                Ethif.writev st.ethif (x new_mac)
+                `Write (x new_mac) :: process_option rest
+                (* Ethif.writev st.ethif (x new_mac) *)
             end
           | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
             if mac <> new_mac then nb.state <- STALE new_mac;
-            Lwt.return_unit
+            process_option rest
+            (* Lwt.return_unit *)
         end
-      | MTU new_mtu ->
+      | MTU new_mtu :: rest ->
         Printf.printf "NDP: Processing MTU option in RA\n%!";
         if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then st.link_mtu <- new_mtu;
-        Lwt.return_unit
-      | Prefix prf ->
+        process_option rest
+        (* Lwt.return_unit *)
+      | Prefix prf :: rest ->
         Printf.printf "NDP: Processing PREFIX option in RA\n%!";
         (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
         if prf.prf_valid_lifetime < prf.prf_preferred_lifetime || Ipaddr.V6.Prefix.link = prf.prf_prefix then
-          Lwt.return_unit
+          process_option rest
+          (* Lwt.return_unit *)
         else begin
           if prf.prf_on_link then update_prefix st prf.prf_prefix ~valid:prf.prf_valid_lifetime;
           if prf.prf_autonomous && prf.prf_valid_lifetime > 0.0 then begin
             match lookup_prefix st prf.prf_prefix with
             | Some addr ->
               (* TODO handle already configured SLAAC address 5.5.3 e). *)
-              Lwt.return_unit
+              (* Lwt.return_unit *)
+              process_option rest
             | None ->
               let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (interface_addr (Ethif.mac st.ethif)) in
-              add_ip st ~ltime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip
+              add_ip st ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip :: process_option rest
           end else
-            Lwt.return_unit
+            process_option rest
+            (* Lwt.return_unit *)
         end
-      | _ ->
-        Lwt.return_unit
+      | _ :: rest ->
+        process_option rest
+      | [] ->
+        []
+        (* Lwt.return_unit *)
     in
 
+    let pkts = process_option opts in
+
     (* TODO update the is_router flag even if there was no SLLA *)
-    Lwt_list.iter_s process_option opts >>= fun () ->
+    (* Lwt_list.iter_s process_option opts >>= fun () -> *)
 
     begin match List.mem_assoc src st.rt_list with
       | true ->
@@ -736,7 +749,14 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           st.rt_list <- (src, Timer.create ra.ra_router_lifetime) :: st.rt_list
         end
     end;
-    Lwt.return_unit
+    (* Lwt.return_unit *)
+
+    Lwt_list.iter_s begin function
+      | `Write pkt ->
+        Ethif.writev st.ethif pkt
+      | `Output (src, dst, datav) ->
+        output st ~src ~dst datav
+    end pkts
 
   let parse_ns buf =
     let ns_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
@@ -1077,7 +1097,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Printf.printf "Starting\n%!";
     let rec ticker () = Time.sleep 1.0 >>= fun () -> tick st >>= ticker in
     Lwt.async ticker;
-    add_ip st (link_local_addr (Ethif.mac ethif)) >>= fun () ->
+    let `Output (src, dst, datav) = add_ip st (link_local_addr (Ethif.mac ethif)) in
+    output st ~src ~dst datav >>= fun () ->
     Lwt.return (`Ok st)
 
   let get_ipv6_gateways st =
