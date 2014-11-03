@@ -26,4 +26,4 @@ depends: [
   "mirage-net-unix" {>= "1.1.0"}
   "ipaddr" {>= "2.2.0"}
 ]
-available: [ocaml-version >= "4.00.0"]
+available: [ocaml-version >= "4.01.0"]
