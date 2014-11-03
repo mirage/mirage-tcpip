@@ -372,11 +372,11 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     if Ipaddr.V6.is_multicast dst then
       let dmac = multicast_mac dst in
       let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
-      Ethif.writev st.ethif (datav frame)
+      [`Write (datav frame)]
     else
       match next_hop st dst with
       | None ->
-        Lwt.fail (No_route_to_host dst)
+        raise (No_route_to_host dst) (* FIXME *)
       | Some ip ->
         let msg dmac =
           let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
@@ -387,13 +387,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           match nb.state with
           | INCOMPLETE (t, nt, _) ->
             nb.state <- INCOMPLETE (t, nt, Some msg);
-            Lwt.return_unit
+            []
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            Ethif.writev st.ethif (msg dmac)
+            [`Write (msg dmac)]
           | STALE dmac ->
             (* FIXME int Defaults.delay_first_probe_time *)
             nb.state <- DELAY (Timer.create (float Defaults.delay_first_probe_time), dmac);
-            Ethif.writev st.ethif (msg dmac)
+            [`Write (msg dmac)]
         else
           let nb = fresh_nb_entry st.reachable_time (Some msg) in
           Hashtbl.add st.nb_cache ip nb;
@@ -422,7 +422,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   (* val tick : state -> unit Lwt.t *)
   let tick st =
-    let process ip nb =
+    let process ip nb pkts =
       match nb.state with
       | INCOMPLETE (t, tn, msg) ->
         begin match Timer.expired t, tn < Defaults.max_multicast_solicit with
@@ -433,23 +433,23 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let datav = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- INCOMPLETE (Timer.create st.retrans_timer, tn + 1, msg);
-            output st ~src ~dst datav
+            output st ~src ~dst datav @ pkts
           | true, false ->
             Printf.printf "NDP: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             (* TODO Generate ICMP error: Destination Unreachable *)
             Hashtbl.remove st.nb_cache ip;
-            Lwt.return_unit
+            pkts
           | _ ->
-            Lwt.return_unit
+            pkts
         end
       | REACHABLE (t, mac) ->
         begin match Timer.expired t with
           | true ->
             Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
             nb.state <- STALE mac;
-            Lwt.return_unit
+            pkts
           | false ->
-            Lwt.return_unit
+            pkts
         end
       | DELAY (t, dmac) ->
         begin match Timer.expired t with
@@ -459,9 +459,9 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let datav  = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, 0, dmac);
-            output st ~src ~dst:ip datav
+            output st ~src ~dst:ip datav @ pkts
           | false ->
-            Lwt.return_unit
+            pkts
         end
       | PROBE (t, tn, dmac) ->
         begin match Timer.expired t, tn < Defaults.max_unicast_solicit with
@@ -471,74 +471,86 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let datav = alloc_ns ~target:ip in
             (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, tn + 1, dmac);
-            output st ~src ~dst:ip datav
+            output st ~src ~dst:ip datav @ pkts
           | true, false ->
             Printf.printf "NDP: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
             Hashtbl.remove st.nb_cache ip;
-            Lwt.return_unit
+            pkts
           | _ ->
-            Lwt.return_unit
+            pkts
         end
       | _ ->
-        Lwt.return_unit
+        pkts
     in
 
-    Hashtbl.fold (fun k v t -> t >>= fun () -> process k v) st.nb_cache Lwt.return_unit >>= fun () ->
+    let pkts = Hashtbl.fold process st.nb_cache [] in
 
     if List.exists (fun (_, t) -> Timer.expired t) st.rt_list then
       st.rt_list <- List.filter (fun (_, t) -> not (Timer.expired t)) st.rt_list;
     (* TODO expire prefixes *)
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
 
-    if List.exists
-        (function (_, TENTATIVE (_, _, t))
-                | (_, PREFERRED (Some (t, _)))
-                | (_, DEPRECATED (Some t)) -> Timer.expired t
-                | _ -> false)
-        st.my_ips
-    then begin
-      let rec aux = function
-        | (ip, TENTATIVE (lt, n, t)) as addr ->
-          begin match Timer.expired t, n + 1 >= Defaults.dup_addr_detect_transmits with
-            | true, true ->
-              let lt = match lt with
-                | None -> None
-                | Some (t, vlt) -> Some (Timer.create t, vlt)
-              in
-              Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
-              Lwt.return (Some (ip, PREFERRED lt))
-            | true, false ->
-              let datav = alloc_ns ~target:ip in
-              let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-              output st ~src:Ipaddr.V6.unspecified ~dst datav >>= fun () ->
-              Lwt.return (Some (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)))
-            | false, _ ->
-              Lwt.return (Some addr)
-          end
-        | ip, PREFERRED (Some (t, vlt)) as addr ->
-          begin match Timer.expired t with
-            | true ->
-              Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
-              Lwt.return (Some (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))))
-            | false ->
-              Lwt.return (Some addr)
-          end
-        | ip, DEPRECATED (Some t) as addr ->
-          begin match Timer.expired t with
-            | true ->
-              Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
-              Lwt.return None
-            | false ->
-              Lwt.return (Some addr)
-          end
-        | addr ->
-          Lwt.return (Some addr)
-      in
-      fmap_p aux st.my_ips >>= fun my_ips ->
-      st.my_ips <- my_ips;
-      Lwt.return_unit
-    end else
-      Lwt.return_unit
+    let pkts =
+      if List.exists
+          (function (_, TENTATIVE (_, _, t))
+                  | (_, PREFERRED (Some (t, _)))
+                  | (_, DEPRECATED (Some t)) -> Timer.expired t
+                  | _ -> false)
+          st.my_ips
+      then begin
+        let rec loop = function
+          | (ip, TENTATIVE (lt, n, t)) as addr :: rest ->
+            begin match Timer.expired t, n + 1 >= Defaults.dup_addr_detect_transmits with
+              | true, true ->
+                let lt = match lt with
+                  | None -> None
+                  | Some (t, vlt) -> Some (Timer.create t, vlt)
+                in
+                Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
+                let rest, pkts = loop rest in
+                (ip, PREFERRED lt) :: rest, pkts
+              | true, false ->
+                let datav = alloc_ns ~target:ip in
+                let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+                let rest, pkts = loop rest in
+                let pkts = output st ~src:Ipaddr.V6.unspecified ~dst datav @ pkts in
+                (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)) :: rest, pkts
+              | false, _ ->
+                let rest, pkts = loop rest in
+                addr :: rest, pkts
+            end
+          | ip, PREFERRED (Some (t, vlt)) as addr :: rest ->
+            begin match Timer.expired t with
+              | true ->
+                Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
+                let rest, pkts = loop rest in
+                (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))) :: rest, pkts
+              | false ->
+                let rest, pkts = loop rest in
+                addr :: rest, pkts
+            end
+          | ip, DEPRECATED (Some t) as addr :: rest ->
+            begin match Timer.expired t with
+              | true ->
+                Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
+                loop rest
+              | false ->
+                let rest, pkts = loop rest in
+                addr :: rest, pkts
+            end
+          | addr :: rest ->
+            let rest, pkts = loop rest in
+            addr :: rest, pkts
+          | [] -> [], pkts (* defined above *)
+        in
+        let my_ips, pkts = loop st.my_ips in
+        st.my_ips <- my_ips;
+        pkts
+      end else
+        pkts
+    in
+
+    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts
 
   let rec fold_options f opts i =
     if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
@@ -592,8 +604,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     let datav = alloc_ns ~target:ip in
     let src = Ipaddr.V6.unspecified in
     let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-    `Output (src, dst, datav)
-    (* output st ~src:Ipaddr.V6.unspecified ~dst datav *)
+    output st ~src ~dst datav
 
   type nd_option_prefix = {
     prf_on_link : bool;
@@ -688,50 +699,42 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
                 process_option rest
               | Some x ->
                 `Write (x new_mac) :: process_option rest
-                (* Ethif.writev st.ethif (x new_mac) *)
             end
           | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
             if mac <> new_mac then nb.state <- STALE new_mac;
             process_option rest
-            (* Lwt.return_unit *)
         end
       | MTU new_mtu :: rest ->
         Printf.printf "NDP: Processing MTU option in RA\n%!";
         if Defaults.min_link_mtu <= new_mtu && new_mtu <= Defaults.link_mtu then st.link_mtu <- new_mtu;
         process_option rest
-        (* Lwt.return_unit *)
       | Prefix prf :: rest ->
         Printf.printf "NDP: Processing PREFIX option in RA\n%!";
         (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
         if prf.prf_valid_lifetime < prf.prf_preferred_lifetime || Ipaddr.V6.Prefix.link = prf.prf_prefix then
           process_option rest
-          (* Lwt.return_unit *)
         else begin
           if prf.prf_on_link then update_prefix st prf.prf_prefix ~valid:prf.prf_valid_lifetime;
           if prf.prf_autonomous && prf.prf_valid_lifetime > 0.0 then begin
             match lookup_prefix st prf.prf_prefix with
             | Some addr ->
               (* TODO handle already configured SLAAC address 5.5.3 e). *)
-              (* Lwt.return_unit *)
               process_option rest
             | None ->
               let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (interface_addr (Ethif.mac st.ethif)) in
-              add_ip st ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip :: process_option rest
+              add_ip st ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip @ process_option rest
           end else
             process_option rest
-            (* Lwt.return_unit *)
         end
       | _ :: rest ->
         process_option rest
       | [] ->
         []
-        (* Lwt.return_unit *)
     in
 
     let pkts = process_option opts in
 
     (* TODO update the is_router flag even if there was no SLLA *)
-    (* Lwt_list.iter_s process_option opts >>= fun () -> *)
 
     begin match List.mem_assoc src st.rt_list with
       | true ->
@@ -749,13 +752,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
           st.rt_list <- (src, Timer.create ra.ra_router_lifetime) :: st.rt_list
         end
     end;
-    (* Lwt.return_unit *)
 
     Lwt_list.iter_s begin function
       | `Write pkt ->
         Ethif.writev st.ethif pkt
-      | `Output (src, dst, datav) ->
-        output st ~src ~dst datav
     end pkts
 
   let parse_ns buf =
@@ -806,7 +806,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         let datav = alloc_na_data ~target:ns_target ~solicited:true in
         Printf.printf "Sending NA to %s from %s with target address %s\n%!"
           (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
-        `Output (src, dst, datav) :: pkts
+        output st ~src ~dst datav @ pkts
       end else
         pkts
     in
@@ -814,8 +814,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Lwt_list.iter_s begin function
       | `Write pkt ->
         Ethif.writev st.ethif pkt
-      | `Output (src, dst, datav) ->
-        output st src dst datav
+      (* | `Output (src, dst, datav) -> *)
+        (* output st src dst datav *)
     end pkts
 
   type na = {
@@ -947,7 +947,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       let datav = alloc_icmp_error ~src ~dst ~ty ~code ~reserved buf in
       Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n%!"
         ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
-      output st ~src ~dst datav
+      let pkts = output st ~src ~dst datav in
+      Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts (* FIXME *)
 
   let echo_request_input st ~src ~dst buf =
     Printf.printf "Received Echo Request from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
@@ -967,7 +968,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [icmpbuf; data]);
       [frame; data]
     in
-    output st ~src ~dst datav
+    let pkts = output st ~src ~dst datav in
+    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts (* FIXME *)
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf poff =
@@ -1115,8 +1117,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     Printf.printf "Starting\n%!";
     let rec ticker () = Time.sleep 1.0 >>= fun () -> tick st >>= ticker in
     Lwt.async ticker;
-    let `Output (src, dst, datav) = add_ip st (link_local_addr (Ethif.mac ethif)) in
-    output st ~src ~dst datav >>= fun () ->
+    let pkts = add_ip st (link_local_addr (Ethif.mac ethif)) in
+    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts >>= fun () -> (* FIXME *)
     Lwt.return (`Ok st)
 
   let get_ipv6_gateways st =
