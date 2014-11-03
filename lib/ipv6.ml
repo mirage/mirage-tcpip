@@ -788,37 +788,45 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end else
       Lwt.return_unit
 
-  let na_input st ~src ~dst buf =
-    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+  type na = {
+    na_router : bool;
+    na_solicited : bool;
+    na_override : bool;
+    na_target : Ipaddr.V6.t
+  }
 
+  let parse_na buf =
+    let na_router = Ipv6_wire.get_na_router buf in
+    let na_solicited = Ipv6_wire.get_na_solicited buf in
+    let na_override = Ipv6_wire.get_na_override buf in
+    let na_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+    let opts = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_na) in
+    {na_router; na_solicited; na_override; na_target}, opts
+
+  let handle_na st ~src ~dst na opts =
     Printf.printf "NDP: Received NA from %s to %s with target address %s\n%!"
-      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
-
-    let is_router = Ipv6_wire.get_na_router buf in
-    let solicited = Ipv6_wire.get_na_solicited buf in
-    let override = Ipv6_wire.get_na_override buf in
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string na.na_target);
 
     (* TODO check hlim = 255, code = 0, target not mcast, not (solicited && mcast (dst)) *)
 
-    let rec process_options ty len opt mac =
-      match ty, len with
-      | 2, 1 ->
-        Some (Macaddr.of_cstruct (Cstruct.shift opt 2))
-      | ty, len ->
-        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NA\n%!" ty len;
-        mac
+    let rec get_tlla = function
+      | TLLA mac :: rest ->
+        Some mac
+      | _ :: rest ->
+        get_tlla rest
+      | [] ->
+        None
     in
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
-    let new_mac = fold_options process_options opts None in
+    let new_mac = get_tlla opts in
 
     (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
 
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
-    if Hashtbl.mem st.nb_cache target then begin
-      let nb = Hashtbl.find st.nb_cache target in
-      match nb.state, new_mac, solicited, override with
+    if Hashtbl.mem st.nb_cache na.na_target then begin
+      let nb = Hashtbl.find st.nb_cache na.na_target in
+      match nb.state, new_mac, na.na_solicited, na.na_override with
       | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
-        Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- STALE new_mac;
         begin match pending with
           | None ->
@@ -827,7 +835,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Ethif.writev st.ethif (x new_mac)
         end
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
-        Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
         begin match pending with
           | None ->
@@ -836,21 +844,21 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Ethif.writev st.ethif (x new_mac)
         end
       | INCOMPLETE _, None, _, _ ->
-        nb.is_router <- is_router;
+        nb.is_router <- na.na_router;
         Lwt.return_unit
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
         Lwt.return_unit
       | PROBE (_, _, mac), None, true, false ->
-        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-        nb.is_router <- is_router;
+        nb.is_router <- na.na_router;
         Lwt.return_unit
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- STALE mac; (* TODO check mac or new_mac *)
         Lwt.return_unit
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
@@ -858,7 +866,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         Lwt.return_unit
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
-        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string target);
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- STALE mac;
         Lwt.return_unit
       | _ ->
@@ -937,7 +945,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         let ns, opts = parse_ns buf in
         handle_ns st ~src ~dst ns opts
       | 136 (* NA *) ->
-        na_input st ~src ~dst buf
+        let na, opts = parse_na buf in
+        handle_na st ~src ~dst na opts
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
         Lwt.return_unit
