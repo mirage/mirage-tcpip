@@ -64,6 +64,19 @@ module Macaddr = struct
     if Cstruct.len cs <> 6
     then raise (Parse_error ("MAC is exactly 6 bytes", Cstruct.to_string cs))
     else match of_bytes (Cstruct.to_string cs) with Some x -> x | None -> assert false
+  let interface_addr mac =
+    let bmac = Macaddr.to_bytes mac in
+    let c i = Char.code (Bytes.get bmac i) in
+    Ipaddr.V6.make
+      0 0 0 0
+      ((c 0 lxor 2) lsl 8 + c 1)
+      (c 2 lsl 8 + 0xff)
+      (0xfe00 + c 3)
+      (c 4 lsl 8 + c 5)
+  let link_local_addr mac =
+    Ipaddr.V6.(Prefix.network_address
+                 (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
+                 (interface_addr mac))
 end
 
 module Defaults = struct
@@ -157,13 +170,7 @@ end = struct
   (*   Tvar.take all *)
 end
 
-module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
-  type ethif = Ethif.t
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type ipv6addr = Ipaddr.V6.t
-  type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
-
+module Engine (Time : V2_LWT.TIME) = struct
   module Timer     = Timer (Time)
   module IpMap     = Map.Make (Ipaddr.V6)
   module PrefixMap = Map.Make (Ipaddr.V6.Prefix)
@@ -189,17 +196,13 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     { nb_cache                    : (Ipaddr.V6.t, nb_info) Hashtbl.t;
       mutable prefix_list         : (Ipaddr.V6.Prefix.t * Timer.t option) list;
       mutable rt_list             : (Ipaddr.V6.t * Timer.t) list; (* invalidation timer *)
-      ethif                       : Ethif.t;
+      mac                         : Macaddr.t;
       mutable my_ips              : (Ipaddr.V6.t * addr_state) list;
       mutable link_mtu            : int;
       mutable cur_hop_limit       : int;
       mutable base_reachable_time : float; (* default Defaults.reachable_time *)
       mutable reachable_time      : float;
       mutable retrans_timer       : float } (* Defaults.retrans_timer *)
-
-  type t = state
-
-  let id { ethif } = ethif
 
   exception No_route_to_host of Ipaddr.V6.t
 
@@ -234,21 +237,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       let _, _, _, n = Ipaddr.V6.to_int32 ip in
       Cstruct.BE.set_uint32 pbuf 2 n;
       Macaddr.of_cstruct pbuf
-
-  let interface_addr mac =
-    let bmac = Macaddr.to_bytes mac in
-    let c i = Char.code (Bytes.get bmac i) in
-    Ipaddr.V6.make
-      0 0 0 0
-      ((c 0 lxor 2) lsl 8 + c 1)
-      (c 2 lsl 8 + 0xff)
-      (0xfe00 + c 3)
-      (c 4 lsl 8 + c 5)
-
-  let link_local_addr mac =
-    Ipaddr.V6.(Prefix.network_address
-                 (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
-                 (interface_addr mac))
 
   let alloc_frame ~smac ~dmac ~src ~dst =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
@@ -365,7 +353,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   let rec output st ~src ~dst datav =
     let output_multicast dst datav =
       let dmac = multicast_mac dst in
-      let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
+      let frame = alloc_frame ~smac:st.mac ~dmac ~src ~dst in
       [`Write (datav frame)]
     in
     if Ipaddr.V6.is_multicast dst then
@@ -376,7 +364,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         raise (No_route_to_host dst) (* FIXME *)
       | Some ip ->
         let msg dmac =
-          let frame = alloc_frame ~smac:(Ethif.mac st.ethif) ~dmac ~src ~dst in
+          let frame = alloc_frame ~smac:st.mac ~dmac ~src ~dst in
           datav frame
         in
         if Hashtbl.mem st.nb_cache ip then
@@ -695,7 +683,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
               (* TODO handle already configured SLAAC address 5.5.3 e). *)
               process_option rest
             | None ->
-              let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (interface_addr (Ethif.mac st.ethif)) in
+              let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (Macaddr.interface_addr st.mac) in
               add_ip st ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip @ process_option rest
           end else
             process_option rest
@@ -881,16 +869,15 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
   (* buf : packet that caused the error *)
   let icmp_error_output st ~src ~dst ~ty ~code ~reserved buf =
-    if is_icmp_error buf || Ipaddr.V6.(compare unspecified src) = 0 then
-      Lwt.return_unit
-    else
+    if not (is_icmp_error buf) && Ipaddr.V6.(compare unspecified src) != 0 then
       let dst = src
       and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
       let datav = alloc_icmp_error ~src ~dst ~ty ~code ~reserved buf in
       Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n%!"
         ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
-      let pkts = output st ~src ~dst datav in
-      Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts (* FIXME *)
+      output st ~src ~dst datav
+    else
+      []
 
   let echo_request_input st ~src ~dst buf =
     Printf.printf "Received Echo Request from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
@@ -910,8 +897,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [icmpbuf; data]);
       [frame; data]
     in
-    let pkts = output st ~src ~dst datav in
-    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts (* FIXME *)
+    output st ~src ~dst datav
 
   (* buf : icmp packet *)
   let icmp_input st ~src ~dst buf poff =
@@ -919,32 +905,29 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ buf ] in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
-      Lwt.return_unit
+      []
     end else begin
       match Ipv6_wire.get_icmpv6_ty buf with
       | 128 -> (* Echo request *)
         echo_request_input st ~src ~dst buf
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
-        Lwt.return_unit
+        []
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
-        Lwt.return_unit
+        []
       | 134 (* RA *) ->
         let ra, opts = parse_ra buf in
-        let pkts = handle_ra st ~src ~dst ra opts in
-        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
+        handle_ra st ~src ~dst ra opts
       | 135 (* NS *) ->
         let ns, opts = parse_ns buf in
-        let pkts = handle_ns st ~src ~dst ns opts in
-        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
+        handle_ns st ~src ~dst ns opts
       | 136 (* NA *) ->
         let na, opts = parse_na buf in
-        let pkts = handle_na st ~src ~dst na opts in
-        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
+        handle_na st ~src ~dst na opts
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
-        Lwt.return_unit
+        []
     end
 
   let is_my_addr st ip =
@@ -953,7 +936,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | ip', _ -> Ipaddr.V6.compare ip' ip = 0
     end st.my_ips
 
-  let input st ~tcp ~udp ~default buf =
+  let handle_packet st buf =
     let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
     let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
 
@@ -986,20 +969,20 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
               loop (ooff+len+2)
             | 0x40 ->
               (* discard the packet *)
-              Lwt.return_unit
+              `Stop, []
             | 0x80 ->
               (* discard, send icmp error *)
-              icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
+              `Stop, icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
             | 0xc0 ->
               (* discard, send icmp error if dest is not mcast *)
               if Ipaddr.V6.is_multicast dst then
-                Lwt.return_unit
+                `Stop, []
               else
-                icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
+                `Stop, icmp_error_output st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
             | _ ->
               assert false
         end else
-          process st false nhdr oend
+          `Continue (nhdr, oend), []
       in
       loop (poff+2)
 
@@ -1009,69 +992,108 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
       | 0 (* HOPTOPT *) ->
         Printf.printf "Processing HOPOPT header\n%!";
         if first then
-          process_option st poff
+          match process_option st poff with
+          | `Stop, pkts ->
+            `None, pkts
+          | `Continue (nhdr, oend), pkts ->
+            let r, pkts' = process st false nhdr oend in
+            r, pkts @ pkts'
         else
-          Lwt.return_unit
+          `None, []
       | 60 (* IPv6-Opts *) ->
         Printf.printf "Processing DESTOPT header\n%!";
-        process_option st poff
+        begin match process_option st poff with
+          | `Stop, pkts ->
+            `None, pkts
+          | `Continue (nhdr, oend), pkts ->
+            let r, pkts' = process st false nhdr oend in
+            r, pkts @ pkts'
+        end
       | 43 (* TODO IPv6-Route *)
       | 44 (* TODO IPv6-Frag *)
       | 50 (* TODO ESP *)
       | 51 (* TODO AH *)
       | 135 (* TODO Mobility Header *)
       | 59 (* NO NEXT HEADER *) ->
-        Lwt.return_unit
+        `None, []
       | 58 (* ICMP *) ->
-        icmp_input st ~src ~dst buf poff
+        `None, icmp_input st ~src ~dst buf poff
       | 17 (* UDP *) ->
-        udp ~src ~dst (Cstruct.shift buf poff)
+        `Udp (src, dst, Cstruct.shift buf poff), []
       | 6 (* TCP *) ->
-        tcp ~src ~dst (Cstruct.shift buf poff)
+        `Tcp (src, dst, Cstruct.shift buf poff), []
       | n when 143 <= n && n <= 255 ->
         (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
-        Lwt.return_unit
+        `None, []
       | n ->
-        default ~proto:n ~src ~dst (Cstruct.shift buf poff)
+        `Default (n, src, dst, Cstruct.shift buf poff), []
     in
 
     if Ipaddr.V6.Prefix.(mem src multicast) then begin
       Printf.printf "Dropping packet, src is mcast\n%!";
-      Lwt.return_unit
+      `None, []
     end else if not (is_my_addr st dst) && not (Ipaddr.V6.Prefix.(mem dst multicast)) then begin
       Printf.printf "Dropping packet, not for me\n%!";
-      Lwt.return_unit
+      `None, []
     end else
       process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
-  let connect ethif =
-    let st =
-      { nb_cache    = Hashtbl.create 0;
-        prefix_list = [Ipaddr.V6.Prefix.make 64 (Ipaddr.V6.make 0xfe80 0 0 0 0 0 0 0), None];
-        rt_list     = [];
-        ethif;
-        my_ips      = [];
+  let create mac =
+    { nb_cache    = Hashtbl.create 0;
+      prefix_list = [Ipaddr.V6.Prefix.make 64 (Ipaddr.V6.make 0xfe80 0 0 0 0 0 0 0), None];
+      rt_list     = [];
+      mac;
+      my_ips      = [];
 
-        link_mtu            = Defaults.link_mtu;
-        cur_hop_limit       = 64; (* TODO *)
-        base_reachable_time = Defaults.reachable_time;
-        reachable_time      = compute_reachable_time Defaults.reachable_time;
-        retrans_timer       = Defaults.retrans_timer }
-    in
-    Time.sleep 10. >>= fun () ->
-    Printf.printf "Starting\n%!";
-    let rec ticker () =
-      Time.sleep 1.0 >>= fun () ->
-      let pkts = tick st in
-      Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts >>= ticker in
-    Lwt.async ticker;
-    let pkts = add_ip st (link_local_addr (Ethif.mac ethif)) in
-    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts >>= fun () -> (* FIXME *)
-    Lwt.return (`Ok st)
+      link_mtu            = Defaults.link_mtu;
+      cur_hop_limit       = 64; (* TODO *)
+      base_reachable_time = Defaults.reachable_time;
+      reachable_time      = compute_reachable_time Defaults.reachable_time;
+      retrans_timer       = Defaults.retrans_timer }
 
   let get_ipv6_gateways st =
     List.map fst st.rt_list
 
   let get_ipv6 st =
     List.map fst (List.filter (function (_, TENTATIVE _) -> false | _ -> true) st.my_ips)
+end
+
+module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
+  type ethif = Ethif.t
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipv6addr = Ipaddr.V6.t
+  type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
+
+  module Engine = Engine (Time)
+
+  type t =
+    { ethif : Ethif.t;
+      state : Engine.state }
+
+  let id { ethif } = ethif
+
+  let input {ethif; state} ~tcp ~udp ~default buf =
+    let r, pkts = Engine.handle_packet state buf in
+    Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev ethif pkt) pkts >>= fun () ->
+    match r with
+    | `None -> Lwt.return_unit
+    | `Tcp (src, dst, pkt) -> tcp ~src ~dst pkt
+    | `Udp (src, dst, pkt) -> udp ~src ~dst pkt
+    | `Default (proto, src, dst, pkt) -> default ~proto ~src ~dst pkt
+
+  let connect ethif =
+    let state = Engine.create (Ethif.mac ethif) in
+    let rec ticker () =
+      Time.sleep 1.0 >>= fun () ->
+      let pkts = Engine.tick state in
+      Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev ethif pkt) pkts >>=
+      ticker
+    in
+    Time.sleep 10.0 >>= fun () ->
+    Printf.printf "Starting\n%!";
+    Lwt.async ticker;
+    let pkts = Engine.add_ip state (Macaddr.link_local_addr (Ethif.mac ethif)) in
+    Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev ethif pkt) pkts >>= fun () ->
+    Lwt.return (`Ok {ethif; state})
 end
