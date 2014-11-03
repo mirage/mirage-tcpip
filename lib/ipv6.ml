@@ -208,10 +208,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     | UDP
     | Other of int
 
-  type ret =
-    | Receive of proto * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
-    | Send of Cstruct.t list
-
   (* This will have to be moved somewhere else later, since the same computation
      is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
      bad name since it is used for other protocols as well. *)
@@ -345,7 +341,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     loop st.my_ips
 
   let fresh_nb_entry reachable_time data =
-    (* FIXME int reachable_time *)
     { state = INCOMPLETE (Timer.create reachable_time, 0, data);
       is_router = false }
 
@@ -404,22 +399,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
 
-  let rec fmap_p f l =
-    let rec loop = function
-      | x :: xs ->
-        let fxs = fmap_p f xs
-        and fx = f x in
-        fx >>= begin function
-          | None -> fxs
-          | Some x ->
-            fxs >>= fun xs ->
-            Lwt.return (x :: xs)
-        end
-      | [] ->
-        Lwt.return_nil
-    in
-    loop l
-
   (* val tick : state -> unit Lwt.t *)
   let tick st =
     let process ip nb pkts =
@@ -431,7 +410,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             let src = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
             let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
             let datav = alloc_ns ~target:ip in
-            (* FIXME int st.retrans_timer *)
             nb.state <- INCOMPLETE (Timer.create st.retrans_timer, tn + 1, msg);
             output st ~src ~dst datav @ pkts
           | true, false ->
@@ -457,7 +435,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Printf.printf "NDP: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let datav  = alloc_ns ~target:ip in
-            (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, 0, dmac);
             output st ~src ~dst:ip datav @ pkts
           | false ->
@@ -469,7 +446,6 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             Printf.printf "NDP: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
             let src = select_source_address st in
             let datav = alloc_ns ~target:ip in
-            (* FIXME int st.retrans_timer *)
             nb.state <- PROBE (Timer.create st.retrans_timer, tn + 1, dmac);
             output st ~src ~dst:ip datav @ pkts
           | true, false ->
@@ -490,67 +466,63 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     (* TODO expire prefixes *)
     (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
 
-    let pkts =
-      if List.exists
-          (function (_, TENTATIVE (_, _, t))
-                  | (_, PREFERRED (Some (t, _)))
-                  | (_, DEPRECATED (Some t)) -> Timer.expired t
-                  | _ -> false)
-          st.my_ips
-      then begin
-        let rec loop = function
-          | (ip, TENTATIVE (lt, n, t)) as addr :: rest ->
-            begin match Timer.expired t, n + 1 >= Defaults.dup_addr_detect_transmits with
-              | true, true ->
-                let lt = match lt with
-                  | None -> None
-                  | Some (t, vlt) -> Some (Timer.create t, vlt)
-                in
-                Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
-                let rest, pkts = loop rest in
-                (ip, PREFERRED lt) :: rest, pkts
-              | true, false ->
-                let datav = alloc_ns ~target:ip in
-                let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-                let rest, pkts = loop rest in
-                let pkts = output st ~src:Ipaddr.V6.unspecified ~dst datav @ pkts in
-                (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)) :: rest, pkts
-              | false, _ ->
-                let rest, pkts = loop rest in
-                addr :: rest, pkts
-            end
-          | ip, PREFERRED (Some (t, vlt)) as addr :: rest ->
-            begin match Timer.expired t with
-              | true ->
-                Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
-                let rest, pkts = loop rest in
-                (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))) :: rest, pkts
-              | false ->
-                let rest, pkts = loop rest in
-                addr :: rest, pkts
-            end
-          | ip, DEPRECATED (Some t) as addr :: rest ->
-            begin match Timer.expired t with
-              | true ->
-                Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
-                loop rest
-              | false ->
-                let rest, pkts = loop rest in
-                addr :: rest, pkts
-            end
-          | addr :: rest ->
-            let rest, pkts = loop rest in
-            addr :: rest, pkts
-          | [] -> [], pkts (* defined above *)
-        in
-        let my_ips, pkts = loop st.my_ips in
-        st.my_ips <- my_ips;
-        pkts
-      end else
-        pkts
-    in
-
-    Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts
+    if List.exists
+        (function (_, TENTATIVE (_, _, t))
+                | (_, PREFERRED (Some (t, _)))
+                | (_, DEPRECATED (Some t)) -> Timer.expired t
+                | _ -> false)
+        st.my_ips
+    then begin
+      let rec loop = function
+        | (ip, TENTATIVE (lt, n, t)) as addr :: rest ->
+          begin match Timer.expired t, n + 1 >= Defaults.dup_addr_detect_transmits with
+            | true, true ->
+              let lt = match lt with
+                | None -> None
+                | Some (t, vlt) -> Some (Timer.create t, vlt)
+              in
+              Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
+              let rest, pkts = loop rest in
+              (ip, PREFERRED lt) :: rest, pkts
+            | true, false ->
+              let datav = alloc_ns ~target:ip in
+              let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+              let rest, pkts = loop rest in
+              let pkts = output st ~src:Ipaddr.V6.unspecified ~dst datav @ pkts in
+              (ip, TENTATIVE (lt, n + 1, Timer.create st.retrans_timer)) :: rest, pkts
+            | false, _ ->
+              let rest, pkts = loop rest in
+              addr :: rest, pkts
+          end
+        | ip, PREFERRED (Some (t, vlt)) as addr :: rest ->
+          begin match Timer.expired t with
+            | true ->
+              Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
+              let rest, pkts = loop rest in
+              (ip, DEPRECATED (match vlt with None -> None | Some t -> Some (Timer.create t))) :: rest, pkts
+            | false ->
+              let rest, pkts = loop rest in
+              addr :: rest, pkts
+          end
+        | ip, DEPRECATED (Some t) as addr :: rest ->
+          begin match Timer.expired t with
+            | true ->
+              Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
+              loop rest
+            | false ->
+              let rest, pkts = loop rest in
+              addr :: rest, pkts
+          end
+        | addr :: rest ->
+          let rest, pkts = loop rest in
+          addr :: rest, pkts
+        | [] -> [], pkts (* defined above *)
+      in
+      let my_ips, pkts = loop st.my_ips in
+      st.my_ips <- my_ips;
+      pkts
+    end else
+      pkts
 
   let rec fold_options f opts i =
     if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
@@ -753,10 +725,7 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         end
     end;
 
-    Lwt_list.iter_s begin function
-      | `Write pkt ->
-        Ethif.writev st.ethif pkt
-    end pkts
+    pkts
 
   let parse_ns buf =
     let ns_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
@@ -800,23 +769,14 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
 
     let pkts = process_option opts in
 
-    let pkts =
-      if List.mem_assoc ns_target st.my_ips then begin
-        let src = ns_target and dst = src in (* FIXME src & dst *)
-        let datav = alloc_na_data ~target:ns_target ~solicited:true in
-        Printf.printf "Sending NA to %s from %s with target address %s\n%!"
-          (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
-        output st ~src ~dst datav @ pkts
-      end else
-        pkts
-    in
-
-    Lwt_list.iter_s begin function
-      | `Write pkt ->
-        Ethif.writev st.ethif pkt
-      (* | `Output (src, dst, datav) -> *)
-        (* output st src dst datav *)
-    end pkts
+    if List.mem_assoc ns_target st.my_ips then begin
+      let src = ns_target and dst = src in (* FIXME src & dst *)
+      let datav = alloc_na_data ~target:ns_target ~solicited:true in
+      Printf.printf "Sending NA to %s from %s with target address %s\n%!"
+        (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
+      output st ~src ~dst datav @ pkts
+    end else
+      pkts
 
   type na = {
     na_router : bool;
@@ -852,75 +812,55 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
 
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
-    let pkts =
-      if Hashtbl.mem st.nb_cache na.na_target then begin
-        let nb = Hashtbl.find st.nb_cache na.na_target in
-        match nb.state, new_mac, na.na_solicited, na.na_override with
-        | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
-          Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- STALE new_mac;
-          begin match pending with
-            | None -> []
-              (* Lwt.return_unit *)
-            | Some x ->
-              [`Write (x new_mac)]
-              (* Ethif.writev st.ethif (x new_mac) *)
-          end
-        | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
-          Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-          begin match pending with
-            | None -> []
-              (* Lwt.return_unit *)
-            | Some x ->
-              [`Write (x new_mac)]
-              (* Ethif.writev st.ethif (x new_mac) *)
-          end
-        | INCOMPLETE _, None, _, _ ->
-          nb.is_router <- na.na_router;
-          []
-          (* Lwt.return_unit *)
-        | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-          []
-          (* Lwt.return_unit *)
-        | PROBE (_, _, mac), None, true, false ->
-          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
-          []
-          (* Lwt.return_unit *)
-        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-          nb.is_router <- na.na_router;
-          []
-          (* Lwt.return_unit *)
-        | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- STALE mac; (* TODO check mac or new_mac *)
-          []
-          (* Lwt.return_unit *)
-        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-          []
-          (* Lwt.return_unit *)
-        | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
-          Some new_mac, false, true when mac <> new_mac ->
-          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-          nb.state <- STALE mac;
-          []
-          (* Lwt.return_unit *)
-        | _ ->
-          []
-          (* Lwt.return_unit *)
-      end else
+    if Hashtbl.mem st.nb_cache na.na_target then begin
+      let nb = Hashtbl.find st.nb_cache na.na_target in
+      match nb.state, new_mac, na.na_solicited, na.na_override with
+      | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
+        Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- STALE new_mac;
+        begin match pending with
+          | None -> []
+          | Some x ->
+            [`Write (x new_mac)]
+        end
+      | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
+        Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+        begin match pending with
+          | None -> []
+          | Some x ->
+            [`Write (x new_mac)]
+        end
+      | INCOMPLETE _, None, _, _ ->
+        nb.is_router <- na.na_router;
         []
-        (* Lwt.return_unit *)
-    in
-
-    Lwt_list.iter_s begin function
-      | `Write pkt ->
-        Ethif.writev st.ethif pkt
-    end pkts
+      | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+        []
+      | PROBE (_, _, mac), None, true, false ->
+        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
+        []
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
+        nb.is_router <- na.na_router;
+        []
+      | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- STALE mac; (* TODO check mac or new_mac *)
+        []
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
+        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+        []
+      | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
+        Some new_mac, false, true when mac <> new_mac ->
+        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+        nb.state <- STALE mac;
+        []
+      | _ ->
+        []
+    end else
+      []
 
   let is_icmp_error buf =
     let rec loop hdr buf =
@@ -990,13 +930,16 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         Lwt.return_unit
       | 134 (* RA *) ->
         let ra, opts = parse_ra buf in
-        handle_ra st ~src ~dst ra opts
+        let pkts = handle_ra st ~src ~dst ra opts in
+        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
       | 135 (* NS *) ->
         let ns, opts = parse_ns buf in
-        handle_ns st ~src ~dst ns opts
+        let pkts = handle_ns st ~src ~dst ns opts in
+        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
       | 136 (* NA *) ->
         let na, opts = parse_na buf in
-        handle_na st ~src ~dst na opts
+        let pkts = handle_na st ~src ~dst na opts in
+        Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
         Lwt.return_unit
@@ -1115,7 +1058,10 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     in
     Time.sleep 10. >>= fun () ->
     Printf.printf "Starting\n%!";
-    let rec ticker () = Time.sleep 1.0 >>= fun () -> tick st >>= ticker in
+    let rec ticker () =
+      Time.sleep 1.0 >>= fun () ->
+      let pkts = tick st in
+      Lwt_list.iter_s (fun (`Write pkt) -> Ethif.writev st.ethif pkt) pkts >>= ticker in
     Lwt.async ticker;
     let pkts = add_ip st (link_local_addr (Ethif.mac ethif)) in
     Lwt_list.iter_s (fun (`Write datav) -> Ethif.writev st.ethif datav) pkts >>= fun () -> (* FIXME *)
