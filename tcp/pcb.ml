@@ -33,7 +33,7 @@ struct
 
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)
-  module ACK = Ack.Delayed(Time)
+  module ACK = Ack.Immediate
   module UTX = User_buffer.Tx(Time)(Clock)
   module WIRE = Wire.Make(Ipv4)
   module STATE = State.Make(Time)

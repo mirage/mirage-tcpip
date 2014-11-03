@@ -138,29 +138,25 @@ module Rx(Time:V1_LWT.TIME) = struct
       q.segs <- waiting;
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
-        if seg.ack then (
+        if seg.ack then begin
           StateTick.tick q.state (State.Recv_ack seg.ack_number);
           let win = window ready in
           let data_in_flight = Window.tx_inflight q.wnd in
           let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
           let win_has_changed = (Window.ack_win q.wnd) <> win in
-          if (data_in_flight && (Window.ack_serviced q.wnd
-                                 || not seq_has_changed))
-          || (not data_in_flight && win_has_changed) then (
-            Lwt_mvar.put q.tx_ack (seg.ack_number, win) >>= fun () ->
+          if ((data_in_flight && (Window.ack_serviced q.wnd || not seq_has_changed)) ||
+              (not data_in_flight && win_has_changed)) then begin
             Window.set_ack_serviced q.wnd false;
             Window.set_ack_seq q.wnd seg.ack_number;
             Window.set_ack_win q.wnd win;
+            Lwt_mvar.put q.tx_ack (seg.ack_number, win)
+          end else begin
+             if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
+               Window.set_ack_seq q.wnd seg.ack_number;
+             Window.set_ack_win q.wnd win;
             return_unit
-          ) else (
-            if Sequence.gt seg.ack_number (Window.ack_seq q.wnd) then
-              Window.set_ack_seq q.wnd seg.ack_number;
-            Window.set_ack_win q.wnd win;
-            return_unit
-          )
-        ) else
-          return_unit
-      in
+          end
+        end else return_unit in
       (* Inform the user application of new data *)
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
