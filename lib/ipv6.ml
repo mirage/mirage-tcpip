@@ -738,18 +738,19 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     end;
     Lwt.return_unit
 
-  let ns_input st ~src ~dst buf =
-    let target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
+  let parse_ns buf =
+    let ns_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
+    let opts = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_ns) in
+    ns_target, opts
 
+  let handle_ns st ~src ~dst ns_target opts =
     Printf.printf "NDP: Received NS from %s to %s with target address %s\n%!"
-      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string ns_target);
 
     (* TODO check hlim = 255, target not mcast, code = 0 *)
 
-    let rec process_option ty len opt =
-      match ty, len with
-      | 1, 1 -> (* SLLA *) (* FIXME fail if DAD (src = unspec) *)
-        let new_mac = Macaddr.of_cstruct (Cstruct.shift opt 2) in
+    let rec process_option = function
+      | SLLA new_mac -> (* FIXME fail if DAD (src = unspec) *)
         let nb =
           try
             Hashtbl.find st.nb_cache src
@@ -771,21 +772,18 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
             if mac <> new_mac then nb.state <- STALE new_mac;
             Lwt.return_unit
         end
-      | ty, len ->
-        Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NS\n%!" ty len;
+      | _ ->
+        (* Printf.printf "NDP: ND option (ty=%d,len=%d) not supported in NS\n%!" ty len; *)
         Lwt.return_unit
     in
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
 
-    fold_options
-      (fun ty code opt t -> t >>= fun () -> process_option ty code opt) opts Lwt.return_unit
-    >>= fun () ->
+    Lwt_list.iter_s process_option opts >>= fun () ->
 
-    if List.mem_assoc target st.my_ips then begin
-      let src = target and dst = src in (* FIXME src & dst *)
-      let datav = alloc_na_data ~target ~solicited:true in
+    if List.mem_assoc ns_target st.my_ips then begin
+      let src = ns_target and dst = src in (* FIXME src & dst *)
+      let datav = alloc_na_data ~target:ns_target ~solicited:true in
       Printf.printf "Sending NA to %s from %s with target address %s\n%!"
-        (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string target);
+        (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
       output st ~src ~dst datav
     end else
       Lwt.return_unit
@@ -936,7 +934,8 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
         let ra, opts = parse_ra buf in
         handle_ra st ~src ~dst ra opts
       | 135 (* NS *) ->
-        ns_input st ~src ~dst buf
+        let ns, opts = parse_ns buf in
+        handle_ns st ~src ~dst ns opts
       | 136 (* NA *) ->
         na_input st ~src ~dst buf
       | n ->
