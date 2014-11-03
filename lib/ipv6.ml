@@ -852,57 +852,75 @@ module Make (Ethif : V2_LWT.ETHIF) (Time : V2_LWT.TIME) = struct
     (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
 
     (* Printf.printf "NDP: %s -> %s\n%!" (Ipaddr.V6.to_string target); *)
-    if Hashtbl.mem st.nb_cache na.na_target then begin
-      let nb = Hashtbl.find st.nb_cache na.na_target in
-      match nb.state, new_mac, na.na_solicited, na.na_override with
-      | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
-        Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- STALE new_mac;
-        begin match pending with
-          | None ->
-            Lwt.return_unit
-          | Some x ->
-            Ethif.writev st.ethif (x new_mac)
-        end
-      | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
-        Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-        begin match pending with
-          | None ->
-            Lwt.return_unit
-          | Some x ->
-            Ethif.writev st.ethif (x new_mac)
-        end
-      | INCOMPLETE _, None, _, _ ->
-        nb.is_router <- na.na_router;
-        Lwt.return_unit
-      | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-        Lwt.return_unit
-      | PROBE (_, _, mac), None, true, false ->
-        Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
-        Lwt.return_unit
-      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-        nb.is_router <- na.na_router;
-        Lwt.return_unit
-      | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- STALE mac; (* TODO check mac or new_mac *)
-        Lwt.return_unit
-      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
-        Lwt.return_unit
-      | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
-        Some new_mac, false, true when mac <> new_mac ->
-        Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
-        nb.state <- STALE mac;
-        Lwt.return_unit
-      | _ ->
-        Lwt.return_unit
-    end else
-      Lwt.return_unit
+    let pkts =
+      if Hashtbl.mem st.nb_cache na.na_target then begin
+        let nb = Hashtbl.find st.nb_cache na.na_target in
+        match nb.state, new_mac, na.na_solicited, na.na_override with
+        | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
+          Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- STALE new_mac;
+          begin match pending with
+            | None -> []
+              (* Lwt.return_unit *)
+            | Some x ->
+              [`Write (x new_mac)]
+              (* Ethif.writev st.ethif (x new_mac) *)
+          end
+        | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
+          Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+          begin match pending with
+            | None -> []
+              (* Lwt.return_unit *)
+            | Some x ->
+              [`Write (x new_mac)]
+              (* Ethif.writev st.ethif (x new_mac) *)
+          end
+        | INCOMPLETE _, None, _, _ ->
+          nb.is_router <- na.na_router;
+          []
+          (* Lwt.return_unit *)
+        | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
+          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+          []
+          (* Lwt.return_unit *)
+        | PROBE (_, _, mac), None, true, false ->
+          Printf.printf "NDP: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- REACHABLE (Timer.create st.reachable_time, mac);
+          []
+          (* Lwt.return_unit *)
+        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
+          nb.is_router <- na.na_router;
+          []
+          (* Lwt.return_unit *)
+        | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
+          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- STALE mac; (* TODO check mac or new_mac *)
+          []
+          (* Lwt.return_unit *)
+        | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
+          nb.state <- REACHABLE (Timer.create st.reachable_time, new_mac);
+          []
+          (* Lwt.return_unit *)
+        | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
+          Some new_mac, false, true when mac <> new_mac ->
+          Printf.printf "NDP: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+          nb.state <- STALE mac;
+          []
+          (* Lwt.return_unit *)
+        | _ ->
+          []
+          (* Lwt.return_unit *)
+      end else
+        []
+        (* Lwt.return_unit *)
+    in
+
+    Lwt_list.iter_s begin function
+      | `Write pkt ->
+        Ethif.writev st.ethif pkt
+    end pkts
 
   let is_icmp_error buf =
     let rec loop hdr buf =
