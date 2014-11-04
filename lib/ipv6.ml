@@ -81,43 +81,6 @@ end
 
 module Ipv6_wire = Wire_structs.Ipv6_wire
 
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
-
-module Tvar : sig
-  type 'a t
-  val create : 'a -> 'a t
-  val create_empty : unit -> _ t
-  val put : 'a t -> 'a -> unit
-  val take : 'a t -> 'a Lwt.t
-end = struct
-  type 'a t =
-    { mutable contents : 'a option;
-      readers : 'a Lwt.u Lwt_sequence.t }
-  let create x =
-    { contents = Some x; readers = Lwt_sequence.create () }
-  let create_empty () =
-    { contents = None; readers = Lwt_sequence.create () }
-  let put tvar x =
-    match tvar.contents with
-    | None ->
-      begin match Lwt_sequence.take_opt_l tvar.readers with
-        | None ->
-          tvar.contents <- Some x
-        | Some w ->
-          Lwt.wakeup_later w x
-      end
-    | Some _ ->
-      ()
-  let take tvar =
-    match tvar.contents with
-    | Some v ->
-      tvar.contents <- None;
-      Lwt.return v
-    | None ->
-      Lwt.add_task_r tvar.readers
-end
-
 module Time : sig
   type t
   module Span : sig
@@ -312,8 +275,8 @@ module Engine = struct
   let select_source_address st =
     let rec loop = function
       | (_, TENTATIVE _) :: rest -> loop rest
-      | (ip, _) :: _ -> ip (* FIXME *)
-      | [] -> Ipaddr.V6.unspecified
+      | (ip, _) :: _             -> ip (* FIXME *)
+      | []                       -> Ipaddr.V6.unspecified
     in
     loop st.my_ips
 
@@ -330,7 +293,7 @@ module Engine = struct
     let output_multicast dst datav =
       let dmac = multicast_mac dst in
       let frame = alloc_frame ~smac:st.mac ~dmac ~src ~dst in
-      [`Write (datav frame)]
+      [datav frame]
     in
     if Ipaddr.V6.is_multicast dst then
       output_multicast dst datav, []
@@ -347,12 +310,12 @@ module Engine = struct
             nb.state <- INCOMPLETE (t, nt, Some msg);
             [], []
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            [`Write (msg dmac)], []
+            [msg dmac], []
           | STALE dmac ->
             (* FIXME int Defaults.delay_first_probe_time *)
             let dt = Time.Span.of_float @@ float Defaults.delay_first_probe_time in
             nb.state <- DELAY (Time.add now dt, dmac);
-            [`Write (msg dmac)], [dt]
+            [msg dmac], [dt]
         else
           let dt = st.reachable_time in
           let nb = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
@@ -536,12 +499,9 @@ module Engine = struct
 
   let lookup_prefix st pref =
     let rec loop = function
-      | (ip, _) :: _ when Ipaddr.V6.Prefix.mem ip pref ->
-        Some ip
-      | _ :: rest ->
-        loop rest
-      | [] ->
-        None
+      | (ip, _) :: _ when Ipaddr.V6.Prefix.mem ip pref -> Some ip
+      | _ :: rest                                      -> loop rest
+      | []                                             -> None
     in
     loop st.my_ips
 
@@ -648,9 +608,8 @@ module Engine = struct
           | INCOMPLETE (_, _, pending) ->
             nb.state <- STALE new_mac;
             begin match pending with
-              | None -> [], []
-              | Some x ->
-                [`Write (x new_mac)], []
+              | None   -> [], []
+              | Some x -> [x new_mac], []
             end
           | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
             if mac <> new_mac then nb.state <- STALE new_mac;
@@ -744,10 +703,8 @@ module Engine = struct
           | INCOMPLETE (_, _, pending) ->
             nb.state <- STALE new_mac;
             begin match pending with
-              | None ->
-                []
-              | Some x ->
-                [`Write (x new_mac)]
+              | None   -> []
+              | Some x -> [x new_mac]
             end
           | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
             if mac <> new_mac then nb.state <- STALE new_mac;
@@ -780,11 +737,11 @@ module Engine = struct
   }
 
   let parse_na buf =
-    let na_router = Ipv6_wire.get_na_router buf in
+    let na_router    = Ipv6_wire.get_na_router buf in
     let na_solicited = Ipv6_wire.get_na_solicited buf in
-    let na_override = Ipv6_wire.get_na_override buf in
-    let na_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
-    let opts = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_na) in
+    let na_override  = Ipv6_wire.get_na_override buf in
+    let na_target    = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+    let opts         = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_na) in
     {na_router; na_solicited; na_override; na_target}, opts
 
   let handle_na ~now st ~src ~dst na opts =
@@ -794,12 +751,9 @@ module Engine = struct
     (* TODO check hlim = 255, code = 0, target not mcast, not (solicited && mcast (dst)) *)
 
     let rec get_tlla = function
-      | TLLA mac :: rest ->
-        Some mac
-      | _ :: rest ->
-        get_tlla rest
-      | [] ->
-        None
+      | TLLA mac :: rest -> Some mac
+      | _ :: rest        -> get_tlla rest
+      | []               -> None
     in
     let new_mac = get_tlla opts in
 
@@ -813,18 +767,16 @@ module Engine = struct
         Printf.printf "NDP: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         nb.state <- STALE new_mac;
         begin match pending with
-          | None -> [], []
-          | Some x ->
-            [`Write (x new_mac)], []
+          | None   -> [], []
+          | Some x -> [x new_mac], []
         end
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
         Printf.printf "NDP: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         let dt = st.reachable_time in
         nb.state <- REACHABLE (Time.add now dt, new_mac);
         begin match pending with
-          | None -> [], [dt]
-          | Some x ->
-            [`Write (x new_mac)], [dt]
+          | None   -> [], [dt]
+          | Some x -> [x new_mac], [dt]
         end
       | INCOMPLETE _, None, _, _ ->
         nb.is_router <- na.na_router;
@@ -1066,10 +1018,13 @@ module Engine = struct
     List.map fst (List.filter (function (_, TENTATIVE _) -> false | _ -> true) st.my_ips)
 end
 
+let (>>=) = Lwt.(>>=)
+let (>|=) = Lwt.(>|=)
+
 module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
-  type ethif = E.t
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
+  type ethif    = E.t
+  type 'a io    = 'a Lwt.t
+  type buffer   = Cstruct.t
   type ipv6addr = Ipaddr.V6.t
   type callback = src:ipv6addr -> dst:ipv6addr -> buffer -> unit Lwt.t
 
@@ -1088,7 +1043,7 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
         let dt = Time.Span.to_float dt in
         Printf.printf "Setting up a timer in %.1fs\n%!" dt;
         Lwt.ignore_result (T.sleep @@ dt >>= fun () -> tick state)) timers;
-    Lwt_list.iter_s (fun (`Write pkt) -> E.writev state.ethif pkt) pkts
+    Lwt_list.iter_s (E.writev state.ethif) pkts
 
   let input state ~tcp ~udp ~default buf =
     let r, pkts_timers = Engine.handle_packet (Time.of_float @@ C.time ()) state.state buf in
