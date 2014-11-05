@@ -186,15 +186,12 @@ type state = {
 (* This will have to be moved somewhere else later, since the same computation
    is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
    bad name since it is used for other protocols as well. *)
-let pbuf =
-  Cstruct.create Ipv6_wire.sizeof_ipv6_pseudo_header
+let cksum_buf = Cstruct.create 8
 
 let cksum ~src ~dst ~proto data =
-  Ipaddr.V6.to_cstruct_raw src pbuf 0;
-  Ipaddr.V6.to_cstruct_raw dst pbuf 16;
-  Cstruct.BE.set_uint32 pbuf 32 (Int32.of_int (Cstruct.lenv data));
-  Cstruct.BE.set_uint32 pbuf 36 (Int32.of_int proto);
-  Tcpip_checksum.ones_complement_list (pbuf :: data)
+  Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv data));
+  Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int proto);
+  Tcpip_checksum.ones_complement_list (src :: dst :: cksum_buf :: data)
 
 let solicited_node_prefix =
   Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
@@ -218,8 +215,6 @@ module Packet : sig
     src:Ipaddr.V6.t ->
     dst:Ipaddr.V6.t -> Cstruct.t
   val icmp_error :
-    src:Ipaddr.V6.t ->
-    dst:Ipaddr.V6.t ->
     ty:int ->
     code:int ->
     ?reserved:int32 -> Cstruct.t -> packet
@@ -236,7 +231,7 @@ end = struct
   let frame ~smac ~dmac ~src ~dst =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     let ethernet_frame = Cstruct.sub ethernet_frame 0 (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
-    let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
+    let buf            = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     Macaddr.to_cstruct_raw dmac (Wire_structs.get_ethernet_dst ethernet_frame) 0;
     Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
@@ -246,15 +241,17 @@ end = struct
     (* Ipv6_wire.set_ipv6_hlim buf hlim; *)
     ethernet_frame
 
-  let icmp_error ~src ~dst ~ty ~code ?(reserved = 0l) buf frame =
+  let icmp_error ~ty ~code ?(reserved = 0l) buf frame =
     let maxbuf =
       Defaults.min_link_mtu - (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_icmpv6)
     in
     (* FIXME ? hlim = 255 *)
-    let buf   = Cstruct.sub buf 0 (min (Cstruct.len buf) maxbuf) in
+    let buf     = Cstruct.sub buf 0 (min (Cstruct.len buf) maxbuf) in
     let frame   = Cstruct.add_len frame Ipv6_wire.sizeof_icmpv6 in
     let ipbuf   = Cstruct.shift frame Wire_structs.sizeof_ethernet in
     let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
+    let src     = Ipv6_wire.get_ipv6_src ipbuf in
+    let dst     = Ipv6_wire.get_ipv6_dst ipbuf in
     Ipv6_wire.set_ipv6_nhdr       ipbuf   58;
     Ipv6_wire.set_ipv6_len        ipbuf   (Cstruct.len buf + Ipv6_wire.sizeof_icmpv6);
     Ipv6_wire.set_icmpv6_ty       icmpbuf ty;
@@ -269,8 +266,8 @@ end = struct
     let ipbuf   = Cstruct.shift frame Wire_structs.sizeof_ethernet in
     let icmpbuf = Cstruct.shift frame (Ipv6_wire.sizeof_ipv6 + Wire_structs.sizeof_ethernet) in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-    let src     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src ipbuf) in
-    let dst     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst ipbuf) in
+    let src     = Ipv6_wire.get_ipv6_src ipbuf in
+    let dst     = Ipv6_wire.get_ipv6_dst ipbuf in
     Ipv6_wire.set_ipv6_nhdr   ipbuf   58; (* ICMP *)
     Ipv6_wire.set_ipv6_hlim   ipbuf   255;
     Ipv6_wire.set_ipv6_len    ipbuf   len;
@@ -290,8 +287,8 @@ end = struct
     let ipbuf   = Cstruct.shift frame Wire_structs.sizeof_ethernet in
     let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-    let src     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src ipbuf) in
-    let dst     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst ipbuf) in
+    let src     = Ipv6_wire.get_ipv6_src ipbuf in
+    let dst     = Ipv6_wire.get_ipv6_dst ipbuf in
     Ipv6_wire.set_ipv6_nhdr   ipbuf   58;
     Ipv6_wire.set_ipv6_hlim   ipbuf   255;
     Ipv6_wire.set_ipv6_len    ipbuf   len;
@@ -310,8 +307,8 @@ end = struct
     let ipbuf   = Cstruct.shift frame Wire_structs.sizeof_ethernet in
     let icmpbuf = Cstruct.shift frame (Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6) in
     let data    = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6 in
-    let src     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src ipbuf) in
-    let dst     = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst ipbuf) in
+    let src     = Ipv6_wire.get_ipv6_src ipbuf in
+    let dst     = Ipv6_wire.get_ipv6_dst ipbuf in
     Ipv6_wire.set_ipv6_nhdr       ipbuf 58; (* ICMP6 *)
     Ipv6_wire.set_ipv6_len        ipbuf (Cstruct.len buf);
     Ipv6_wire.set_icmpv6_ty       icmpbuf 129; (* ECHO REPLY *)
@@ -882,7 +879,7 @@ let icmp_error_output ~now ~st ~nc ~src ~dst ~ty ~code ~reserved buf =
   if not (is_icmp_error buf) && Ipaddr.V6.(compare unspecified src) != 0 then
     let dst   = src
     and src   = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
-    let datav = Packet.icmp_error ~src ~dst ~ty ~code ~reserved buf in
+    let datav = Packet.icmp_error ~ty ~code ~reserved buf in
     Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n%!"
       ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
     output ~now ~st ~nc ~src ~dst datav
@@ -896,17 +893,21 @@ let echo_request_input ~now ~st ~nc ~src ~dst buf =
   let datav = Packet.echo_reply buf in
   output ~now ~st ~nc ~src ~dst datav
 
-(* buf : icmp packet *)
+(* buf : icmp packet with ipv6 header *)
 let icmp_input ~now ~st ~nc ~src ~dst buf poff =
-  let buf = Cstruct.shift buf poff in
-  let csum = cksum ~src ~dst ~proto:58 (* ICMP6 *) [ buf ] in
+  let icmpbuf  = Cstruct.shift buf poff in
+  let csum =
+    let src  = Ipv6_wire.get_ipv6_src buf in
+    let dst  = Ipv6_wire.get_ipv6_dst buf in
+    cksum ~src ~dst ~proto:58 (* ICMP6 *) [ icmpbuf ]
+  in
   if csum != 0 then begin
     Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
     st, nc, [], []
   end else begin
-    match Ipv6_wire.get_icmpv6_ty buf with
+    match Ipv6_wire.get_icmpv6_ty icmpbuf with
     | 128 -> (* Echo request *)
-      let nc, pkts, timers = echo_request_input ~now ~st ~nc ~src ~dst buf in
+      let nc, pkts, timers = echo_request_input ~now ~st ~nc ~src ~dst icmpbuf in
       st, nc, pkts, timers
     | 129 (* Echo reply *) ->
       Printf.printf "ICMP6: Discarding Echo Reply\n%!";
@@ -915,14 +916,14 @@ let icmp_input ~now ~st ~nc ~src ~dst buf poff =
       (* RFC 4861, 2.6.2 *)
       st, nc, [], []
     | 134 (* RA *) ->
-      let ra, opts = parse_ra buf in
+      let ra, opts = parse_ra icmpbuf in
       handle_ra ~now ~st ~nc ~src ~dst ~ra ~opts
     | 135 (* NS *) ->
-      let target, opts = parse_ns buf in
+      let target, opts = parse_ns icmpbuf in
       let nc, pkts, timers = handle_ns ~now ~st ~nc ~src ~dst ~target ~opts in
       st, nc, pkts, timers
     | 136 (* NA *) ->
-      let na, opts = parse_na buf in
+      let na, opts = parse_na icmpbuf in
       let nc, pkts, timers = handle_na ~now ~st ~nc ~src ~dst ~na ~opts in
       st, nc, pkts, timers
     | n ->
