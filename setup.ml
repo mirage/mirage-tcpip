@@ -6870,7 +6870,7 @@ let setup_t =
                       bs_nativeopt = [(OASISExpr.EBool true, [])]
                    },
                    {
-                      lib_modules = ["Ipv6"];
+                      lib_modules = ["Ipv6"; "Ipv6_mirage"];
                       lib_pack = false;
                       lib_internal_modules = [];
                       lib_findlib_parent = Some "tcpip";
