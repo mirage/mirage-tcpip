@@ -145,7 +145,6 @@ type addr_state =
 
 (* TODO add destination cache *)
 type state = {
-  nb_cache            : nb_info IpMap.t;
   prefix_list         : (Ipaddr.V6.Prefix.t * Time.t option) list;
   router_list         : (Ipaddr.V6.t * Time.t) list; (* invalidation timer *)
   mac                 : Macaddr.t;
@@ -332,7 +331,7 @@ let rec output ~now ~st ~nc ~src ~dst datav =
     else
       let dt    = st.reachable_time in
       let nb    = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
-      let nc    = IpMap.add ip nb st.nb_cache in
+      let nc    = IpMap.add ip nb nc in
       let datav = alloc_ns ~target:ip in
       let dst   = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
       nc, output_multicast dst datav, [dt]
@@ -349,7 +348,7 @@ let tick_nud ~now ~st ~nc ~ip ~nb =
       let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
       let datav            = alloc_ns ~target:ip in
       let dt               = st.retrans_timer in
-      let nc               = IpMap.add ip {nb with state = INCOMPLETE (Time.add now dt, tn+1, msg)} st.nb_cache in
+      let nc               = IpMap.add ip {nb with state = INCOMPLETE (Time.add now dt, tn+1, msg)} nc in
       let nc, pkts, timers = output ~now ~st ~nc ~src ~dst datav in
       nc, pkts, dt :: timers
     end else begin
@@ -1030,8 +1029,7 @@ let handle_packet ~now ~st ~nc buf =
     process ~nc true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
 let create mac =
-  { nb_cache    = IpMap.empty;
-    prefix_list = [Ipaddr.V6.Prefix.make 64 (Ipaddr.V6.make 0xfe80 0 0 0 0 0 0 0), None];
+  { prefix_list = [Ipaddr.V6.Prefix.make 64 (Ipaddr.V6.make 0xfe80 0 0 0 0 0 0 0), None];
     router_list = [];
     mac         = mac;
     my_ips      = [];
