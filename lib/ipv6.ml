@@ -158,8 +158,6 @@ module Engine = struct
     retrans_timer       : Time.Span.t
   }
 
-  exception No_route_to_host of Ipaddr.V6.t
-
   (* This will have to be moved somewhere else later, since the same computation
      is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
      bad name since it is used for other protocols as well. *)
@@ -176,7 +174,7 @@ module Engine = struct
   let solicited_node_prefix =
     Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
-  let is_local st ip =
+  let is_local ~st ip =
     List.exists (fun (pref, _) -> Ipaddr.V6.Prefix.mem ip pref) st.prefix_list
 
   let multicast_mac =
@@ -277,14 +275,34 @@ module Engine = struct
     in
     loop st.my_ips
 
-  let next_hop st ip =
-    if is_local st ip then
-      Some ip
-    else if List.length st.router_list > 0 then
-       (* TODO Default Router Selection 6.3.6 *)
-      Some (fst (List.nth st.router_list (Random.int (List.length st.router_list))))
+  let next_hop ~st ~nc ip =
+
+    (* RFC 2461, 5.2.  Next-hop determination for a given unicast destination
+       operates as follows.  The sender performs a longest prefix match against
+       the Prefix List to determine whether the packet's destination is on- or
+       off-link.  If the destination is on-link, the next-hop address is the
+       same as the packet's destination address.  Otherwise, the sender selects
+       a router from the Default Router List (following the rules described in
+       Section 6.3.6).  If the Default Router List is empty, the sender assumes
+       that the destination is on-link. *)
+
+    if is_local ~st ip then
+      ip
     else
-      None
+      let rec select_router best = function
+        | []              -> best
+        | (ip, _) :: rest ->
+          if IpMap.mem ip nc then
+            let nb = IpMap.find ip nc in
+            match nb.state with
+            | INCOMPLETE _ -> select_router ip rest
+            | _ -> ip
+          else
+            select_router best rest
+      in
+      match st.router_list with
+      | []           -> ip
+      | (ip, _) :: _ -> select_router ip st.router_list
 
   let rec output ~now ~st ~nc ~src ~dst datav =
 
@@ -297,31 +315,28 @@ module Engine = struct
     if Ipaddr.V6.is_multicast dst then
       nc, output_multicast dst datav, []
     else
-      match next_hop st dst with
-      | None ->
-        raise (No_route_to_host dst) (* FIXME *)
-      | Some ip ->
-        let msg dmac = datav @@ alloc_frame ~smac:st.mac ~dmac ~src ~dst in
-        if IpMap.mem ip nc then
-          let nb = IpMap.find ip nc in
-          match nb.state with
-          | INCOMPLETE (t, nt, _) ->
-            let nc = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some msg)} nc in
-            nc, [], []
-          | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            nc, [msg dmac], []
-          | STALE dmac ->
-            (* FIXME int Defaults.delay_first_probe_time *)
-            let dt = Time.Span.of_float @@ float Defaults.delay_first_probe_time in
-            let nc = IpMap.add ip {nb with state = DELAY (Time.add now dt, dmac)} nc in
-            nc, [msg dmac], [dt]
-        else
-          let dt    = st.reachable_time in
-          let nb    = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
-          let nc    = IpMap.add ip nb st.nb_cache in
-          let datav = alloc_ns ~target:ip in
-          let dst   = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-          nc, output_multicast dst datav, [dt]
+      let ip = next_hop ~st ~nc dst in
+      let msg dmac = datav @@ alloc_frame ~smac:st.mac ~dmac ~src ~dst in
+      if IpMap.mem ip nc then
+        let nb = IpMap.find ip nc in
+        match nb.state with
+        | INCOMPLETE (t, nt, _) ->
+          let nc = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some msg)} nc in
+          nc, [], []
+        | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
+          nc, [msg dmac], []
+        | STALE dmac ->
+          (* FIXME int Defaults.delay_first_probe_time *)
+          let dt = Time.Span.of_float @@ float Defaults.delay_first_probe_time in
+          let nc = IpMap.add ip {nb with state = DELAY (Time.add now dt, dmac)} nc in
+          nc, [msg dmac], [dt]
+      else
+        let dt    = st.reachable_time in
+        let nb    = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
+        let nc    = IpMap.add ip nb st.nb_cache in
+        let datav = alloc_ns ~target:ip in
+        let dst   = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+        nc, output_multicast dst datav, [dt]
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
@@ -909,8 +924,8 @@ module Engine = struct
 
     (* TODO check version = 6 *)
 
-    Printf.printf "IPv6 packet received from %s to %s\n%!"
-      (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
+    (* Printf.printf "IPv6 packet received from %s to %s\n%!" *)
+      (* (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst); *)
 
     let rec process_option ~nc poff =
       let pbuf = Cstruct.shift buf poff in
