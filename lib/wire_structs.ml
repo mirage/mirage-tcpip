@@ -157,6 +157,12 @@ module Ipv6_wire = struct
       uint8_t  len
     } as big_endian
 
+  cstruct llopt {
+      uint8_t ty;
+      uint8_t len;
+      uint8_t addr[6]
+    } as big_endian
+
   cstruct ra {
       uint8_t   ty;
       uint8_t   code;
