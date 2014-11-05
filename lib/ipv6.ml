@@ -286,7 +286,7 @@ module Engine = struct
     else
       None
 
-  let rec output ~now st ~src ~dst datav =
+  let rec output ~now ~st ~nc ~src ~dst datav =
 
     let output_multicast dst datav =
       let dmac  = multicast_mac dst in
@@ -295,94 +295,92 @@ module Engine = struct
     in
 
     if Ipaddr.V6.is_multicast dst then
-      st, output_multicast dst datav, []
+      nc, output_multicast dst datav, []
     else
       match next_hop st dst with
       | None ->
         raise (No_route_to_host dst) (* FIXME *)
       | Some ip ->
         let msg dmac = datav @@ alloc_frame ~smac:st.mac ~dmac ~src ~dst in
-        if IpMap.mem ip st.nb_cache then
-          let nb = IpMap.find ip st.nb_cache in
+        if IpMap.mem ip nc then
+          let nb = IpMap.find ip nc in
           match nb.state with
           | INCOMPLETE (t, nt, _) ->
-            let nb_cache = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some msg)} st.nb_cache in
-            {st with nb_cache}, [], []
+            let nc = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some msg)} nc in
+            nc, [], []
           | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-            st, [msg dmac], []
+            nc, [msg dmac], []
           | STALE dmac ->
             (* FIXME int Defaults.delay_first_probe_time *)
-            let dt       = Time.Span.of_float @@ float Defaults.delay_first_probe_time in
-            let nb_cache = IpMap.add ip {nb with state = DELAY (Time.add now dt, dmac)} st.nb_cache in
-            {st with nb_cache}, [msg dmac], [dt]
+            let dt = Time.Span.of_float @@ float Defaults.delay_first_probe_time in
+            let nc = IpMap.add ip {nb with state = DELAY (Time.add now dt, dmac)} nc in
+            nc, [msg dmac], [dt]
         else
-          let dt       = st.reachable_time in
-          let nb       = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
-          let nb_cache = IpMap.add ip nb st.nb_cache in
-          let datav    = alloc_ns ~target:ip in
-          let dst      = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-          {st with nb_cache}, output_multicast dst datav, [dt]
+          let dt    = st.reachable_time in
+          let nb    = {state = INCOMPLETE (Time.add now dt, 0, Some msg); is_router = false} in
+          let nc    = IpMap.add ip nb st.nb_cache in
+          let datav = alloc_ns ~target:ip in
+          let dst   = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+          nc, output_multicast dst datav, [dt]
 
   (* FIXME if node goes from router to host, remove from default router list;
      this could be handled in input_icmp_message *)
 
-  (* val tick : state -> unit Lwt.t *)
-  let tick st ~now =
-    let process ip nb st =
-      match nb.state with
-      | INCOMPLETE (t, tn, msg) when t <= now ->
-        if tn < Defaults.max_multicast_solicit then begin
-          Printf.printf "ND: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
-          let src              = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
-          let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-          let datav            = alloc_ns ~target:ip in
-          let dt               = st.retrans_timer in
-          let nb_cache         = IpMap.add ip {nb with state = INCOMPLETE (Time.add now dt, tn+1, msg)} st.nb_cache in
-          let st               = {st with nb_cache} in
-          let st, pkts, timers = output ~now st ~src ~dst datav in
-          st, pkts, dt :: timers
-        end else begin
-          Printf.printf "ND: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
-          (* TODO Generate ICMP error: Destination Unreachable *)
-          let nb_cache = IpMap.remove ip st.nb_cache in
-          {st with nb_cache}, [], []
-        end
-      | REACHABLE (t, mac) when t <= now ->
-        Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
-        let nb_cache = IpMap.add ip {nb with state = STALE mac} st.nb_cache in
-        {st with nb_cache}, [], []
-      | DELAY (t, dmac) when t <= now ->
-        Printf.printf "ND: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
+  let tick_nud ~now ~st ~nc ~ip ~nb =
+    match nb.state with
+    | INCOMPLETE (t, tn, msg) when t <= now ->
+      if tn < Defaults.max_multicast_solicit then begin
+        Printf.printf "ND: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
+        let src              = select_source_address st in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
+        let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+        let datav            = alloc_ns ~target:ip in
+        let dt               = st.retrans_timer in
+        let nc               = IpMap.add ip {nb with state = INCOMPLETE (Time.add now dt, tn+1, msg)} st.nb_cache in
+        let nc, pkts, timers = output ~now ~st ~nc ~src ~dst datav in
+        nc, pkts, dt :: timers
+      end else begin
+        Printf.printf "ND: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
+        (* TODO Generate ICMP error: Destination Unreachable *)
+        let nc = IpMap.remove ip nc in
+        nc, [], []
+      end
+    | REACHABLE (t, mac) when t <= now ->
+      Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
+      let nc = IpMap.add ip {nb with state = STALE mac} nc in
+      nc, [], []
+    | DELAY (t, dmac) when t <= now ->
+      Printf.printf "ND: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
+      let src              = select_source_address st in
+      let datav            = alloc_ns ~target:ip in
+      let dt               = st.retrans_timer in
+      let nc               = IpMap.add ip {nb with state = PROBE (Time.add now dt, 0, dmac)} nc in
+      let nc, pkts, timers = output ~now ~st ~nc ~src ~dst:ip datav in
+      nc, pkts, dt :: timers
+    | PROBE (t, tn, dmac) when t <= now ->
+      if tn < Defaults.max_unicast_solicit then begin
+        Printf.printf "ND: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
         let src              = select_source_address st in
         let datav            = alloc_ns ~target:ip in
         let dt               = st.retrans_timer in
-        let nb_cache         = IpMap.add ip {nb with state = PROBE (Time.add now dt, 0, dmac)} st.nb_cache in
-        let st               = {st with nb_cache} in
-        let st, pkts, timers = output ~now st ~src ~dst:ip datav in
-        st, pkts, dt :: timers
-      | PROBE (t, tn, dmac) when t <= now ->
-        if tn < Defaults.max_unicast_solicit then begin
-          Printf.printf "ND: %s PROBE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
-          let src              = select_source_address st in
-          let datav            = alloc_ns ~target:ip in
-          let dt               = st.retrans_timer in
-          let nb_cache         = IpMap.add ip {nb with state = PROBE (Time.add now dt, tn+1, dmac)} st.nb_cache in
-          let st               = {st with nb_cache} in
-          let st, pkts, timers = output ~now st ~src ~dst:ip datav in
-          st, pkts, dt :: timers
-        end else begin
-          Printf.printf "ND: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
-          let nb_cache = IpMap.remove ip st.nb_cache in
-          {st with nb_cache}, [], []
-        end
-      | _ ->
-        st, [], []
-    in
+        let nc               = IpMap.add ip {nb with state = PROBE (Time.add now dt, tn+1, dmac)} nc in
+        let nc, pkts, timers = output ~now ~st ~nc ~src ~dst:ip datav in
+        nc, pkts, dt :: timers
+      end else begin
+        Printf.printf "ND: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
+        let nc = IpMap.remove ip nc in
+        nc, [], []
+      end
+    | _ ->
+      nc, [], []
 
-    let st, pkts, timers =
-      IpMap.fold (fun ip nb (st, pkts, timers) ->
-          let st, pkts', timers' = process ip nb st in
-          st, pkts' @ pkts, timers' @ timers) st.nb_cache (st, [], []) in
+  (* val tick : state -> now:Time.t -> state * packet list * Time.Span.t list *)
+  let tick ~st ~nc ~now =
+
+    let nc, pkts, timers =
+      IpMap.fold (fun ip nb (nc, pkts, timers) ->
+          let nc, pkts', timers' = tick_nud ~now ~st ~nc ~ip ~nb in
+          nc, pkts' @ pkts, timers' @ timers) nc (nc, [], [])
+    in
 
     let st =
       if List.exists (fun (_, t) -> t <= now) st.router_list then
@@ -400,7 +398,7 @@ module Engine = struct
                 | _ -> false)
         st.my_ips
     then begin
-      let rec aux st = function
+      let rec aux nc = function
         | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
           if n + 1 >= Defaults.dup_addr_detect_transmits then
             let timeout, timers = match timeout with
@@ -409,39 +407,39 @@ module Engine = struct
                 Some (Time.add now preferred_lifetime, valid_lifetime), [preferred_lifetime]
             in
             Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
-            Some (ip, PREFERRED timeout), st, [], timers
+            Some (ip, PREFERRED timeout), nc, [], timers
           else
-            let datav = alloc_ns ~target:ip in
-            let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-            let st, pkts, timers = output ~now st ~src:Ipaddr.V6.unspecified ~dst datav in
+            let datav            = alloc_ns ~target:ip in
+            let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+            let nc, pkts, timers = output ~now ~st ~nc ~src:Ipaddr.V6.unspecified ~dst datav in
             let dt = st.retrans_timer in
-            Some (ip, TENTATIVE (timeout, n + 1, Time.add now dt)), st, pkts, dt :: timers
+            Some (ip, TENTATIVE (timeout, n + 1, Time.add now dt)), nc, pkts, dt :: timers
         | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
           Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
           let valid_timeout, timers = match valid_lifetime with
             | None -> None, []
             | Some valid_lifetime -> Some (Time.add now valid_lifetime), [valid_lifetime]
           in
-          Some (ip, DEPRECATED valid_timeout), st, [], timers
+          Some (ip, DEPRECATED valid_timeout), nc, [], timers
         | ip, DEPRECATED (Some t) when t <= now ->
           Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
-          None, st, [], []
+          None, nc, [], []
         | addr ->
-          Some addr, st, [], []
+          Some addr, nc, [], []
       in
-      let my_ips, st, pkts, timers =
-        List.fold_right begin fun ip (ips, st, pkts, timers) ->
-          let addr, st, pkts', timers' = aux st ip in
+      let my_ips, nc, pkts, timers =
+        List.fold_right begin fun ip (ips, nc, pkts, timers) ->
+          let addr, nc, pkts', timers' = aux nc ip in
           let pkts                     = pkts' @ pkts in
           let timers                   = timers' @ timers in
           let ips                      = match addr with Some ip -> ip :: ips | None -> ips in
-          ips, st, pkts, timers
-        end st.my_ips ([], st, pkts, timers) in
-      {st with my_ips}, pkts, timers
+          ips, nc, pkts, timers
+        end st.my_ips ([], nc, pkts, timers) in
+      {st with my_ips}, nc, pkts, timers
     end else
-      st, pkts, timers
+      st, nc, pkts, timers
 
-  let update_prefix ~now st pref ~valid =
+  let update_prefix ~now ~st pref ~valid =
     let already_exists = List.mem_assoc pref st.prefix_list in
     match already_exists, Time.Span.to_float valid with
     | false, 0.0 ->
@@ -463,7 +461,7 @@ module Engine = struct
     let d = Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor)) in
     Time.Span.of_float (d *. Time.Span.to_float dt)
 
-  let lookup_prefix st pref =
+  let lookup_prefix ~st pref =
     let rec loop = function
       | (ip, _) :: _ when Ipaddr.V6.Prefix.mem ip pref -> Some ip
       | _ :: rest                                      -> loop rest
@@ -471,15 +469,15 @@ module Engine = struct
     in
     loop st.my_ips
 
-  let add_ip ~now st ?lifetime ip =
+  let add_ip ~now ~st ~nc ?lifetime ip =
     assert (not (List.mem_assq ip st.my_ips));
     let dt               = st.retrans_timer in
     let st               = {st with my_ips = (ip, TENTATIVE (lifetime, 0, Time.add now dt)) :: st.my_ips} in
     let datav            = alloc_ns ~target:ip in
     let src              = Ipaddr.V6.unspecified in
     let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-    let st, pkts, timers = output ~now st ~src ~dst datav in
-    st, pkts, dt :: timers
+    let nc, pkts, timers = output ~now ~st ~nc ~src ~dst datav in
+    st, nc, pkts, dt :: timers
 
   type nd_option_prefix = {
     prf_on_link : bool;
@@ -544,11 +542,11 @@ module Engine = struct
     let opts = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_ra) in
     {ra_cur_hop_limit; ra_router_lifetime; ra_reachable_time; ra_retrans_timer}, opts
 
-  let handle_ra_slla st ~src new_mac =
+  let handle_ra_slla ~nc ~src new_mac =
     Printf.printf "ND: Processing SLLA option in RA\n%!";
     let nb =
-      if IpMap.mem src st.nb_cache then
-        let nb = IpMap.find src st.nb_cache in
+      if IpMap.mem src nc then
+        let nb = IpMap.find src nc in
         if nb.is_router then
           nb
         else
@@ -570,35 +568,36 @@ module Engine = struct
         let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
         nb, []
     in
-    {st with nb_cache = IpMap.add src nb st.nb_cache}, pkts, []
+    IpMap.add src nb nc, pkts
 
-  let handle_ra_prefix ~now st prf =
+  let handle_ra_prefix ~now ~st ~nc prf =
     Printf.printf "ND: Processing PREFIX option in RA\n%!";
     (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
     if prf.prf_valid_lifetime >= prf.prf_preferred_lifetime && Ipaddr.V6.Prefix.link <> prf.prf_prefix then
-      let st, timers =
+      let st, nc, timers =
         if prf.prf_on_link then
-          update_prefix ~now st prf.prf_prefix ~valid:prf.prf_valid_lifetime
+          let st, timers = update_prefix ~now ~st prf.prf_prefix ~valid:prf.prf_valid_lifetime in
+          st, nc, []
         else
-          st, []
+          st, nc, []
       in
       if prf.prf_autonomous && Time.Span.to_float prf.prf_valid_lifetime > 0.0 then
         match lookup_prefix st prf.prf_prefix with
         | Some addr ->
           (* TODO handle already configured SLAAC address 5.5.3 e). *)
-          st, [], timers
+          st, nc, [], timers
         | None ->
           let ip = Ipaddr.V6.Prefix.network_address prf.prf_prefix (Macaddr.interface_addr st.mac) in
-          let st, pkts, timers' =
-            add_ip ~now st ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip
+          let st, nc, pkts, timers' =
+            add_ip ~now ~st ~nc ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip
           in
-          st, pkts, timers' @ timers
+          st, nc, pkts, timers' @ timers
       else
-        st, [], timers
+        st, nc, [], timers
     else
-      st, [], []
+      st, nc, [], []
 
-  let handle_ra ~now st ~src ~dst ra opts =
+  let handle_ra ~now ~st ~nc ~src ~dst ra opts =
     Printf.printf "ND: Received RA from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
     let st =
@@ -623,20 +622,21 @@ module Engine = struct
         st
     in
 
-    let rec process_option st = function
+    let rec process_option ~st ~nc = function
       | SLLA new_mac ->
-        handle_ra_slla st ~src new_mac
+        let nc, pkts = handle_ra_slla ~nc ~src new_mac in
+        st, nc, pkts, []
       | Prefix prf ->
-        handle_ra_prefix ~now st prf
+        handle_ra_prefix ~now ~st ~nc prf
       | _ ->
-        st, [], []
+        st, nc, [], []
     in
 
-    let st, pkts, timers =
-      List.fold_right begin fun opt (st, pkts, timers) ->
-        let st, pkts', timers' = process_option st opt in
-        st, pkts' @ pkts, timers @ timers'
-      end opts (st, [], [])
+    let st, nc, pkts, timers =
+      List.fold_right begin fun opt (st, nc, pkts, timers) ->
+        let st, nc, pkts', timers' = process_option ~st ~nc opt in
+        st, nc, pkts' @ pkts, timers @ timers'
+      end opts (st, nc, [], [])
     in
 
     (* TODO update the is_router flag even if there was no SLLA *)
@@ -663,17 +663,17 @@ module Engine = struct
           st.router_list, []
     in
 
-    {st with router_list}, pkts, timers' @ timers
+    {st with router_list}, nc, pkts, timers' @ timers
 
   let parse_ns buf =
     let ns_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
     let opts      = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_ns) in
     ns_target, opts
 
-  let handle_ns_slla st ~src new_mac =
+  let handle_ns_slla ~nc ~src new_mac =
     let nb =
-      if IpMap.mem src st.nb_cache then
-        IpMap.find src st.nb_cache
+      if IpMap.mem src nc then
+        IpMap.find src nc
       else
         {state = STALE new_mac; is_router = false}
     in
@@ -694,35 +694,35 @@ module Engine = struct
         in
         nb, []
     in
-    {st with nb_cache = IpMap.add src nb st.nb_cache}, pkts
+    IpMap.add src nb nc, pkts
 
-  let handle_ns ~now st ~src ~dst ns_target opts =
+  let handle_ns ~now ~st ~nc ~src ~dst ns_target opts =
     Printf.printf "ND: Received NS from %s to %s with target address %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string ns_target);
 
     (* TODO check hlim = 255, target not mcast, code = 0 *)
 
-    let rec process_option st = function
+    let rec process_option nc = function
       | SLLA new_mac :: _ -> (* FIXME fail if DAD (src = unspec) *)
-        handle_ns_slla st ~src new_mac
+        handle_ns_slla ~nc ~src new_mac
       | _ :: rest ->
-        process_option st rest
+        process_option nc rest
       | [] ->
         (* Printf.printf "ND: ND option (ty=%d,len=%d) not supported in NS\n%!" ty len; *)
-        st, []
+        nc, []
     in
 
-    let st, pkts = process_option st opts in
+    let nc, pkts = process_option nc opts in
 
     if List.mem_assoc ns_target st.my_ips then begin
       let src   = ns_target and dst = src in (* FIXME src & dst *)
       let datav = alloc_na_data ~target:ns_target ~solicited:true in
       Printf.printf "Sending NA to %s from %s with target address %s\n%!"
         (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string ns_target);
-      let st, pkts', timers = output ~now st ~src ~dst datav in
-      st, pkts' @ pkts, timers
+      let nc, pkts', timers = output ~now ~st ~nc ~src ~dst datav in
+      nc, pkts' @ pkts, timers
     end else
-      st, pkts, []
+      nc, pkts, []
 
   type na = {
     na_router : bool;
@@ -739,7 +739,7 @@ module Engine = struct
     let opts         = parse_nd_options (Cstruct.shift buf Ipv6_wire.sizeof_na) in
     {na_router; na_solicited; na_override; na_target}, opts
 
-  let handle_na ~now st ~src ~dst na opts =
+  let handle_na ~now ~st ~nc ~src ~dst na opts =
     Printf.printf "ND: Received NA from %s to %s with target address %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string na.na_target);
 
@@ -754,8 +754,8 @@ module Engine = struct
 
     (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
 
-    if IpMap.mem na.na_target st.nb_cache then begin
-      let nb = IpMap.find na.na_target st.nb_cache in
+    if IpMap.mem na.na_target nc then begin
+      let nb = IpMap.find na.na_target nc in
       match nb.state, new_mac, na.na_solicited, na.na_override with
       | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
         Printf.printf "ND: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
@@ -765,56 +765,56 @@ module Engine = struct
           | None   -> []
           | Some x -> [x new_mac]
         in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, pkts, []
+        IpMap.add na.na_target nb nc, pkts, []
       | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
         Printf.printf "ND: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
-        let dt = st.reachable_time in
-        let nb = {nb with state = REACHABLE (Time.add now dt, new_mac)} in
-        let pkts = match pending with None   -> [] | Some x -> [x new_mac] in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, pkts, [dt]
+        let dt   = st.reachable_time in
+        let nb   = {nb with state = REACHABLE (Time.add now dt, new_mac)} in
+        let pkts = match pending with None -> [] | Some x -> [x new_mac] in
+        IpMap.add na.na_target nb nc, pkts, [dt]
       | INCOMPLETE _, None, _, _ ->
-        let st =
+        let nc =
           if nb.is_router != na.na_router then
-            {st with nb_cache = IpMap.add na.na_target {nb with is_router = na.na_router} st.nb_cache}
+            IpMap.add na.na_target {nb with is_router = na.na_router} nc
           else
-            st
+            nc
         in
-        st, [], []
+        nc, [], []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
         Printf.printf "ND: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         let dt = st.reachable_time in
         let nb = {nb with state = REACHABLE (Time.add now dt, new_mac)} in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, [], [dt]
+        IpMap.add na.na_target nb nc, [], [dt]
       | PROBE (_, _, mac), None, true, false ->
         Printf.printf "ND: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
         let dt = st.reachable_time in
         let nb = {nb with state = REACHABLE (Time.add now dt, mac)} in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, [], [dt]
+        IpMap.add na.na_target nb nc, [], [dt]
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-        let st =
+        let nc =
           if nb.is_router != na.na_router then
-            {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}
+            IpMap.add na.na_target {nb with is_router = na.na_router} nc
           else
-            st
+            nc
         in
-        st, [], []
+        nc, [], []
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
         Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, [], []
+        IpMap.add na.na_target nb nc, [], []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
         let dt = st.reachable_time in
         let nb = {nb with state = REACHABLE (Time.add now dt, new_mac)} in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, [], [dt]
+        IpMap.add na.na_target nb nc, [], [dt]
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
         Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
         let nb = {nb with state = STALE mac} in
-        {st with nb_cache = IpMap.add na.na_target nb st.nb_cache}, [], []
+        IpMap.add na.na_target nb nc, [], []
       | _ ->
-        st, [], []
+        nc, [], []
     end else
-      st, [], []
+      nc, [], []
 
   let is_icmp_error buf =
     let rec loop hdr buf =
@@ -832,18 +832,18 @@ module Engine = struct
     loop (Ipv6_wire.get_ipv6_nhdr buf) (Cstruct.shift buf Ipv6_wire.sizeof_ipv6)
 
   (* buf : packet that caused the error *)
-  let icmp_error_output ~now st ~src ~dst ~ty ~code ~reserved buf =
+  let icmp_error_output ~now ~st ~nc ~src ~dst ~ty ~code ~reserved buf =
     if not (is_icmp_error buf) && Ipaddr.V6.(compare unspecified src) != 0 then
-      let dst = src
-      and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
+      let dst   = src
+      and src   = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
       let datav = alloc_icmp_error ~src ~dst ~ty ~code ~reserved buf in
       Printf.printf "Sending ICMPv6 ERROR message type %d code %d to %s from %s\n%!"
         ty code (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
-      output ~now st ~src ~dst datav
+      output ~now ~st ~nc ~src ~dst datav
     else
-      st, [], []
+      nc, [], []
 
-  let echo_request_input ~now st ~src ~dst buf =
+  let echo_request_input ~now ~st ~nc ~src ~dst buf =
     Printf.printf "Received Echo Request from %s to %s\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
     let dst = src
     and src = if Ipaddr.V6.is_multicast dst then select_source_address st else dst in
@@ -861,37 +861,40 @@ module Engine = struct
       Ipv6_wire.set_icmpv6_csum icmpbuf (cksum ~src ~dst ~proto:58 [icmpbuf; data]);
       [frame; data]
     in
-    output ~now st ~src ~dst datav
+    output ~now ~st ~nc ~src ~dst datav
 
   (* buf : icmp packet *)
-  let icmp_input ~now st ~src ~dst buf poff =
+  let icmp_input ~now ~st ~nc ~src ~dst buf poff =
     let buf = Cstruct.shift buf poff in
     let csum = cksum ~src ~dst ~proto:58 (* ICMP *) [ buf ] in
     if not (csum = 0) then begin
       Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
-      st, [], []
+      st, nc, [], []
     end else begin
       match Ipv6_wire.get_icmpv6_ty buf with
       | 128 -> (* Echo request *)
-        echo_request_input ~now st ~src ~dst buf
+        let nc, pkts, timers = echo_request_input ~now ~st ~nc ~src ~dst buf in
+        st, nc, pkts, timers
       | 129 (* Echo reply *) ->
         Printf.printf "ICMP6: Discarding Echo Reply\n%!";
-        st, [], []
+        st, nc, [], []
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
-        st, [], []
+        st, nc, [], []
       | 134 (* RA *) ->
         let ra, opts = parse_ra buf in
-        handle_ra ~now st ~src ~dst ra opts
+        handle_ra ~now ~st ~nc ~src ~dst ra opts
       | 135 (* NS *) ->
         let ns, opts = parse_ns buf in
-        handle_ns ~now st ~src ~dst ns opts
+        let nc, pkts, timers = handle_ns ~now ~st ~nc ~src ~dst ns opts in
+        st, nc, pkts, timers
       | 136 (* NA *) ->
         let na, opts = parse_na buf in
-        handle_na ~now st ~src ~dst na opts
+        let nc, pkts, timers = handle_na ~now ~st ~nc ~src ~dst na opts in
+        st, nc, pkts, timers
       | n ->
         Printf.printf "ICMP6: unrecognized type (%d)\n%!" n;
-        st, [], []
+        st, nc, [], []
     end
 
   let is_my_addr st ip =
@@ -900,7 +903,7 @@ module Engine = struct
       | ip', _ -> Ipaddr.V6.compare ip' ip = 0
     end st.my_ips
 
-  let handle_packet ~now st buf =
+  let handle_packet ~now ~st ~nc buf =
     let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
     let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
 
@@ -909,7 +912,7 @@ module Engine = struct
     Printf.printf "IPv6 packet received from %s to %s\n%!"
       (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst);
 
-    let rec process_option st poff =
+    let rec process_option ~nc poff =
       let pbuf = Cstruct.shift buf poff in
       let nhdr = Ipv6_wire.get_opt_ty pbuf in
       let olen = Ipv6_wire.get_opt_len pbuf * 8 + 8 in
@@ -933,45 +936,46 @@ module Engine = struct
               loop (ooff+len+2)
             | 0x40 ->
               (* discard the packet *)
-              `Stop, (st, [], [])
+              `Stop, (nc, [], [])
             | 0x80 ->
               (* discard, send icmp error *)
-              `Stop, icmp_error_output ~now st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
+              let r = icmp_error_output ~now ~st ~nc ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf in
+              `Stop, r
             | 0xc0 ->
               (* discard, send icmp error if dest is not mcast *)
               if Ipaddr.V6.is_multicast dst then
-                `Stop, (st, [], [])
+                `Stop, (nc, [], [])
               else
-                `Stop, icmp_error_output ~now st ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
+                `Stop, icmp_error_output ~now ~st ~nc ~src ~dst ~ty:4 ~code:2 ~reserved:(Int32.of_int ooff) buf
             | _ ->
               assert false
         end else
-          `Continue (nhdr, oend), (st, [], [])
+          `Continue (nhdr, oend), (nc, [], [])
       in
       loop (poff+2)
 
     (* See http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers *)
-    and process st first hdr poff =
+    and process ~nc first hdr poff =
       match hdr with
       | 0 (* HOPTOPT *) ->
         Printf.printf "Processing HOPOPT header\n%!";
         if first then
-          match process_option st poff with
-          | `Stop, st_pkts_timers ->
-            `None, st_pkts_timers
+          match process_option ~nc poff with
+          | `Stop, (nc, pkts, timers) ->
+            `None, (st, nc, pkts, timers)
           | `Continue (nhdr, oend), (st, pkts, timers) ->
-            let r, (st, pkts', timers') = process st false nhdr oend in
-            r, (st, pkts @ pkts', timers @ timers')
+            let r, (st, nc, pkts', timers') = process ~nc false nhdr oend in
+            r, (st, nc, pkts @ pkts', timers @ timers')
         else
-          `None, (st, [], [])
+          `None, (st, nc, [], [])
       | 60 (* IPv6-Opts *) ->
         Printf.printf "Processing DESTOPT header\n%!";
-        begin match process_option st poff with
-          | `Stop, st_pkts_timers ->
-            `None, st_pkts_timers
-          | `Continue (nhdr, oend), (st, pkts, timers) ->
-            let r, (st, pkts', timers') = process st false nhdr oend in
-            r, (st, pkts @ pkts', timers @ timers')
+        begin match process_option ~nc poff with
+          | `Stop, (nc, pkts, timers) ->
+            `None, (st, nc, pkts, timers)
+          | `Continue (nhdr, oend), (nc, pkts, timers) ->
+            let r, (st, nc, pkts', timers') = process ~nc false nhdr oend in
+            r, (st, nc, pkts @ pkts', timers @ timers')
         end
       | 43 (* TODO IPv6-Route *)
       | 44 (* TODO IPv6-Frag *)
@@ -979,28 +983,28 @@ module Engine = struct
       | 51 (* TODO AH *)
       | 135 (* TODO Mobility Header *)
       | 59 (* NO NEXT HEADER *) ->
-        `None, (st, [], [])
+        `None, (st, nc, [], [])
       | 58 (* ICMP *) ->
-        `None, icmp_input ~now st ~src ~dst buf poff
+        `None, icmp_input ~now ~st ~nc ~src ~dst buf poff
       | 17 (* UDP *) ->
-        `Udp (src, dst, Cstruct.shift buf poff), (st, [], [])
+        `Udp (src, dst, Cstruct.shift buf poff), (st, nc, [], [])
       | 6 (* TCP *) ->
-        `Tcp (src, dst, Cstruct.shift buf poff), (st, [], [])
+        `Tcp (src, dst, Cstruct.shift buf poff), (st, nc, [], [])
       | n when 143 <= n && n <= 255 ->
         (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
-        `None, (st, [], [])
+        `None, (st, nc, [], [])
       | n ->
-        `Default (n, src, dst, Cstruct.shift buf poff), (st, [], [])
+        `Default (n, src, dst, Cstruct.shift buf poff), (st, nc, [], [])
     in
 
     if Ipaddr.V6.Prefix.(mem src multicast) then begin
       Printf.printf "Dropping packet, src is mcast\n%!";
-      `None, (st, [], [])
+      `None, (st, nc, [], [])
     end else if not (is_my_addr st dst) && not (Ipaddr.V6.Prefix.(mem dst multicast)) then begin
       Printf.printf "Dropping packet, not for me\n%!";
-      `None, (st, [], [])
+      `None, (st, nc, [], [])
     end else
-      process st true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
+      process ~nc true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 
   let create mac =
     { nb_cache    = IpMap.empty;
@@ -1034,16 +1038,18 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
 
   type t =
     { ethif : E.t;
-      mutable state : Engine.state }
+      mutable state : Engine.state;
+      mutable nc : Engine.nb_info Engine.IpMap.t }
 
   let id { ethif } = ethif
 
   let rec tick state =
     Printf.printf "Ticking...\n%!";
-    run state @@ Engine.tick state.state (Time.of_float @@ C.time ())
+    run state @@ Engine.tick ~st:state.state ~nc:state.nc ~now:(Time.of_float @@ C.time ())
 
-  and run state (st, pkts, timers) =
+  and run state (st, nc, pkts, timers) =
     state.state <- st;
+    state.nc <- nc;
     List.iter (fun dt ->
         let dt = Time.Span.to_float dt in
         Printf.printf "Setting up a timer in %.1fs\n%!" dt;
@@ -1051,7 +1057,7 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
     Lwt_list.iter_s (E.writev state.ethif) pkts
 
   let input state ~tcp ~udp ~default buf =
-    let r, pkts_timers = Engine.handle_packet (Time.of_float @@ C.time ()) state.state buf in
+    let r, pkts_timers = Engine.handle_packet ~now:(Time.of_float @@ C.time ()) ~st:state.state ~nc:state.nc buf in
     run state pkts_timers >>= fun () ->
     match r with
     | `None -> Lwt.return_unit
@@ -1060,10 +1066,11 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
     | `Default (proto, src, dst, pkt) -> default ~proto ~src ~dst pkt
 
   let connect ethif =
-    let state = {state = Engine.create (E.mac ethif); ethif} in
+    let state = {state = Engine.create (E.mac ethif); nc = Engine.IpMap.empty; ethif} in
     T.sleep 10.0 >>= fun () ->
     Printf.printf "Starting\n%!";
     run state @@
-    Engine.add_ip (Time.of_float @@ C.time ()) state.state (Macaddr.link_local_addr (E.mac ethif)) >>= fun () ->
+    Engine.add_ip ~now:(Time.of_float @@ C.time ()) ~st:state.state ~nc:state.nc
+      (Macaddr.link_local_addr (E.mac ethif)) >>= fun () ->
     Lwt.return (`Ok state)
 end
