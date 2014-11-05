@@ -797,12 +797,12 @@ let handle_na ~now ~st ~nc ~src ~dst ~na ~opts =
     | _ :: rest        -> get_tlla rest
     | []               -> None
   in
+
   let new_mac = get_tlla opts in
 
   (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
 
-  if IpMap.mem na.na_target nc then begin
-    let nb = IpMap.find na.na_target nc in
+  let update nb =
     match nb.state, new_mac, na.na_solicited, na.na_override with
     | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
       Printf.printf "ND: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
@@ -856,7 +856,12 @@ let handle_na ~now ~st ~nc ~src ~dst ~na ~opts =
       IpMap.add na.na_target nb nc, [], []
     | _ ->
       nc, [], []
-  end else
+  in
+
+  if IpMap.mem na.na_target nc then
+    let nb = IpMap.find na.na_target nc in
+    update nb
+  else
     nc, [], []
 
 let is_icmp_error buf =
