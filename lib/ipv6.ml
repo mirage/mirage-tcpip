@@ -380,14 +380,42 @@ let tick_nud ~now ~st ~nc ~ip ~nb =
       let nc, pkts, timers = output ~now ~st ~nc ~src ~dst:ip datav in
       nc, pkts, dt :: timers
     end else begin
-      Printf.printf "ND: %s PROBE unreachable, discarding\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "ND: %s PROBE failed, discarding\n%!" (Ipaddr.V6.to_string ip);
       let nc = IpMap.remove ip nc in
       nc, [], []
     end
   | _ ->
     nc, [], []
 
-  (* val tick : state -> now:Time.t -> state * packet list * Time.Span.t list *)
+let tick_address ~now ~st ~nc = function
+  | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
+    if n + 1 >= Defaults.dup_addr_detect_transmits then
+      let timeout, timers = match timeout with
+        | None -> None, []
+        | Some (preferred_lifetime, valid_lifetime) ->
+          Some (Time.add now preferred_lifetime, valid_lifetime), [preferred_lifetime]
+      in
+      Printf.printf "DAD: %s TENTATIVE --> PREFERRED\n%!" (Ipaddr.V6.to_string ip);
+      Some (ip, PREFERRED timeout), nc, [], timers
+    else
+      let datav            = alloc_ns ~target:ip in
+      let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
+      let nc, pkts, timers = output ~now ~st ~nc ~src:Ipaddr.V6.unspecified ~dst datav in
+      let dt = st.retrans_timer in
+      Some (ip, TENTATIVE (timeout, n + 1, Time.add now dt)), nc, pkts, dt :: timers
+  | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
+    Printf.printf "DAD : %s PREFERRED --> DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
+    let valid_timeout, timers = match valid_lifetime with
+      | None -> None, []
+      | Some valid_lifetime -> Some (Time.add now valid_lifetime), [valid_lifetime]
+    in
+    Some (ip, DEPRECATED valid_timeout), nc, [], timers
+  | ip, DEPRECATED (Some t) when t <= now ->
+    Printf.printf "DAD: %s DEPRECATED --> EXPIRED\n%!" (Ipaddr.V6.to_string ip);
+    None, nc, [], []
+  | addr ->
+    Some addr, nc, [], []
+
 let tick ~st ~nc ~now =
 
   let nc, pkts, timers =
@@ -396,59 +424,40 @@ let tick ~st ~nc ~now =
         nc, pkts' @ pkts, timers' @ timers) nc (nc, [], [])
   in
 
+  let some_router_expired = List.exists (fun (_, t) -> t <= now) st.router_list in
   let st =
-    if List.exists (fun (_, t) -> t <= now) st.router_list then
+    if some_router_expired then
       {st with router_list = List.filter (fun (_, t) -> t > now) st.router_list}
     else
       st
   in
-  (* TODO expire prefixes *)
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
 
-  if List.exists
-      (function (_, TENTATIVE (_, _, t))
-              | (_, PREFERRED (Some (t, _)))
-              | (_, DEPRECATED (Some t)) -> t <= now
-              | _ -> false)
-      st.my_ips
-  then begin
-    let rec aux nc = function
-      | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
-        if n + 1 >= Defaults.dup_addr_detect_transmits then
-          let timeout, timers = match timeout with
-            | None -> None, []
-            | Some (preferred_lifetime, valid_lifetime) ->
-              Some (Time.add now preferred_lifetime, valid_lifetime), [preferred_lifetime]
-          in
-          Printf.printf "DAD Sucess : IP address %s is now PREFERRED\n%!" (Ipaddr.V6.to_string ip);
-          Some (ip, PREFERRED timeout), nc, [], timers
-        else
-          let datav            = alloc_ns ~target:ip in
-          let dst              = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
-          let nc, pkts, timers = output ~now ~st ~nc ~src:Ipaddr.V6.unspecified ~dst datav in
-          let dt = st.retrans_timer in
-          Some (ip, TENTATIVE (timeout, n + 1, Time.add now dt)), nc, pkts, dt :: timers
-      | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-        Printf.printf "DAD : Address %s is now DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
-        let valid_timeout, timers = match valid_lifetime with
-          | None -> None, []
-          | Some valid_lifetime -> Some (Time.add now valid_lifetime), [valid_lifetime]
-        in
-        Some (ip, DEPRECATED valid_timeout), nc, [], timers
-      | ip, DEPRECATED (Some t) when t <= now ->
-        Printf.printf "DAD : Address %s expired, removing\n%!" (Ipaddr.V6.to_string ip);
-        None, nc, [], []
-      | addr ->
-        Some addr, nc, [], []
-    in
+  let some_prefix_expired = List.exists (function (_, Some t) -> t <= now | _ -> false) st.prefix_list in
+  let st =
+    if some_prefix_expired then
+      {st with prefix_list = List.filter (function (_, Some t) -> t > now | _ -> true) st.prefix_list}
+    else
+      st
+  in
+
+  let some_address_expired =
+    List.exists begin function
+      | _, TENTATIVE (_, _, t) | _, PREFERRED (Some (t, _)) | _, DEPRECATED (Some t) -> t <= now
+      | _ -> false
+    end st.my_ips
+  in
+
+  if some_address_expired then begin
     let my_ips, nc, pkts, timers =
       List.fold_right begin fun ip (ips, nc, pkts, timers) ->
-        let addr, nc, pkts', timers' = aux nc ip in
+        let addr, nc, pkts', timers' = tick_address ~now ~st ~nc ip in
         let pkts                     = pkts' @ pkts in
         let timers                   = timers' @ timers in
         let ips                      = match addr with Some ip -> ip :: ips | None -> ips in
         ips, nc, pkts, timers
-      end st.my_ips ([], nc, pkts, timers) in
+      end st.my_ips ([], nc, pkts, timers)
+    in
     {st with my_ips}, nc, pkts, timers
   end else
     st, nc, pkts, timers
