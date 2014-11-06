@@ -1052,9 +1052,3 @@ let create mac =
     base_reachable_time = Defaults.reachable_time;
     reachable_time      = compute_reachable_time Defaults.reachable_time;
     retrans_timer       = Defaults.retrans_timer }
-
-let get_ipv6_gateways st =
-  List.map fst st.router_list
-
-let get_ipv6 st =
-  List.map fst (List.filter (function (_, TENTATIVE _) -> false | _ -> true) st.my_ips)
