@@ -24,6 +24,7 @@ module type IP = sig
   type t
 
   val id : t -> ethif
+  val writev : t -> ipaddr -> (buffer -> buffer list) -> unit io
   val input : t -> tcp:callback -> udp:callback -> default:(proto:int -> callback) -> buffer -> unit io
   val connect : ethif -> [> `Ok of t] io
   val get_gateways : t -> ipaddr list
@@ -63,6 +64,12 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
         Printf.printf "Setting up a timer in %.1fs\n%!" dt;
         Lwt.ignore_result (T.sleep @@ dt >>= fun () -> tick state)) timers;
     Lwt_list.iter_s (E.writev state.ethif) pkts
+
+  let writev state dst datav =
+    let now = Ipv6.Time.of_float @@ C.time () in
+    let src = Ipv6.select_source_address state.state in
+    let nc, pkts, timers = Ipv6.output ~now ~st:state.state ~nc:state.nc ~src ~dst datav in
+    run state (state.state, nc, pkts, timers)
 
   let input state ~tcp ~udp ~default buf =
     let r, pkts_timers =

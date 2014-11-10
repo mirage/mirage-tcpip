@@ -24,6 +24,7 @@ module type IP = sig
   type t
 
   val id : t -> ethif
+  val writev : t -> ipaddr -> (buffer -> buffer list) -> unit io
   val input : t -> tcp:callback -> udp:callback -> default:(proto:int -> callback) -> buffer -> unit io
   val connect : ethif -> [> `Ok of t] io
   val get_gateways : t -> ipaddr list
