@@ -183,15 +183,12 @@ type state = {
   retrans_timer       : Time.Span.t
 }
 
-(* This will have to be moved somewhere else later, since the same computation
-   is needed for UDP, TCP, ICMP, etc. over IPv6. Also, [Tcpip_checksum] is a
-   bad name since it is used for other protocols as well. *)
-let cksum_buf = Cstruct.create 8
-
-let cksum ~src ~dst ~proto data =
-  Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv data));
-  Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int proto);
-  Tcpip_checksum.ones_complement_list (src :: dst :: cksum_buf :: data)
+let checksum =
+  let cksum_buf = Cstruct.create 8 in
+  fun ~src ~dst ~proto datav ->
+    Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv datav));
+    Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int proto);
+    Tcpip_checksum.ones_complement_list (src :: dst :: cksum_buf :: datav)
 
 let solicited_node_prefix =
   Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
@@ -257,7 +254,7 @@ end = struct
     Ipv6_wire.set_icmpv6_ty       icmpbuf ty;
     Ipv6_wire.set_icmpv6_code     icmpbuf code;
     Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
-    Ipv6_wire.set_icmpv6_csum     icmpbuf @@ cksum ~src ~dst ~proto:58 [ icmpbuf; buf ];
+    Ipv6_wire.set_icmpv6_csum     icmpbuf @@ checksum ~src ~dst ~proto:58 [ icmpbuf; buf ];
     [ frame; buf ]
 
   let ns ~target frame =
@@ -278,7 +275,7 @@ end = struct
     Ipv6_wire.set_llopt_ty    optbuf  1;
     Ipv6_wire.set_llopt_len   optbuf  1;
     Ipv6_wire.blit_llopt_addr (Wire_structs.get_ethernet_src frame) 0 optbuf;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ];
     [ frame ]
 
   let na ~target ~solicited frame =
@@ -299,7 +296,7 @@ end = struct
     Ipv6_wire.set_llopt_ty    optbuf  2;
     Ipv6_wire.set_llopt_len   optbuf  1;
     Ipv6_wire.blit_llopt_addr (Wire_structs.get_ethernet_src frame) 0 optbuf;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ cksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:58 (* ICMP *) [ icmpbuf ];
     [ frame ]
 
   let echo_reply buf frame =
@@ -315,7 +312,7 @@ end = struct
     Ipv6_wire.set_icmpv6_code     icmpbuf 0;
     Ipv6_wire.set_icmpv6_reserved icmpbuf (Ipv6_wire.get_icmpv6_reserved buf);
     Ipv6_wire.set_icmpv6_csum     icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum     icmpbuf (cksum ~src ~dst ~proto:58 [icmpbuf; data]);
+    Ipv6_wire.set_icmpv6_csum     icmpbuf @@ checksum ~src ~dst ~proto:58 [icmpbuf; data];
     [frame; data]
 end
 
@@ -904,7 +901,7 @@ let icmp_input ~now ~st ~nc ~src ~dst buf poff =
   let csum =
     let src  = Ipv6_wire.get_ipv6_src buf in
     let dst  = Ipv6_wire.get_ipv6_dst buf in
-    cksum ~src ~dst ~proto:58 (* ICMP6 *) [ icmpbuf ]
+    checksum ~src ~dst ~proto:58 (* ICMP6 *) [ icmpbuf ]
   in
   if csum != 0 then begin
     Printf.printf "ICMP6 checksum error (0x%x), dropping packet\n%!" csum;
