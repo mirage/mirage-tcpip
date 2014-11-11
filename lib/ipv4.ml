@@ -58,7 +58,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       macb.[3] <- Char.chr ((Char.code ipb.[1]) land 0x7F);
       macb.[4] <- ipb.[2];
       macb.[5] <- ipb.[3];
-      Macaddr.of_bytes macb
+      Macaddr.of_bytes_exn macb
 
     let destination_mac t =
       function
