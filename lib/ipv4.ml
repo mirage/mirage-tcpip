@@ -48,12 +48,26 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       let ipand a b = Int32.logand (Ipaddr.V4.to_int32 a) (Ipaddr.V4.to_int32 b) in
       (ipand t.ip t.netmask) = (ipand ip t.netmask)
 
+    (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
+    let mac_of_multicast ip =
+      let ipb = Ipaddr.V4.to_bytes ip in
+      let macb = String.create 6 in
+      macb.[0] <- Char.chr 0x01;
+      macb.[1] <- Char.chr 0x00;
+      macb.[2] <- Char.chr 0x5E;
+      macb.[3] <- Char.chr ((Char.code ipb.[1]) land 0x7F);
+      macb.[4] <- ipb.[2];
+      macb.[5] <- ipb.[3];
+      Macaddr.of_bytes macb
+
     let destination_mac t =
       function
       |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
         return Macaddr.broadcast
       |ip when is_local t ip -> (* Local *)
         Ethif.query_arpv4 t.ethif ip
+      |ip when Ipaddr.V4.is_multicast ip ->
+        return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
           match t.gateways with
           |hd::_ -> Ethif.query_arpv4 t.ethif hd
