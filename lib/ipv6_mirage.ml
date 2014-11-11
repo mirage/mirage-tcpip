@@ -14,27 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type IP = sig
-  type ethif
-  type 'a io
-  type buffer
-  type ipaddr
-  type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
-
-  type t
-
-  val id : t -> ethif
-  val writev : t -> ipaddr -> (buffer -> buffer list) -> unit io
-  val input : t -> tcp:callback -> udp:callback -> default:(proto:int -> callback) -> buffer -> unit io
-  val connect : ethif -> [> `Ok of t] io
-  val get_gateways : t -> ipaddr list
-  val get_ips : t -> ipaddr list
-end
-
-module type IPV6 = sig
-  include IP with type ipaddr = Ipaddr.V6.t
-end
-
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
@@ -42,13 +21,17 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
   type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
-  type ipaddr = Ipaddr.V6.t
+  type ipaddr   = Ipaddr.V6.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
   type t =
     { ethif : E.t;
       mutable state : Ipv6.state;
       mutable nc : Ipv6.nb_info Ipv6.IpMap.t }
+
+  type error =
+    [ `Unimplemented
+    | `Unknown of string ]
 
   let id { ethif } = ethif
 
@@ -65,13 +48,16 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
         Lwt.ignore_result (T.sleep @@ dt >>= fun () -> tick state)) timers;
     Lwt_list.iter_s (E.writev state.ethif) pkts
 
-  let writev state dst datav =
+  let writev state ~dst datav =
     let now = Ipv6.Time.of_float @@ C.time () in
     let src = Ipv6.select_source_address state.state in
     let nc, pkts, timers = Ipv6.output ~now ~st:state.state ~nc:state.nc ~src ~dst datav in
     run state (state.state, nc, pkts, timers)
 
-  let input state ~tcp ~udp ~default buf =
+  let write state ~dst data =
+    writev state dst (fun h -> [data h])
+
+  let input ~tcp ~udp ~default state buf =
     let r, pkts_timers =
       Ipv6.handle_packet ~now:(Ipv6.Time.of_float @@ C.time ()) ~st:state.state ~nc:state.nc buf
     in
@@ -91,14 +77,16 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
       (Ipv6.Macaddr.link_local_addr (E.mac ethif)) >>= fun () ->
     Lwt.return (`Ok state)
 
-  let get_gateways state =
-    List.map fst state.state.Ipv6.router_list
+  let disconnect _ = (* TODO *)
+    Lwt.return_unit
 
-  let get_ips state =
+  let get_ipv6 state =
     let rec loop = function
       | [] -> []
       | (_, Ipv6.TENTATIVE _) :: rest -> loop rest
       | (ip, (Ipv6.PREFERRED _ | Ipv6.DEPRECATED _)) :: rest -> ip :: loop rest
     in
     loop state.state.Ipv6.my_ips
+
+  let checksum = Ipv6.checksum
 end

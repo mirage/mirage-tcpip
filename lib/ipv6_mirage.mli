@@ -14,27 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type IP = sig
-  type ethif
-  type 'a io
-  type buffer
-  type ipaddr
-  type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
-
-  type t
-
-  val id : t -> ethif
-  val writev : t -> ipaddr -> (buffer -> buffer list) -> unit io
-  val input : t -> tcp:callback -> udp:callback -> default:(proto:int -> callback) -> buffer -> unit io
-  val connect : ethif -> [> `Ok of t] io
-  val get_gateways : t -> ipaddr list
-  val get_ips : t -> ipaddr list
-end
-
-module type IPV6 = sig
-  include IP with type ipaddr = Ipaddr.V6.t
-end
-
-module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) : IPV6
-  with type 'a io = 'a Lwt.t
-   and type buffer = Cstruct.t
+module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) : V2_LWT.IPV6
