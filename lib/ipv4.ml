@@ -81,7 +81,7 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
     in
     Wire_structs.set_ipv4_csum buf checksum
 
-  let writev t ~dst datav =
+  let writev t ~dst ~proto datav =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     (* Something of a layer violation here, but ARP is awkward *)
     Routing.destination_mac t dst >|= Macaddr.to_bytes >>= fun dmac ->
@@ -95,19 +95,15 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
     Wire_structs.set_ipv4_tos buf 0;
     Wire_structs.set_ipv4_off buf 0; (* TODO fragmentation *)
     Wire_structs.set_ipv4_ttl buf 38; (* TODO *)
-    (* let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in *)
-    (* Wire_structs.set_ipv4_proto buf proto; *)
+    let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in
+    Wire_structs.set_ipv4_proto buf proto;
     Wire_structs.set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
     Wire_structs.set_ipv4_dst buf (Ipaddr.V4.to_int32 dst);
-    let frame = Cstruct.sub ethernet_frame 0 (Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv4) in
-    let datav = datav frame in
-    (* return (ethernet_frame, len) *)
+    let len = Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv4 in
+    let datav = datav ethernet_frame len in
     let tlen = Cstruct.lenv datav - Wire_structs.sizeof_ethernet in
-    adjust_output_header ~tlen frame;
+    adjust_output_header ~tlen ethernet_frame;
     Ethif.writev t.ethif datav
-
-  let write t ~dst data =
-    writev t ~dst (fun hdr -> [data hdr])
 
   let icmp_input t src _hdr buf =
     match Wire_structs.get_icmpv4_ty buf with
@@ -122,7 +118,8 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
       Wire_structs.set_icmpv4_ty buf 0;
       Wire_structs.set_icmpv4_csum buf csum;
       (* stick an IPv4 header on the front and transmit *)
-      writev t ~dst:src (fun ipv4_frame -> ipv4_frame :: buf :: [])
+      writev t ~dst:src ~proto:`ICMP
+        (fun ipv4_frame len -> Cstruct.set_len ipv4_frame len :: buf :: [])
     |ty ->
       printf "ICMP unknown ty %d\n" ty;
       return_unit
@@ -145,6 +142,9 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
       udp ~src ~dst data
     | proto ->
       default ~proto ~src ~dst data
+
+  let input_arpv4 t buf =
+    Arpv4.input t.arp buf
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
@@ -176,12 +176,15 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
 
   let checksum =
     let pbuf = Io_page.to_cstruct (Io_page.get 1) in
-    let pbuf = Cstruct.sub pbuf 0 Wire_structs.Tcp_wire.sizeof_tcpv4_pseudo_header in
-    fun ~src ~dst ~proto datav ->
-      Wire_structs.Tcp_wire.set_tcpv4_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
-      Wire_structs.Tcp_wire.set_tcpv4_pseudo_header_dst pbuf (Ipaddr.V4.to_int32 dst);
-      Wire_structs.Tcp_wire.set_tcpv4_pseudo_header_res pbuf 0;
-      Wire_structs.Tcp_wire.set_tcpv4_pseudo_header_proto pbuf proto;
-      Wire_structs.Tcp_wire.set_tcpv4_pseudo_header_len pbuf (Cstruct.lenv datav);
-      Tcpip_checksum.ones_complement_list (pbuf::datav)
+    let pbuf = Cstruct.set_len pbuf 4 in
+    Cstruct.set_uint8 pbuf 0 0;
+    fun ~proto frame buffers ->
+      let proto = match proto with `ICMP -> 1 | `TCP -> 6 | `UDP -> 17 in
+      Cstruct.set_uint8 pbuf 1 proto;
+      Cstruct.BE.set_uint16 pbuf 2 (Cstruct.lenv buffers);
+      let src_dst = Cstruct.sub frame 12 (2 * 4) in
+      Tcpip_checksum.ones_complement_list (src_dst :: pbuf :: buffers)
+
+  let get_source t ~dst =
+    get_ipv4 t
 end
