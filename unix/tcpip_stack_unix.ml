@@ -21,5 +21,8 @@ include Tcpip_stack_direct.Make
     (Netif)
     (Ethif_unix)
     (Ipv4_unix)
+    (Ipv6_unix)
     (Udpv4_unix)
     (Tcpv4_unix.Flow)
+    (Udpv6_unix)
+    (Tcpv6_unix.Flow)
