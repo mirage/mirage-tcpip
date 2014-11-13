@@ -28,18 +28,18 @@ cstruct pseudo_header {
     uint16_t len
   } as big_endian
 
-module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
+module Make(Ip:V2_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)
   module ACK = Ack.Immediate
   module UTX = User_buffer.Tx(Time)(Clock)
-  module WIRE = Wire.Make(Ipv4)
+  module WIRE = Wire.Make(Ip)
   module STATE = State.Make(Time)
 
   type pcb = {
-    id: Wire.id;
+    id: WIRE.id;
     wnd: Window.t;            (* Window information *)
     rxq: RXS.t;               (* Received segments queue for out-of-order data *)
     txq: TXS.t;               (* Transmit segments queue *)
@@ -56,15 +56,15 @@ struct
   type connection_result = [ `Ok of connection | `Rst | `Timeout ]
 
   type t = {
-    ip : Ipv4.t;
+    ip : Ip.t;
     mutable localport : int;
-    channels: (Wire.id, connection) Hashtbl.t;
+    channels: (WIRE.id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
        waiting for ACK *)
-    listens: (Wire.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
+    listens: (WIRE.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (Wire.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   let ip { ip; _ } = ip
@@ -408,7 +408,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match listeners id.Wire.local_port with
+    match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       let tx_wnd = Tcp_wire.get_tcpv4_window pkt in
@@ -474,7 +474,7 @@ struct
     let source_port = Tcp_wire.get_tcpv4_src_port data in
     let dest_port = Tcp_wire.get_tcpv4_dst_port data in
     let id =
-      { Wire.local_port = dest_port;
+      { WIRE.local_port = dest_port;
         dest_ip         = src;
         local_ip        = dst;
         dest_port       = source_port }
@@ -529,7 +529,7 @@ struct
     Tx.close pcb
 
   let get_dest pcb =
-    pcb.id.Wire.dest_ip, pcb.id.Wire.dest_port
+    pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -541,15 +541,15 @@ struct
       Hashtbl.mem t.connects id ||
       Hashtbl.mem t.listens id
     in
-    let inuse t id = islistener t id.Wire.local_port || idinuse t id in
+    let inuse t id = islistener t id.WIRE.local_port || idinuse t id in
     let rec bumpport t =
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
       let id =
-        { Wire.local_port = t.localport;
+        { WIRE.local_port = t.localport;
           dest_ip         = dest_ip;
-          local_ip        = Ipv4.get_ipv4 t.ip;
+          local_ip        = Ip.get_source t.ip dest_ip;
           dest_port       = dest_port }
       in
       if inuse t id then bumpport t else id
