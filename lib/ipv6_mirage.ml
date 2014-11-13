@@ -77,6 +77,9 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
   let disconnect _ = (* TODO *)
     Lwt.return_unit
 
+  let add_ipv6 state ip =
+    run state @@ Ipv6.add_ip ~now:(Ipv6.Time.of_float @@ C.time ()) ~st:state.state ~nc:state.nc ip
+
   let get_ipv6 state =
     let rec loop = function
       | [] -> []
