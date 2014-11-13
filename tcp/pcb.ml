@@ -164,14 +164,14 @@ struct
       | false -> printf "RX.input: checksum error\n%!"; return_unit
       | true ->
         (* URG_TODO: Deal correctly with incomming RST segment *)
-        let sequence = Sequence.of_int32 (Tcp_wire.get_tcpv4_sequence pkt) in
+        let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
         let ack_number =
-          Sequence.of_int32 (Tcp_wire.get_tcpv4_ack_number pkt)
+          Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
         in
         let fin = Tcp_wire.get_fin pkt in
         let syn = Tcp_wire.get_syn pkt in
         let ack = Tcp_wire.get_ack pkt in
-        let window = Tcp_wire.get_tcpv4_window pkt in
+        let window = Tcp_wire.get_tcp_window pkt in
         let data = Wire.get_payload pkt in
         let seg =
           RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
@@ -386,7 +386,7 @@ struct
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         Hashtbl.remove t.connects id;
-        let tx_wnd = Tcp_wire.get_tcpv4_window pkt in
+        let tx_wnd = Tcp_wire.get_tcp_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
            sent in the SYN *)
@@ -411,7 +411,7 @@ struct
     match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
-      let tx_wnd = Tcp_wire.get_tcpv4_window pkt in
+      let tx_wnd = Tcp_wire.get_tcp_window pkt in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -453,9 +453,9 @@ struct
       match Tcp_wire.get_rst pkt with
       | true -> process_reset t id
       | false ->
-        let sequence = Tcp_wire.get_tcpv4_sequence pkt in
+        let sequence = Tcp_wire.get_tcp_sequence pkt in
         let options = Wire.get_options pkt in
-        let ack_number = Tcp_wire.get_tcpv4_ack_number pkt in
+        let ack_number = Tcp_wire.get_tcp_ack_number pkt in
         let syn = Tcp_wire.get_syn pkt in
         let ack = Tcp_wire.get_ack pkt in
         let fin = Tcp_wire.get_fin pkt in
@@ -471,8 +471,8 @@ struct
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    let source_port = Tcp_wire.get_tcpv4_src_port data in
-    let dest_port = Tcp_wire.get_tcpv4_dst_port data in
+    let source_port = Tcp_wire.get_tcp_src_port data in
+    let dest_port = Tcp_wire.get_tcp_dst_port data in
     let id =
       { WIRE.local_port = dest_port;
         dest_ip         = src;

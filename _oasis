@@ -40,20 +40,20 @@ Library ipv6
   Modules:            Ipv6, Ipv6_mirage
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,uint
 
-Library udpv4
+Library udp
   CompiledObject:     best
   Path:               lib
   Findlibparent:      tcpip
-  Findlibname:        udpv4
-  Modules:            Udpv4
+  Findlibname:        udp
+  Modules:            Udp
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
-Library tcpv4
+Library tcp
   CompiledObject:     best
   Pack:               true
   Path:               tcp
   Findlibparent:      tcpip
-  Findlibname:        tcpv4
+  Findlibname:        tcp
   Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,
                       Window,Segment,User_buffer,Pcb,Flow
   BuildDepends:       io-page,
@@ -87,7 +87,7 @@ Library dhcpv4
                       ipaddr,
                       cstruct,
                       lwt,
-                      tcpip.udpv4
+                      tcpip.udp
 
 Library "tcpip-stack-direct"
   CompiledObject:     best
@@ -101,8 +101,8 @@ Library "tcpip-stack-direct"
                       cstruct,
                       lwt,
                       tcpip.ethif,
-                      tcpip.udpv4,
-                      tcpip.tcpv4,
+                      tcpip.udp,
+                      tcpip.tcp,
                       tcpip.dhcpv4
 
 Library "ethif-unix"
@@ -133,7 +133,7 @@ Library "udpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
   Modules:            Udpv4_unix
-  BuildDepends:       tcpip.udpv4,
+  BuildDepends:       tcpip.udp,
                       tcpip.ipv4-unix,
                       lwt,
                       lwt.unix,
@@ -147,7 +147,7 @@ Library "udpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv4-socket
   Modules:            Udpv4_socket
-  BuildDepends:       tcpip.udpv4,
+  BuildDepends:       tcpip.udp,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,
@@ -160,7 +160,7 @@ Library "tcpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
   Modules:            Tcpv4_unix
-  BuildDepends:       tcpip.tcpv4,
+  BuildDepends:       tcpip.tcp,
                       tcpip.ipv4-unix,
                       tcpip.channel,
                       lwt,
