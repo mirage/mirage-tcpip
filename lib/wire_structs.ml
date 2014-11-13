@@ -25,7 +25,7 @@ cstruct icmpv4 {
     uint16_t seq
   } as big_endian
 
-cstruct udpv4 {
+cstruct udp {
     uint16_t source_port;
     uint16_t dest_port;
     uint16_t length;
@@ -33,7 +33,7 @@ cstruct udpv4 {
   } as big_endian
 
 module Tcp_wire = struct
-  cstruct tcpv4 {
+  cstruct tcp {
       uint16_t src_port;
       uint16_t dst_port;
       uint32_t sequence;
@@ -56,8 +56,8 @@ module Tcp_wire = struct
   (* XXX note that we overwrite the lower half of dataoff
    * with 0, so be careful when implemented CWE flag which
    * sits there *)
-  let get_data_offset buf = ((get_tcpv4_dataoff buf) lsr 4) * 4
-  let set_data_offset buf v = set_tcpv4_dataoff buf (v lsl 4)
+  let get_data_offset buf = ((get_tcp_dataoff buf) lsr 4) * 4
+  let set_data_offset buf v = set_tcp_dataoff buf (v lsl 4)
 
   let get_fin buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 0)) > 0
   let get_syn buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 1)) > 0

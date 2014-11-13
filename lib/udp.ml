@@ -38,15 +38,15 @@ module Make(Ip: V2_LWT.IP) = struct
 
   (* FIXME: [t] is not taken into account at all? *)
   let input ~listeners _t ~src ~dst buf =
-    let dst_port = Wire_structs.get_udpv4_dest_port buf in
+    let dst_port = Wire_structs.get_udp_dest_port buf in
     let data =
-      Cstruct.sub buf Wire_structs.sizeof_udpv4
-        (Wire_structs.get_udpv4_length buf - Wire_structs.sizeof_udpv4)
+      Cstruct.sub buf Wire_structs.sizeof_udp
+        (Wire_structs.get_udp_length buf - Wire_structs.sizeof_udp)
     in
     match listeners ~dst_port with
     | None -> return_unit
     | Some fn ->
-      let src_port = Wire_structs.get_udpv4_source_port buf in
+      let src_port = Wire_structs.get_udp_source_port buf in
       fn ~src ~dst ~src_port data
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
@@ -57,14 +57,14 @@ module Make(Ip: V2_LWT.IP) = struct
     Ip.writev t.ip ~dst:dest_ip ~proto:`UDP begin fun ethernet_frame header_len ->
       let udp_buf = Cstruct.shift ethernet_frame header_len in
       let ipv4_frame = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
-      Wire_structs.set_udpv4_source_port udp_buf source_port;
-      Wire_structs.set_udpv4_dest_port udp_buf dest_port;
+      Wire_structs.set_udp_source_port udp_buf source_port;
+      Wire_structs.set_udp_dest_port udp_buf dest_port;
       let csum = Ip.checksum ~proto:`UDP ipv4_frame (udp_buf :: bufs) in
-      Wire_structs.set_udpv4_checksum udp_buf csum;
-      Wire_structs.set_udpv4_length udp_buf
-        (Wire_structs.sizeof_udpv4 + Cstruct.lenv bufs);
+      Wire_structs.set_udp_checksum udp_buf csum;
+      Wire_structs.set_udp_length udp_buf
+        (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
       let frame =
-        Cstruct.set_len ethernet_frame (header_len + Wire_structs.sizeof_udpv4)
+        Cstruct.set_len ethernet_frame (header_len + Wire_structs.sizeof_udp)
       in
       frame :: bufs
     end
