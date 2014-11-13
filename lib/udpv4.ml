@@ -16,14 +16,14 @@
 
 open Lwt
 
-module Make(Ipv4: V1_LWT.IPV4) = struct
+module Make(Ip: V2_LWT.IP) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ipv4 = Ipv4.t
-  type ipv4addr = Ipaddr.V4.t
-  type ipv4input = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
-  type callback = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> src_port:int -> Cstruct.t -> unit Lwt.t
+  type ip = Ip.t
+  type ipaddr = Ip.ipaddr
+  type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
+  type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
   (** IO operation errors *)
   type error = [
@@ -31,7 +31,7 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
   ]
 
   type t = {
-    ip : Ipv4.t;
+    ip : Ip.t;
   }
 
   let id {ip} = ip
@@ -54,18 +54,20 @@ module Make(Ipv4: V1_LWT.IPV4) = struct
       | None -> fail (Failure "TODO; random source port")
       | Some p -> return p
     end >>= fun source_port ->
-    Ipv4.allocate_frame ~proto:`UDP ~dest_ip t.ip
-    >>= fun (ipv4_frame, ipv4_len) ->
-    let udp_buf = Cstruct.shift ipv4_frame ipv4_len in
-    Wire_structs.set_udpv4_source_port udp_buf source_port;
-    Wire_structs.set_udpv4_dest_port udp_buf dest_port;
-    Wire_structs.set_udpv4_checksum udp_buf 0;
-    Wire_structs.set_udpv4_length udp_buf
-      (Wire_structs.sizeof_udpv4 + Cstruct.lenv bufs);
-    let ipv4_frame =
-      Cstruct.set_len ipv4_frame (ipv4_len + Wire_structs.sizeof_udpv4)
-    in
-    Ipv4.writev t.ip ipv4_frame bufs
+    Ip.writev t.ip ~dst:dest_ip ~proto:`UDP begin fun ethernet_frame header_len ->
+      let udp_buf = Cstruct.shift ethernet_frame header_len in
+      let ipv4_frame = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
+      Wire_structs.set_udpv4_source_port udp_buf source_port;
+      Wire_structs.set_udpv4_dest_port udp_buf dest_port;
+      let csum = Ip.checksum ~proto:`UDP ipv4_frame (udp_buf :: bufs) in
+      Wire_structs.set_udpv4_checksum udp_buf csum;
+      Wire_structs.set_udpv4_length udp_buf
+        (Wire_structs.sizeof_udpv4 + Cstruct.lenv bufs);
+      let frame =
+        Cstruct.set_len ethernet_frame (header_len + Wire_structs.sizeof_udpv4)
+      in
+      frame :: bufs
+    end
 
   let write ?source_port ~dest_ip ~dest_port t buf =
     writev ?source_port ~dest_ip ~dest_port t [buf]
