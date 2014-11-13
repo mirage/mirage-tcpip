@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
+module Make(Ip:V2_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
 
   (** Overall state of the TCP stack *)
   type t
@@ -27,16 +27,16 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   (** Result of attempting to open a connection *)
   type connection_result = [ `Ok of connection | `Rst | `Timeout ]
 
-  val ip : t -> Ipv4.t
+  val ip : t -> Ip.t
 
   val input: t -> listeners:(int -> (pcb -> unit Lwt.t) option)
-    -> src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
+    -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
 
-  val connect: t -> dest_ip:Ipaddr.V4.t -> dest_port:int -> connection_result Lwt.t
+  val connect: t -> dest_ip:Ip.ipaddr -> dest_port:int -> connection_result Lwt.t
 
   val close: pcb -> unit Lwt.t
 
-  val get_dest: pcb -> (Ipaddr.V4.t * int)
+  val get_dest: pcb -> (Ip.ipaddr * int)
 
   (* Blocking read for a segment *)
   val read: pcb -> Cstruct.t option Lwt.t
@@ -55,6 +55,6 @@ module Make(Ipv4:V1_LWT.IPV4)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM
   val write_nodelay: pcb -> Cstruct.t -> unit Lwt.t
   val writev_nodelay: pcb -> Cstruct.t list -> unit Lwt.t
 
-  val create: Ipv4.t -> t
+  val create: Ip.t -> t
   (* val tcpstats: t -> unit *)
 end
