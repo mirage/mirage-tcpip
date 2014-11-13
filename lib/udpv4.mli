@@ -15,6 +15,7 @@
  *)
 
 
-module Make ( IP:V1_LWT.IPV4 ) : V1_LWT.UDPV4 
-  with type ipv4 = IP.t
-   and type ipv4input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
+module Make ( IP:V2_LWT.IP ) : V2_LWT.UDP
+  with type ip = IP.t
+   and type ipaddr = IP.ipaddr
+   and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
