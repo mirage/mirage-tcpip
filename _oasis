@@ -21,7 +21,7 @@ Library ethif
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Arpv4
+  Modules:            Ethif
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
 Library ipv4
@@ -29,7 +29,7 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4
+  Modules:            Ipv4, Arpv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library ipv6

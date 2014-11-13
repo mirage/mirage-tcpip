@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 501724b990a8ff00389720b2a2b100e9)
+# DO NOT EDIT (digest: b562bb36ae059fbe3f76436888117e52)
 version = "2.0.1"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -113,7 +113,7 @@ package "stack-direct" (
 )
 
 package "ipv6" (
- version = "2.0.0"
+ version = "2.0.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip uint"
  archive(byte) = "ipv6.cma"
