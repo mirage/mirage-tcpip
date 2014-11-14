@@ -39,20 +39,24 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
     Printf.printf "Ticking...\n%!";
     run state @@ Ipv6.tick ~st:state.state ~nc:state.nc ~now:(Ipv6.Time.of_float @@ C.time ())
 
-  and run state (st, nc, pkts, timers) =
+  and run state (st, nc, acts) =
     state.state <- st;
     state.nc <- nc;
-    List.iter (fun dt ->
+    Lwt_list.iter_s begin function
+      | Ipv6.SetTimer dt ->
         let dt = Ipv6.Time.Span.to_float dt in
         Printf.printf "Setting up a timer in %.1fs\n%!" dt;
-        Lwt.ignore_result (T.sleep @@ dt >>= fun () -> tick state)) timers;
-    Lwt_list.iter_s (E.writev state.ethif) pkts
+        Lwt.ignore_result (T.sleep @@ dt >>= fun () -> tick state);
+        Lwt.return_unit
+      | Ipv6.SendPacket pkt ->
+        E.writev state.ethif pkt
+    end acts
 
   let writev state ~dst ~proto datav =
     let now = Ipv6.Time.of_float @@ C.time () in
     let src = Ipv6.select_source_address state.state in
-    let nc, pkts, timers = Ipv6.output ~now ~st:state.state ~nc:state.nc ~src ~dst ~proto datav in
-    run state (state.state, nc, pkts, timers)
+    let nc, acts = Ipv6.output ~now ~st:state.state ~nc:state.nc ~src ~dst ~proto datav in
+    run state (state.state, nc, acts)
 
   let input ~tcp ~udp ~default state buf =
     let r, pkts_timers =
