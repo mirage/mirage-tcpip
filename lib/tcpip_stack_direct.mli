@@ -49,11 +49,15 @@ module Make
    and type mode    = V2_LWT.direct_stack_config
    and type ipv4addr = Ipv4.ipaddr
    and type ipv6addr = Ipv6.ipaddr
+   and type ipv4    = Ipv4.t
+   and type ipv6    = Ipv6.t
    and type udpv4   = Udpv4.t
    and type tcpv4   = Tcpv4.t
    and type udpv6   = Udpv6.t
    and type tcpv6   = Tcpv6.t
    and module TCPV4 = Tcpv4
    and module UDPV4 = Udpv4
+   and module IPV4 = Ipv4
    and module TCPV6 = Tcpv6
    and module UDPV6 = Udpv6
+   and module IPV6 = Ipv6
