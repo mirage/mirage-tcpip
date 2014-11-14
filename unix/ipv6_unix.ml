@@ -1,1 +1,1 @@
-include Ipv6_mirage.Make (Ethif_unix) (OS.Time) (Clock)
+include Ipv6.Make (Ethif_unix) (OS.Time) (Clock)
