@@ -54,20 +54,15 @@ module Make(Ip: V2_LWT.IP) = struct
       | None -> fail (Failure "TODO; random source port")
       | Some p -> return p
     end >>= fun source_port ->
-    Ip.writev t.ip ~dst:dest_ip ~proto:`UDP begin fun ethernet_frame header_len ->
-      let udp_buf = Cstruct.shift ethernet_frame header_len in
-      let ipv4_frame = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
-      Wire_structs.set_udp_source_port udp_buf source_port;
-      Wire_structs.set_udp_dest_port udp_buf dest_port;
-      let csum = Ip.checksum ~proto:`UDP ipv4_frame (udp_buf :: bufs) in
-      Wire_structs.set_udp_checksum udp_buf csum;
-      Wire_structs.set_udp_length udp_buf
-        (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
-      let frame =
-        Cstruct.set_len ethernet_frame (header_len + Wire_structs.sizeof_udp)
-      in
-      frame :: bufs
-    end
+    let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
+    let udp_buf = Cstruct.shift frame header_len in
+    Wire_structs.set_udp_source_port udp_buf source_port;
+    Wire_structs.set_udp_dest_port udp_buf dest_port;
+    let csum = Ip.checksum frame (udp_buf :: bufs) in
+    Wire_structs.set_udp_checksum udp_buf csum;
+    Wire_structs.set_udp_length udp_buf (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
+    let frame = Cstruct.set_len frame (header_len + Wire_structs.sizeof_udp) in
+    Ip.writev t.ip frame bufs
 
   let write ?source_port ~dest_ip ~dest_port t buf =
     writev ?source_port ~dest_ip ~dest_port t [buf]
