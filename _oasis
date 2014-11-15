@@ -37,7 +37,7 @@ Library ipv6
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv6
-  Modules:            Ipv6_core, Ipv6
+  Modules:            Ipv6, Ndpv6
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,uint
 
 Library udp
