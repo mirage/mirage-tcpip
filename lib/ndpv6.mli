@@ -59,6 +59,7 @@ type action =
   | Sleep        of float
   | SendNS       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t
   | SendNA       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t * bool
+  | SendRS
   | SendQueued   of int * Macaddr.t
   | CancelQueued of int
 

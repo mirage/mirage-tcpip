@@ -152,6 +152,26 @@ let allocate_na state ~src ~dst ~target ~solicited =
   Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
   eth_frame
 
+let allocate_rs state =
+  let src = Ndpv6.select_source_address state in
+  let dst = Ipaddr.V6.link_routers in
+  let eth_frame, header_len = allocate_frame state ~src ~dst ~hlim:255 ~proto:58 () in
+  let include_slla = Ipaddr.V6.(compare src unspecified) = 0 in
+  let eth_frame =
+    Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + if include_slla then Ipv6_wire.sizeof_llopt else 0)
+  in
+  let icmpbuf = Cstruct.shift eth_frame header_len in
+  Ipv6_wire.set_rs_ty icmpbuf 133;
+  Ipv6_wire.set_rs_code icmpbuf 0;
+  Ipv6_wire.set_rs_reserved icmpbuf 0l;
+  if include_slla then begin
+    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
+    Macaddr.to_cstruct_raw (Ndpv6.mac state) optbuf 2
+  end;
+  Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+  Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
+  eth_frame
+
 let allocate_pong state ~src ~dst ~buf =
   let eth_frame, header_len = allocate_frame state ~src ~dst ~hlim:255 ~proto:58 () in
   let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
@@ -378,6 +398,12 @@ let rec run ~now ~state ~queued acts =
         (if solicited then "" else "un")
         (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
       let frame = allocate_na state ~src ~dst ~target ~solicited in
+      let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
+      loop state queued acc (acts' @ acts) rest
+    | Ndpv6.SendRS :: rest ->
+      Printf.printf "Sending RS\n%!";
+      let frame = allocate_rs state in
+      let dst = Ipaddr.V6.link_routers in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
       loop state queued acc (acts' @ acts) rest
     | Ndpv6.SendQueued (i, dmac) :: rest ->
