@@ -49,6 +49,7 @@ module Make (Ip:V2_LWT.IP) = struct
       |[] -> 0
       |options -> Options.marshal options_frame options
     in
+    let tcp_frame = Cstruct.set_len tcp_frame (Tcp_wire.sizeof_tcp + options_len) in
     (* At this point, extend the IPv4 view by the TCP+options size *)
     let frame = Cstruct.set_len frame (header_len + Tcp_wire.sizeof_tcp + options_len) in
     let sequence = Sequence.to_int32 seq in
