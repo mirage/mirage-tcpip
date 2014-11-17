@@ -1,5 +1,5 @@
 wget https://raw.githubusercontent.com/samoht/ocaml-travisci-skeleton/master/.travis-opam.sh
-sh .travis-opam.sh
+PACKAGE=tcpip sh .travis-opam.sh
 
 export OPAMYES=1
 opam remote add mirage git://github.com/mirage/mirage-dev
