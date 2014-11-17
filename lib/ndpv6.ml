@@ -193,6 +193,7 @@ type action =
   | Sleep        of float
   | SendNS       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t
   | SendNA       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t * bool
+  | SendRS
   | SendQueued   of int * Macaddr.t
   | CancelQueued of int
 
@@ -614,7 +615,8 @@ let create ~now mac =
       queue_count         = 0 }
   in
   let ip = link_local_addr mac in
-  add_ip ~now ~state ip
+  let state, acts = add_ip ~now ~state ip in
+  state, SendRS :: acts
 
 type output =
   | SendNow of Macaddr.t
