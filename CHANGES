@@ -1,3 +1,6 @@
+2.0.2 (2014-11-17):
+* Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
+
 2.0.1 (2014-11-04):
 * Fixed race condition in the signalling between the rx/tx threads under load.
 * Experimentally switch to immediate ACKs in TCPv4 by default instead of delayed ones.
