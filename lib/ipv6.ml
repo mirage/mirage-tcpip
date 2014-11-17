@@ -172,18 +172,17 @@ let allocate_rs state =
   Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
   eth_frame
 
-let allocate_pong state ~src ~dst ~buf =
+let allocate_pong state ~src ~dst ~id ~seq ~data =
   let eth_frame, header_len = allocate_frame state ~src ~dst ~hlim:255 ~proto:58 () in
-  let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
+  let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_pingv6) in
   let icmpbuf = Cstruct.shift eth_frame header_len in
-  let reserved = Ipv6_wire.get_icmpv6_reserved buf in
-  let buf = Cstruct.shift buf Ipv6_wire.sizeof_icmpv6 in
-  Ipv6_wire.set_icmpv6_ty       icmpbuf 129; (* ECHO REPLY *)
-  Ipv6_wire.set_icmpv6_code     icmpbuf 0;
-  Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
-  Ipv6_wire.set_icmpv6_csum     icmpbuf 0;
-  Ipv6_wire.set_icmpv6_csum     icmpbuf @@ checksum eth_frame (icmpbuf :: buf :: []);
-  (eth_frame, buf :: [])
+  Ipv6_wire.set_pingv6_ty       icmpbuf 129; (* ECHO REPLY *)
+  Ipv6_wire.set_pingv6_code     icmpbuf 0;
+  Ipv6_wire.set_pingv6_id icmpbuf id;
+  Ipv6_wire.set_pingv6_seq icmpbuf seq;
+  Ipv6_wire.set_pingv6_csum     icmpbuf 0;
+  Ipv6_wire.set_pingv6_csum     icmpbuf @@ checksum eth_frame (icmpbuf :: data :: []);
+  (eth_frame, data :: [])
 
 let float_of_uint32 n =
   Uint32.to_float (Uint32.of_int32 n)
@@ -275,7 +274,9 @@ let parse_icmp ~src ~dst buf poff =
   else
     match Ipv6_wire.get_icmpv6_ty icmpbuf with
     | 128 -> (* Echo request *)
-      `Ping (src, dst, icmpbuf)
+      let id = Cstruct.BE.get_uint16 icmpbuf 4 in
+      let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
+      `Ping (src, dst, id, seq, icmpbuf)
     | 129 (* Echo reply *) ->
       `Pong (Cstruct.shift buf poff)
       (* Printf.printf "ICMP6: Discarding Echo Reply\n%!"; *)
@@ -457,10 +458,12 @@ let input ~now ((state, queued) as st) buf =
     `Default (proto, src, dst, pkt)
   | `DropWithError (ty, code, off) ->
     `Drop (* TODO *)
-  | `Ping (src, dst, buf) ->
+  | `Ping (src, dst, id, seq, data) ->
+    Printf.printf "Received PING from %s to %s (id=%d,seq=%d)\n%!" (Ipaddr.V6.to_string src)
+      (Ipaddr.V6.to_string dst) id seq;
     let dst = src
     and src = if Ipaddr.V6.is_multicast dst then Ndpv6.select_source_address state else dst in
-    let frame, bufs = allocate_pong state ~src ~dst ~buf in
+    let frame, bufs = allocate_pong state ~src ~dst ~id ~seq ~data in
     let st, acts = output ~now st ~dst frame bufs in
     `Act (st, acts)
   | `Pong buf ->
