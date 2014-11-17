@@ -276,7 +276,7 @@ let parse_icmp ~src ~dst buf poff =
     | 128 -> (* Echo request *)
       let id = Cstruct.BE.get_uint16 icmpbuf 4 in
       let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
-      `Ping (src, dst, id, seq, icmpbuf)
+      `Ping (src, dst, id, seq, Cstruct.shift icmpbuf 8)
     | 129 (* Echo reply *) ->
       `Pong (Cstruct.shift buf poff)
       (* Printf.printf "ICMP6: Discarding Echo Reply\n%!"; *)
