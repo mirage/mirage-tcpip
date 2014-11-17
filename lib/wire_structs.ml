@@ -103,6 +103,14 @@ module Ipv6_wire = struct
       uint32_t       reserved
     } as big_endian
 
+  cstruct pingv6 {
+      uint8_t       ty;
+      uint8_t       code;
+      uint16_t      csum;
+      uint16_t      id;
+      uint16_t      seq
+    } as big_endian
+
   cstruct ns {
       uint8_t  ty;
       uint8_t  code;
