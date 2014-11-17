@@ -166,7 +166,12 @@ struct
                     ~listeners:(udpv4_listeners t))
             ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> return_unit)
             t.ipv4)
-        ~ipv6:(fun _ -> return_unit)
+        ~ipv6:(Ipv6.input t.ipv6
+                 ~tcp:(Tcpv6.input t.tcpv6
+                         ~listeners:(tcpv6_listeners t))
+                 ~udp:(Udpv6.input t.udpv6
+                         ~listeners:(udpv6_listeners t))
+                 ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> return_unit))
         t.ethif)
 
   let connect id =
