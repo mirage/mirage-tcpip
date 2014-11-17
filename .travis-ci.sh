@@ -19,5 +19,12 @@ opam install mirage
 
 git clone git://github.com/mirage/mirage-www
 cd mirage-www
-make MODE=xen configure
-make MODE=xen build
+
+if [ "$OCAML_VERSION" = "4.02" ]; then
+  MODE=unix
+else
+  MODE=xen
+fi
+
+make MODE=$MODE configure
+make MODE=$MODE build
