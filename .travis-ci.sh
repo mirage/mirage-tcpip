@@ -14,6 +14,8 @@ opam install tcpip
 # Fails because opam invokes `make configure`
 # which invokes `opam install`, and OPAM isn't reentrant
 #opam install mirage-www
+# But still need the "mirage" command to configure mirage-www
+opam install mirage
 
 git clone git://github.com/mirage/mirage-www
 cd mirage-www
