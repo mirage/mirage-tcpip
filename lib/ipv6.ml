@@ -384,48 +384,45 @@ type action =
   | `Sleep of float ]
 
 let rec run ~now ~state ~queued acts =
-  let rec loop state queued acc acts = function
+  let rec loop state queued acts = function
     | Ndpv6.Sleep dt :: rest ->
       Printf.printf "Sleeping for %.1fs\n%!" dt;
-      loop state queued acc (`Sleep dt :: acts) rest
+      loop state queued (`Sleep dt :: acts) rest
     | Ndpv6.SendNS (src, dst, target) :: rest ->
       Printf.printf "Sending NS from %s to %s with target %s\n%!"
         (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
       let frame = allocate_ns state ~src ~dst ~target in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
-      loop state queued acc (acts' @ acts) rest
+      loop state queued (acts' @ acts) rest
     | Ndpv6.SendNA (src, dst, target, solicited) :: rest ->
       Printf.printf "Sending (%ssolicited) NA from %s to %s with target %s\n%!"
         (if solicited then "" else "un")
         (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
       let frame = allocate_na state ~src ~dst ~target ~solicited in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
-      loop state queued acc (acts' @ acts) rest
+      loop state queued (acts' @ acts) rest
     | Ndpv6.SendRS :: rest ->
       Printf.printf "Sending RS\n%!";
       let frame = allocate_rs state in
       let dst = Ipaddr.V6.link_routers in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
-      loop state queued acc (acts' @ acts) rest
+      loop state queued (acts' @ acts) rest
     | Ndpv6.SendQueued (i, dmac) :: rest ->
       Printf.printf "Sending queued packet #%d to %s\n%!" i (Macaddr.to_string dmac);
       if IntMap.mem i queued then
         let datav = IntMap.find i queued in
         let queued = IntMap.remove i queued in
-        loop state queued acc (`Send (datav dmac) :: acts) rest
+        loop state queued (`Send (datav dmac) :: acts) rest
       else
         (* FIXME log warning / error / assert false *)
-        loop state queued acc acts rest
+        loop state queued acts rest
     | Ndpv6.CancelQueued i :: rest ->
       Printf.printf "Cancelling packet #%d\n%!" i;
-      loop state (IntMap.remove i queued) acc acts rest
+      loop state (IntMap.remove i queued) acts rest
     | [] ->
-      begin match acc with
-        | []       -> (state, queued), acts
-        | x :: acc -> loop state queued acc acts x
-      end
+      (state, queued), acts
   in
-  loop state queued [] [] acts
+  loop state queued [] acts
 
 and output ~now (state, queued) ~dst frame datav =
   let datav dmac =
