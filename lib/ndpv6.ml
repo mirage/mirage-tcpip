@@ -634,8 +634,8 @@ let output ~now ~state ~dst =
     state, SendNow (multicast_mac dst), []
   | false ->
     let ip = next_hop ~state dst in
-    if IpMap.mem dst state.neighbor_cache then
-      let nb = IpMap.find dst state.neighbor_cache in
+    if IpMap.mem ip state.neighbor_cache then
+      let nb = IpMap.find ip state.neighbor_cache in
       match nb.state with
       | INCOMPLETE (t, nt, pending) ->
         let qc = state.queue_count in
