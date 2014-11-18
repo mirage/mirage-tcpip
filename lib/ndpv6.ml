@@ -330,6 +330,12 @@ let update_prefix ~now ~state prf ~valid =
     Printf.printf "ND: Adding prefix %s, lifetime %f\n%!" (Ipaddr.V6.Prefix.to_string prf) dt;
     {state with prefix_list = (prf, Some (now +. dt)) :: state.prefix_list}, [ Sleep dt ]
 
+let add_router ~now ~state ?(lifetime = max_float) ip =
+  {state with router_list = (ip, now +. lifetime) :: state.router_list} (* FIXME *)
+
+let get_routers state =
+  List.map fst state.router_list
+
 let compute_reachable_time dt =
   let r = Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor)) in
   r *. dt
@@ -663,9 +669,3 @@ let get_ipv6 state =
 
 let cur_hop_limit state =
   state.cur_hop_limit
-
-let add_router ~now:_ ~state ip =
-  {state with router_list = (ip, max_float) :: state.router_list} (* FIXME *)
-
-let get_routers state =
-  List.map fst state.router_list
