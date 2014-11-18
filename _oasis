@@ -13,7 +13,9 @@ Library tcpip
   Findlibname:        tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
-  CCOpt:              -O2
+  CCOpt:              -O2 -fno-stack-protector
+  if architecture(amd64)
+        CCOpt+:       -mno-red-zone
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct
 
 Library ethif

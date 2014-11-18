@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 8cf23d699acb50bd658e3bbe11ab0ea1) *)
+(* DO NOT EDIT (digest: 83f3486e958502c40c51b5ec3602efa4) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -630,7 +630,22 @@ let package_default =
      flags =
        [
           (["oasis_library_tcpip_ccopt"; "compile"],
-            [(OASISExpr.EBool true, S [A "-ccopt"; A "-O2"])])
+            [
+               (OASISExpr.EBool true,
+                 S
+                   [A "-ccopt"; A "-O2"; A "-ccopt"; A "-fno-stack-protector"
+                   ]);
+               (OASISExpr.ETest ("architecture", "amd64"),
+                 S
+                   [
+                      A "-ccopt";
+                      A "-O2";
+                      A "-ccopt";
+                      A "-fno-stack-protector";
+                      A "-ccopt";
+                      A "-mno-red-zone"
+                   ])
+            ])
        ];
      includes =
        [
@@ -646,6 +661,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 650 "myocamlbuild.ml"
+# 665 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
