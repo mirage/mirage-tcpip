@@ -1,5 +1,5 @@
-wget https://raw.githubusercontent.com/samoht/ocaml-travisci-skeleton/master/.travis-opam.sh
 PACKAGE=tcpip
+wget https://raw.githubusercontent.com/samoht/ocaml-travisci-skeleton/master/.travis-opam.sh
 sh .travis-opam.sh
 
 export OPAMYES=1
