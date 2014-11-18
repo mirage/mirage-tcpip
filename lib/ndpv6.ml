@@ -643,13 +643,13 @@ let output ~now ~state ~dst =
       | INCOMPLETE (t, nt, pending) ->
         let qc = state.queue_count in
         let acts = match pending with None -> [] | Some qc -> [CancelQueued qc] in
-        let nc = IpMap.add dst {nb with state = INCOMPLETE (t, nt, Some qc)} state.neighbor_cache in
+        let nc = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some qc)} state.neighbor_cache in
         {state with neighbor_cache = nc; queue_count = qc + 1}, SendLater qc, acts
       | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
         state, SendNow dmac, []
       | STALE dmac ->
         let dt = Defaults.delay_first_probe_time in
-        let nc = IpMap.add dst {nb with state = DELAY (now +. dt, dmac)} state.neighbor_cache in
+        let nc = IpMap.add ip {nb with state = DELAY (now +. dt, dmac)} state.neighbor_cache in
         {state with neighbor_cache = nc}, SendNow dmac, [ Sleep dt ]
     else
       let dt  = state.reachable_time in
