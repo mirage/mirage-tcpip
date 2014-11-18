@@ -417,7 +417,7 @@ let rec run ~now ~state ~queued acts =
         (* FIXME log warning / error / assert false *)
         loop state queued acc acts rest
     | Ndpv6.CancelQueued i :: rest ->
-      Printf.printf "Cancelling packet #%d\n$!" i;
+      Printf.printf "Cancelling packet #%d\n%!" i;
       loop state (IntMap.remove i queued) acc acts rest
     | [] ->
       begin match acc with
