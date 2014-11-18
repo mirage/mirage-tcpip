@@ -488,6 +488,15 @@ let add_ip ~now (state, queued) ip =
 let get_ipv6 (state, _) =
   Ndpv6.get_ipv6 state
 
+let add_routers ~now (state, queued) ips =
+  let state =
+    List.fold_left (fun state ip -> Ndpv6.add_router ~now ~state ip) state ips
+  in
+  state, queued
+
+let get_routers (state, _) =
+  Ndpv6.get_routers state
+
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
@@ -571,4 +580,13 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
 
   let get_source t ~dst =
     Ndpv6.select_source_address (fst t.state) (* FIXME dst *)
+
+  let set_ip_gateways t ips =
+    let now = C.time () in
+    let state = add_routers ~now t.state ips in
+    t.state <- state;
+    Lwt.return_unit
+
+  let get_ip_gateways t =
+    get_routers t.state
 end

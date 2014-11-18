@@ -170,11 +170,11 @@ module Make(Ethif : V2_LWT.ETHIF) = struct
 
   let get_ipv4_netmask t = t.netmask
 
-  let set_ipv4_gateways t gateways =
+  let set_ip_gateways t gateways =
     t.gateways <- gateways;
     return_unit
 
-  let get_ipv4_gateways { gateways; _ } = gateways
+  let get_ip_gateways { gateways; _ } = gateways
 
   let checksum =
     let pbuf = Io_page.to_cstruct (Io_page.get 1) in

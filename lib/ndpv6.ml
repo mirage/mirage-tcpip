@@ -663,3 +663,9 @@ let get_ipv6 state =
 
 let cur_hop_limit state =
   state.cur_hop_limit
+
+let add_router ~now:_ ~state ip =
+  {state with router_list = (ip, max_float) :: state.router_list} (* FIXME *)
+
+let get_routers state =
+  List.map fst state.router_list

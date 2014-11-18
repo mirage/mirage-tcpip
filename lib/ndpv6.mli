@@ -84,3 +84,7 @@ val mac : state -> Macaddr.t
 val get_ipv6 : state -> Ipaddr.V6.t list
 
 val cur_hop_limit : state -> int
+
+val add_router : now:float -> state:state -> Ipaddr.V6.t -> state
+
+val get_routers : state -> Ipaddr.V6.t list
