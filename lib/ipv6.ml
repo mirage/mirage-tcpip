@@ -156,7 +156,7 @@ let allocate_rs state =
   let src = Ndpv6.select_source_address state in
   let dst = Ipaddr.V6.link_routers in
   let eth_frame, header_len = allocate_frame state ~src ~dst ~hlim:255 ~proto:58 () in
-  let include_slla = Ipaddr.V6.(compare src unspecified) = 0 in
+  let include_slla = Ipaddr.V6.(compare src unspecified) != 0 in
   let eth_frame =
     Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + if include_slla then Ipv6_wire.sizeof_llopt else 0)
   in
