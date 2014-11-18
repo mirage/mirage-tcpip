@@ -136,7 +136,7 @@ struct
       >>= fun () ->
       Ipv4.set_ipv4_netmask t.ipv4 netmask
       >>= fun () ->
-      Ipv4.set_ipv4_gateways t.ipv4 gateways
+      Ipv4.set_ip_gateways t.ipv4 gateways
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)

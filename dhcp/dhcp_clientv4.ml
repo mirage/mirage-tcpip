@@ -240,7 +240,7 @@ module Make (Console : V1_LWT.CONSOLE)
        |Some nm -> Ipv4.set_ipv4_netmask ip nm
        |None -> return_unit)
       >>= fun () ->
-      Ipv4.set_ipv4_gateways ip info.gateways
+      Ipv4.set_ip_gateways ip info.gateways
       >>= fun () ->
       offer_push (Some info);
       return_unit
