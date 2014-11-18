@@ -169,20 +169,22 @@ let next_hop ~state ip =
   if is_local ~state ip then
     ip
   else
-    let rec select_router best = function
-      | []              -> best
+    (* TODO round-robin on non-potentially reachable routers *)
+    let rec select_router = function
+      | [] -> ip
+      | [ip, _]              -> ip
       | (ip, _) :: rest ->
         if IpMap.mem ip state.neighbor_cache then
           let nb = IpMap.find ip state.neighbor_cache in
           match nb.state with
-          | INCOMPLETE _ -> select_router ip rest
+          | INCOMPLETE _ -> select_router rest
           | _ -> ip
         else
-          select_router best rest
+          select_router rest
     in
     match state.router_list with
-    | []           -> ip
-    | (ip, _) :: _ -> select_router ip state.router_list
+    | [] -> ip
+    | _ -> select_router state.router_list
 
 type packet =
   | NS of ns
@@ -201,25 +203,25 @@ let tick_nud ~now ~state ~ip ~nb =
   match nb.state with
   | INCOMPLETE (t, tn, pending) when t <= now ->
     if tn < Defaults.max_multicast_solicit then begin
-      Printf.printf "ND: %s INCOMPLETE timeout, retrying\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "ND: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.V6.to_string ip);
       let src = select_source_address state in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
       let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
       let dt  = state.retrans_timer in
       let nc  = IpMap.add ip {nb with state = INCOMPLETE (now +. dt, tn+1, pending)} state.neighbor_cache in
       {state with neighbor_cache = nc}, [ Sleep dt ; SendNS (src, dst, ip) ]
     end else begin
-      Printf.printf "ND: %s unrachable, discarding\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "ND: Discarding %s\n%!" (Ipaddr.V6.to_string ip);
       (* TODO Generate ICMP error: Destination Unreachable *)
       let nc = IpMap.remove ip state.neighbor_cache in
       let acts = match pending with None -> [] | Some qc -> [ CancelQueued qc ] in
       {state with neighbor_cache = nc}, acts
     end
   | REACHABLE (t, mac) when t <= now ->
-    Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string ip);
+    Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.V6.to_string ip);
     let nc = IpMap.add ip {nb with state = STALE mac} state.neighbor_cache in
     {state with neighbor_cache = nc}, []
   | DELAY (t, dmac) when t <= now ->
-    Printf.printf "ND: %s DELAY --> PROBE\n%!" (Ipaddr.V6.to_string ip);
+    Printf.printf "ND: %s --> PROBE\n%!" (Ipaddr.V6.to_string ip);
     let src = select_source_address state in
     let dt  = state.retrans_timer in
     let nc  = IpMap.add ip {nb with state = PROBE (now +. dt, 0, dmac)} state.neighbor_cache in
@@ -247,7 +249,7 @@ let tick_address ~now ~state = function
         | Some (preferred_lifetime, valid_lifetime) ->
           Some (now +. preferred_lifetime, valid_lifetime), [ Sleep preferred_lifetime ]
       in
-      Printf.printf "DAD: %s TENTATIVE --> PREFERRED\n%!" (Ipaddr.V6.to_string ip);
+      Printf.printf "DAD: %s --> PREFERRED\n%!" (Ipaddr.V6.to_string ip);
       Some (ip, PREFERRED timeout), acts
     else
       let dst = Ipaddr.V6.Prefix.network_address solicited_node_prefix ip in
@@ -255,14 +257,14 @@ let tick_address ~now ~state = function
       Some (ip, TENTATIVE (timeout, n + 1, now +. dt)),
       [ Sleep dt ; SendNS (Ipaddr.V6.unspecified, dst, ip) ]
   | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-    Printf.printf "DAD : %s PREFERRED --> DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
+    Printf.printf "DAD : %s --> DEPRECATED\n%!" (Ipaddr.V6.to_string ip);
     let valid_timeout, acts = match valid_lifetime with
       | None -> None, []
       | Some valid_lifetime -> Some (now +. valid_lifetime), [ Sleep valid_lifetime ]
     in
     Some (ip, DEPRECATED valid_timeout), acts
   | ip, DEPRECATED (Some t) when t <= now ->
-    Printf.printf "DAD: %s DEPRECATED --> EXPIRED\n%!" (Ipaddr.V6.to_string ip);
+    Printf.printf "DAD: %s --> EXPIRED\n%!" (Ipaddr.V6.to_string ip);
     None, []
   | addr ->
     Some addr, []
@@ -531,12 +533,12 @@ let handle_na ~now ~state ~src ~dst ~na =
   let update nb =
     match nb.state, new_mac, na.na_solicited, na.na_override with
     | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
-      Printf.printf "ND: %s INCOMPLETE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
       let nb = {nb with state = STALE new_mac} in
       let acts = match pending with None -> [] | Some qc -> [ SendQueued (qc, new_mac) ] in
       IpMap.add na.na_target nb nc, acts
     | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
-      Printf.printf "ND: %s INCOMPLETE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
       let dt = state.reachable_time in
       let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
       let acts = match pending with None -> [] | Some qc -> [ SendQueued (qc, new_mac) ] in
@@ -550,12 +552,12 @@ let handle_na ~now ~state ~src ~dst ~na =
       in
       nc, []
     | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-      Printf.printf "ND: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
       let dt = state.reachable_time in
       let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
       IpMap.add na.na_target nb nc, [ Sleep dt ]
     | PROBE (_, _, mac), None, true, false ->
-      Printf.printf "ND: %s PROBE --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
       let dt = state.reachable_time in
       let nb = {nb with state = REACHABLE (now +. dt, mac)} in
       IpMap.add na.na_target nb nc, [ Sleep dt ]
@@ -568,16 +570,17 @@ let handle_na ~now ~state ~src ~dst ~na =
       in
       nc, []
     | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-      Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
       let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
       IpMap.add na.na_target nb nc, []
     | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
+      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.V6.to_string na.na_target);
       let dt = state.reachable_time in
       let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
       IpMap.add na.na_target nb nc, [ Sleep dt ]
     | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
       Some new_mac, false, true when mac <> new_mac ->
-      Printf.printf "ND: %s REACHABLE --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
+      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.V6.to_string na.na_target);
       let nb = {nb with state = STALE mac} in
       IpMap.add na.na_target nb nc, []
     | _ ->
