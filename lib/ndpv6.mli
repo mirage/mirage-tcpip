@@ -67,6 +67,10 @@ val tick : now:float -> state:state -> state * action list
 
 val add_ip : now:float -> state:state -> ?lifetime:(float * float option) -> Ipaddr.V6.t -> state * action list
 
+val add_router : now:float -> state:state -> ?lifetime:float -> Ipaddr.V6.t -> state
+
+val get_routers : state -> Ipaddr.V6.t list
+
 val input : now:float -> state:state -> src:Ipaddr.V6.t -> dst:Ipaddr.V6.t -> packet -> state * action list
 
 val is_my_addr : state:state -> Ipaddr.V6.t -> bool
@@ -84,7 +88,3 @@ val mac : state -> Macaddr.t
 val get_ipv6 : state -> Ipaddr.V6.t list
 
 val cur_hop_limit : state -> int
-
-val add_router : now:float -> state:state -> Ipaddr.V6.t -> state
-
-val get_routers : state -> Ipaddr.V6.t list
