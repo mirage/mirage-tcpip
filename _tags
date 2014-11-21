@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f95d3cb3b41ffaa45a9e71c8e022950a)
+# DO NOT EDIT (digest: be1434f65f13860bb8a95da358f8c77c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -29,7 +29,6 @@ true: annot, bin_annot
 "lib/ipv4.cmxs": use_ipv4
 # Library ipv6
 "lib/ipv6.cmxs": use_ipv6
-<lib/*.ml{,i,y}>: pkg_uint
 # Library udp
 "lib/udp.cmxs": use_udp
 # Library tcp
@@ -51,7 +50,9 @@ true: annot, bin_annot
 <tcp/*.ml{,i,y}>: pkg_ipaddr
 <tcp/*.ml{,i,y}>: pkg_lwt
 <tcp/*.ml{,i,y}>: pkg_mirage-types
+<tcp/*.ml{,i,y}>: pkg_uint
 <tcp/*.ml{,i,y}>: use_ipv4
+<tcp/*.ml{,i,y}>: use_ipv6
 <tcp/*.ml{,i,y}>: use_tcpip
 # Library channel
 "channel/channel.cmxs": use_channel
@@ -76,9 +77,11 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: pkg_uint
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
 <lib/*.ml{,i,y}>: use_ipv4
+<lib/*.ml{,i,y}>: use_ipv6
 <lib/*.ml{,i,y}>: use_tcp
 <lib/*.ml{,i,y}>: use_tcpip
 <lib/*.ml{,i,y}>: use_udp

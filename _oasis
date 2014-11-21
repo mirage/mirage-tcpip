@@ -62,7 +62,8 @@ Library tcp
                       cstruct,
                       lwt,
                       tcpip,
-                      tcpip.ipv4
+                      tcpip.ipv4,
+                      tcpip.ipv6
 
 Library channel
   CompiledObject:     best
