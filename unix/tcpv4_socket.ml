@@ -17,11 +17,11 @@
 open Lwt
 
 type buffer = Cstruct.t
-type ipv4addr = Ipaddr.V4.t
+type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
-type ipv4 = Ipaddr.V4.t option (* interface *)
-type ipv4input = unit io
+type ip = Ipaddr.V4.t option (* interface *)
+type ipinput = unit io
 type callback = flow -> unit io
 
 type t = {
