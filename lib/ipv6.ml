@@ -575,6 +575,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     | `Default (proto, src, dst, pkt) -> default ~proto ~src ~dst pkt
 
   let connect ethif =
+    (* FIXME: remove this pause *)
     T.sleep 10.0 >>= fun () ->
     Printf.printf "Starting\n%!";
     let now = C.time () in
