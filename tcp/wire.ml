@@ -28,7 +28,7 @@ let set_options buf ts =
 let get_payload buf =
   Cstruct.shift buf (Tcp_wire.get_data_offset buf)
 
-module Make (Ip:V2_LWT.IP) = struct
+module Make (Ip:V1_LWT.IP) = struct
   type id = {
     dest_port: int;               (* Remote TCP port *)
     dest_ip: Ip.ipaddr;         (* Remote IP address *)

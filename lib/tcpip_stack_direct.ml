@@ -17,19 +17,19 @@
 open Lwt
 
 type 'ipaddr direct_ip_input = src:'ipaddr -> dst:'ipaddr -> Cstruct.t -> unit Lwt.t
-module type UDPV4_DIRECT = V2_LWT.UDP
+module type UDPV4_DIRECT = V1_LWT.UDP
   with type ipaddr = Ipaddr.V4.t
    and type ipinput = Ipaddr.V4.t direct_ip_input
 
-module type TCPV4_DIRECT = V2_LWT.TCP
+module type TCPV4_DIRECT = V1_LWT.TCP
   with type ipaddr = Ipaddr.V4.t
    and type ipinput = Ipaddr.V4.t direct_ip_input
 
-module type UDPV6_DIRECT = V2_LWT.UDP
+module type UDPV6_DIRECT = V1_LWT.UDP
   with type ipaddr = Ipaddr.V6.t
    and type ipinput = Ipaddr.V6.t direct_ip_input
 
-module type TCPV6_DIRECT = V2_LWT.TCP
+module type TCPV6_DIRECT = V1_LWT.TCP
   with type ipaddr = Ipaddr.V6.t
    and type ipinput = Ipaddr.V6.t direct_ip_input
 
@@ -38,9 +38,9 @@ module Make
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
-    (Ethif   : V2_LWT.ETHIF with type netif = Netif.t)
-    (Ipv4    : V2_LWT.IPV4 with type ethif = Ethif.t)
-    (Ipv6    : V2_LWT.IPV6 with type ethif = Ethif.t)
+    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
+    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Ipv6    : V1_LWT.IPV6 with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t)
     (Udpv6   : UDPV6_DIRECT with type ip = Ipv6.t)
@@ -48,10 +48,10 @@ module Make
 struct
 
   type +'a io = 'a Lwt.t
-  type ('a,'b,'c) config = ('a,'b,'c) V2_LWT.stack_config
+  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stack_config
   type console = Console.t
   type netif = Netif.t
-  type mode = V2_LWT.direct_stack_config
+  type mode = V1_LWT.direct_stack_config
   type id = (console, netif, mode) config
   type buffer = Cstruct.t
   type ipv4addr = Ipv4.ipaddr
@@ -113,7 +113,7 @@ struct
   let listen_tcpv6 t ~port callback =
     Hashtbl.replace t.tcpv6_listeners port callback
 
-  let configure t config =
+  let configure_ipv4 t config =
     match config with
     | `DHCP -> begin
         (* TODO: spawn a background thread to reconfigure the interface
@@ -126,7 +126,7 @@ struct
         | None -> fail (Failure "No DHCP offer received")
         | Some _ -> Console.log_s t.c "DHCP offer received and bound"
       end
-    | `IP (addr, netmask, gateways) ->
+    | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
                            (Ipaddr.V4.to_string addr)
                            (Ipaddr.V4.to_string netmask)
@@ -137,6 +137,26 @@ struct
       Ipv4.set_ipv4_netmask t.ipv4 netmask
       >>= fun () ->
       Ipv4.set_ip_gateways t.ipv4 gateways
+
+  let configure_ipv6 t config =
+    match config with
+    | `DHCP -> fail (Failure "DHCPv6 not implemented")
+    | `SLAAC ->
+      Lwt.return_unit
+    | `IPv6 (addr, prefixes, gateways) ->
+      Console.log_s t.c (Printf.sprintf "Manager: Interface to %s prfx %s gw [%s]\n%!"
+                           (Ipaddr.V6.to_string addr)
+                           (String.concat ", " (List.map Ipaddr.V6.Prefix.to_string prefixes))
+                           (String.concat ", " (List.map Ipaddr.V6.to_string gateways)))
+      >>= fun () ->
+      Ipv6.set_ipv6 t.ipv6 addr
+      >>= fun () ->
+      Lwt_list.iter_s (Ipv6.set_prefix t.ipv6) prefixes
+      >>= fun () ->
+      Ipv6.set_ip_gateways t.ipv6 gateways
+
+  let configure t (ipv4, ipv6) =
+    Lwt.join [ configure_ipv4 t ipv4; configure_ipv6 t ipv6 ]
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
@@ -175,7 +195,7 @@ struct
         t.ethif)
 
   let connect id =
-    let { V2_LWT.console = c; interface = netif; mode; _ } = id in
+    let { V1_LWT.console = c; interface = netif; mode; _ } = id in
     let or_error fn t err =
       fn t
       >>= function

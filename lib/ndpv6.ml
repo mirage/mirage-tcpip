@@ -332,6 +332,10 @@ let update_prefix ~now ~state prf ~valid =
     Printf.printf "ND: Adding prefix %s, lifetime %f\n%!" (Ipaddr.V6.Prefix.to_string prf) dt;
     {state with prefix_list = (prf, Some (now +. dt)) :: state.prefix_list}, [ Sleep dt ]
 
+let add_prefix ~now ~state prf =
+  let valid = max_float in
+  update_prefix ~now ~state prf ~valid
+
 let add_router ~now ~state ?(lifetime = max_float) ip =
   {state with router_list = (ip, now +. lifetime) :: state.router_list} (* FIXME *)
 
@@ -626,6 +630,9 @@ let create ~now mac =
   let ip = link_local_addr mac in
   let state, acts = add_ip ~now ~state ip in
   state, SendRS :: acts
+
+let prefix_list ~state =
+  List.map fst state.prefix_list
 
 type output =
   | SendNow of Macaddr.t

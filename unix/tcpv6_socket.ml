@@ -17,10 +17,10 @@
 open Lwt
 
 type buffer = Cstruct.t
-type ipaddr = Ipaddr.V4.t
+type ipaddr = Ipaddr.V6.t
 type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
-type ip = Ipaddr.V4.t option (* interface *)
+type ip = Ipaddr.V6.t option (* interface *)
 type ipinput = unit io
 type callback = flow -> unit io
 
@@ -39,7 +39,7 @@ let connect id =
   let t =
     match id with
     | None -> { interface=None }
-    | Some ip -> { interface=Some (Ipaddr_unix.V4.to_inet_addr ip) }
+    | Some ip -> { interface=Some (Ipaddr_unix.V6.to_inet_addr ip) }
   in
   return (`Ok t)
 
@@ -49,23 +49,23 @@ let disconnect _ =
 let id {interface} =
   match interface with
   | None -> None
-  | Some i -> Some (Ipaddr_unix.V4.of_inet_addr_exn i)
+  | Some i -> Some (Ipaddr_unix.V6.of_inet_addr_exn i)
 
 let get_dest fd =
   match Lwt_unix.getpeername fd with
   | Unix.ADDR_UNIX _ ->
     raise (Failure "unexpected: got a unix instead of tcp sock")
   | Unix.ADDR_INET (ia,port) -> begin
-      match Ipaddr_unix.V4.of_inet_addr ia with
-      | None -> raise (Failure "got a ipv6 sock instead of a tcpv4 one")
+      match Ipaddr_unix.V6.of_inet_addr ia with
+      | None -> raise (Failure "got a ipv4 sock instead of a tcpv6 one")
       | Some ip -> ip,port
     end
 
 let create_connection _t (dst,dst_port) =
-  let fd = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
+  let fd = Lwt_unix.socket Lwt_unix.PF_INET6 Lwt_unix.SOCK_STREAM 0 in
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
-        (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
+        (Lwt_unix.ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
       >>= fun () ->
       return (`Ok fd))
     (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))

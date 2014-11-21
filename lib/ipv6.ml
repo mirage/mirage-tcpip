@@ -501,6 +501,10 @@ let add_ip ~now (state, queued) ip =
 let get_ipv6 (state, _) =
   Ndpv6.get_ipv6 state
 
+let add_prefix ~now (state, queued) prf =
+  let state, acts = Ndpv6.add_prefix ~now ~state prf in
+  run ~now ~state ~queued acts
+
 let add_routers ~now (state, queued) ips =
   let state =
     List.fold_left (fun state ip -> Ndpv6.add_router ~now ~state ip) state ips
@@ -513,12 +517,13 @@ let get_routers (state, _) =
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
-module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
+module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
   type ipaddr   = Ipaddr.V6.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
+  type prefix   = Ipaddr.V6.Prefix.t
 
   type queued = (Macaddr.t -> Cstruct.t list) IntMap.t
   type t =
@@ -581,7 +586,7 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
   let disconnect _ = (* TODO *)
     Lwt.return_unit
 
-  let add_ipv6 t ip =
+  let set_ipv6 t ip =
     let state, acts = add_ip ~now:(C.time ()) t.state ip in
     t.state <- state;
     run t acts
@@ -602,4 +607,13 @@ module Make (E : V2_LWT.ETHIF) (T : V2_LWT.TIME) (C : V2.CLOCK) = struct
 
   let get_ip_gateways t =
     get_routers t.state
+
+  let get_prefixes t =
+    Ndpv6.prefix_list (fst t.state)
+
+  let set_prefix t pfx =
+    let now = C.time () in
+    let state, acts = add_prefix ~now t.state pfx in
+    t.state <- state;
+    run t acts
 end
