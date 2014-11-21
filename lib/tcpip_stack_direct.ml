@@ -113,7 +113,7 @@ struct
   let listen_tcpv6 t ~port callback =
     Hashtbl.replace t.tcpv6_listeners port callback
 
-  let configure_ipv4 t config =
+  let configure t config =
     match config with
     | `DHCP -> begin
         (* TODO: spawn a background thread to reconfigure the interface
@@ -138,25 +138,25 @@ struct
       >>= fun () ->
       Ipv4.set_ip_gateways t.ipv4 gateways
 
-  let configure_ipv6 t config =
-    match config with
-    | `DHCP -> fail (Failure "DHCPv6 not implemented")
-    | `SLAAC ->
-      Lwt.return_unit
-    | `IPv6 (addr, prefixes, gateways) ->
-      Console.log_s t.c (Printf.sprintf "Manager: Interface to %s prfx %s gw [%s]\n%!"
-                           (Ipaddr.V6.to_string addr)
-                           (String.concat ", " (List.map Ipaddr.V6.Prefix.to_string prefixes))
-                           (String.concat ", " (List.map Ipaddr.V6.to_string gateways)))
-      >>= fun () ->
-      Ipv6.set_ipv6 t.ipv6 addr
-      >>= fun () ->
-      Lwt_list.iter_s (Ipv6.set_prefix t.ipv6) prefixes
-      >>= fun () ->
-      Ipv6.set_ip_gateways t.ipv6 gateways
+  (* let configure_ipv6 t config = *)
+  (*   match config with *)
+  (*   | `DHCP -> fail (Failure "DHCPv6 not implemented") *)
+  (*   | `SLAAC -> *)
+  (*     Lwt.return_unit *)
+  (*   | `IPv6 (addr, prefixes, gateways) -> *)
+  (*     Console.log_s t.c (Printf.sprintf "Manager: Interface to %s prfx %s gw [%s]\n%!" *)
+  (*                          (Ipaddr.V6.to_string addr) *)
+  (*                          (String.concat ", " (List.map Ipaddr.V6.Prefix.to_string prefixes)) *)
+  (*                          (String.concat ", " (List.map Ipaddr.V6.to_string gateways))) *)
+  (*     >>= fun () -> *)
+  (*     Ipv6.set_ipv6 t.ipv6 addr *)
+  (*     >>= fun () -> *)
+  (*     Lwt_list.iter_s (Ipv6.set_prefix t.ipv6) prefixes *)
+  (*     >>= fun () -> *)
+  (*     Ipv6.set_ip_gateways t.ipv6 gateways *)
 
-  let configure t (ipv4, ipv6) =
-    Lwt.join [ configure_ipv4 t ipv4; configure_ipv6 t ipv6 ]
+  (* let configure t (ipv4, ipv6) = *)
+  (*   Lwt.join [ configure_ipv4 t ipv4; configure_ipv6 t ipv6 ] *)
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
