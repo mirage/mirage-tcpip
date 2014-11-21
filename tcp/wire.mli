@@ -18,7 +18,7 @@ val get_options : Cstruct.t -> Options.t list
 val set_options : Cstruct.t -> Options.t list -> int
 val get_payload : Cstruct.t -> Cstruct.t
 
-module Make(Ip:V2_LWT.IP) : sig
+module Make(Ip:V1_LWT.IP) : sig
   type id = {
     dest_port: int;               (* Remote TCP port *)
     dest_ip: Ip.ipaddr;         (* Remote IP address *)

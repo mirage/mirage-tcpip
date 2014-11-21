@@ -17,7 +17,7 @@
 
 (** INTERNAL: ARP protocol. *)
 
-module Make (Ethif : V2_LWT.ETHIF) : sig
+module Make (Ethif : V1_LWT.ETHIF) : sig
   (** Type of an ARP record. ARP records are included in Ethif.t
       values. They contain, among other bits, a list of bound IPs, and a
       IPv4 -> MAC hashtbl. *)

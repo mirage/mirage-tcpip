@@ -18,7 +18,7 @@
 open Lwt
 open Printf
 
-module Make (Ethif : V2_LWT.ETHIF) = struct
+module Make (Ethif : V1_LWT.ETHIF) = struct
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
