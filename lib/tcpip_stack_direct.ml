@@ -48,10 +48,10 @@ module Make
 struct
 
   type +'a io = 'a Lwt.t
-  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stack_config
+  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.netstack_config
   type console = Console.t
   type netif = Netif.t
-  type mode = V1_LWT.direct_stack_config
+  type mode = V1_LWT.direct_netstack_config
   type id = (console, netif, mode) config
   type buffer = Cstruct.t
   type ipv4addr = Ipv4.ipaddr

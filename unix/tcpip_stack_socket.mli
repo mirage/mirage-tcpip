@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACK
+module Make(Console:V1_LWT.CONSOLE) : V1_LWT.NETSTACK
   with type console = Console.t
    and type netif   = Ipaddr.V4.t list
    and type mode    = unit

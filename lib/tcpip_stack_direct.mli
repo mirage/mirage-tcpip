@@ -43,10 +43,10 @@ module Make
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t)
     (Udpv6   : UDPV6_DIRECT with type ip = Ipv6.t)
     (Tcpv6   : TCPV6_DIRECT with type ip = Ipv6.t) :
-  V1_LWT.STACK
+  V1_LWT.NETSTACK
   with type console = Console.t
    and type netif   = Netif.t
-   and type mode    = V1_LWT.direct_stack_config
+   and type mode    = V1_LWT.direct_netstack_config
    and type ipv4addr = Ipv4.ipaddr
    and type ipv6addr = Ipv6.ipaddr
    and type ipv4    = Ipv4.t
