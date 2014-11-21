@@ -1,3 +1,7 @@
+2.1.0 (trunk):
+* Add IPv6 support (#70 from Nicolas Ojeda Bar).
+* Depend on Mirage 2.1.0 API interfaces.
+
 2.0.2 (2014-11-17):
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
 
