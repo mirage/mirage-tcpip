@@ -19,6 +19,8 @@ open Printf
 
 module Make(Ethif : V1_LWT.ETHIF) = struct
 
+  module Arpv4 = Arpv4.Make (Ethif)
+
   (** IO operation errors *)
   type error = [
     | `Unknown of string (** an undiagnosed error *)
@@ -28,11 +30,13 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ipv4addr = Ipaddr.V4.t
-  type callback = src:ipv4addr -> dst:ipv4addr -> buffer -> unit Lwt.t
+  type ipaddr = Ipaddr.V4.t
+  type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
+  type macaddr = Ethif.macaddr
 
   type t = {
     ethif: Ethif.t;
+    arp : Arpv4.t;
     mutable ip: Ipaddr.V4.t;
     mutable netmask: Ipaddr.V4.t;
     mutable gateways: Ipaddr.V4.t list;
@@ -65,24 +69,31 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
         return Macaddr.broadcast
       |ip when is_local t ip -> (* Local *)
-        Ethif.query_arpv4 t.ethif ip
+        Arpv4.query t.arp ip
       |ip when Ipaddr.V4.is_multicast ip ->
         return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
           match t.gateways with
-          |hd::_ -> Ethif.query_arpv4 t.ethif hd
+          |hd::_ -> Arpv4.query t.arp hd
           |[] ->
             printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
             fail (No_route_to_destination_address ip)
         end
   end
 
-  let allocate_frame ~proto ~dest_ip t =
+  let adjust_output_header ~dmac ~tlen frame =
+    Wire_structs.set_ethernet_dst dmac 0 frame;
+    let buf = Cstruct.sub frame Wire_structs.sizeof_ethernet Wire_structs.sizeof_ipv4 in
+    (* Set the mutable values in the ipv4 header *)
+    Wire_structs.set_ipv4_len buf tlen;
+    Wire_structs.set_ipv4_id buf (Random.int 65535); (* TODO *)
+    Wire_structs.set_ipv4_csum buf 0;
+    let checksum = Tcpip_checksum.ones_complement buf in
+    Wire_structs.set_ipv4_csum buf checksum
+
+  let allocate_frame t ~dst ~proto =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-    (* Something of a layer violation here, but ARP is awkward *)
-    Routing.destination_mac t dest_ip >|= Macaddr.to_bytes >>= fun dmac ->
     let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
-    Wire_structs.set_ethernet_dst dmac 0 ethernet_frame;
     Wire_structs.set_ethernet_src smac 0 ethernet_frame;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x0800;
     let buf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
@@ -94,41 +105,20 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let proto = match proto with |`ICMP -> 1 |`TCP -> 6 |`UDP -> 17 in
     Wire_structs.set_ipv4_proto buf proto;
     Wire_structs.set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
-    Wire_structs.set_ipv4_dst buf (Ipaddr.V4.to_int32 dest_ip);
+    Wire_structs.set_ipv4_dst buf (Ipaddr.V4.to_int32 dst);
     let len = Wire_structs.sizeof_ethernet + Wire_structs.sizeof_ipv4 in
-    return (ethernet_frame, len)
+    (ethernet_frame, len)
 
-  let adjust_output_header ~tlen frame =
-    let buf =
-      Cstruct.sub frame Wire_structs.sizeof_ethernet Wire_structs.sizeof_ipv4
-    in
-    (* Set the mutable values in the ipv4 header *)
-    Wire_structs.set_ipv4_len buf tlen;
-    Wire_structs.set_ipv4_id buf (Random.int 65535); (* TODO *)
-    Wire_structs.set_ipv4_csum buf 0;
-    let checksum =
-      Tcpip_checksum.ones_complement
-        (Cstruct.sub buf 0 Wire_structs.sizeof_ipv4)
-    in
-    Wire_structs.set_ipv4_csum buf checksum
+  let writev t frame bufs =
+    let dst = Ipaddr.V4.of_int32 (Wire_structs.get_ipv4_dst (Cstruct.shift frame Wire_structs.sizeof_ethernet)) in
+    (* Something of a layer violation here, but ARP is awkward *)
+    Routing.destination_mac t dst >|= Macaddr.to_bytes >>= fun dmac ->
+    let tlen = Cstruct.len frame + Cstruct.lenv bufs - Wire_structs.sizeof_ethernet in
+    adjust_output_header ~dmac ~tlen frame;
+    Ethif.writev t.ethif (frame :: bufs)
 
-  (* We write a whole frame, truncated from the right where the
-   * packet data stops.
-  *)
-  let write t frame data =
-    let ihl = 5 in (* TODO options *)
-    let tlen = (ihl * 4) + (Cstruct.len data) in
-    adjust_output_header ~tlen frame;
-    Ethif.writev t.ethif [frame;data]
-
-  let writev t ethernet_frame bufs =
-    let tlen =
-      Cstruct.len ethernet_frame
-      - Wire_structs.sizeof_ethernet
-      + Cstruct.lenv bufs
-    in
-    adjust_output_header ~tlen ethernet_frame;
-    Ethif.writev t.ethif (ethernet_frame::bufs)
+  let write t frame buf =
+    writev t frame [buf]
 
   let icmp_input t src _hdr buf =
     match Wire_structs.get_icmpv4_ty buf with
@@ -143,14 +133,14 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       Wire_structs.set_icmpv4_ty buf 0;
       Wire_structs.set_icmpv4_csum buf csum;
       (* stick an IPv4 header on the front and transmit *)
-      allocate_frame ~proto:`ICMP ~dest_ip:src t >>= fun (ipv4_frame, ipv4_len) ->
-      let ipv4_frame = Cstruct.set_len ipv4_frame ipv4_len in
-      write t ipv4_frame buf
+      let frame, header_len = allocate_frame t ~dst:src ~proto:`ICMP in
+      let frame = Cstruct.set_len frame header_len in
+      write t frame buf
     |ty ->
       printf "ICMP unknown ty %d\n" ty;
       return_unit
 
-  let input ~tcp ~udp ~default t buf =
+  let input t ~tcp ~udp ~default buf =
     (* buf pointers to to start of IPv4 header here *)
     let ihl = (Wire_structs.get_ipv4_hlen_version buf land 0xf) * 4 in
     let src = Ipaddr.V4.of_int32 (Wire_structs.get_ipv4_src buf) in
@@ -169,11 +159,14 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     | proto ->
       default ~proto ~src ~dst data
 
+  let input_arpv4 t buf =
+    Arpv4.input t.arp buf
+
   let connect ethif =
     let ip = Ipaddr.V4.any in
     let netmask = Ipaddr.V4.any in
     let gateways = [] in
-    let t = { ethif; ip; netmask; gateways } in
+    let t = { ethif; arp = Arpv4.create ethif; ip; netmask; gateways } in
     return (`Ok t)
 
   let disconnect _ = return_unit
@@ -181,7 +174,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
   let set_ipv4 t ip =
     t.ip <- ip;
     (* Inform ARP layer of new IP *)
-    Ethif.add_ipv4 t.ethif ip
+    Arpv4.add_ip t.arp ip
 
   let get_ipv4 t = t.ip
 
@@ -191,10 +184,23 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
 
   let get_ipv4_netmask t = t.netmask
 
-  let set_ipv4_gateways t gateways =
+  let set_ip_gateways t gateways =
     t.gateways <- gateways;
     return_unit
 
-  let get_ipv4_gateways { gateways; _ } = gateways
+  let get_ip_gateways { gateways; _ } = gateways
 
+  let checksum =
+    let pbuf = Io_page.to_cstruct (Io_page.get 1) in
+    let pbuf = Cstruct.set_len pbuf 4 in
+    Cstruct.set_uint8 pbuf 0 0;
+    fun frame bufs ->
+      let frame = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+      Cstruct.set_uint8 pbuf 1 (Wire_structs.get_ipv4_proto frame);
+      Cstruct.BE.set_uint16 pbuf 2 (Cstruct.lenv bufs);
+      let src_dst = Cstruct.sub frame 12 (2 * 4) in
+      Tcpip_checksum.ones_complement_list (src_dst :: pbuf :: bufs)
+
+  let get_source t ~dst =
+    get_ipv4 t
 end

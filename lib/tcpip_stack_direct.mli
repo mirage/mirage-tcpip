@@ -14,12 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
-module type UDPV4_DIRECT = V1_LWT.UDPV4
-  with type ipv4input = direct_ipv4_input
+type 'ipaddr direct_ip_input = src:'ipaddr -> dst:'ipaddr -> Cstruct.t -> unit Lwt.t
+module type UDPV4_DIRECT = V1_LWT.UDP
+  with type ipaddr = Ipaddr.V4.t
+   and type ipinput = Ipaddr.V4.t direct_ip_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipv4input = direct_ipv4_input
+module type TCPV4_DIRECT = V1_LWT.TCP
+  with type ipaddr = Ipaddr.V4.t
+   and type ipinput = Ipaddr.V4.t direct_ip_input
+
+module type UDPV6_DIRECT = V1_LWT.UDP
+  with type ipaddr = Ipaddr.V6.t
+   and type ipinput = Ipaddr.V6.t direct_ip_input
+
+module type TCPV6_DIRECT = V1_LWT.TCP
+  with type ipaddr = Ipaddr.V6.t
+   and type ipinput = Ipaddr.V6.t direct_ip_input
 
 module Make
     (Console : V1_LWT.CONSOLE)
@@ -28,13 +38,26 @@ module Make
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) :
-  V1_LWT.STACKV4
+    (Ipv6    : V1_LWT.IPV6 with type ethif = Ethif.t)
+    (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
+    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t)
+    (Udpv6   : UDPV6_DIRECT with type ip = Ipv6.t)
+    (Tcpv6   : TCPV6_DIRECT with type ip = Ipv6.t) :
+  V1_LWT.STACK
   with type console = Console.t
    and type netif   = Netif.t
    and type mode    = V1_LWT.direct_stack_config
+   and type ipv4addr = Ipv4.ipaddr
+   and type ipv6addr = Ipv6.ipaddr
+   and type ipv4    = Ipv4.t
+   and type ipv6    = Ipv6.t
    and type udpv4   = Udpv4.t
    and type tcpv4   = Tcpv4.t
+   and type udpv6   = Udpv6.t
+   and type tcpv6   = Tcpv6.t
    and module TCPV4 = Tcpv4
    and module UDPV4 = Udpv4
+   and module IPV4 = Ipv4
+   and module TCPV6 = Tcpv6
+   and module UDPV6 = Udpv6
+   and module IPV6 = Ipv6
