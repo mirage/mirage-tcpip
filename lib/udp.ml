@@ -16,7 +16,7 @@
 
 open Lwt
 
-module Make(Ip: V2_LWT.IP) = struct
+module Make(Ip: V1_LWT.IP) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t

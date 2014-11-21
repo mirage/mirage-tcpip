@@ -63,9 +63,13 @@ type action =
   | SendQueued   of int * Macaddr.t
   | CancelQueued of int
 
+val prefix_list : state:state -> Ipaddr.V6.Prefix.t list
+
 val tick : now:float -> state:state -> state * action list
 
 val add_ip : now:float -> state:state -> ?lifetime:(float * float option) -> Ipaddr.V6.t -> state * action list
+
+val add_prefix : now:float -> state:state -> Ipaddr.V6.Prefix.t -> state * action list
 
 val add_router : now:float -> state:state -> ?lifetime:float -> Ipaddr.V6.t -> state
 

@@ -16,7 +16,7 @@
 
 open Lwt
 
-module Make(IP:V2_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
