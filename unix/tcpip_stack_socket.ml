@@ -41,7 +41,7 @@ module Udpv6 = Udpv6_socket
 
 module Make(Console:V1_LWT.CONSOLE) = struct
   type +'a io = 'a Lwt.t
-  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stack_config
+  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.netstack_config
   type console = Console.t
   type netif = Ipaddr.V4.t list
   type mode = unit
