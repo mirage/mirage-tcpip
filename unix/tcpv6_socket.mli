@@ -1,5 +1,6 @@
 (*
- * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,8 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
-module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) : V1_LWT.TCP
-  with type ip = IP.t
-   and type ipaddr = IP.ipaddr
-   and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+include V1_LWT.TCP with type ip = Ipaddr.V6.t option
+                    and type ipaddr = Ipaddr.V6.t
+                    and type ipinput = unit Lwt.t
+                    and type flow = Lwt_unix.file_descr

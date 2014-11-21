@@ -17,7 +17,7 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V2_LWT.ETHIF) = struct
+module Make(Ethif : V1_LWT.ETHIF) = struct
 
   module Arpv4 = Arpv4.Make (Ethif)
 
