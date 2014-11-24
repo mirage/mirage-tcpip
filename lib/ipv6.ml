@@ -36,25 +36,23 @@
 
 (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
 module Ipaddr = struct
-  module V6 = struct
-    include Ipaddr.V6
-    let of_cstruct cs =
-      let hihi = Cstruct.BE.get_uint32 cs 0 in
-      let hilo = Cstruct.BE.get_uint32 cs 4 in
-      let lohi = Cstruct.BE.get_uint32 cs 8 in
-      let lolo = Cstruct.BE.get_uint32 cs 12 in
-      of_int32 (hihi, hilo, lohi, lolo)
-    let to_cstruct_raw i cs off =
-      let a, b, c, d = to_int32 i in
-      Cstruct.BE.set_uint32 cs (0 + off) a;
-      Cstruct.BE.set_uint32 cs (4 + off) b;
-      Cstruct.BE.set_uint32 cs (8 + off) c;
-      Cstruct.BE.set_uint32 cs (12 + off) d
-    let to_cstruct ?(allocator = Cstruct.create) i =
-      let cs = allocator 16 in
-      to_cstruct_raw i cs 0;
-      cs
-  end
+  include Ipaddr.V6
+  let of_cstruct cs =
+    let hihi = Cstruct.BE.get_uint32 cs 0 in
+    let hilo = Cstruct.BE.get_uint32 cs 4 in
+    let lohi = Cstruct.BE.get_uint32 cs 8 in
+    let lolo = Cstruct.BE.get_uint32 cs 12 in
+    of_int32 (hihi, hilo, lohi, lolo)
+  let to_cstruct_raw i cs off =
+    let a, b, c, d = to_int32 i in
+    Cstruct.BE.set_uint32 cs (0 + off) a;
+    Cstruct.BE.set_uint32 cs (4 + off) b;
+    Cstruct.BE.set_uint32 cs (8 + off) c;
+    Cstruct.BE.set_uint32 cs (12 + off) d
+  let to_cstruct ?(allocator = Cstruct.create) i =
+    let cs = allocator 16 in
+    to_cstruct_raw i cs 0;
+    cs
 end
 module Macaddr = struct
   include Macaddr
@@ -99,8 +97,8 @@ let allocate_frame state
   Macaddr.to_cstruct_raw smac (Wire_structs.get_ethernet_src ethernet_frame) 0;
   Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
   Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
-  Ipaddr.V6.to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
-  Ipaddr.V6.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
+  Ipaddr.to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
+  Ipaddr.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
   Ipv6_wire.set_ipv6_hlim ipbuf hlim;
   Ipv6_wire.set_ipv6_nhdr ipbuf proto;
   let header_len = Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
@@ -128,7 +126,7 @@ let allocate_ns state ~src ~dst ~target =
   Ipv6_wire.set_ns_ty       icmpbuf 135; (* NS *)
   Ipv6_wire.set_ns_code     icmpbuf 0;
   Ipv6_wire.set_ns_reserved icmpbuf 0l;
-  Ipaddr.V6.to_cstruct_raw target (Ipv6_wire.get_ns_target icmpbuf) 0;
+  Ipaddr.to_cstruct_raw target (Ipv6_wire.get_ns_target icmpbuf) 0;
   Ipv6_wire.set_llopt_ty    optbuf  1;
   Ipv6_wire.set_llopt_len   optbuf  1;
   Macaddr.to_cstruct_raw (Ndpv6.mac state) optbuf 2;
@@ -144,7 +142,7 @@ let allocate_na state ~src ~dst ~target ~solicited =
   Ipv6_wire.set_na_ty       icmpbuf 136; (* NA *)
   Ipv6_wire.set_na_code     icmpbuf 0;
   Ipv6_wire.set_na_reserved icmpbuf (if solicited then 0x60000000l else 0x20000000l);
-  Ipaddr.V6.to_cstruct_raw  target  (Ipv6_wire.get_na_target icmpbuf) 0;
+  Ipaddr.to_cstruct_raw  target  (Ipv6_wire.get_na_target icmpbuf) 0;
   Ipv6_wire.set_llopt_ty    optbuf  2;
   Ipv6_wire.set_llopt_len   optbuf  1;
   Macaddr.to_cstruct_raw (Ndpv6.mac state) optbuf 2;
@@ -154,9 +152,9 @@ let allocate_na state ~src ~dst ~target ~solicited =
 
 let allocate_rs state =
   let src = Ndpv6.select_source_address state in
-  let dst = Ipaddr.V6.link_routers in
+  let dst = Ipaddr.link_routers in
   let eth_frame, header_len = allocate_frame state ~src ~dst ~hlim:255 ~proto:58 () in
-  let include_slla = Ipaddr.V6.(compare src unspecified) != 0 in
+  let include_slla = Ipaddr.(compare src unspecified) != 0 in
   let eth_frame =
     Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + if include_slla then Ipv6_wire.sizeof_llopt else 0)
   in
@@ -209,9 +207,9 @@ let rec fold_options f i opts =
       fold_options f (f i o) opts
     | 3, 4 ->
       let prf_prefix =
-        Ipaddr.V6.Prefix.make
+        Ipaddr.Prefix.make
           (Ipv6_wire.get_opt_prefix_prefix_len opt)
-          (Ipaddr.V6.of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt)) in
+          (Ipaddr.of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt)) in
       let span x = float_of_uint32 x in
       let prf_on_link = Ipv6_wire.get_opt_prefix_on_link opt in
       let prf_autonomous = Ipv6_wire.get_opt_prefix_autonomous opt in
@@ -229,12 +227,12 @@ let rec fold_options f i opts =
 type parse_result =
   | Drop
   | DropWithError of int * int * int
-  | Ndp of Ipaddr.V6.t * Ipaddr.V6.t * Ndpv6.packet
-  | Ping of Ipaddr.V6.t * Ipaddr.V6.t * int * int * Cstruct.t
+  | Ndp of Ipaddr.t * Ipaddr.t * Ndpv6.packet
+  | Ping of Ipaddr.t * Ipaddr.t * int * int * Cstruct.t
   | Pong of Cstruct.t
-  | Udp of Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
-  | Tcp of Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
-  | Default of int * Ipaddr.V6.t * Ipaddr.V6.t * Cstruct.t
+  | Udp of Ipaddr.t * Ipaddr.t * Cstruct.t
+  | Tcp of Ipaddr.t * Ipaddr.t * Cstruct.t
+  | Default of int * Ipaddr.t * Ipaddr.t * Cstruct.t
 
 let parse_ra ~src ~dst buf =
   let ra_cur_hop_limit = Ipv6_wire.get_ra_cur_hop_limit buf in
@@ -254,7 +252,7 @@ let parse_ra ~src ~dst buf =
   Ndp (src, dst, Ndpv6.RA ra)
 
 let parse_ns ~src ~dst buf =
-  let ns_target = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ns_target buf) in
+  let ns_target = Ipaddr.of_cstruct (Ipv6_wire.get_ns_target buf) in
   let ns_opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
   let ns_slla =
     fold_options begin fun ns opt ->
@@ -269,7 +267,7 @@ let parse_na ~src ~dst buf =
   let na_router    = Ipv6_wire.get_na_router buf in
   let na_solicited = Ipv6_wire.get_na_solicited buf in
   let na_override  = Ipv6_wire.get_na_override buf in
-  let na_target    = Ipaddr.V6.of_cstruct (Ipv6_wire.get_na_target buf) in
+  let na_target    = Ipaddr.of_cstruct (Ipv6_wire.get_na_target buf) in
   let na_opts      = Cstruct.shift buf Ipv6_wire.sizeof_na in
   let na_tlla      =
     fold_options begin fun na opt ->
@@ -310,13 +308,13 @@ let parse_icmp ~src ~dst buf poff =
       Drop
 
 let parse_packet ~state buf =
-  let src = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
-  let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
+  let src = Ipaddr.of_cstruct (Ipv6_wire.get_ipv6_src buf) in
+  let dst = Ipaddr.of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
 
   (* TODO check version = 6 *)
 
   (* Printf.printf "IPv6 packet received from %s to %s\n%!" *)
-  (* (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst); *)
+  (* (Ipaddr.to_string src) (Ipaddr.to_string dst); *)
 
   let rec parse_extension first hdr poff =
     match hdr with
@@ -373,7 +371,7 @@ let parse_packet ~state buf =
             DropWithError (4, 2, ooff)
           | 0xc0 ->
             (* discard, send icmp error if dest is not mcast *)
-            if Ipaddr.V6.is_multicast dst then
+            if Ipaddr.is_multicast dst then
               Drop
             else
               DropWithError (4, 2, ooff)
@@ -386,10 +384,10 @@ let parse_packet ~state buf =
 
   in
 
-  if Ipaddr.V6.Prefix.(mem src multicast) then begin
+  if Ipaddr.Prefix.(mem src multicast) then begin
     Printf.printf "Dropping packet, src is mcast\n%!";
     Drop
-  end else if not (Ndpv6.is_my_addr state dst || Ipaddr.V6.Prefix.(mem dst multicast)) then begin
+  end else if not (Ndpv6.is_my_addr state dst || Ipaddr.Prefix.(mem dst multicast)) then begin
     Printf.printf "Dropping packet, not for me\n%!";
     Drop
   end else
@@ -406,21 +404,21 @@ let rec run ~now ~state ~queued acts =
       loop state queued (Sleep dt :: acts) rest
     | Ndpv6.SendNS (src, dst, target) :: rest ->
       Printf.printf "Sending NS from %s to %s with target %s\n%!"
-        (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+        (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string target);
       let frame = allocate_ns state ~src ~dst ~target in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
       loop state queued (acts' @ acts) rest
     | Ndpv6.SendNA (src, dst, target, solicited) :: rest ->
       Printf.printf "Sending (%ssolicited) NA from %s to %s with target %s\n%!"
         (if solicited then "" else "un")
-        (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string target);
+        (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string target);
       let frame = allocate_na state ~src ~dst ~target ~solicited in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
       loop state queued (acts' @ acts) rest
     | Ndpv6.SendRS :: rest ->
       Printf.printf "Sending RS\n%!";
       let frame = allocate_rs state in
-      let dst = Ipaddr.V6.link_routers in
+      let dst = Ipaddr.link_routers in
       let (state, queued), acts' = output ~now (state, queued) ~dst frame [] in
       loop state queued (acts' @ acts) rest
     | Ndpv6.SendQueued (i, dmac) :: rest ->
@@ -450,11 +448,11 @@ and output ~now (state, queued) ~dst frame datav =
   let state, output, acts = Ndpv6.output ~now ~state ~dst in
   match output with
   | Ndpv6.SendNow dmac ->
-    Printf.printf "Sending packet to %s\n%!" (Ipaddr.V6.to_string dst);
+    Printf.printf "Sending packet to %s\n%!" (Ipaddr.to_string dst);
     let (state, queued), acts = run ~now ~state ~queued acts in
     (state, queued), Send (datav dmac) :: acts
   | Ndpv6.SendLater i ->
-    Printf.printf "Queueing packet #%d to %s\n%!" i (Ipaddr.V6.to_string dst);
+    Printf.printf "Queueing packet #%d to %s\n%!" i (Ipaddr.to_string dst);
     let queued = IntMap.add i datav queued in
     run ~now ~state ~queued acts
 
@@ -472,10 +470,10 @@ let input ~now ((state, queued) as st) buf =
   | DropWithError (ty, code, off) ->
     `Drop (* TODO *)
   | Ping (src, dst, id, seq, data) ->
-    Printf.printf "Received PING from %s to %s (id=%d,seq=%d)\n%!" (Ipaddr.V6.to_string src)
-      (Ipaddr.V6.to_string dst) id seq;
+    Printf.printf "Received PING from %s to %s (id=%d,seq=%d)\n%!" (Ipaddr.to_string src)
+      (Ipaddr.to_string dst) id seq;
     let dst = src
-    and src = if Ipaddr.V6.is_multicast dst then Ndpv6.select_source_address state else dst in
+    and src = if Ipaddr.is_multicast dst then Ndpv6.select_source_address state else dst in
     let frame, bufs = allocate_pong state ~src ~dst ~id ~seq ~data in
     let st, acts = output ~now st ~dst frame bufs in
     `Act (st, acts)
@@ -521,9 +519,9 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
-  type ipaddr   = Ipaddr.V6.t
+  type ipaddr   = Ipaddr.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
-  type prefix   = Ipaddr.V6.Prefix.t
+  type prefix   = Ipaddr.Prefix.t
 
   type queued = (Macaddr.t -> Cstruct.t list) IntMap.t
   type t =
@@ -557,7 +555,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let writev t frame bufs =
     let now = C.time () in
-    let dst = Ipaddr.V6.of_cstruct (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Wire_structs.sizeof_ethernet)) in
+    let dst = Ipaddr.of_cstruct (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Wire_structs.sizeof_ethernet)) in
     let state, acts = output ~now t.state ~dst frame bufs in
     t.state <- state;
     run t acts
