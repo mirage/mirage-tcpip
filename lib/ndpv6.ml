@@ -482,6 +482,12 @@ let handle_ra ~now ~state ~src ~dst ~ra =
 
   {state with router_list}, acts' @ acts
 
+let is_my_addr ~state ip =
+  List.exists begin function
+    | _, TENTATIVE _                    -> false
+    | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.V6.compare ip' ip = 0
+  end state.my_ips
+
 let handle_ns_slla ~state ~src new_mac =
   let nb =
     if IpMap.mem src state.neighbor_cache then
@@ -514,7 +520,7 @@ let handle_ns ~now ~state ~src ~dst ~ns =
       state, []
   in
 
-  if List.mem_assoc ns.ns_target state.my_ips then begin
+  if is_my_addr state ns.ns_target then begin
     let src = ns.ns_target and dst = src in (* FIXME src & dst *)
     (* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *)
       (* (Ipaddr.V6.to_string dst) (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string target); *)
@@ -606,12 +612,6 @@ let input ~now ~state ~src ~dst = function
     handle_ns ~now ~state ~src ~dst ~ns
   | NA na ->
     handle_na ~now ~state ~src ~dst ~na
-
-let is_my_addr ~state ip =
-  List.exists begin function
-    | _, TENTATIVE _                    -> false
-    | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.V6.compare ip' ip = 0
-  end state.my_ips
 
 let create ~now mac =
   let state =
