@@ -16,10 +16,10 @@
 
 type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
 module type UDPV4_DIRECT = V1_LWT.UDPV4
-  with type ipv4input = direct_ipv4_input
+  with type ipinput = direct_ipv4_input
 
 module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipv4input = direct_ipv4_input
+  with type ipinput = direct_ipv4_input
 
 module Make
     (Console : V1_LWT.CONSOLE)
@@ -28,12 +28,12 @@ module Make
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) :
+    (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
+    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) :
   V1_LWT.STACKV4
   with type console = Console.t
    and type netif   = Netif.t
-   and type mode    = V1_LWT.direct_stack_config
+   and type mode    = V1_LWT.direct_stackv4_config
    and type udpv4   = Udpv4.t
    and type tcpv4   = Tcpv4.t
    and module TCPV4 = Tcpv4

@@ -504,9 +504,7 @@ let add_prefix ~now (state, queued) prf =
   run ~now ~state ~queued acts
 
 let add_routers ~now (state, queued) ips =
-  let state =
-    List.fold_left (fun state ip -> Ndpv6.add_router ~now ~state ip) state ips
-  in
+  let state = List.fold_left (fun state ip -> Ndpv6.add_router ~now ~state ip) state ips in
   state, queued
 
 let get_routers (state, _) =
@@ -583,18 +581,18 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   let disconnect _ = (* TODO *)
     Lwt.return_unit
 
-  let set_ipv6 t ip =
-    let state, acts = add_ip ~now:(C.time ()) t.state ip in
-    t.state <- state;
-    run t acts
-
-  let get_ipv6 t =
-    get_ipv6 t.state
-
   let checksum = checksum
 
   let get_source t ~dst =
     Ndpv6.select_source_address (fst t.state) (* FIXME dst *)
+
+  let set_ip t ip =
+    let state, acts = add_ip ~now:(C.time ()) t.state ip in
+    t.state <- state;
+    run t acts
+
+  let get_ip t =
+    get_ipv6 t.state
 
   let set_ip_gateways t ips =
     let now = C.time () in
@@ -605,10 +603,10 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   let get_ip_gateways t =
     get_routers t.state
 
-  let get_prefixes t =
+  let get_ip_netmasks t =
     Ndpv6.prefix_list (fst t.state)
 
-  let set_prefix t pfx =
+  let set_ip_netmask t pfx =
     let now = C.time () in
     let state, acts = add_prefix ~now t.state pfx in
     t.state <- state;
