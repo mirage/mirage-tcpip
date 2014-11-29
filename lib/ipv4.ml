@@ -43,6 +43,9 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     mutable gateways: Ipaddr.V4.t list;
   }
 
+  let input_arpv4 t buf =
+    Arpv4.input t.arp buf
+
   let id { ethif; _ } = ethif
 
   module Routing = struct
