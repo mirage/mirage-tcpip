@@ -115,7 +115,7 @@ struct
   let listen t =
     Netif.listen t.netif (
       Ethif.input
-        ~arpv4:(fun _ -> return_unit) (* FIXME *)
+        ~arpv4:(Ipv4.input_arpv4 t.ipv4)
         ~ipv4:(
           Ipv4.input
             ~tcp:(Tcpv4.input t.tcpv4
