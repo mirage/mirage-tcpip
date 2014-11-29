@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Console:V1_LWT.CONSOLE) : V1_LWT.NETSTACK
+module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACKV4
   with type console = Console.t
    and type netif   = Ipaddr.V4.t list
    and type mode    = unit
@@ -24,9 +24,3 @@ module Make(Console:V1_LWT.CONSOLE) : V1_LWT.NETSTACK
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
    and module IPV4  = Ipv4_socket
-   and type tcpv6   = Tcpv6_socket.t
-   and type udpv6   = Udpv6_socket.t
-   and type ipv6    = unit
-   and module UDPV6 = Udpv6_socket
-   and module TCPV6 = Tcpv6_socket
-   and module IPV6  = Ipv6_socket

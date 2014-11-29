@@ -36,8 +36,8 @@ let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
 let write _ _ _ = fail (Failure "Not implemented")
 let writev _ _ _ = fail (Failure "Not implemented")
 
-let get_ipv6 _ = Ipaddr.V6.of_string_exn "::"
-let add_ipv6 _ _ = fail (Failure "Not implemented")
+let get_ip _ = Ipaddr.V6.of_string_exn "::"
+let set_ip _ _ = fail (Failure "Not implemented")
 let get_ip_gateways _ = raise (Failure "Not implemented")
 let set_ip_gateways _ _ = fail (Failure "Not implemented")
 

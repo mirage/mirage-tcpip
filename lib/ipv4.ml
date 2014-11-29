@@ -31,6 +31,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
+  type prefix = Ipaddr.V4.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
   type macaddr = Ethif.macaddr
 
@@ -159,30 +160,28 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     | proto ->
       default ~proto ~src ~dst data
 
-  let input_arpv4 t buf =
-    Arpv4.input t.arp buf
-
   let connect ethif =
     let ip = Ipaddr.V4.any in
     let netmask = Ipaddr.V4.any in
     let gateways = [] in
-    let t = { ethif; arp = Arpv4.create ethif; ip; netmask; gateways } in
+    let arp = Arpv4.create ethif in
+    let t = { ethif; arp; ip; netmask; gateways } in
     return (`Ok t)
 
   let disconnect _ = return_unit
 
-  let set_ipv4 t ip =
+  let set_ip t ip =
     t.ip <- ip;
     (* Inform ARP layer of new IP *)
     Arpv4.add_ip t.arp ip
 
-  let get_ipv4 t = t.ip
+  let get_ip t = [t.ip]
 
-  let set_ipv4_netmask t netmask =
+  let set_ip_netmask t netmask =
     t.netmask <- netmask;
     return_unit
 
-  let get_ipv4_netmask t = t.netmask
+  let get_ip_netmasks t = [t.netmask]
 
   let set_ip_gateways t gateways =
     t.gateways <- gateways;
@@ -201,6 +200,6 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       let src_dst = Cstruct.sub frame 12 (2 * 4) in
       Tcpip_checksum.ones_complement_list (src_dst :: pbuf :: bufs)
 
-  let get_source t ~dst =
-    get_ipv4 t
+  let get_source t ~dst:_ =
+    t.ip
 end

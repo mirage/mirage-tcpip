@@ -23,7 +23,7 @@ module Make (Console : V1_LWT.CONSOLE)
     (Random : V1.RANDOM)
     (Ethif : V1_LWT.ETHIF)
     (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
+    (Udp : V1_LWT.UDPV4 with type ip = Ipv4.t) = struct
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
@@ -234,10 +234,10 @@ module Make (Console : V1_LWT.CONSOLE)
                          (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
                          (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
       >>= fun () ->
-      Ipv4.set_ipv4 ip info.ip_addr
+      Ipv4.set_ip ip info.ip_addr
       >>= fun () ->
       (match info.netmask with
-       |Some nm -> Ipv4.set_ipv4_netmask ip nm
+       |Some nm -> Ipv4.set_ip_netmask ip nm
        |None -> return_unit)
       >>= fun () ->
       Ipv4.set_ip_gateways ip info.gateways
