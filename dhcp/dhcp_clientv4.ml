@@ -23,7 +23,7 @@ module Make (Console : V1_LWT.CONSOLE)
     (Random : V1.RANDOM)
     (Ethif : V1_LWT.ETHIF)
     (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udp : V1_LWT.UDP with type ip = Ipv4.t and type ipaddr = Ipaddr.V4.t) = struct
+    (Udp : V1_LWT.UDPV4 with type ipv4 = Ipv4.t) = struct
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
