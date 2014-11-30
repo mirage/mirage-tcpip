@@ -33,7 +33,7 @@ module Make
   V1_LWT.STACKV4
   with type console = Console.t
    and type netif   = Netif.t
-   and type mode    = V1_LWT.direct_stackv4_config
+   and type mode    = V1_LWT.direct_stack_config
    and type udpv4   = Udpv4.t
    and type tcpv4   = Tcpv4.t
    and module TCPV4 = Tcpv4

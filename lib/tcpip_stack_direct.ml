@@ -38,7 +38,7 @@ struct
   type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
   type console = Console.t
   type netif = Netif.t
-  type mode = V1_LWT.direct_stackv4_config
+  type mode = V1_LWT.direct_stack_config
   type id = (console, netif, mode) config
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
