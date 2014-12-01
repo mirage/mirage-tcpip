@@ -36,5 +36,6 @@ module Make
    and type mode    = V1_LWT.direct_stack_config
    and type udpv4   = Udpv4.t
    and type tcpv4   = Tcpv4.t
+   and type ipv4    = Ipv4.t
    and module TCPV4 = Tcpv4
    and module UDPV4 = Udpv4

@@ -17,8 +17,7 @@
 open Lwt
 
 type id = string
-type ip = unit
-type t = unit
+type t = Ipaddr.V4.t option
 type +'a io = 'a Lwt.t
 type error = [ `Unimplemented | `Unknown of string ]
 type ipaddr = Ipaddr.V4.t
@@ -28,10 +27,8 @@ type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
 
 let id _ = ()
-let disconnect () = return_unit
-let connect () = return (`Ok ())
-
-type macaddr = Macaddr.t
+let disconnect _ = return_unit
+let connect _ = return (`Ok None)
 
 let input_arpv4 _ _ = fail (Failure "Not implemented")
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
