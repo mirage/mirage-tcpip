@@ -1,9 +1,7 @@
-trunk
-* Build with -mno-red-zone on x86_64 to avoid stack corruption on Xen (#80).
-
-2.0.2 (2014-11-17):
+2.0.2 (2014-12-01):
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
-* Improve formatting of DHCP console logging, including printing out options.
+* Improve formatting of DHCP console logging, including printing out options (#83).
+* Build with -mno-red-zone on x86_64 to avoid stack corruption on Xen (#80).
 
 2.0.1 (2014-11-04):
 * Fixed race condition in the signalling between the rx/tx threads under load.
