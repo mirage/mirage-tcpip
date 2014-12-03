@@ -289,12 +289,6 @@ module PacketQueue = BoundedMap (Ipaddr)
 let float_of_uint32 n =
   Uint32.to_float (Uint32.of_int32 n)
 
-type ndp_option =
-  | SLLA of Macaddr.t
-  | TLLA of Macaddr.t
-  | MTU of int
-  | PREFIX of Packet.RA.prefix
-
 module Parser : sig
   type result =
     | Drop
@@ -322,6 +316,12 @@ end = struct
     | Udp of Ipaddr.t * Ipaddr.t * Cstruct.t
     | Tcp of Ipaddr.t * Ipaddr.t * Cstruct.t
     | Default of int * Ipaddr.t * Ipaddr.t * Cstruct.t
+
+  type option =
+    | SLLA of Macaddr.t
+    | TLLA of Macaddr.t
+    | MTU of int
+    | PREFIX of Packet.RA.prefix
 
   let rec fold_options f i opts =
     if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
