@@ -139,7 +139,7 @@ let checksum frame bufs =
   checksum' ~proto frame bufs
 
 module Allocate = struct
-  let frame ~mac ~hlim ~src ~dst ~proto () =
+  let frame ~mac ~hlim ~src ~dst ~proto =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     let ipbuf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     Macaddr.to_cstruct_raw mac (Wire_structs.get_ethernet_src ethernet_frame) 0;
@@ -153,7 +153,7 @@ module Allocate = struct
     (ethernet_frame, header_len)
 
   let error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 () in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
     let maxbuf = Defaults.min_link_mtu - (header_len + Ipv6_wire.sizeof_icmpv6) in
     (* FIXME ? hlim = 255 *)
@@ -167,7 +167,7 @@ module Allocate = struct
     (eth_frame, buf :: [])
 
   let ns ~mac ~src ~dst ~tgt =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 () in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_llopt) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
@@ -183,7 +183,7 @@ module Allocate = struct
     eth_frame
 
   let na ~mac ~src ~dst ~tgt ~sol =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 () in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
@@ -201,11 +201,11 @@ module Allocate = struct
   let rs ~mac select_source =
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 () in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let include_slla = Ipaddr.(compare src unspecified) != 0 in
+    let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
     let eth_frame =
-      Cstruct.set_len eth_frame
-        (header_len + Ipv6_wire.sizeof_rs + if include_slla then Ipv6_wire.sizeof_llopt else 0)
+      Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + slla_len)
     in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     Ipv6_wire.set_rs_ty icmpbuf 133;
@@ -220,7 +220,7 @@ module Allocate = struct
     eth_frame
 
   let pong ~mac ~src ~dst ~id ~seq ~data =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 () in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_pingv6) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
@@ -362,7 +362,7 @@ end = struct
         let o = PREFIX pfx in
         fold_options f (f i o) opts
       | ty, len ->
-        Printf.printf "ND: Unsupported ND option in RA (ty=%d,len=%d)\n%!" ty len;
+        Printf.printf "ND6: Unsupported ND option in RA: ty=%d len=%d\n%!" ty len;
         fold_options f i opts
     else
       i
@@ -431,7 +431,7 @@ end = struct
     let icmpbuf  = Cstruct.shift buf poff in
     let csum = checksum' ~proto:58 buf [ icmpbuf ] in
     if csum != 0 then begin
-      Printf.printf "ICMP6: Checksum error (0x%x), dropping packet\n%!" csum;
+      Printf.printf "ICMP6: Checksum error, dropping packet: csum=0x%x\n%!" csum;
       Drop
     end else
       match Ipv6_wire.get_icmpv6_ty icmpbuf with
@@ -469,7 +469,7 @@ end = struct
           else
             NA (src, dst, na)
       | n ->
-        Printf.printf "ICMP6: Unknown packet type (%d)\n%!" n;
+        Printf.printf "ICMP6: Unknown packet type: ty=%d\n%!" n;
         Drop
 
   let packet is_my_addr buf =
@@ -484,12 +484,12 @@ end = struct
     let rec parse_extension first hdr poff =
       match hdr with
       | 0 (* HOPTOPT *) when first ->
-        Printf.printf "Processing HOPOPT header\n%!";
+        Printf.printf "IP6: Processing HOPOPT header\n%!";
         parse_options poff
       | 0 ->
         Drop
       | 60 (* IPv6-Opts *) ->
-        Printf.printf "Processing DESTOPT header\n%!";
+        Printf.printf "IP6: Processing DESTOPT header\n%!";
         parse_options poff
       | 43 (* IPv6-Route *) | 44 (* IPv6-Frag *) | 50 (* ESP *) | 51 (* AH *) | 135 (* Mobility Header *)
       | 59 (* NO NEXT HEADER *) ->
@@ -516,14 +516,14 @@ end = struct
           let obuf = Cstruct.shift buf ooff in
           match Ipv6_wire.get_opt_ty obuf with
           | 0 ->
-            Printf.printf "Processing PAD1 option\n%!";
+            Printf.printf "IP6: Processing PAD1 option\n%!";
             loop (ooff+1)
           | 1 ->
-            Printf.printf "Processing PADN option\n%!";
+            Printf.printf "IP6: Processing PADN option\n%!";
             let len = Ipv6_wire.get_opt_len obuf in
             loop (ooff+len+2)
           | _ as n ->
-            Printf.printf "Processing unknown option, MSB %x\n%!" n;
+            Printf.printf "IP6: Processing unknown option, MSB %x\n%!" n;
             let len = Ipv6_wire.get_opt_len obuf in
             match n land 0xc0 with
             | 0x00 ->
@@ -550,10 +550,10 @@ end = struct
     in
 
     if Ipaddr.Prefix.(mem src multicast) then begin
-      Printf.printf "Dropping packet, src is mcast\n%!";
+      Printf.printf "IP6: Dropping packet, src is mcast\n%!";
       Drop
     end else if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
-      Printf.printf "Dropping packet, not for me\n%!";
+      Printf.printf "IP6: Dropping packet, not for me\n%!";
       Drop
     end else
       parse_extension true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
@@ -601,38 +601,38 @@ let next_hop state ip =
 let rec run ~now ~state acts =
   let rec loop state acts = function
     | Action.Sleep dt :: rest ->
-      Printf.printf "Sleeping for %.1fs\n%!" (dt :> float);
+      Printf.printf "IP6: Sleeping for %.1fs\n%!" dt;
       loop state (Sleep dt :: acts) rest
     | Action.SendNS (unspec, dst, tgt) :: rest ->
       let src = match unspec with
         | Action.Unspecified -> Ipaddr.unspecified
         | Action.Specified -> AddressList.select_source state.address_list ~dst
       in
-      Printf.printf "ND6: Sending NS src = %s dst = %s tgt = %s\n%!"
+      Printf.printf "ND6: Sending NS src=%s dst=%s tgt=%s\n%!"
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt);
       let frame = Allocate.ns ~mac:state.mac ~src ~dst ~tgt in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
     | Action.SendNA (src, dst, tgt, sol) :: rest ->
       let sol = match sol with Action.Solicited -> true | Action.Unsolicited -> false in
-      Printf.printf "ND6: Sending NA src = %s dst = %s tgt = %s sol = %B\n%!"
+      Printf.printf "ND6: Sending NA: src=%s dst=%s tgt=%s sol=%B\n%!"
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt) sol;
       let frame = Allocate.na ~mac:state.mac ~src ~dst ~tgt ~sol in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
     | Action.SendRS :: rest ->
-      Printf.printf "Sending RS\n%!";
+      Printf.printf "ND6: Sending RS\n%!";
       let frame = Allocate.rs ~mac:state.mac (AddressList.select_source state.address_list) in
       let dst = Ipaddr.link_routers in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
     | Action.SendQueued (ip, dmac) :: rest ->
-      Printf.printf "Sending queued packets to %s (%s)\n%!" (Ipaddr.to_string ip) (Macaddr.to_string dmac);
+      Printf.printf "IP6: Releasing queued packets: dst=%s mac=%s\n%!" (Ipaddr.to_string ip) (Macaddr.to_string dmac);
       let pkts, packet_queue = PacketQueue.pop ip state.packet_queue in
       let pkts = List.map (fun datav -> Send (datav dmac)) pkts in
       loop {state with packet_queue} (pkts @ acts) rest
     | Action.CancelQueued ip :: rest ->
-      Printf.printf "Cancelling packets to %s\n%!" (Ipaddr.to_string ip);
+      Printf.printf "IP6: Cancelling packets: dst = %s\n%!" (Ipaddr.to_string ip);
       let _, packet_queue = PacketQueue.pop ip state.packet_queue in
       loop {state with packet_queue} acts rest
     | [] ->
@@ -657,18 +657,18 @@ and output ~now ~state ~dst frame datav =
     let state = {state with neighbor_cache = nc} in
     match mac with
     | Some dmac ->
-      Printf.printf "Sending packet to %s (%s)\n%!" (Ipaddr.to_string dst) (Macaddr.to_string dmac);
+      Printf.printf "IP6: Sending packet: dst=%s mac=%s\n%!" (Ipaddr.to_string dst) (Macaddr.to_string dmac);
       let state, acts = run ~now ~state acts in
       state, Send (datav dmac) :: acts
     | None ->
-      Printf.printf "Queueing packet to %s\n%!" (Ipaddr.to_string dst);
+      Printf.printf "IP6: Queueing packet: dst=%s\n%!" (Ipaddr.to_string dst);
       let packet_queue = PacketQueue.push ip datav state.packet_queue in
       let state = {state with packet_queue} in
       run ~now ~state acts
 
 let input_ra ~state ~now src dst ra =
   let open Packet in
-  Printf.printf "ND: Received RA src = %s dst = %s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst);
+  Printf.printf "ND: Received RA: src=%s dst=%s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst);
   let state =
     if ra.RA.cur_hop_limit <> 0 then {state with cur_hop_limit = ra.RA.cur_hop_limit} else state
   in
@@ -720,7 +720,7 @@ let input_ra ~state ~now src dst ra =
 
 let input_ns state ~now:_ src dst ns =
   let open Packet in
-  Printf.printf "ND: Received NS src = %s dst = %s tgt = %s\n%!"
+  Printf.printf "ND: Received NS: src=%s dst=%s tgt=%s\n%!"
     (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string ns.NS.target);
   (* TODO check hlim = 255, target not mcast, code = 0 *)
   let state, acts = match ns.NS.slla with
@@ -741,7 +741,7 @@ let input_ns state ~now:_ src dst ns =
 
 let input_na state ~now ~src ~dst na =
   let open Packet in
-  Printf.printf "ND: Received NA src = %s dst = %s tgt = %s\n%!"
+  Printf.printf "ND: Received NA: src=%s dst=%s tgt=%s\n%!"
     (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string na.NA.target);
 
   (* TODO Handle case when na.target is one of my bound IPs. *)
@@ -778,7 +778,7 @@ let input ~now state buf =
   | DropWithError (ty, code, off) ->
     `Drop (* TODO *)
   | Ping (src, dst, id, seq, data) ->
-    Printf.printf "ICMP6: Received PING src = %s dst = %s id = %d seq = %d\n%!" (Ipaddr.to_string src)
+    Printf.printf "ICMP6: Received PING: src=%s dst=%s id=%d seq=%d\n%!" (Ipaddr.to_string src)
       (Ipaddr.to_string dst) id seq;
     let dst = src
     and src = if Ipaddr.is_multicast dst then AddressList.select_source state.address_list dst else dst in
@@ -877,7 +877,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   and run t acts =
     Lwt_list.iter_s begin function
       | Sleep dt ->
-        Lwt.ignore_result (T.sleep (dt :> float) >>= fun () -> run_tick t);
+        Lwt.ignore_result (T.sleep dt >>= fun () -> run_tick t);
         Lwt.return_unit
       | Send pkt ->
         E.writev t.ethif pkt
@@ -886,7 +886,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   let allocate_frame t ~dst ~proto =
     let proto = match proto with `ICMP -> 58 | `UDP -> 17 | `TCP -> 6 in
     let src = AddressList.select_source t.state.address_list dst in
-    Allocate.frame ~mac:t.state.mac ~src ~hlim:t.state.cur_hop_limit ~dst ~proto ()
+    Allocate.frame ~mac:t.state.mac ~src ~hlim:t.state.cur_hop_limit ~dst ~proto
 
   let writev t frame bufs =
     let now = C.time () in
@@ -948,5 +948,5 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     let now = C.time () in
     let state = add_prefix ~now t.state pfx in
     t.state <- state;
-    run t []
+    Lwt.return_unit
 end
