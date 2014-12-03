@@ -269,12 +269,12 @@ module BoundedMap (K : Map.OrderedType) : sig
 end = struct
   module M = Map.Make (K)
   type 'a t = 'a list M.t * int
-  let empty n = M.empty, n
+  let empty n = (M.empty, n)
   let push k d (m, n) =
     let l = try M.find k m with Not_found -> [] in
     match l, List.length l >= n with
     | _, false ->
-      M.add k (d :: l) m, n
+      M.add k (l @ [d]) m, n
     | _ :: l, true ->
       M.add k (d :: l) m, n
     | [], true ->
