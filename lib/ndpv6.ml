@@ -177,7 +177,16 @@ module AddressList = struct
       add al ~now ~retrans_timer ~lft ip
 
   let handle_na al ip =
-    assert false
+    (* FIXME How to notify the client? *)
+    try
+      match List.assoc ip al with
+      | TENTATIVE _ ->
+        Printf.printf "DAD: Failed: %s\n%!" (Ipaddr.to_string ip);
+        List.remove_assoc ip al
+      | _ ->
+        al
+    with
+    | Not_found -> al
 end
 
 module PrefixList = struct
