@@ -34,8 +34,6 @@
  http://tools.ietf.org/html/rfc3810
 *)
 
-(* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
-
 open Ndpv6
 
 module List = struct
@@ -56,6 +54,7 @@ end
 
 module Ipv6_wire = Wire_structs.Ipv6_wire
 
+(* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
 module Ipaddr = struct
   include Ipaddr
   let of_cstruct cs =
@@ -75,7 +74,6 @@ module Ipaddr = struct
     to_cstruct_raw i cs 0;
     cs
 end
-
 module Macaddr = struct
   include Macaddr
   let to_cstruct_raw x cs off =
