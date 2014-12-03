@@ -217,8 +217,8 @@ module Allocate = struct
     Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
     eth_frame
 
-  let pong ~mac ~src ~dst ~id ~seq ~data =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
+  let pong ~mac ~src ~dst ~hlim ~id ~seq ~data =
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_pingv6) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
@@ -780,7 +780,7 @@ let input ~now state buf =
       (Ipaddr.to_string dst) id seq;
     let dst = src
     and src = if Ipaddr.is_multicast dst then AddressList.select_source state.address_list dst else dst in
-    let frame, bufs = Allocate.pong ~mac:state.mac ~src ~dst ~id ~seq ~data in
+    let frame, bufs = Allocate.pong ~mac:state.mac ~src ~dst ~hlim:state.cur_hop_limit ~id ~seq ~data in
     let state, acts = output ~now ~state ~dst frame bufs in
     `Act (state, acts)
   | Pong buf ->
