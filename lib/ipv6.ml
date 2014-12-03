@@ -387,9 +387,9 @@ end = struct
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
     let slla, ra_prefix =
       fold_options begin fun ra opt ->
-        match opt with
-        | SLLA slla     -> let _, pfxs = ra in Some slla, pfxs
-        | PREFIX pfx -> let slla, pfxs = ra in slla, (pfx :: pfxs)
+        match ra, opt with
+        | (_, pfxs), SLLA slla -> Some slla, pfxs
+        | (slla, pfxs), PREFIX pfx -> slla, (pfx :: pfxs)
         | _ -> ra
       end (None, []) opts
     in
