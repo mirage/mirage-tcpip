@@ -86,19 +86,8 @@ module Action = struct
     | CancelQueued of Ipaddr.t
 end
 
-module AddressList : sig
-  type t
+module AddressList = struct
 
-  val empty: t
-  val to_list: t -> Ipaddr.t list
-  val select_source: t -> dst:Ipaddr.t -> Ipaddr.t
-  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
-  val expired: t -> now:float -> bool
-  val is_my_addr: t -> Ipaddr.t -> bool
-  val add: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Ipaddr.t -> t * Action.t list
-  val configure: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Macaddr.t -> Ipaddr.Prefix.t -> t * Action.t list
-  val handle_na: t -> Ipaddr.t -> t
-end = struct
   type state =
     | TENTATIVE of (float * float option) option * int * float
     | PREFERRED of (float * float option) option
@@ -207,16 +196,8 @@ end = struct
     assert false
 end
 
-module PrefixList : sig
-  type t
-  val link_local: t
-  val to_list: t -> Ipaddr.Prefix.t list
-  val tick: t -> now:float -> t
-  val expired: t -> now:float -> bool
-  val is_local: t -> Ipaddr.t -> bool
-  val add: t -> now:float -> Ipaddr.Prefix.t -> vlft:float option -> t
-  val handle_ra: t -> now:float -> vlft:float option -> Ipaddr.Prefix.t -> t * Action.t list
-end = struct
+module PrefixList = struct
+
   type t =
     (Ipaddr.Prefix.t * float option) list
 
@@ -312,24 +293,8 @@ end = struct
     (*   pl, [], None *)
 end
 
-module NeighborCache : sig
-  type t
+module NeighborCache = struct
 
-  val empty: t
-  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
-  val handle_ns: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
-  val handle_ra: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
-  val handle_na: t ->
-    now:float ->
-    reachable_time:float ->
-    rtr:bool ->
-    sol:bool ->
-    ovr:bool ->
-    tgt:Ipaddr.t ->
-    lladdr:Macaddr.t option -> t * Action.t list
-  val query: t -> now:float -> reachable_time:float -> Ipaddr.t -> t * Macaddr.t option * Action.t list
-  val reachable: t -> Ipaddr.t -> bool
-end = struct
   type state =
     | INCOMPLETE of float * int
     | REACHABLE  of float * Macaddr.t
@@ -513,17 +478,8 @@ end = struct
     | Not_found -> false
 end
 
-module RouterList : sig
-  type t
+module RouterList = struct
 
-  val empty: t
-  val to_list: t -> Ipaddr.t list
-  val add: t -> now:float -> ?lifetime:float -> Ipaddr.t -> t
-  val tick: t -> now:float -> t
-  val handle_ra: t -> now:float -> src:Ipaddr.t -> lft:float -> t * Action.t list
-  val add: t -> now:float -> Ipaddr.t -> t
-  val select: t -> (Ipaddr.t -> bool) -> Ipaddr.t -> Ipaddr.t * t
-end = struct
   type t =
     (Ipaddr.t * float) list
 
@@ -580,89 +536,3 @@ end = struct
     in
     loop rl
 end
-
-(* let handle_ra ~now ~state ~src ~dst ra = *)
-(*   let open Packet.RA in *)
-
-(*   Printf.printf "ND: Received RA from %s to %s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst); *)
-
-(*   let state = *)
-(*     if ra.cur_hop_limit <> 0 then {state with cur_hop_limit = ra.cur_hop_limit} else state *)
-(*   in *)
-
-(*   let state = *)
-(*     if ra.reachable_time <> 0.0 && state.base_reachable_time <> ra.reachable_time then *)
-(*       {state with base_reachable_time = ra.ra_reachable_time; *)
-(*                   reachable_time      = compute_reachable_time ra.ra_reachable_time} *)
-(*     else *)
-(*       state *)
-(*   in *)
-
-(*   let state = *)
-(*     if ra.retrans_timer <> 0.0 then *)
-(*       {state with retrans_timer = ra.retrans_timer} *)
-(*     else *)
-(*       state *)
-(*   in *)
-
-(*   let state, acts = *)
-(*     match ra.slla with *)
-(*     | Some new_mac -> *)
-(*       handle_ra_slla ~state ~src new_mac *)
-(*     | None -> *)
-(*       state, [] *)
-(*   in *)
-
-(*   let state, acts' = *)
-(*     match ra.ra_prefix with *)
-(*     | Some prf -> *)
-(*       handle_ra_prefix ~now ~state prf *)
-(*     | None -> *)
-(*       state, [] *)
-(*   in *)
-
-(*   let acts = acts @ acts' in *)
-
-(*   (\* TODO update the is_router flag even if there was no SLLA *\) *)
-
-
-(*   {state with router_list}, acts' @ acts *)
-
-(* let handle_ns ~now ~state ~src ~dst ~ns = *)
-(*   Printf.printf "ND: Received NS from %s to %s with target %s\n%!" *)
-(*     (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string ns.ns_target); *)
-
-(*   let state, acts = match ns.ns_slla with *)
-(*     | Some new_mac -> *)
-(*       handle_ns_slla ~state ~src new_mac *)
-(*     | None -> *)
-(*       state, [] *)
-(*   in *)
-
-(*   if is_my_addr state ns.ns_target then begin *)
-(*     let src = ns.ns_target and dst = src in (\* FIXME src & dst *\) *)
-(*     (\* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *\) *)
-(*       (\* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *\) *)
-(*     state, SendNA (src, dst, ns.ns_target, true) :: acts *)
-(*   end else *)
-(*     state, acts *)
-
-(* module Output = struct *)
-(*   type t = *)
-(*     | SendNow of Macaddr.t *)
-(*     | SendLater *)
-
-(*   let output ~now ~prefix_list ~router_list ~dst = *)
-(*     match Ipaddr.is_multicast dst with *)
-(*     | true -> *)
-(*       state, SendNow (multicast_mac dst), [] *)
-(*     | false -> *)
-(*       let ip, router_list = RouterList.next_hop ~prefix_list dst router_list in *)
-(*       let nc, mac, acts = NeighborCache.query ~now ~reachable_time:state.reachable_time ~address_list:state.address_list ip state.neighbor_cache in *)
-(*       match mac with *)
-(*       | Some dmac -> *)
-(*         {state with neighbor_cache = nc}, SendNow dmac, [] *)
-(*       | None -> *)
-(*         {state with neighbor_cache = nc}, SendLater, acts *)
-
-(* end *)
