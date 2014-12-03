@@ -115,9 +115,26 @@ module AddressList : sig
 
   val add: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Ipaddr.t ->
     t * [> `Sleep of float | `SendNS of [> `Unspecified ] * Ipaddr.t * Ipaddr.t ] list
+  (** [add al now rt lft ip] marks the address [ip] as TENTATIVE and beings
+      Duplicate Address Detection (DAD) by sending Neighbor Solicitation
+      messages to [ip] to try to determine if this address is already assigned
+      to another node in the local network. [lft] is the lifetime of [ip].  Here
+      [lft] is [None] if the lifetime is infinite, [Some (plft, None)] if the
+      preferred lifetime is [plft] and the valid lifetime is infinite and [Some
+      (plft, Some vlft)] if the valid lifetime is finite as well.
+
+      If the address is already bound or in the process of being bound, nothing
+      happens. *)
+
   val configure: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Macaddr.t -> Ipaddr.Prefix.t ->
     t * [> `Sleep of float | `SendNS of [> `Unspecified ] * Ipaddr.t * Ipaddr.t ] list
+  (** [configure t now rt lft mac pfx] begins the process of assigning a
+      globally unique address with prefix [pfx]. *)
+
   val handle_na: t -> Ipaddr.t -> t
+  (** [handle_na al ip] handles a NA which has arrived from [ip].  If [ip] is a
+      TENTATIVE address in [al] then it means that DAD has failed and [ip] should
+      not be bound. *)
 end
 
 module PrefixList : sig
