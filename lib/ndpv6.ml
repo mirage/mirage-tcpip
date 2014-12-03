@@ -134,21 +134,21 @@ end = struct
           | Some (preferred_lifetime, valid_lifetime) ->
             Some (now +. preferred_lifetime, valid_lifetime), [Action.Sleep preferred_lifetime]
         in
-        Printf.printf "DAD: %s --> PREFERRED\n%!" (Ipaddr.to_string ip);
+        Printf.printf "SLAAC: %s --> PREFERRED\n%!" (Ipaddr.to_string ip);
         Some (ip, PREFERRED timeout), acts
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
         [Action.Sleep retrans_timer; Action.SendNS (Action.Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-      Printf.printf "DAD : %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
+      Printf.printf "SLAAC: %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
       let valid_timeout, acts = match valid_lifetime with
         | None -> None, []
         | Some valid_lifetime -> Some (now +. valid_lifetime), [Action.Sleep valid_lifetime]
       in
       Some (ip, DEPRECATED valid_timeout), acts
     | ip, DEPRECATED (Some t) when t <= now ->
-      Printf.printf "DAD: %s --> EXPIRED\n%!" (Ipaddr.to_string ip);
+      Printf.printf "SLAAC: %s --> EXPIRED\n%!" (Ipaddr.to_string ip);
       None, []
     | addr ->
       Some addr, []
@@ -272,27 +272,27 @@ end = struct
          the prefix is not present in the host's Prefix List, silently ignore
          the option. *)
 
-    Printf.printf "ND: Processing PREFIX option in RA\n%!";
+    Printf.printf "ND6: Processing PREFIX option in RA\n%!";
     if Ipaddr.Prefix.link <> pfx then
       match vlft, List.mem_assoc pfx pl with
       | Some 0.0, true ->
-        Printf.printf "ND: Removing PREFIX %s\n%!" (Ipaddr.Prefix.to_string pfx);
+        Printf.printf "ND6: Removing PREFIX: pfx=%s\n%!" (Ipaddr.Prefix.to_string pfx);
         List.remove_assoc pfx pl, []
       | Some 0.0, false ->
         pl, []
       | Some dt, true ->
-        Printf.printf "ND: Refreshing PREFIX %s (lft = %f)\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        Printf.printf "ND6: Refreshing PREFIX: pfx=%s lft=%f\n%!" (Ipaddr.Prefix.to_string pfx) dt;
         let pl = List.remove_assoc pfx pl in
         (pfx, Some (now +. dt)) :: pl, [Action.Sleep dt]
       | Some dt, false ->
-        Printf.printf "ND: Received new PREFIX %s (lft = %f)\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        Printf.printf "ND6: Received new PREFIX: pfx=%s lft=%f\n%!" (Ipaddr.Prefix.to_string pfx) dt;
         (pfx, Some (now +. dt)) :: pl, [Action.Sleep dt]
       | None, true ->
-        Printf.printf "ND: Refreshing PREFIX %s (lft = inf)\n%!" (Ipaddr.Prefix.to_string pfx);
+        Printf.printf "ND6: Refreshing PREFIX: pfx=%s lft=inf\n%!" (Ipaddr.Prefix.to_string pfx);
         let pl = List.remove_assoc pfx pl in
         (pfx, None) :: pl, []
       | None, false ->
-        Printf.printf "ND: Received new PREFIX %s (lft = inf)\n%!" (Ipaddr.Prefix.to_string pfx);
+        Printf.printf "ND6: Received new PREFIX: pfx=%s lft=inf\n%!" (Ipaddr.Prefix.to_string pfx);
         (pfx, None) :: pl, []
     else
       pl, []
@@ -354,29 +354,29 @@ end = struct
     match nb.state with
     | INCOMPLETE (t, tn) when t <= now ->
       if tn < Defaults.max_multicast_solicit then begin
-        Printf.printf "ND: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
+        Printf.printf "NUD: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         IpMap.add ip {nb with state = INCOMPLETE (now +. retrans_timer, tn+1)} nc,
         [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, dst, ip)]
       end else begin
-        Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
         (* TODO Generate ICMP error: Destination Unreachable *)
         IpMap.remove ip nc, [Action.CancelQueued ip]
       end
     | REACHABLE (t, mac) when t <= now ->
-      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string ip);
+      Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string ip);
       IpMap.add ip {nb with state = STALE mac} nc, []
     | DELAY (t, dmac) when t <= now ->
-      Printf.printf "ND: %s --> PROBE\n%!" (Ipaddr.to_string ip);
+      Printf.printf "NUD: %s --> PROBE\n%!" (Ipaddr.to_string ip);
       IpMap.add ip {nb with state = PROBE (now +. retrans_timer, 0, dmac)} nc,
       [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, ip, ip)]
     | PROBE (t, tn, dmac) when t <= now ->
       if tn < Defaults.max_unicast_solicit then begin
-        Printf.printf "ND: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
+        Printf.printf "NUD: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
         IpMap.add ip {nb with state = PROBE (now +. retrans_timer, tn+1, dmac)} nc,
         [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, ip, ip)]
       end else begin
-        Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
         IpMap.remove ip nc, []
       end
     | _ ->
@@ -407,7 +407,7 @@ end = struct
     IpMap.add src nb nc, acts
 
   let handle_ra nc ~src new_mac =
-    Printf.printf "ND: Processing SLLA option in RA\n%!";
+    Printf.printf "ND6: Processing SLLA option in RA\n%!";
     let nb =
       try
         let nb = IpMap.find src nc in
@@ -430,11 +430,11 @@ end = struct
     let update nb =
       match nb.state, new_mac, sol, ovr with
       | INCOMPLETE _, Some new_mac, false, _ ->
-        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = STALE new_mac} in
         IpMap.add tgt nb nc, [Action.SendQueued (tgt, new_mac)]
       | INCOMPLETE _, Some new_mac, true, _ ->
-        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, [Action.Sleep reachable_time; Action.SendQueued (tgt, new_mac)]
       | INCOMPLETE _, None, _, _ ->
@@ -446,11 +446,11 @@ end = struct
         in
         nc, []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, [Action.Sleep reachable_time]
       | PROBE (_, _, mac), None, true, false ->
-        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, mac)} in
         IpMap.add tgt nb nc, [Action.Sleep reachable_time]
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
@@ -462,16 +462,16 @@ end = struct
         in
         nc, []
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, [Action.Sleep reachable_time]
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
-        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = STALE mac} in
         IpMap.add tgt nb nc, []
       | _ ->
@@ -548,16 +548,16 @@ end = struct
     match List.mem_assoc src rl with
     | true ->
       let rl = List.remove_assoc src rl in
-      if (lft :> float) > 0.0 then begin
-        Printf.printf "RA: Refreshing Router %s lft = %f\n%!" (Ipaddr.to_string src) (lft :> float);
+      if lft > 0.0 then begin
+        Printf.printf "RA: Refreshing Router: src=%s lft=%f\n%!" (Ipaddr.to_string src) lft;
         (src, now +. lft) :: rl, [Action.Sleep lft]
       end else begin
-        Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.to_string src);
+        Printf.printf "RA: Router Expired: src=%s\n%!" (Ipaddr.to_string src);
         rl, []
       end
     | false ->
       if lft > 0.0 then begin
-        Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.to_string src);
+        Printf.printf "RA: Adding Router: src=%s\n%!" (Ipaddr.to_string src);
         (src, now +. lft) :: rl, [Action.Sleep lft]
       end else
         rl, []
