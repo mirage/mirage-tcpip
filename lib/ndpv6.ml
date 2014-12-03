@@ -36,14 +36,6 @@
 
 module Ipaddr = Ipaddr.V6
 
-let multicast_mac =
-  let pbuf = Cstruct.create 6 in
-  Cstruct.BE.set_uint16 pbuf 0 0x3333;
-  fun ip ->
-    let _, _, _, n = Ipaddr.to_int32 ip in
-    Cstruct.BE.set_uint32 pbuf 2 n;
-    Macaddr.of_bytes_exn (Cstruct.to_string pbuf)
-
 let interface_addr mac =
   let bmac = Macaddr.to_bytes mac in
   let c i = Char.code (Bytes.get bmac i) in
@@ -70,11 +62,7 @@ module Defaults = struct
   let max_unicast_solicit        = 3
   let max_anycast_delay_time     = 1
   let max_neighbor_advertisement = 3
-  let reachable_time             = 30.0
-  let retrans_timer              = 1.0
   let delay_first_probe_time     = 5.0
-  let min_random_factor          = 0.5
-  let max_random_factor          = 1.5
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
   let min_link_mtu               = 1280
@@ -82,597 +70,599 @@ module Defaults = struct
   let dup_addr_detect_transmits  = 1
 end
 
-type na = {
-  na_router    : bool;
-  na_solicited : bool;
-  na_override  : bool;
-  na_target    : Ipaddr.t;
-  na_tlla      : Macaddr.t option
-}
+module Action = struct
+  type specified_flag =
+    | Unspecified
+    | Specified
+  type solicited_flag =
+    | Solicited
+    | Unsolicited
+  type t =
+    | Sleep of float
+    | SendNS of specified_flag * Ipaddr.t * Ipaddr.t
+    | SendNA of Ipaddr.t * Ipaddr.t * Ipaddr.t * solicited_flag
+    | SendRS
+    | SendQueued of Ipaddr.t * Macaddr.t
+    | CancelQueued of Ipaddr.t
+end
 
-type ra_prefix = {
-  prf_on_link            : bool;
-  prf_autonomous         : bool;
-  prf_valid_lifetime     : float;
-  prf_preferred_lifetime : float;
-  prf_prefix             : Ipaddr.Prefix.t
-}
+module AddressList : sig
+  type t
 
-type ra = {
-  ra_cur_hop_limit   : int;
-  ra_router_lifetime : float;
-  ra_reachable_time  : float;
-  ra_retrans_timer   : float;
-  ra_slla            : Macaddr.t option;
-  ra_prefix          : ra_prefix option
-}
+  val empty: t
+  val to_list: t -> Ipaddr.t list
+  val select_source: t -> dst:Ipaddr.t -> Ipaddr.t
+  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
+  val expired: t -> now:float -> bool
+  val is_my_addr: t -> Ipaddr.t -> bool
+  val add: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Ipaddr.t -> t * Action.t list
+  val configure: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Macaddr.t -> Ipaddr.Prefix.t -> t * Action.t list
+  val handle_na: t -> Ipaddr.t -> t
+end = struct
+  type state =
+    | TENTATIVE of (float * float option) option * int * float
+    | PREFERRED of (float * float option) option
+    | DEPRECATED of float option
 
-type ns = {
-  ns_target : Ipaddr.t;
-  ns_slla   : Macaddr.t option
-}
+  type t =
+    (Ipaddr.t * state) list
 
-type nd_state =
-  | INCOMPLETE of float * int * int option
-  | REACHABLE  of float * Macaddr.t
-  | STALE      of Macaddr.t
-  | DELAY      of float * Macaddr.t
-  | PROBE      of float * int * Macaddr.t
+  let empty =
+    []
 
-type nb_info = {
-  state     : nd_state;
-  is_router : bool
-}
-
-module IpMap = Map.Make (Ipaddr)
-
-type addr_state =
-  | TENTATIVE  of (float * float option) option * int * float
-  | PREFERRED  of (float * float option) option
-  | DEPRECATED of float option
-
-(* TODO add destination cache *)
-type state = {
-  neighbor_cache      : nb_info IpMap.t;
-  prefix_list         : (Ipaddr.Prefix.t * float option) list;
-  router_list         : (Ipaddr.t * float) list; (* invalidation timer *)
-  mac                 : Macaddr.t;
-  my_ips              : (Ipaddr.t * addr_state) list;
-  link_mtu            : int;
-  cur_hop_limit       : int;
-  base_reachable_time : float;
-  reachable_time      : float;
-  retrans_timer       : float;
-  queue_count         : int
-}
-
-let is_local ~state ip =
-  List.exists (fun (prf, _) -> Ipaddr.Prefix.mem ip prf) state.prefix_list
-
-let select_source_address st =
-  let rec loop = function
-    | (_, TENTATIVE _) :: rest -> loop rest
-    | (ip, _) :: _             -> ip (* FIXME *)
-    | []                       -> Ipaddr.unspecified
-  in
-  loop st.my_ips
-
-let next_hop ~state ip =
-
-  (* RFC 2461, 5.2.  Next-hop determination for a given unicast destination
-     operates as follows.  The sender performs a longest prefix match against
-     the Prefix List to determine whether the packet's destination is on- or
-     off-link.  If the destination is on-link, the next-hop address is the
-     same as the packet's destination address.  Otherwise, the sender selects
-     a router from the Default Router List (following the rules described in
-     Section 6.3.6).  If the Default Router List is empty, the sender assumes
-     that the destination is on-link. *)
-
-  if is_local ~state ip then
-    ip
-  else
-    (* TODO round-robin on non-potentially reachable routers *)
-    let rec select_router = function
-      | [] -> ip
-      | [ip, _]              -> ip
-      | (ip, _) :: rest ->
-        if IpMap.mem ip state.neighbor_cache then
-          let nb = IpMap.find ip state.neighbor_cache in
-          match nb.state with
-          | INCOMPLETE _ -> select_router rest
-          | _ -> ip
-        else
-          select_router rest
+  let to_list al =
+    let rec loop = function
+      | [] -> []
+      | (_, TENTATIVE _) :: rest -> loop rest
+      | (ip, (PREFERRED _ | DEPRECATED _)) :: rest -> ip :: loop rest
     in
-    match state.router_list with
-    | [] -> ip
-    | _ -> select_router state.router_list
+    loop al
 
-type packet =
-  | NS of ns
-  | RA of ra
-  | NA of na
+  let select_source al ~dst:_ =
+    let rec loop = function
+      | (_, TENTATIVE _) :: rest -> loop rest
+      | (ip, _) :: _             -> ip (* FIXME *)
+      | []                       -> Ipaddr.unspecified
+    in
+    loop al
 
-type action =
-  | Sleep        of float
-  | SendNS       of Ipaddr.t * Ipaddr.t * Ipaddr.t
-  | SendNA       of Ipaddr.t * Ipaddr.t * Ipaddr.t * bool
-  | SendRS
-  | SendQueued   of int * Macaddr.t
-  | CancelQueued of int
-
-let tick_nud ~now ~state ip nb =
-  let add nb_state = {state with neighbor_cache = IpMap.add ip {nb with state = nb_state} state.neighbor_cache} in
-  let remove ()    = {state with neighbor_cache = IpMap.remove ip state.neighbor_cache} in
-  match nb.state with
-  | INCOMPLETE (t, tn, pending) when t <= now ->
-    if tn < Defaults.max_multicast_solicit then begin
-      Printf.printf "ND: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
-      let src = select_source_address state in (* FIXME choose src in a paritcular way ? see 7.2.2 *)
-      let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      let dt  = state.retrans_timer in
-      add (INCOMPLETE (now +. dt, tn+1, pending)), [Sleep dt; SendNS (src, dst, ip)]
-    end else begin
-      Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
-      (* TODO Generate ICMP error: Destination Unreachable *)
-      let acts = match pending with None -> [] | Some qc -> [CancelQueued qc] in
-      remove (), acts
-    end
-  | REACHABLE (t, mac) when t <= now ->
-    Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string ip);
-    add (STALE mac), []
-  | DELAY (t, dmac) when t <= now ->
-    Printf.printf "ND: %s --> PROBE\n%!" (Ipaddr.to_string ip);
-    let src = select_source_address state in
-    let dt  = state.retrans_timer in
-    add (PROBE (now +. dt, 0, dmac)), [Sleep dt; SendNS (src, ip, ip)]
-  | PROBE (t, tn, dmac) when t <= now ->
-    if tn < Defaults.max_unicast_solicit then begin
-      Printf.printf "ND: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
-      let src = select_source_address state in
-      let dt  = state.retrans_timer in
-      add (PROBE (now +. dt, tn+1, dmac)), [Sleep dt; SendNS (src, ip, ip)]
-    end else begin
-      Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
-      remove (), []
-    end
-  | _ ->
-    state, []
-
-let tick_address ~now ~state = function
-  | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
-    if n + 1 >= Defaults.dup_addr_detect_transmits then
-      let timeout, acts = match timeout with
+  let tick_one ~now ~retrans_timer = function
+    | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
+      if n + 1 >= Defaults.dup_addr_detect_transmits then
+        let timeout, acts = match timeout with
+          | None -> None, []
+          | Some (preferred_lifetime, valid_lifetime) ->
+            Some (now +. preferred_lifetime, valid_lifetime), [Action.Sleep preferred_lifetime]
+        in
+        Printf.printf "DAD: %s --> PREFERRED\n%!" (Ipaddr.to_string ip);
+        Some (ip, PREFERRED timeout), acts
+      else
+        let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+        Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
+        [Action.Sleep retrans_timer; Action.SendNS (Action.Unspecified, dst, ip)]
+    | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
+      Printf.printf "DAD : %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
+      let valid_timeout, acts = match valid_lifetime with
         | None -> None, []
-        | Some (preferred_lifetime, valid_lifetime) ->
-          Some (now +. preferred_lifetime, valid_lifetime), [Sleep preferred_lifetime]
+        | Some valid_lifetime -> Some (now +. valid_lifetime), [Action.Sleep valid_lifetime]
       in
-      Printf.printf "DAD: %s --> PREFERRED\n%!" (Ipaddr.to_string ip);
-      Some (ip, PREFERRED timeout), acts
-    else
-      let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      let dt  = state.retrans_timer in
-      Some (ip, TENTATIVE (timeout, n+1, now +. dt)), [Sleep dt; SendNS (Ipaddr.unspecified, dst, ip)]
-  | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-    Printf.printf "DAD : %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
-    let valid_timeout, acts = match valid_lifetime with
-      | None -> None, []
-      | Some valid_lifetime -> Some (now +. valid_lifetime), [Sleep valid_lifetime]
-    in
-    Some (ip, DEPRECATED valid_timeout), acts
-  | ip, DEPRECATED (Some t) when t <= now ->
-    Printf.printf "DAD: %s --> EXPIRED\n%!" (Ipaddr.to_string ip);
-    None, []
-  | addr ->
-    Some addr, []
+      Some (ip, DEPRECATED valid_timeout), acts
+    | ip, DEPRECATED (Some t) when t <= now ->
+      Printf.printf "DAD: %s --> EXPIRED\n%!" (Ipaddr.to_string ip);
+      None, []
+    | addr ->
+      Some addr, []
 
-let tick ~now ~state =
+  let tick al ~now ~retrans_timer =
+    List.fold_right begin fun ip (ips, acts) ->
+      let addr, acts' = tick_one ~now ~retrans_timer ip in
+      let acts = acts' @ acts in
+      let ips = match addr with Some ip -> ip :: ips | None -> ips in
+      ips, acts
+    end al ([], [])
 
-  let state, acts =
-    IpMap.fold (fun ip nb (state, acts) ->
-        let state, acts' = tick_nud ~now ~state ip nb in
-        state, acts' @ acts) state.neighbor_cache (state, [])
-  in
-
-  let some_router_expired = List.exists (fun (_, t) -> t <= now) state.router_list in
-  let state =
-    if some_router_expired then
-      {state with router_list = List.filter (fun (_, t) -> t > now) state.router_list}
-    else
-      state
-  in
-  (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
-
-  let some_prefix_expired = List.exists (function (_, Some t) -> t <= now | _ -> false) state.prefix_list in
-  let state =
-    if some_prefix_expired then
-      {state with prefix_list = List.filter (function (_, Some t) -> t > now | _ -> true) state.prefix_list}
-    else
-      state
-  in
-
-  let some_address_expired =
+  let expired al ~now =
     List.exists begin function
       | _, TENTATIVE (_, _, t)
       | _, PREFERRED (Some (t, _))
       | _, DEPRECATED (Some t) -> t <= now
       | _ -> false
-    end state.my_ips
-  in
+    end al
 
-  if some_address_expired then begin
-    let my_ips, acts =
-      List.fold_right begin fun ip (ips, acts) ->
-        let addr, acts' = tick_address ~now ~state ip in
-        let acts        = acts' @ acts in
-        let ips         = match addr with Some ip -> ip :: ips | None -> ips in
-        ips, acts
-      end state.my_ips ([], acts)
+  let add al ~now ~retrans_timer ~lft ip =
+    if not (List.mem_assoc ip al) then
+      let al = (ip, TENTATIVE (lft, 0, now +. retrans_timer)) :: al in
+      let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+      al, [Action.Sleep retrans_timer; Action.SendNS (Action.Unspecified, dst, ip)]
+    else
+      (* TODO log warning *)
+      al, []
+
+  let is_my_addr al ip =
+    List.exists
+      (function
+        | _, TENTATIVE _ -> false
+        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0)
+      al
+
+  let find_prefix al pfx =
+    let rec loop = function
+      | (ip, _) :: _ when Ipaddr.Prefix.mem ip pfx -> Some ip
+      | _ :: rest -> loop rest
+      | [] -> None
     in
-    {state with my_ips}, acts
-  end else
-    state, acts
+    loop al
 
-let update_prefix ~now ~state prf ~valid =
-  let already_exists = List.mem_assoc prf state.prefix_list in
-  match already_exists, valid with
-  | false, 0.0 ->
-    state, []
-  | true, 0.0 ->
-    Printf.printf "ND: Removing prefix %s\n%!" (Ipaddr.Prefix.to_string prf);
-    {state with prefix_list = List.remove_assoc prf state.prefix_list}, []
-  | true, dt ->
-    Printf.printf "ND: Refreshing prefix %s, lifetime %f\n%!" (Ipaddr.Prefix.to_string prf) dt;
-    let prefix_list = List.remove_assoc prf state.prefix_list in
-    {state with prefix_list = (prf, Some (now +. dt)) :: prefix_list}, [Sleep dt]
-  | false, dt ->
-    Printf.printf "ND: Adding prefix %s, lifetime %f\n%!" (Ipaddr.Prefix.to_string prf) dt;
-    {state with prefix_list = (prf, Some (now +. dt)) :: state.prefix_list}, [Sleep dt]
+  let configure al ~now ~retrans_timer ~lft mac pfx =
+    (* FIXME is this the same as add ? *)
+    match find_prefix al pfx with
+    | Some addr ->
+      (* TODO handle already configured SLAAC address 5.5.3 e). *)
+      al, []
+    | None ->
+      let ip = Ipaddr.Prefix.network_address pfx (interface_addr mac) in
+      add al ~now ~retrans_timer ~lft ip
 
-let add_prefix ~now ~state prf =
-  let valid = max_float in
-  update_prefix ~now ~state prf ~valid
+  let handle_na al ip =
+    assert false
+end
 
-let add_router ~now ~state ?(lifetime = max_float) ip =
-  {state with router_list = (ip, now +. lifetime) :: state.router_list} (* FIXME *)
+module PrefixList : sig
+  type t
+  val link_local: t
+  val to_list: t -> Ipaddr.Prefix.t list
+  val tick: t -> now:float -> t
+  val expired: t -> now:float -> bool
+  val is_local: t -> Ipaddr.t -> bool
+  val add: t -> now:float -> Ipaddr.Prefix.t -> vlft:float option -> t
+  val handle_ra: t -> now:float -> vlft:float option -> Ipaddr.Prefix.t -> t * Action.t list
+end = struct
+  type t =
+    (Ipaddr.Prefix.t * float option) list
 
-let get_routers state =
-  List.map fst state.router_list
+  let link_local =
+    [Ipaddr.Prefix.link, None]
 
-let compute_reachable_time dt =
-  let r = Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor)) in
-  r *. dt
+  let to_list pl =
+    List.map fst pl
 
-let lookup_prefix ~st pref =
-  let rec loop = function
-    | (ip, _) :: _ when Ipaddr.Prefix.mem ip pref -> Some ip
-    | _ :: rest                                      -> loop rest
-    | []                                             -> None
-  in
-  loop st.my_ips
+  let is_local pl ip =
+    List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
 
-let add_ip ~now ~state ?lifetime ip =
-  if not (List.mem_assq ip state.my_ips) then
-    let dt  = state.retrans_timer in
-    let state  = {state with my_ips = (ip, TENTATIVE (lifetime, 0, now +. dt)) :: state.my_ips} in
-    let src = Ipaddr.unspecified in
-    let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-    state, [Sleep dt; SendNS (src, dst, ip)]
-  else
-    (* TODO log warning *)
-    state, []
+  let expired pl ~now =
+    List.exists (function (_, Some t) -> t <= now | (_, None) -> false) pl
 
-let float_of_uint32 n = Uint32.to_float @@ Uint32.of_int32 n
+  let tick pl ~now =
+    List.filter (function (_, Some t) -> t > now | (_, None) -> true) pl
 
-let handle_ra_slla ~state ~src new_mac =
-  Printf.printf "ND: Processing SLLA option in RA\n%!";
-  let nb =
-    if IpMap.mem src state.neighbor_cache then
-      let nb = IpMap.find src state.neighbor_cache in
-      if nb.is_router then
-        nb
-      else
-        {nb with is_router = true}
-    else
-      {state = STALE new_mac; is_router = true}
-  in
-  let nb, acts =
-    match nb.state with
-    | INCOMPLETE (_, _, pending) ->
-      let nb = {nb with state = STALE new_mac} in
-      let acts = match pending with None -> [] | Some qc -> [SendQueued (qc, new_mac)] in
-      nb, acts
-    | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
-      let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
-      nb, []
-  in
-  {state with neighbor_cache = IpMap.add src nb state.neighbor_cache}, acts
-
-let handle_ra_prefix ~now ~state prf =
-  Printf.printf "ND: Processing PREFIX option in RA\n%!";
-  (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
-  if prf.prf_valid_lifetime >= prf.prf_preferred_lifetime && Ipaddr.Prefix.link <> prf.prf_prefix then
-    let state, acts =
-      if prf.prf_on_link then
-        update_prefix ~now ~state prf.prf_prefix ~valid:prf.prf_valid_lifetime
-      else
-        state, []
+  let add pl ~now pfx ~vlft =
+    let vlft = match vlft with
+      | None -> None
+      | Some dt -> Some (now +. dt)
     in
-    if prf.prf_autonomous && prf.prf_valid_lifetime > 0.0 then
-      match lookup_prefix state prf.prf_prefix with
-      | Some addr ->
-        (* TODO handle already configured SLAAC address 5.5.3 e). *)
-        state, acts
-      | None ->
-        let ip = Ipaddr.Prefix.network_address prf.prf_prefix (interface_addr state.mac) in
-        let state, acts' =
-          add_ip ~now ~state ~lifetime:(prf.prf_preferred_lifetime, Some prf.prf_valid_lifetime) ip
-        in
-        state, acts' @ acts
-    else
-      state, acts
-  else
-    state, []
-
-let handle_ra ~now ~state ~src ~dst ~ra =
-  Printf.printf "ND: Received RA from %s to %s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst);
-
-  let state =
-    if ra.ra_cur_hop_limit <> 0 then {state with cur_hop_limit = ra.ra_cur_hop_limit} else state
-  in
-
-  let state =
-    if ra.ra_reachable_time <> 0.0 && state.base_reachable_time <> ra.ra_reachable_time then
-      {state with base_reachable_time = ra.ra_reachable_time;
-                  reachable_time      = compute_reachable_time ra.ra_reachable_time}
-    else
-      state
-  in
-
-  let state =
-    if ra.ra_retrans_timer <> 0.0 then
-      {state with retrans_timer = ra.ra_retrans_timer}
-    else
-      state
-  in
-
-  let state, acts =
-    match ra.ra_slla with
-    | Some new_mac ->
-      handle_ra_slla ~state ~src new_mac
-    | None ->
-      state, []
-  in
-
-  let state, acts' =
-    match ra.ra_prefix with
-    | Some prf ->
-      handle_ra_prefix ~now ~state prf
-    | None ->
-      state, []
-  in
-
-  let acts = acts @ acts' in
-
-  (* TODO update the is_router flag even if there was no SLLA *)
-
-  let router_list, acts' =
-    match List.mem_assoc src state.router_list with
-    | true ->
-      let router_list = List.remove_assoc src state.router_list in
-      if ra.ra_router_lifetime > 0.0 then begin
-        Printf.printf "RA: Refreshing Router %s ltime %f\n%!" (Ipaddr.to_string src) ra.ra_router_lifetime;
-        let dt = ra.ra_router_lifetime in
-        (src, now +. dt) :: router_list, [Sleep dt]
-      end else begin
-        Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.to_string src);
-        router_list, []
-      end
+    match List.mem_assoc pfx pl with
     | false ->
-      if ra.ra_router_lifetime > 0.0 then begin
-        Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.to_string src);
-        let dt = ra.ra_router_lifetime in
-        (src, now +. dt) :: state.router_list, [Sleep dt]
-      end else
-        state.router_list, []
-  in
+      (pfx, vlft) :: pl
+    | true ->
+      let pl = List.remove_assoc pfx pl in
+      (pfx, vlft) :: pl
 
-  {state with router_list}, acts' @ acts
+  let handle_ra pl ~now ~vlft pfx =
 
-let is_my_addr ~state ip =
-  List.exists begin function
-    | _, TENTATIVE _                    -> false
-    | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0
-  end state.my_ips
+    (* RFC 2461, 6.3.4.
 
-let handle_ns_slla ~state ~src new_mac =
-  let nb =
-    if IpMap.mem src state.neighbor_cache then
-      IpMap.find src state.neighbor_cache
+       For each Prefix Information option with the on-link flag set, a host
+       does the following:
+
+       - If the prefix is the link-local prefix, silently ignore the
+         Prefix Information option.
+
+       - If the prefix is not already present in the Prefix List, and the Prefix
+         Information option's Valid Lifetime field is non-zero, create a new
+         entry for the prefix and initialize its invalidation timer to the Valid
+         Lifetime value in the Prefix Information option.
+
+       - If the prefix is already present in the host's Prefix List as the
+         result of a previously-received advertisement, reset its invalidation
+         timer to the Valid Lifetime value in the Prefix Information option.  If
+         the new Lifetime value is zero, time-out the prefix immediately (see
+         Section 6.3.5).
+
+       - If the Prefix Information option's Valid Lifetime field is zero, and
+         the prefix is not present in the host's Prefix List, silently ignore
+         the option. *)
+
+    Printf.printf "ND: Processing PREFIX option in RA\n%!";
+    if Ipaddr.Prefix.link <> pfx then
+      match vlft, List.mem_assoc pfx pl with
+      | Some 0.0, true ->
+        Printf.printf "ND: Removing PREFIX %s\n%!" (Ipaddr.Prefix.to_string pfx);
+        List.remove_assoc pfx pl, []
+      | Some 0.0, false ->
+        pl, []
+      | Some dt, true ->
+        Printf.printf "ND: Refreshing PREFIX %s (lft = %f)\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        let pl = List.remove_assoc pfx pl in
+        (pfx, Some (now +. dt)) :: pl, [Action.Sleep dt]
+      | Some dt, false ->
+        Printf.printf "ND: Received new PREFIX %s (lft = %f)\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        (pfx, Some (now +. dt)) :: pl, [Action.Sleep dt]
+      | None, true ->
+        Printf.printf "ND: Refreshing PREFIX %s (lft = inf)\n%!" (Ipaddr.Prefix.to_string pfx);
+        let pl = List.remove_assoc pfx pl in
+        (pfx, None) :: pl, []
+      | None, false ->
+        Printf.printf "ND: Received new PREFIX %s (lft = inf)\n%!" (Ipaddr.Prefix.to_string pfx);
+        (pfx, None) :: pl, []
     else
-      {state = STALE new_mac; is_router = false}
-  in
-  let nb, acts =
+      pl, []
+    (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
+    (* if vlft >= plft && Ipaddr.Prefix.link <> pfx then *)
+    (*   let pl, acts = *)
+    (*     if on_link then *)
+    (*       update pl ~now ~valid:vlft pfx *)
+    (*     else *)
+    (*       pl, [] *)
+    (*   in *)
+    (*   if aut && (vlft :> float) > 0.0 then *)
+    (*     pl, acts, Some (pfx, plft, vlft) *)
+    (*   else *)
+    (*     pl, acts, None *)
+    (* else *)
+    (*   pl, [], None *)
+end
+
+module NeighborCache : sig
+  type t
+
+  val empty: t
+  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
+  val handle_ns: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
+  val handle_ra: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
+  val handle_na: t ->
+    now:float ->
+    reachable_time:float ->
+    rtr:bool ->
+    sol:bool ->
+    ovr:bool ->
+    tgt:Ipaddr.t ->
+    lladdr:Macaddr.t option -> t * Action.t list
+  val query: t -> now:float -> reachable_time:float -> Ipaddr.t -> t * Macaddr.t option * Action.t list
+  val reachable: t -> Ipaddr.t -> bool
+end = struct
+  type state =
+    | INCOMPLETE of float * int
+    | REACHABLE  of float * Macaddr.t
+    | STALE      of Macaddr.t
+    | DELAY      of float * Macaddr.t
+    | PROBE      of float * int * Macaddr.t
+
+  type info = {
+    state     : state;
+    is_router : bool
+  }
+
+  module IpMap = Map.Make (Ipaddr)
+
+  type t =
+    info IpMap.t
+
+  let empty =
+    IpMap.empty
+
+  let tick_one ~now ~retrans_timer ip nb nc =
     match nb.state with
-    | INCOMPLETE (_, _, pending) ->
-      let nb = {nb with state = STALE new_mac} in
-      let acts = match pending with None -> [] | Some qc -> [SendQueued (qc, new_mac)] in
-      nb, acts
-    | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
-      let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
-      nb, []
-  in
-  {state with neighbor_cache = IpMap.add src nb state.neighbor_cache}, acts
-
-let handle_ns ~now ~state ~src ~dst ~ns =
-  Printf.printf "ND: Received NS from %s to %s with target %s\n%!"
-    (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string ns.ns_target);
-
-  (* TODO check hlim = 255, target not mcast, code = 0 *)
-
-  let state, acts = match ns.ns_slla with
-    | Some new_mac ->
-      handle_ns_slla ~state ~src new_mac
-    | None ->
-      state, []
-  in
-
-  if is_my_addr state ns.ns_target then begin
-    let src = ns.ns_target and dst = src in (* FIXME src & dst *)
-    (* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *)
-      (* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *)
-    state, SendNA (src, dst, ns.ns_target, true) :: acts
-  end else
-    state, acts
-
-let handle_na ~now ~state ~src ~dst ~na =
-  Printf.printf "ND: Received NA from %s to %s with target %s\n%!"
-    (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string na.na_target);
-
-  (* TODO check hlim = 255, code = 0, target not mcast, not (solicited && mcast (dst)) *)
-
-  let new_mac = na.na_tlla in
-
-  (* TODO if target is one of the my_ips then fail.  If my_ip is TENTATIVE then fail DAD. *)
-
-  let nc = state.neighbor_cache in
-
-  let update nb =
-    match nb.state, new_mac, na.na_solicited, na.na_override with
-    | INCOMPLETE (_, _, pending), Some new_mac, false, _ ->
-      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string na.na_target);
-      let nb = {nb with state = STALE new_mac} in
-      let acts = match pending with None -> [] | Some qc -> [SendQueued (qc, new_mac)] in
-      IpMap.add na.na_target nb nc, acts
-    | INCOMPLETE (_, _, pending), Some new_mac, true, _ ->
-      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string na.na_target);
-      let dt = state.reachable_time in
-      let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
-      let acts = match pending with None -> [] | Some qc -> [SendQueued (qc, new_mac)] in
-      IpMap.add na.na_target nb nc, Sleep dt :: acts
-    | INCOMPLETE _, None, _, _ ->
-      let nc =
-        if nb.is_router != na.na_router then
-          IpMap.add na.na_target {nb with is_router = na.na_router} nc
-        else
-          nc
-      in
-      nc, []
-    | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string na.na_target);
-      let dt = state.reachable_time in
-      let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
-      IpMap.add na.na_target nb nc, [Sleep dt]
-    | PROBE (_, _, mac), None, true, false ->
-      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string na.na_target);
-      let dt = state.reachable_time in
-      let nb = {nb with state = REACHABLE (now +. dt, mac)} in
-      IpMap.add na.na_target nb nc, [Sleep dt]
-    | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-      let nc =
-        if nb.is_router != na.na_router then
-          IpMap.add na.na_target {nb with is_router = na.na_router} nc
-        else
-          nc
-      in
-      nc, []
-    | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string na.na_target);
-      let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
-      IpMap.add na.na_target nb nc, []
-    | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-      Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string na.na_target);
-      let dt = state.reachable_time in
-      let nb = {nb with state = REACHABLE (now +. dt, new_mac)} in
-      IpMap.add na.na_target nb nc, [Sleep dt]
-    | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
-      Some new_mac, false, true when mac <> new_mac ->
-      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string na.na_target);
-      let nb = {nb with state = STALE mac} in
-      IpMap.add na.na_target nb nc, []
+    | INCOMPLETE (t, tn) when t <= now ->
+      if tn < Defaults.max_multicast_solicit then begin
+        Printf.printf "ND: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
+        let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+        IpMap.add ip {nb with state = INCOMPLETE (now +. retrans_timer, tn+1)} nc,
+        [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, dst, ip)]
+      end else begin
+        Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        (* TODO Generate ICMP error: Destination Unreachable *)
+        IpMap.remove ip nc, [Action.CancelQueued ip]
+      end
+    | REACHABLE (t, mac) when t <= now ->
+      Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string ip);
+      IpMap.add ip {nb with state = STALE mac} nc, []
+    | DELAY (t, dmac) when t <= now ->
+      Printf.printf "ND: %s --> PROBE\n%!" (Ipaddr.to_string ip);
+      IpMap.add ip {nb with state = PROBE (now +. retrans_timer, 0, dmac)} nc,
+      [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, ip, ip)]
+    | PROBE (t, tn, dmac) when t <= now ->
+      if tn < Defaults.max_unicast_solicit then begin
+        Printf.printf "ND: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
+        IpMap.add ip {nb with state = PROBE (now +. retrans_timer, tn+1, dmac)} nc,
+        [Action.Sleep retrans_timer; Action.SendNS (Action.Specified, ip, ip)]
+      end else begin
+        Printf.printf "ND: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        IpMap.remove ip nc, []
+      end
     | _ ->
       nc, []
-  in
 
-  if IpMap.mem na.na_target state.neighbor_cache then
-    let nb = IpMap.find na.na_target state.neighbor_cache in
-    let nc, acts = update nb in
-    {state with neighbor_cache = nc}, acts
-  else
-    state, []
+  let tick nc ~now ~retrans_timer =
+    IpMap.fold
+      (fun ip nb (nc, acts) ->
+        let nc, acts' = tick_one ~now ~retrans_timer ip nb nc in
+        nc, acts' @ acts) nc (nc, [])
 
-(* buf : icmp packet with ipv6 header *)
-let input ~now ~state ~src ~dst = function
-  | RA ra ->
-    handle_ra ~now ~state ~src ~dst ~ra
-  | NS ns ->
-    handle_ns ~now ~state ~src ~dst ~ns
-  | NA na ->
-    handle_na ~now ~state ~src ~dst ~na
-
-let create ~now mac =
-  let state =
-    { neighbor_cache      = IpMap.empty;
-      prefix_list         = [Ipaddr.Prefix.make 64 (Ipaddr.make 0xfe80 0 0 0 0 0 0 0), None];
-      router_list         = [];
-      mac                 = mac;
-      my_ips              = [];
-      link_mtu            = Defaults.link_mtu;
-      cur_hop_limit       = 64; (* TODO *)
-      base_reachable_time = Defaults.reachable_time;
-      reachable_time      = compute_reachable_time Defaults.reachable_time;
-      retrans_timer       = Defaults.retrans_timer;
-      queue_count         = 0 }
-  in
-  let ip = link_local_addr mac in
-  let state, acts = add_ip ~now ~state ip in
-  state, SendRS :: acts
-
-let prefix_list ~state =
-  List.map fst state.prefix_list
-
-type output =
-  | SendNow of Macaddr.t
-  | SendLater of int
-
-let output ~now ~state ~dst =
-  match Ipaddr.is_multicast dst with
-  | true ->
-    state, SendNow (multicast_mac dst), []
-  | false ->
-    let ip = next_hop ~state dst in
-    if IpMap.mem ip state.neighbor_cache then
-      let nb = IpMap.find ip state.neighbor_cache in
+  let handle_ns nc ~src new_mac =
+    let nb =
+      if IpMap.mem src nc then
+        IpMap.find src nc
+      else
+        {state = STALE new_mac; is_router = false}
+    in
+    let nb, acts =
       match nb.state with
-      | INCOMPLETE (t, nt, pending) ->
-        let qc   = state.queue_count in
-        let acts = match pending with None -> [] | Some qc -> [CancelQueued qc] in
-        let nc   = IpMap.add ip {nb with state = INCOMPLETE (t, nt, Some qc)} state.neighbor_cache in
-        {state with neighbor_cache = nc; queue_count = qc + 1}, SendLater qc, acts
+      | INCOMPLETE _ ->
+        let nb = {nb with state = STALE new_mac} in
+        nb, [Action.SendQueued (src, new_mac)]
+      | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
+        let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
+        nb, []
+    in
+    IpMap.add src nb nc, acts
+
+  let handle_ra nc ~src new_mac =
+    Printf.printf "ND: Processing SLLA option in RA\n%!";
+    let nb =
+      try
+        let nb = IpMap.find src nc in
+        {nb with is_router = true}
+      with
+      | Not_found ->
+        {state = STALE new_mac; is_router = true}
+    in
+    match nb.state with
+    | INCOMPLETE _ ->
+      let nb = {nb with state = STALE new_mac} in
+      IpMap.add src nb nc, [Action.SendQueued (src, new_mac)]
+    | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
+      let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
+      IpMap.add src nb nc, []
+
+  let handle_na nc ~now ~reachable_time ~rtr ~sol ~ovr ~tgt ~lladdr =
+    let new_mac = lladdr in
+
+    let update nb =
+      match nb.state, new_mac, sol, ovr with
+      | INCOMPLETE _, Some new_mac, false, _ ->
+        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = STALE new_mac} in
+        IpMap.add tgt nb nc, [Action.SendQueued (tgt, new_mac)]
+      | INCOMPLETE _, Some new_mac, true, _ ->
+        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        IpMap.add tgt nb nc, [Action.Sleep reachable_time; Action.SendQueued (tgt, new_mac)]
+      | INCOMPLETE _, None, _, _ ->
+        let nc =
+          if nb.is_router != rtr then
+            IpMap.add tgt {nb with is_router = rtr} nc
+          else
+            nc
+        in
+        nc, []
+      | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
+        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        IpMap.add tgt nb nc, [Action.Sleep reachable_time]
+      | PROBE (_, _, mac), None, true, false ->
+        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = REACHABLE (now +. reachable_time, mac)} in
+        IpMap.add tgt nb nc, [Action.Sleep reachable_time]
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
+        let nc =
+          if nb.is_router != rtr then
+            IpMap.add tgt {nb with is_router = rtr} nc
+          else
+            nc
+        in
+        nc, []
+      | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
+        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
+        IpMap.add tgt nb nc, []
+      | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
+        Printf.printf "ND: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        IpMap.add tgt nb nc, [Action.Sleep reachable_time]
+      | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
+        Some new_mac, false, true when mac <> new_mac ->
+        Printf.printf "ND: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        let nb = {nb with state = STALE mac} in
+        IpMap.add tgt nb nc, []
+      | _ ->
+        nc, []
+    in
+    try
+      let nb = IpMap.find tgt nc in
+      update nb
+    with
+    | Not_found ->
+      nc, []
+
+  let query nc ~now ~reachable_time ip =
+    try
+      let nb = IpMap.find ip nc in
+      match nb.state with
+      | INCOMPLETE _ ->
+        nc, None, []
       | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-        state, SendNow dmac, []
+        nc, Some dmac, []
       | STALE dmac ->
         let dt = Defaults.delay_first_probe_time in
-        let nc = IpMap.add ip {nb with state = DELAY (now +. dt, dmac)} state.neighbor_cache in
-        {state with neighbor_cache = nc}, SendNow dmac, [Sleep dt]
-    else
-      let dt  = state.reachable_time in
-      let qc  = state.queue_count in
-      let nb  = {state = INCOMPLETE (now +. dt, 0, Some qc); is_router = false} in
-      let nc  = IpMap.add ip nb state.neighbor_cache in
+        let nc = IpMap.add ip {nb with state = DELAY (now +. dt, dmac)} nc in
+        nc, Some dmac, [Action.Sleep dt]
+    with
+    | Not_found ->
+      let nb  = {state = INCOMPLETE (now +. reachable_time, 0); is_router = false} in
+      let nc  = IpMap.add ip nb nc in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      let state = {state with neighbor_cache = nc; queue_count = qc + 1} in
-      state, SendLater qc, [SendNS (select_source_address state, dst, ip); Sleep dt]
+      nc, None, [Action.SendNS (Action.Specified, dst, ip); Action.Sleep reachable_time]
 
-let mac state = state.mac
+  let reachable nc ip =
+    try
+      let nb = IpMap.find ip nc in
+      match nb.state with
+      | INCOMPLETE _ -> false
+      | _ -> true
+    with
+    | Not_found -> false
+end
 
-let get_ipv6 state =
-  let rec loop = function
-    | [] -> []
-    | (_, TENTATIVE _) :: rest -> loop rest
-    | (ip, (PREFERRED _ | DEPRECATED _)) :: rest -> ip :: loop rest
-  in
-  loop state.my_ips
+module RouterList : sig
+  type t
 
-let cur_hop_limit state =
-  state.cur_hop_limit
+  val empty: t
+  val to_list: t -> Ipaddr.t list
+  val add: t -> now:float -> ?lifetime:float -> Ipaddr.t -> t
+  val tick: t -> now:float -> t
+  val handle_ra: t -> now:float -> src:Ipaddr.t -> lft:float -> t * Action.t list
+  val add: t -> now:float -> Ipaddr.t -> t
+  val select: t -> (Ipaddr.t -> bool) -> Ipaddr.t -> Ipaddr.t * t
+end = struct
+  type t =
+    (Ipaddr.t * float) list
+
+  let empty =
+    []
+
+  let to_list rl =
+    List.map fst rl
+
+  let add rl ~now ?(lifetime = max_float) ip =
+    (* FIXME *)
+    (ip, now +. lifetime) :: rl
+
+  let expired rl ~now =
+    List.exists (fun (_, t) -> t <= now) rl
+
+  (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
+  let tick rl ~now =
+    List.filter (fun (_, t) -> t > now) rl
+
+  let handle_ra rl ~now ~src ~lft =
+    match List.mem_assoc src rl with
+    | true ->
+      let rl = List.remove_assoc src rl in
+      if (lft :> float) > 0.0 then begin
+        Printf.printf "RA: Refreshing Router %s lft = %f\n%!" (Ipaddr.to_string src) (lft :> float);
+        (src, now +. lft) :: rl, [Action.Sleep lft]
+      end else begin
+        Printf.printf "RA: Router %s is EOL\n%!" (Ipaddr.to_string src);
+        rl, []
+      end
+    | false ->
+      if lft > 0.0 then begin
+        Printf.printf "RA: Adding %s to the Default Router List\n%!" (Ipaddr.to_string src);
+        (src, now +. lft) :: rl, [Action.Sleep lft]
+      end else
+        rl, []
+
+  let add rl ~now ip =
+    match List.mem_assoc ip rl with
+    | true -> rl
+    | false -> (ip, max_float) :: rl
+
+  let select rl reachable ip =
+    let rec loop = function
+      | [] ->
+        begin match rl with
+          | [] -> ip, rl
+          | (ip, _) as r :: rest ->
+            ip, rest @ [r]
+        end
+      | (ip, _) :: _ when reachable ip -> ip, rl
+      | _ :: rest -> loop rest
+    in
+    loop rl
+end
+
+(* let handle_ra ~now ~state ~src ~dst ra = *)
+(*   let open Packet.RA in *)
+
+(*   Printf.printf "ND: Received RA from %s to %s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst); *)
+
+(*   let state = *)
+(*     if ra.cur_hop_limit <> 0 then {state with cur_hop_limit = ra.cur_hop_limit} else state *)
+(*   in *)
+
+(*   let state = *)
+(*     if ra.reachable_time <> 0.0 && state.base_reachable_time <> ra.reachable_time then *)
+(*       {state with base_reachable_time = ra.ra_reachable_time; *)
+(*                   reachable_time      = compute_reachable_time ra.ra_reachable_time} *)
+(*     else *)
+(*       state *)
+(*   in *)
+
+(*   let state = *)
+(*     if ra.retrans_timer <> 0.0 then *)
+(*       {state with retrans_timer = ra.retrans_timer} *)
+(*     else *)
+(*       state *)
+(*   in *)
+
+(*   let state, acts = *)
+(*     match ra.slla with *)
+(*     | Some new_mac -> *)
+(*       handle_ra_slla ~state ~src new_mac *)
+(*     | None -> *)
+(*       state, [] *)
+(*   in *)
+
+(*   let state, acts' = *)
+(*     match ra.ra_prefix with *)
+(*     | Some prf -> *)
+(*       handle_ra_prefix ~now ~state prf *)
+(*     | None -> *)
+(*       state, [] *)
+(*   in *)
+
+(*   let acts = acts @ acts' in *)
+
+(*   (\* TODO update the is_router flag even if there was no SLLA *\) *)
+
+
+(*   {state with router_list}, acts' @ acts *)
+
+(* let handle_ns ~now ~state ~src ~dst ~ns = *)
+(*   Printf.printf "ND: Received NS from %s to %s with target %s\n%!" *)
+(*     (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string ns.ns_target); *)
+
+(*   let state, acts = match ns.ns_slla with *)
+(*     | Some new_mac -> *)
+(*       handle_ns_slla ~state ~src new_mac *)
+(*     | None -> *)
+(*       state, [] *)
+(*   in *)
+
+(*   if is_my_addr state ns.ns_target then begin *)
+(*     let src = ns.ns_target and dst = src in (\* FIXME src & dst *\) *)
+(*     (\* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *\) *)
+(*       (\* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *\) *)
+(*     state, SendNA (src, dst, ns.ns_target, true) :: acts *)
+(*   end else *)
+(*     state, acts *)
+
+(* module Output = struct *)
+(*   type t = *)
+(*     | SendNow of Macaddr.t *)
+(*     | SendLater *)
+
+(*   let output ~now ~prefix_list ~router_list ~dst = *)
+(*     match Ipaddr.is_multicast dst with *)
+(*     | true -> *)
+(*       state, SendNow (multicast_mac dst), [] *)
+(*     | false -> *)
+(*       let ip, router_list = RouterList.next_hop ~prefix_list dst router_list in *)
+(*       let nc, mac, acts = NeighborCache.query ~now ~reachable_time:state.reachable_time ~address_list:state.address_list ip state.neighbor_cache in *)
+(*       match mac with *)
+(*       | Some dmac -> *)
+(*         {state with neighbor_cache = nc}, SendNow dmac, [] *)
+(*       | None -> *)
+(*         {state with neighbor_cache = nc}, SendLater, acts *)
+
+(* end *)

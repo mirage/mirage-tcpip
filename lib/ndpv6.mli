@@ -14,81 +14,66 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type na = {
-  na_router    : bool;
-  na_solicited : bool;
-  na_override  : bool;
-  na_target    : Ipaddr.V6.t;
-  na_tlla      : Macaddr.t option
-}
+module Ipaddr = Ipaddr.V6
 
-type ra_prefix = {
-  prf_on_link            : bool;
-  prf_autonomous         : bool;
-  prf_valid_lifetime     : float;
-  prf_preferred_lifetime : float;
-  prf_prefix             : Ipaddr.V6.Prefix.t
-}
+module Action : sig
+  type specified_flag =
+    | Unspecified
+    | Specified
+  type solicited_flag =
+    | Solicited
+    | Unsolicited
+  type t =
+    | Sleep of float
+    | SendNS of specified_flag * Ipaddr.t * Ipaddr.t
+    | SendNA of Ipaddr.t * Ipaddr.t * Ipaddr.t * solicited_flag
+    | SendRS
+    | SendQueued of Ipaddr.t * Macaddr.t
+    | CancelQueued of Ipaddr.t
+end
 
-type ra = {
-  ra_cur_hop_limit   : int;
-  ra_router_lifetime : float;
-  ra_reachable_time  : float;
-  ra_retrans_timer   : float;
-  ra_slla            : Macaddr.t option;
-  ra_prefix          : ra_prefix option
-}
+module AddressList : sig
+  type t
+  val empty: t
+  val to_list: t -> Ipaddr.t list
+  val select_source: t -> dst:Ipaddr.t -> Ipaddr.t
+  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
+  val expired: t -> now:float -> bool
+  val is_my_addr: t -> Ipaddr.t -> bool
+  val add: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Ipaddr.t -> t * Action.t list
+  val handle_na: t -> Ipaddr.t -> t
+  val configure: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Macaddr.t -> Ipaddr.Prefix.t -> t * Action.t list
+end
 
-type ns = {
-  ns_target : Ipaddr.V6.t;
-  ns_slla   : Macaddr.t option
-}
+module PrefixList : sig
+  type t
+  val link_local: t
+  val to_list: t -> Ipaddr.Prefix.t list
+  val expired: t -> now:float -> bool
+  val tick: t -> now:float -> t
+  val is_local: t -> Ipaddr.t -> bool
+  val add: t -> now:float -> Ipaddr.Prefix.t -> vlft:float option -> t
+  val handle_ra: t -> now:float -> vlft:float option -> Ipaddr.Prefix.t -> t * Action.t list
+end
 
-type state
+module NeighborCache : sig
+  type t
+  val empty: t
+  val tick: t -> now:float -> retrans_timer:float -> t * Action.t list
+  val handle_ns: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
+  val handle_ra: t -> src:Ipaddr.t -> Macaddr.t -> t * Action.t list
+  val handle_na: t -> now:float -> reachable_time:float -> rtr:bool -> sol:bool -> ovr:bool -> tgt:Ipaddr.t -> lladdr:Macaddr.t option -> t * Action.t list
+  val query: t -> now:float -> reachable_time:float -> Ipaddr.t -> t * Macaddr.t option * Action.t list
+  val reachable: t -> Ipaddr.t -> bool
+end
 
-val is_local : state:state -> Ipaddr.V6.t -> bool
-
-val select_source_address : state -> Ipaddr.V6.t
-
-type packet =
-  | NS of ns
-  | RA of ra
-  | NA of na
-
-type action =
-  | Sleep        of float
-  | SendNS       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t
-  | SendNA       of Ipaddr.V6.t * Ipaddr.V6.t * Ipaddr.V6.t * bool
-  | SendRS
-  | SendQueued   of int * Macaddr.t
-  | CancelQueued of int
-
-val prefix_list : state:state -> Ipaddr.V6.Prefix.t list
-
-val tick : now:float -> state:state -> state * action list
-
-val add_ip : now:float -> state:state -> ?lifetime:(float * float option) -> Ipaddr.V6.t -> state * action list
-
-val add_prefix : now:float -> state:state -> Ipaddr.V6.Prefix.t -> state * action list
-
-val add_router : now:float -> state:state -> ?lifetime:float -> Ipaddr.V6.t -> state
-
-val get_routers : state -> Ipaddr.V6.t list
-
-val input : now:float -> state:state -> src:Ipaddr.V6.t -> dst:Ipaddr.V6.t -> packet -> state * action list
-
-val is_my_addr : state:state -> Ipaddr.V6.t -> bool
-
-val create : now:float -> Macaddr.t -> state * action list
-
-type output =
-  | SendNow of Macaddr.t
-  | SendLater of int
-
-val output : now:float -> state:state -> dst:Ipaddr.V6.t -> state * output * action list
-
-val mac : state -> Macaddr.t
-
-val get_ipv6 : state -> Ipaddr.V6.t list
-
-val cur_hop_limit : state -> int
+module RouterList : sig
+  type t
+  val empty: t
+  val to_list: t -> Ipaddr.t list
+  val add: t -> now:float -> ?lifetime:float -> Ipaddr.t -> t
+  val tick: t -> now:float -> t
+  val handle_ra: t -> now:float -> src:Ipaddr.t -> lft:float -> t * Action.t list
+  val add: t -> now:float -> Ipaddr.t -> t
+  val select: t -> (Ipaddr.t -> bool) -> Ipaddr.t -> Ipaddr.t * t
+end
