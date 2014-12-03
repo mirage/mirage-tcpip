@@ -598,38 +598,38 @@ let next_hop state ip =
 
 let rec run ~now ~state acts =
   let rec loop state acts = function
-    | Action.Sleep dt :: rest ->
+    | `Sleep dt :: rest ->
       Printf.printf "IP6: Sleeping for %.1fs\n%!" dt;
       loop state (Sleep dt :: acts) rest
-    | Action.SendNS (unspec, dst, tgt) :: rest ->
+    | `SendNS (unspec, dst, tgt) :: rest ->
       let src = match unspec with
-        | Action.Unspecified -> Ipaddr.unspecified
-        | Action.Specified -> AddressList.select_source state.address_list ~dst
+        | `Unspecified -> Ipaddr.unspecified
+        | `Specified -> AddressList.select_source state.address_list ~dst
       in
       Printf.printf "ND6: Sending NS src=%s dst=%s tgt=%s\n%!"
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt);
       let frame = Allocate.ns ~mac:state.mac ~src ~dst ~tgt in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
-    | Action.SendNA (src, dst, tgt, sol) :: rest ->
-      let sol = match sol with Action.Solicited -> true | Action.Unsolicited -> false in
+    | `SendNA (src, dst, tgt, sol) :: rest ->
+      let sol = match sol with `Solicited -> true | `Unsolicited -> false in
       Printf.printf "ND6: Sending NA: src=%s dst=%s tgt=%s sol=%B\n%!"
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt) sol;
       let frame = Allocate.na ~mac:state.mac ~src ~dst ~tgt ~sol in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
-    | Action.SendRS :: rest ->
+    | `SendRS :: rest ->
       Printf.printf "ND6: Sending RS\n%!";
       let frame = Allocate.rs ~mac:state.mac (AddressList.select_source state.address_list) in
       let dst = Ipaddr.link_routers in
       let state, acts' = output ~now ~state ~dst frame [] in
       loop state (acts' @ acts) rest
-    | Action.SendQueued (ip, dmac) :: rest ->
+    | `SendQueued (ip, dmac) :: rest ->
       Printf.printf "IP6: Releasing queued packets: dst=%s mac=%s\n%!" (Ipaddr.to_string ip) (Macaddr.to_string dmac);
       let pkts, packet_queue = PacketQueue.pop ip state.packet_queue in
       let pkts = List.map (fun datav -> Send (datav dmac)) pkts in
       loop {state with packet_queue} (pkts @ acts) rest
-    | Action.CancelQueued ip :: rest ->
+    | `CancelQueued ip :: rest ->
       Printf.printf "IP6: Cancelling packets: dst = %s\n%!" (Ipaddr.to_string ip);
       let _, packet_queue = PacketQueue.pop ip state.packet_queue in
       loop {state with packet_queue} acts rest
@@ -733,7 +733,7 @@ let input_ns state ~now:_ src dst ns =
     let src = ns.NS.target and dst = src in
 (*     (\* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *\) *)
 (*       (\* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *\) *)
-    state, Action.SendNA (src, dst, ns.NS.target, Action.Solicited) :: acts
+    state, `SendNA (src, dst, ns.NS.target, `Solicited) :: acts
   else
     state, acts
 
@@ -818,7 +818,7 @@ let create ~now mac =
   let address_list, acts =
     AddressList.add state.address_list ~now ~retrans_timer:state.retrans_timer ~lft:None ip
   in
-  let state, acts = {state with address_list}, Action.SendRS :: acts in
+  let state, acts = {state with address_list}, `SendRS :: acts in
   run ~now ~state acts
 
 let add_ip ~now state ip =
