@@ -1,3 +1,6 @@
+trunk
+* Fixed race waiting for ARP response.
+
 2.0.2 (2014-12-01):
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
 * Improve formatting of DHCP console logging, including printing out options (#83).

@@ -188,9 +188,10 @@ let query t ip =
     let cond = Lwt_condition.create () in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
     Hashtbl.add t.cache ip (Incomplete cond);
+    let result = Lwt_condition.wait cond in
     (* First request, so send a query packet *)
     output_probe t ip >>= fun () ->
-    Lwt_condition.wait cond
+    result
   )
 
 let create ~get_etherbuf ~output ~get_mac =
