@@ -98,7 +98,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_cookie buf 0x63825363l;
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
-    Console.log_s t.c (sprintf "Sending DHCP broadcast len %d" total_len)
+    Console.log_s t.c (sprintf "Sending DHCP broadcast (length %d)" total_len)
     >>= fun () ->
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
@@ -125,7 +125,7 @@ module Make (Console : V1_LWT.CONSOLE)
     let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
     let packet = Dhcpv4_option.Packet.of_bytes options in
     (* For debugging, print out the DHCP response *)
-    Console.log_s t.c (sprintf "DHCP: input ciaddr %s yiaddr %s siaddr %s giaddr %s chaddr %s sname %s file %s\n"
+    Console.log_s t.c (sprintf "DHCP response:\ninput ciaddr %s yiaddr %s\nsiaddr %s giaddr %s\nchaddr %s sname %s\nfile %s"
                          (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
                          (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
                          (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf))
@@ -137,7 +137,8 @@ module Make (Console : V1_LWT.CONSOLE)
         (* we are expecting an offer *)
         match packet.op, xid with
         |`Offer, offer_xid when offer_xid=xid ->  begin
-            Console.log_s t.c (sprintf "DHCP: offer received: %s\n%!" (Ipaddr.V4.to_string yiaddr))
+            Console.log_s t.c (sprintf "DHCP: offer received: %s\nDHCP options: %s\n%!"
+              (Ipaddr.V4.to_string yiaddr) (prettyprint packet) )
             >>= fun () ->
             let netmask = find packet
                 (function `Subnet_mask addr -> Some addr |_ -> None) in
@@ -155,12 +156,11 @@ module Make (Console : V1_LWT.CONSOLE)
                identifier option' *)
             let server_identifier = find packet
                 (function `Server_identifier addr -> Some addr | _ -> None) in
-            let options = { op=`Request; opts=
-                                           `Requested_ip yiaddr :: (
-                                             match server_identifier with
-                                             | Some x -> [ `Server_identifier x ]
-                                             | None -> []
-                                           )
+            let options = { op=`Request;
+                            opts= `Requested_ip yiaddr :: (
+                              match server_identifier with
+                              | Some x -> [ `Server_identifier x ]
+                              | None -> [])
                           } in
             t.state <- Offer_accepted offer;
             output_broadcast t ~xid ~yiaddr ~siaddr ~options
@@ -229,7 +229,7 @@ module Make (Console : V1_LWT.CONSOLE)
        and shut down DHCP after. TODO: full protocol *)
     let offer_stream, offer_push = Lwt_stream.create () in
     let new_offer info =
-      Console.log_s c (sprintf "DHCP: offer %s %s [%s]"
+      Console.log_s c (sprintf "DHCP: offer received\nIPv4: %s\nNetmask: %s\nGateways: [%s]"
                          (Ipaddr.V4.to_string info.ip_addr)
                          (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
                          (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
