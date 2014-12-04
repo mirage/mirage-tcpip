@@ -49,7 +49,7 @@ struct
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4
   module IPV4  = Ipv4
-  module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Ethif)(Ipv4)(Udpv4)
+  module Dhcp = Dhcp_clientv4.Make(Console)(Time)(Random)(Udpv4)
 
   type t = {
     id    : id;
@@ -84,13 +84,25 @@ struct
     | `DHCP -> begin
         (* TODO: spawn a background thread to reconfigure the interface
            when future offers are received. *)
-        let dhcp, offers = Dhcp.create t.c t.ipv4 t.udpv4 in
+        let dhcp, offers = Dhcp.create t.c (Ethif.mac t.ethif) t.udpv4 in
         listen_udpv4 t ~port:68 (Dhcp.input dhcp);
         (* TODO: stop listening to this port when done with DHCP. *)
         Lwt_stream.get offers
         >>= function
         | None -> fail (Failure "No DHCP offer received")
-        | Some _ -> Console.log_s t.c "DHCP offer received and bound"
+        | Some info ->
+          Ipv4.set_ipv4 t.ipv4 info.Dhcp.ip_addr
+          >>= fun () ->
+          (match info.Dhcp.netmask with
+           |Some nm -> Ipv4.set_ipv4_netmask t.ipv4 nm
+           |None -> return_unit)
+          >>= fun () ->
+          Ipv4.set_ipv4_gateways t.ipv4 info.Dhcp.gateways
+          >>= fun () ->
+          Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]\n%!"
+            (Ipaddr.V4.to_string info.Dhcp.ip_addr)
+            (match info.Dhcp.netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
+            (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
       end
     | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
