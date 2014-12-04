@@ -27,15 +27,12 @@ type arp = {
 }
 
 (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
-type entry =
-  | Incomplete of Macaddr.t Lwt_condition.t
-  | Verified of Macaddr.t
-
 type t = {
   get_etherbuf: unit -> Cstruct.t Lwt.t;
   output: Cstruct.t -> unit Lwt.t;
   get_mac: unit -> Macaddr.t;
-  cache: (Ipaddr.V4.t, entry) Hashtbl.t;
+  cache: (Ipaddr.V4.t, Macaddr.t Lwt.t) Hashtbl.t;
+  pending: (Ipaddr.V4.t, Macaddr.t Lwt.u) Hashtbl.t;
   mutable bound_ips: Ipaddr.V4.t list;
 }
 
@@ -65,9 +62,10 @@ let prettyprint t =
   Hashtbl.iter (fun ip entry ->
       printf "%s -> %s\n%!"
         (Ipaddr.V4.to_string ip)
-        (match entry with
-         | Incomplete _ -> "I"
-         | Verified mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+        (match Lwt.state entry with
+         | Sleep -> "I"
+         | Return mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+         | Fail ex -> Printexc.to_string ex
         )
     ) t.cache
 
@@ -94,12 +92,10 @@ let rec input t frame =
     printf "ARP: updating %s -> %s\n%!"
       (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
     (* If we have pending entry, notify the waiters that answer is ready *)
-    if Hashtbl.mem t.cache spa then begin
-      match Hashtbl.find t.cache spa with
-      |Incomplete cond -> Lwt_condition.broadcast cond sha
-      |_ -> ()
+    if Hashtbl.mem t.pending spa then begin
+      wakeup (Hashtbl.find t.pending spa) sha;
+      Hashtbl.remove t.pending spa;
     end;
-    Hashtbl.replace t.cache spa (Verified sha);
     return_unit
   |n ->
     printf "ARP: Unknown message %d ignored\n%!" n;
@@ -176,25 +172,19 @@ let remove_ip t ip =
    waiting for a response *)
 let query t ip =
   if Hashtbl.mem t.cache ip then (
-    match Hashtbl.find t.cache ip with
-    | Incomplete cond ->
-      (* printf "ARP query: %s -> [incomplete]\n%!" (Ipaddr.V4.to_string ip); *)
-      Lwt_condition.wait cond
-    | Verified mac ->
-      (* printf "ARP query: %s -> %s\n%!"
-         (Ipaddr.V4.to_string ip) (Macaddr.to_string mac); *)
-      return mac
+    Hashtbl.find t.cache ip
   ) else (
-    let cond = Lwt_condition.create () in
+    let response, waker = wait () in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-    Hashtbl.add t.cache ip (Incomplete cond);
-    let result = Lwt_condition.wait cond in
+    Hashtbl.add t.cache ip response;
+    Hashtbl.add t.pending ip waker;
     (* First request, so send a query packet *)
     output_probe t ip >>= fun () ->
-    result
+    response
   )
 
 let create ~get_etherbuf ~output ~get_mac =
   let cache = Hashtbl.create 7 in
+  let pending = Hashtbl.create 7 in
   let bound_ips = [] in
-  { output; get_mac; cache; bound_ips; get_etherbuf }
+  { output; get_mac; cache; pending; bound_ips; get_etherbuf }
