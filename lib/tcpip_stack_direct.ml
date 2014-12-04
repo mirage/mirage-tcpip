@@ -79,6 +79,20 @@ struct
   let listen_tcpv4 t ~port callback =
     Hashtbl.replace t.tcpv4_listeners port callback
 
+  let configure_dhcp t info =
+    Ipv4.set_ipv4 t.ipv4 info.Dhcp.ip_addr
+    >>= fun () ->
+    (match info.Dhcp.netmask with
+     |Some nm -> Ipv4.set_ipv4_netmask t.ipv4 nm
+     |None -> return_unit)
+    >>= fun () ->
+    Ipv4.set_ipv4_gateways t.ipv4 info.Dhcp.gateways
+    >>= fun () ->
+    Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]\n%!"
+      (Ipaddr.V4.to_string info.Dhcp.ip_addr)
+      (match info.Dhcp.netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
+      (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
+
   let configure t config =
     match config with
     | `DHCP -> begin
@@ -87,22 +101,7 @@ struct
         let dhcp, offers = Dhcp.create t.c (Ethif.mac t.ethif) t.udpv4 in
         listen_udpv4 t ~port:68 (Dhcp.input dhcp);
         (* TODO: stop listening to this port when done with DHCP. *)
-        Lwt_stream.get offers
-        >>= function
-        | None -> fail (Failure "No DHCP offer received")
-        | Some info ->
-          Ipv4.set_ipv4 t.ipv4 info.Dhcp.ip_addr
-          >>= fun () ->
-          (match info.Dhcp.netmask with
-           |Some nm -> Ipv4.set_ipv4_netmask t.ipv4 nm
-           |None -> return_unit)
-          >>= fun () ->
-          Ipv4.set_ipv4_gateways t.ipv4 info.Dhcp.gateways
-          >>= fun () ->
-          Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]\n%!"
-            (Ipaddr.V4.to_string info.Dhcp.ip_addr)
-            (match info.Dhcp.netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
-            (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
+        Lwt_stream.iter_s (configure_dhcp t) offers
       end
     | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
