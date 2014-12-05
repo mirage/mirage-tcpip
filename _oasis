@@ -6,6 +6,11 @@ Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier
 License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
+PostConfCommand: ocaml postconf.ml
+
+Flag xen
+  Description:        Build Xen support
+  Default:            false
 
 Library tcpip
   CompiledObject:     best
@@ -14,9 +19,17 @@ Library tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  if architecture(amd64)
-        CCOpt+:       -mno-red-zone
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct
+  XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
+
+Library tcpip_xen
+  Build$:             flag(xen)
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        xen
+  CSources:           checksum_stubs_xen.c
+  CCOpt:              -O2 $XEN_CFLAGS
 
 Library ethif
   CompiledObject:     best

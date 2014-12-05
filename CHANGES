@@ -1,3 +1,7 @@
+trunk
+* Build Xen stubs separately, with CFLAGS from mirage-xen. This allows us to
+  use the red zone under Unix again.
+
 2.0.3 (2014-12-05):
 * Fixed race waiting for ARP response (#86).
 * Move the the code that configures IPv4 address, netmask and gateways
