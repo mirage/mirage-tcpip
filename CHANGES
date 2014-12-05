@@ -1,4 +1,4 @@
-trunk
+2.0.3 (2014-12-05):
 * Fixed race waiting for ARP response.
 
 2.0.2 (2014-12-01):
