@@ -298,19 +298,19 @@ struct
         ~tx_isn
     in
     (* When we transmit an ACK for a received segment, rx_ack is written to *)
-    let rx_ack = Lwt_mvar.create_empty () in
+    let rx_ack = MProf.Trace.named_mvar_empty "rx_ack" in
     (* When we receive an ACK for a transmitted segment, tx_ack is written to *)
-    let tx_ack = Lwt_mvar.create_empty () in
+    let tx_ack = MProf.Trace.named_mvar_empty "tx_ack" in
     (* When new data is received, rx_data is written to *)
-    let rx_data = Lwt_mvar.create_empty () in
+    let rx_data = MProf.Trace.named_mvar_empty "rx_data" in
     (* Write to this mvar to transmit an empty ACK to the remote side *)
-    let send_ack = Lwt_mvar.create_empty () in
+    let send_ack = MProf.Trace.named_mvar_empty "send_ack" in
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
     let urx_close_t, urx_close_u = MProf.Trace.named_task "urx_close" in
     (* The window handling thread *)
-    let tx_wnd_update = Lwt_mvar.create_empty () in
+    let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
     let state = State.t ~on_close in
