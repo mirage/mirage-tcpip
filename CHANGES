@@ -1,5 +1,8 @@
 2.0.3 (2014-12-05):
-* Fixed race waiting for ARP response.
+* Fixed race waiting for ARP response (#86).
+* Move the the code that configures IPv4 address, netmask and gateways
+  after receiving a successful lease out of the `Dhcp_clientv4` module
+  and into `Stackv4` (#87)
 
 2.0.2 (2014-12-01):
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
