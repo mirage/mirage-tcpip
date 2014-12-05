@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0b16ea66feacd8884ebfe2ea882f21e2)
+# DO NOT EDIT (digest: a48d2b236a8f5a25886b3bdbe795c245)
 version = "2.0.3"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct"
@@ -7,7 +7,18 @@ archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
 archive(native) = "tcpip.cmxa"
 archive(native, plugin) = "tcpip.cmxs"
+xen_linkopts = "-ltcpip_xen_stubs"
 exists_if = "tcpip.cma"
+package "xen" (
+ version = "2.0.3"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ archive(byte) = "tcpip_xen.cma"
+ archive(byte, plugin) = "tcpip_xen.cma"
+ archive(native) = "tcpip_xen.cmxa"
+ archive(native, plugin) = "tcpip_xen.cmxs"
+ exists_if = "tcpip_xen.cma"
+)
+
 package "udpv4-unix" (
  version = "2.0.3"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"

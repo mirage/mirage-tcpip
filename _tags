@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f08d02b586c8c88a2722b3c62b3284e0)
+# DO NOT EDIT (digest: b06b7a14d338a8fea8172e34c3e0c0a0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -23,6 +23,11 @@ true: annot, bin_annot
 "lib/checksum_stubs.c": pkg_io-page
 "lib/checksum_stubs.c": pkg_ipaddr
 "lib/checksum_stubs.c": pkg_mirage-types
+# Library tcpip_xen
+"lib/tcpip_xen.cmxs": use_tcpip_xen
+<lib/*.ml{,i,y}>: oasis_library_tcpip_xen_ccopt
+"lib/checksum_stubs_xen.c": oasis_library_tcpip_xen_ccopt
+<lib/tcpip_xen.{cma,cmxa}>: use_libtcpip_xen_stubs
 # Library ethif
 "lib/ethif.cmxs": use_ethif
 # Library ipv4
