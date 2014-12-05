@@ -101,7 +101,9 @@ struct
         let dhcp, offers = Dhcp.create t.c (Ethif.mac t.ethif) t.udpv4 in
         listen_udpv4 t ~port:68 (Dhcp.input dhcp);
         (* TODO: stop listening to this port when done with DHCP. *)
-        Lwt_stream.iter_s (configure_dhcp t) offers
+        Lwt_stream.get offers >>= function
+        | None -> Console.log_s t.c ("No DHCP offer received")
+        | Some offer -> configure_dhcp t offer
       end
     | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"
