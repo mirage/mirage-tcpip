@@ -18,6 +18,8 @@ open Lwt
 
 module Tcp_wire = Wire_structs.Tcp_wire
 
+let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
+
 let get_options buf =
   if Tcp_wire.get_data_offset buf > 20 then
     Options.unmarshal (Cstruct.shift buf Tcp_wire.sizeof_tcpv4) else []
@@ -101,5 +103,6 @@ module Make (Ipv4:V1_LWT.IPV4) = struct
     rst syn fin psh sequence ack_number (Options.prettyprint options)
     (Cstruct.lenv datav) (List.length datav) data_off options_len;
   *)
+    MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv datav);
     Ipv4.writev ip ethernet_frame datav
 end

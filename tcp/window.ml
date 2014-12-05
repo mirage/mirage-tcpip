@@ -52,6 +52,8 @@ type t = {
   mutable backoff_count: int;
 }
 
+let count_ackd_segs = MProf.Counter.make ~name:"tcp-ackd-segs"
+
 let default_mss = 536
 let max_mss = 1460
 
@@ -132,7 +134,9 @@ let ack_seq t = t.ack_seq
 let ack_win t = t.ack_win
 
 let set_ack_serviced t v = t.ack_serviced <- v
-let set_ack_seq t s = t.ack_seq <- s
+let set_ack_seq t s =
+  MProf.Counter.increase count_ackd_segs (Sequence.(sub s t.ack_seq |> to_int));
+  t.ack_seq <- s
 let set_ack_win t w = t.ack_win <- w
 
 (* TODO: scale the window down so we can advertise it correctly with

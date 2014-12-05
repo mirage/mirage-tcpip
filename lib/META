@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: 96bd5eeee2a2809ac7d10cf5ee5fe37a)
+# DO NOT EDIT (digest: 518c886042b21fa9e42e2312cfb3b1c8)
 version = "2.0.2"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
-requires = "io-page mirage-types ipaddr cstruct"
+requires = "io-page mirage-types ipaddr cstruct mirage-profile"
 archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
 archive(native) = "tcpip.cmxa"

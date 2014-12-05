@@ -54,7 +54,7 @@ module Rx = struct
 
   let add_r t s =
     if t.cur_size > t.max_size then
-      let th,u = Lwt.task () in
+      let th,u = MProf.Trace.named_task "User_buffer.add_r" in
       let node = Lwt_sequence.add_r u t.writers in
       Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
       (* Update size before blocking, which may push cur_size above max_size *)
@@ -73,7 +73,7 @@ module Rx = struct
 
   let take_l t =
     if Lwt_sequence.is_empty t.q then begin
-      let th,u = Lwt.task () in
+      let th,u = MProf.Trace.named_task "User_buffer.take_l" in
       let node = Lwt_sequence.add_r u t.readers in
       Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
       th
@@ -147,7 +147,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       return_unit
     end
     else begin
-      let th,u = Lwt.task () in
+      let th,u = MProf.Trace.named_task "User_buffer.wait_for" in
       let node = Lwt_sequence.add_r u t.writers in
       Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
       th >>= fun () ->
@@ -175,7 +175,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       return_unit
     end
     else begin
-      let th,u = Lwt.task () in
+      let th,u = MProf.Trace.named_task "User_buffer.wait_for_flushed" in
       let node = Lwt_sequence.add_r u t.writers in
       Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
       th >>= fun () ->
