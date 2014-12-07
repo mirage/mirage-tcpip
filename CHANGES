@@ -1,6 +1,8 @@
-trunk
-* Build Xen stubs separately, with CFLAGS from mirage-xen. This allows us to
-  use the red zone under Unix again.
+2.1.0 (2014-12-07):
+* Build Xen stubs separately, with `CFLAGS` from `mirage-xen` 2.1.0+.
+  This allows us to use the red zone under x86_64 Unix again.
+* Adding tracing labels and counters, which introduces a new dependency on the
+  `mirage-profile` package.
 
 2.0.3 (2014-12-05):
 * Fixed race waiting for ARP response (#86).
