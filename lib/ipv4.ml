@@ -131,6 +131,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     Ethif.writev t.ethif (ethernet_frame::bufs)
 
   let icmp_input t src _hdr buf =
+    MProf.Trace.label "icmp_input";
     match Wire_structs.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
       return (printf "ICMP: discarding echo reply\n%!")

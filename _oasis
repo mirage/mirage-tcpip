@@ -16,7 +16,7 @@ Library tcpip
   CCOpt:              -O2 -fno-stack-protector
   if architecture(amd64)
         CCOpt+:       -mno-red-zone
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,mirage-profile
 
 Library ethif
   CompiledObject:     best
