@@ -175,7 +175,7 @@ let query t ip =
   if Hashtbl.mem t.cache ip then (
     Hashtbl.find t.cache ip
   ) else (
-    let response, waker = MProf.Trace.named_wait "Wait for ARP response" in
+    let response, waker = MProf.Trace.named_wait "ARP response" in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
     Hashtbl.add t.cache ip response;
     Hashtbl.add t.pending ip waker;
