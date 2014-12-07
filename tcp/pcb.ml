@@ -308,7 +308,7 @@ struct
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
-    let urx_close_t, urx_close_u = Lwt.task () in
+    let urx_close_t, urx_close_u = MProf.Trace.named_task "urx_close" in
     (* The window handling thread *)
     let tx_wnd_update = Lwt_mvar.create_empty () in
     (* Set up transmit and receive queues *)
@@ -587,7 +587,7 @@ struct
       Options.MSS 1460 :: Options.Window_size_shift rx_wnd_scaleoffer :: []
     in
     let window = 5840 in
-    let th, wakener = Lwt.task () in
+    let th, wakener = MProf.Trace.named_task "TCP connect" in
     if Hashtbl.mem t.connects id then
       printf "WARNING: connection already being attempted\n%!";
     Hashtbl.replace t.connects id (wakener, tx_isn);

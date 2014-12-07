@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b06b7a14d338a8fea8172e34c3e0c0a0)
+# DO NOT EDIT (digest: 79d6c9ed0b8e11fef32f21eb0e5294c4)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -22,6 +22,7 @@ true: annot, bin_annot
 "lib/checksum_stubs.c": pkg_cstruct
 "lib/checksum_stubs.c": pkg_io-page
 "lib/checksum_stubs.c": pkg_ipaddr
+"lib/checksum_stubs.c": pkg_mirage-profile
 "lib/checksum_stubs.c": pkg_mirage-types
 # Library tcpip_xen
 "lib/tcpip_xen.cmxs": use_tcpip_xen
@@ -52,6 +53,7 @@ true: annot, bin_annot
 <tcp/*.ml{,i,y}>: pkg_io-page
 <tcp/*.ml{,i,y}>: pkg_ipaddr
 <tcp/*.ml{,i,y}>: pkg_lwt
+<tcp/*.ml{,i,y}>: pkg_mirage-profile
 <tcp/*.ml{,i,y}>: pkg_mirage-types
 <tcp/*.ml{,i,y}>: use_ipv4
 <tcp/*.ml{,i,y}>: use_tcpip
@@ -68,6 +70,7 @@ true: annot, bin_annot
 <dhcp/*.ml{,i,y}>: pkg_io-page
 <dhcp/*.ml{,i,y}>: pkg_ipaddr
 <dhcp/*.ml{,i,y}>: pkg_lwt
+<dhcp/*.ml{,i,y}>: pkg_mirage-profile
 <dhcp/*.ml{,i,y}>: pkg_mirage-types
 <dhcp/*.ml{,i,y}>: use_tcpip
 <dhcp/*.ml{,i,y}>: use_udpv4
@@ -77,6 +80,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
@@ -123,6 +127,7 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_ipaddr.unix
 <unix/*.ml{,i,y}>: pkg_lwt
 <unix/*.ml{,i,y}>: pkg_lwt.unix
+<unix/*.ml{,i,y}>: pkg_mirage-profile
 <unix/*.ml{,i,y}>: pkg_mirage-types
 <unix/*.ml{,i,y}>: use_tcpip
 <unix/*.ml{,i,y}>: use_tcpv4-socket

@@ -71,6 +71,7 @@ let prettyprint t =
 
 (* Input handler for an ARP packet, registered through attach() *)
 let rec input t frame =
+  MProf.Trace.label "arpv4.input";
   match get_arp_op frame with
   |1 -> (* Request *)
     (* Received ARP request, check if we can satisfy it from
@@ -174,7 +175,7 @@ let query t ip =
   if Hashtbl.mem t.cache ip then (
     Hashtbl.find t.cache ip
   ) else (
-    let response, waker = wait () in
+    let response, waker = MProf.Trace.named_wait "Wait for ARP response" in
     (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
     Hashtbl.add t.cache ip response;
     Hashtbl.add t.pending ip waker;
