@@ -88,7 +88,7 @@ struct
     >>= fun () ->
     Ipv4.set_ipv4_gateways t.ipv4 info.Dhcp.gateways
     >>= fun () ->
-    Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]\n%!"
+    Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]"
       (Ipaddr.V4.to_string info.Dhcp.ip_addr)
       (match info.Dhcp.netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
       (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
