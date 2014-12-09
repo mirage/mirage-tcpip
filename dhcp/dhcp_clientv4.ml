@@ -122,10 +122,11 @@ module Make (Console : V1_LWT.CONSOLE)
     let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
     let packet = Dhcpv4_option.Packet.of_bytes options in
     (* For debugging, print out the DHCP response *)
-    Console.log_s t.c (sprintf "DHCP response:\ninput ciaddr %s yiaddr %s\nsiaddr %s giaddr %s\nchaddr %s sname %s\nfile %s"
-                         (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr)
-                         (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr)
-                         (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf))
+    Lwt_list.iter_s (Console.log_s t.c)
+    [ "DHCP response:";
+      sprintf "input ciaddr %s yiaddr %s" (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr);
+      sprintf "siaddr %s giaddr %s" (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr);
+      sprintf "chaddr %s sname %s file %s" (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf) ]
     >>= fun () ->
     (* See what state our Netif is in and if this packet is useful *)
     let open Dhcpv4_option.Packet in
@@ -134,8 +135,9 @@ module Make (Console : V1_LWT.CONSOLE)
         (* we are expecting an offer *)
         match packet.op, xid with
         |`Offer, offer_xid when offer_xid=xid ->  begin
-            Console.log_s t.c (sprintf "DHCP: offer received: %s\nDHCP options: %s\n%!"
-              (Ipaddr.V4.to_string yiaddr) (prettyprint packet) )
+            Lwt_list.iter_s (Console.log_s t.c)
+              [ sprintf "DHCP: offer received: %s" (Ipaddr.V4.to_string yiaddr);
+                sprintf "DHCP options: %s" (prettyprint packet) ]
             >>= fun () ->
             let netmask = find packet
                 (function `Subnet_mask addr -> Some addr |_ -> None) in

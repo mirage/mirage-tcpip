@@ -1,3 +1,7 @@
+2.1.1 (trunk):
+* Improve console printing for the DHCP client to output line
+  breaks properly on Xen consoles.
+
 2.1.0 (2014-12-07):
 * Build Xen stubs separately, with `CFLAGS` from `mirage-xen` 2.1.0+.
   This allows us to use the red zone under x86_64 Unix again.
