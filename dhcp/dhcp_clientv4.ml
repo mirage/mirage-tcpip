@@ -21,9 +21,7 @@ open Printf
 module Make (Console : V1_LWT.CONSOLE)
     (Time : V1_LWT.TIME)
     (Random : V1.RANDOM)
-    (Ethif : V1_LWT.ETHIF)
-    (Ipv4 : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udp : V1_LWT.UDPV4 with type ip = Ipv4.t) = struct
+    (Udp : V1_LWT.UDPV4) = struct
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
@@ -44,7 +42,7 @@ module Make (Console : V1_LWT.CONSOLE)
   type t = {
     c: Console.t;
     udp: Udp.t;
-    ip: Ipv4.t;
+    mac: Macaddr.t;
     mutable state: state;
     new_offer: offer -> unit Lwt.t;
   }
@@ -90,8 +88,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_siaddr buf (Ipaddr.V4.to_int32 siaddr);
     set_dhcp_giaddr buf 0l;
     (* TODO add a pad/fill function in cstruct *)
-    let ethif = Ipv4.id t.ip in
-    let macaddr = Macaddr.to_bytes (Ethif.mac ethif) in
+    let macaddr = Macaddr.to_bytes t.mac in
     set_dhcp_chaddr (macaddr ^ (String.make 10 '\000')) 0 buf;
     set_dhcp_sname (String.make 64 '\000') 0 buf;
     set_dhcp_file (String.make 128 '\000') 0 buf;
@@ -223,7 +220,7 @@ module Make (Console : V1_LWT.CONSOLE)
       dhcp_thread t
 
   (* Create a DHCP thread *)
-  let create c ip udp =
+  let create c mac udp =
     let state = Disabled in
     (* For now, just block on the first offer
        and shut down DHCP after. TODO: full protocol *)
@@ -234,18 +231,10 @@ module Make (Console : V1_LWT.CONSOLE)
                          (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
                          (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
       >>= fun () ->
-      Ipv4.set_ip ip info.ip_addr
-      >>= fun () ->
-      (match info.netmask with
-       |Some nm -> Ipv4.set_ip_netmask ip nm
-       |None -> return_unit)
-      >>= fun () ->
-      Ipv4.set_ip_gateways ip info.gateways
-      >>= fun () ->
       offer_push (Some info);
       return_unit
     in
-    let t = { c; ip; udp; state; new_offer } in
+    let t = { c; mac; udp; state; new_offer } in
     (* TODO cancellation *)
     let _ = dhcp_thread t in
     t, offer_stream

@@ -125,6 +125,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     writev t frame [buf]
 
   let icmp_input t src _hdr buf =
+    MProf.Trace.label "icmp_input";
     match Wire_structs.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
       return (printf "ICMP: discarding echo reply\n%!")

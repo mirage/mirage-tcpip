@@ -1,3 +1,15 @@
+2.1.0 (2014-12-07):
+* Build Xen stubs separately, with `CFLAGS` from `mirage-xen` 2.1.0+.
+  This allows us to use the red zone under x86_64 Unix again.
+* Adding tracing labels and counters, which introduces a new dependency on the
+  `mirage-profile` package.
+
+2.0.3 (2014-12-05):
+* Fixed race waiting for ARP response (#86).
+* Move the the code that configures IPv4 address, netmask and gateways
+  after receiving a successful lease out of the `Dhcp_clientv4` module
+  and into `Stackv4` (#87)
+
 2.0.2 (2014-12-01):
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing (#81 from Luke Dunstan).
 * Improve formatting of DHCP console logging, including printing out options (#83).

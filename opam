@@ -12,7 +12,9 @@ authors: [
 tags: ["org:mirage"]
 
 build: [
-  ["./configure" "--prefix" prefix]
+  ["./configure" "--prefix" prefix
+    "--%{mirage-xen:enable}%-xen"
+  ]
   [make]
 ]
 install: [make "install"]
@@ -27,5 +29,9 @@ depends: [
   "mirage-net-unix" {>= "1.1.0"}
   "ipaddr" {>= "2.2.0"}
   "uint"
+  "mirage-profile"
+]
+depopts: [
+  "mirage-xen"
 ]
 available: [ocaml-version >= "4.01.0"]

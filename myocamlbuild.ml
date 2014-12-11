@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 83f3486e958502c40c51b5ec3602efa4) *)
+(* DO NOT EDIT (digest: f9dd58c01c63e9d9806a7de24a74ac2c) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -610,6 +610,7 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("tcpip", ["lib"], []);
+          ("tcpip_xen", ["lib"], []);
           ("ethif", ["lib"], []);
           ("ipv4", ["lib"], []);
           ("ipv6", ["lib"], []);
@@ -632,7 +633,7 @@ let package_default =
           ("tcpip-stack-unix", ["unix"], []);
           ("tcpip-stack-socket", ["unix"], [])
        ];
-     lib_c = [("tcpip", "lib", [])];
+     lib_c = [("tcpip", "lib", []); ("tcpip_xen", "lib", [])];
      flags =
        [
           (["oasis_library_tcpip_ccopt"; "compile"],
@@ -640,17 +641,12 @@ let package_default =
                (OASISExpr.EBool true,
                  S
                    [A "-ccopt"; A "-O2"; A "-ccopt"; A "-fno-stack-protector"
-                   ]);
-               (OASISExpr.ETest ("architecture", "amd64"),
-                 S
-                   [
-                      A "-ccopt";
-                      A "-O2";
-                      A "-ccopt";
-                      A "-fno-stack-protector";
-                      A "-ccopt";
-                      A "-mno-red-zone"
                    ])
+            ]);
+          (["oasis_library_tcpip_xen_ccopt"; "compile"],
+            [
+               (OASISExpr.EBool true,
+                 S [A "-ccopt"; A "-O2"; A "-ccopt"; A "${XEN_CFLAGS}"])
             ])
        ];
      includes =
@@ -667,6 +663,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 665 "myocamlbuild.ml"
+# 667 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

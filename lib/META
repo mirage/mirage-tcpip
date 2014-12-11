@@ -1,16 +1,27 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7ea7842c7a791d21270c17cc0b509b2d)
+# DO NOT EDIT (digest: cc781af42240e65604e139d5302e7f04)
 version = "2.1.0"
-description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
-requires = "io-page mirage-types ipaddr cstruct"
+description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+requires = "io-page mirage-types ipaddr cstruct mirage-profile"
 archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
 archive(native) = "tcpip.cmxa"
 archive(native, plugin) = "tcpip.cmxs"
+xen_linkopts = "-ltcpip_xen_stubs"
 exists_if = "tcpip.cma"
+package "xen" (
+ version = "2.1.0"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ archive(byte) = "tcpip_xen.cma"
+ archive(byte, plugin) = "tcpip_xen.cma"
+ archive(native) = "tcpip_xen.cmxa"
+ archive(native, plugin) = "tcpip_xen.cmxs"
+ exists_if = "tcpip_xen.cma"
+)
+
 package "udpv6-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udp tcpip.ipv6-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv6-unix.cma"
@@ -22,7 +33,7 @@ package "udpv6-unix" (
 
 package "udpv6-socket" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.udp lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv6-socket.cma"
  archive(byte, plugin) = "udpv6-socket.cma"
@@ -33,7 +44,7 @@ package "udpv6-socket" (
 
 package "udpv4-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udp tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv4-unix.cma"
@@ -45,7 +56,7 @@ package "udpv4-unix" (
 
 package "udpv4-socket" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.udp lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv4-socket.cma"
  archive(byte, plugin) = "udpv4-socket.cma"
@@ -56,7 +67,7 @@ package "udpv4-socket" (
 
 package "udp" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
@@ -67,7 +78,7 @@ package "udp" (
 
 package "tcpv6-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.tcp tcpip.ipv6-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv6-unix.cma"
@@ -79,7 +90,7 @@ package "tcpv6-unix" (
 
 package "tcpv6-socket" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv6-socket.cma"
  archive(byte, plugin) = "tcpv6-socket.cma"
@@ -90,7 +101,7 @@ package "tcpv6-socket" (
 
 package "tcpv4-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.tcp tcpip.ipv4-unix tcpip.channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv4-unix.cma"
@@ -102,7 +113,7 @@ package "tcpv4-unix" (
 
 package "tcpv4-socket" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv4-socket.cma"
  archive(byte, plugin) = "tcpv4-socket.cma"
@@ -113,7 +124,7 @@ package "tcpv4-socket" (
 
 package "tcp" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct lwt tcpip tcpip.ipv4 tcpip.ipv6"
  archive(byte) = "tcp.cma"
@@ -125,7 +136,7 @@ package "tcp" (
 
 package "stack-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.udpv6-unix tcpip.tcpv6-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console.unix mirage-types.lwt io-page.unix"
  archive(byte) = "tcpip-stack-unix.cma"
@@ -137,7 +148,7 @@ package "stack-unix" (
 
 package "stack-socket" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-socket tcpip.udpv6-socket tcpip.tcpv4-socket tcpip.tcpv6-socket lwt lwt.unix ipaddr.unix io-page.unix"
  archive(byte) = "tcpip-stack-socket.cma"
@@ -149,7 +160,7 @@ package "stack-socket" (
 
 package "stack-direct" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct lwt tcpip.ethif tcpip.udp tcpip.tcp tcpip.dhcpv4"
  archive(byte) = "tcpip-stack-direct.cma"
@@ -161,7 +172,7 @@ package "stack-direct" (
 
 package "ipv6-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif-unix tcpip.ipv6 lwt lwt.unix"
  archive(byte) = "ipv6-unix.cma"
  archive(byte, plugin) = "ipv6-unix.cma"
@@ -172,7 +183,7 @@ package "ipv6-unix" (
 
 package "ipv6" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip uint"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
@@ -183,7 +194,7 @@ package "ipv6" (
 
 package "ipv4-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif-unix tcpip.ipv4 lwt lwt.unix"
  archive(byte) = "ipv4-unix.cma"
  archive(byte, plugin) = "ipv4-unix.cma"
@@ -194,7 +205,7 @@ package "ipv4-unix" (
 
 package "ipv4" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
@@ -205,7 +216,7 @@ package "ipv4" (
 
 package "ethif-unix" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
  archive(byte) = "ethif-unix.cma"
  archive(byte, plugin) = "ethif-unix.cma"
@@ -216,7 +227,7 @@ package "ethif-unix" (
 
 package "ethif" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip io-page mirage-types ipaddr cstruct lwt"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
@@ -227,7 +238,7 @@ package "ethif" (
 
 package "dhcpv4" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip.udp"
  archive(byte) = "dhcpv4.cma"
  archive(byte, plugin) = "dhcpv4.cma"
@@ -238,7 +249,7 @@ package "dhcpv4" (
 
 package "channel" (
  version = "2.1.0"
- description = "Ethernet, TCP/IPv4,v6 and DHCPv4 library"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt"
  archive(byte) = "channel.cma"
  archive(byte, plugin) = "channel.cma"
@@ -247,3 +258,4 @@ package "channel" (
  exists_if = "channel.cma"
 )
 # OASIS_STOP
+
