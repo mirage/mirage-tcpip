@@ -1,3 +1,16 @@
+2.2.0 (trunk):
+
+Add IPv6 support.  This changeset minimises interface changes to the existing
+`STACKV4` interfaces to faciliate a progressive merge.  The only visible
+interface changes are:
+
+* `IPV4.set_ipv4_*` functions have been renamed `IPV4.set_ip_*` because they
+  are shared between IPV4 and IPV6.
+* `IPV4.get_ipv4` and `get_ipv4_netmask` now return a `list` of `Ipaddr.V4.t`
+  (again because this is the common semantics with IPV6.)
+* Several types that had `v4` in their names (like `IPV4.ipv4addr`) have lost
+  that particle.
+
 2.1.1 (2014-12-12):
 * Improve console printing for the DHCP client to output line
   breaks properly on Xen consoles.
