@@ -17,12 +17,12 @@
 open Lwt
 
 type buffer = Cstruct.t
-type ipv4addr = Ipaddr.V4.t
+type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
-type ipv4 = Ipaddr.V4.t option (* source ip and port *)
-type ipv4input = unit Lwt.t
-type callback = src:ipv4addr -> dst:ipv4addr -> src_port:int -> buffer -> unit io
+type ip = Ipaddr.V4.t option (* source ip and port *)
+type ipinput = unit Lwt.t
+type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> buffer -> unit io
 
 type t = {
   interface: Unix.inet_addr; (* source ip to bind to *)
@@ -44,7 +44,7 @@ type error = [
   | `Unknown of string (** an undiagnosed error *)
 ]
 
-let connect (id:ipv4) =
+let connect (id:ip) =
   let t =
     let listen_fds = Hashtbl.create 7 in
     let interface =

@@ -18,15 +18,15 @@ val get_options : Cstruct.t -> Options.t list
 val set_options : Cstruct.t -> Options.t list -> int
 val get_payload : Cstruct.t -> Cstruct.t
 
-type id = {
-  dest_port: int;               (* Remote TCP port *)
-  dest_ip: Ipaddr.V4.t;         (* Remote IP address *)
-  local_port: int;              (* Local TCP port *)
-  local_ip: Ipaddr.V4.t;        (* Local IP address *)
-}
+module Make(Ip:V1_LWT.IP) : sig
+  type id = {
+    dest_port: int;               (* Remote TCP port *)
+    dest_ip: Ip.ipaddr;         (* Remote IP address *)
+    local_port: int;              (* Local TCP port *)
+    local_ip: Ip.ipaddr;        (* Local IP address *)
+  }
 
-module Make(Ipv4:V1_LWT.IPV4) : sig
-  val xmit : ip:Ipv4.t -> id:id ->
+  val xmit : ip:Ip.t -> id:id ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
     options:Options.t list ->

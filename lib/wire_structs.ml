@@ -25,7 +25,7 @@ cstruct icmpv4 {
     uint16_t seq
   } as big_endian
 
-cstruct udpv4 {
+cstruct udp {
     uint16_t source_port;
     uint16_t dest_port;
     uint16_t length;
@@ -33,7 +33,7 @@ cstruct udpv4 {
   } as big_endian
 
 module Tcp_wire = struct
-  cstruct tcpv4 {
+  cstruct tcp {
       uint16_t src_port;
       uint16_t dst_port;
       uint32_t sequence;
@@ -56,8 +56,8 @@ module Tcp_wire = struct
   (* XXX note that we overwrite the lower half of dataoff
    * with 0, so be careful when implemented CWE flag which
    * sits there *)
-  let get_data_offset buf = ((get_tcpv4_dataoff buf) lsr 4) * 4
-  let set_data_offset buf v = set_tcpv4_dataoff buf (v lsl 4)
+  let get_data_offset buf = ((get_tcp_dataoff buf) lsr 4) * 4
+  let set_data_offset buf v = set_tcp_dataoff buf (v lsl 4)
 
   let get_fin buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 0)) > 0
   let get_syn buf = ((Cstruct.get_uint8 buf 13) land (1 lsl 1)) > 0
@@ -84,4 +84,103 @@ module Tcp_wire = struct
     Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 6))
   let set_cwr buf =
     Cstruct.set_uint8 buf 13 ((Cstruct.get_uint8 buf 13) lor (1 lsl 7))
+end
+
+module Ipv6_wire = struct
+  cstruct ipv6 {
+      uint32_t       version_flow;
+      uint16_t       len;  (* payload length (includes extensions) *)
+      uint8_t        nhdr; (* next header *)
+      uint8_t        hlim; (* hop limit *)
+      uint8_t        src[16];
+      uint8_t        dst[16]
+    } as big_endian
+
+  cstruct icmpv6 {
+      uint8_t        ty;
+      uint8_t        code;
+      uint16_t       csum;
+      uint32_t       reserved
+    } as big_endian
+
+  cstruct pingv6 {
+      uint8_t       ty;
+      uint8_t       code;
+      uint16_t      csum;
+      uint16_t      id;
+      uint16_t      seq
+    } as big_endian
+
+  cstruct ns {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved;
+      uint8_t  target[16]
+    } as big_endian
+
+  cstruct na {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved;
+      uint8_t  target[16]
+    } as big_endian
+
+  let get_na_router buf =
+    (Cstruct.get_uint8 buf 4 land 0x80) <> 0
+
+  let get_na_solicited buf =
+    (Cstruct.get_uint8 buf 4 land 0x40) <> 0
+
+  let get_na_override buf =
+    (Cstruct.get_uint8 buf 4 land 0x20) <> 0
+
+  cstruct rs {
+      uint8_t  ty;
+      uint8_t  code;
+      uint16_t csum;
+      uint32_t reserved
+    } as big_endian
+
+  cstruct opt_prefix {
+      uint8_t    ty;
+      uint8_t    len;
+      uint8_t    prefix_len;
+      uint8_t    reserved1;
+      uint32_t   valid_lifetime;
+      uint32_t   preferred_lifetime;
+      uint32_t   reserved2;
+      uint8_t    prefix[16]
+    } as big_endian
+
+  let get_opt_prefix_on_link buf =
+    get_opt_prefix_reserved1 buf land 0x80 <> 0
+
+  let get_opt_prefix_autonomous buf =
+    get_opt_prefix_reserved1 buf land 0x40 <> 0
+
+  cstruct opt {
+      uint8_t  ty;
+      uint8_t  len
+    } as big_endian
+
+  cstruct llopt {
+      uint8_t ty;
+      uint8_t len;
+      uint8_t addr[6]
+    } as big_endian
+
+  cstruct ra {
+      uint8_t   ty;
+      uint8_t   code;
+      uint16_t  csum;
+      uint8_t   cur_hop_limit;
+      uint8_t   reserved;
+      uint16_t  router_lifetime;
+      uint32_t  reachable_time;
+      uint32_t  retrans_timer
+    } as big_endian
+
+  let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4
 end

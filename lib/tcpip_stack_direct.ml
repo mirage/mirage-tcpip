@@ -18,10 +18,10 @@ open Lwt
 
 type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
 module type UDPV4_DIRECT = V1_LWT.UDPV4
-  with type ipv4input = direct_ipv4_input
+  with type ipinput = direct_ipv4_input
 
 module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipv4input = direct_ipv4_input
+  with type ipinput = direct_ipv4_input
 
 module Make
     (Console : V1_LWT.CONSOLE)
@@ -30,8 +30,8 @@ module Make
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Udpv4   : UDPV4_DIRECT with type ipv4 = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ipv4 = Ipv4.t) =
+    (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
+    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) =
 struct
 
   type +'a io = 'a Lwt.t
@@ -80,13 +80,13 @@ struct
     Hashtbl.replace t.tcpv4_listeners port callback
 
   let configure_dhcp t info =
-    Ipv4.set_ipv4 t.ipv4 info.Dhcp.ip_addr
+    Ipv4.set_ip t.ipv4 info.Dhcp.ip_addr
     >>= fun () ->
     (match info.Dhcp.netmask with
-     |Some nm -> Ipv4.set_ipv4_netmask t.ipv4 nm
+     |Some nm -> Ipv4.set_ip_netmask t.ipv4 nm
      |None -> return_unit)
     >>= fun () ->
-    Ipv4.set_ipv4_gateways t.ipv4 info.Dhcp.gateways
+    Ipv4.set_ip_gateways t.ipv4 info.Dhcp.gateways
     >>= fun () ->
     Printf.ksprintf (Console.log_s t.c) "DHCP offer received and bound to %s nm %s gw [%s]"
       (Ipaddr.V4.to_string info.Dhcp.ip_addr)
@@ -111,11 +111,11 @@ struct
                            (Ipaddr.V4.to_string netmask)
                            (String.concat ", " (List.map Ipaddr.V4.to_string gateways)))
       >>= fun () ->
-      Ipv4.set_ipv4 t.ipv4 addr
+      Ipv4.set_ip t.ipv4 addr
       >>= fun () ->
-      Ipv4.set_ipv4_netmask t.ipv4 netmask
+      Ipv4.set_ip_netmask t.ipv4 netmask
       >>= fun () ->
-      Ipv4.set_ipv4_gateways t.ipv4 gateways
+      Ipv4.set_ip_gateways t.ipv4 gateways
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
@@ -128,6 +128,7 @@ struct
   let listen t =
     Netif.listen t.netif (
       Ethif.input
+        ~arpv4:(Ipv4.input_arpv4 t.ipv4)
         ~ipv4:(
           Ipv4.input
             ~tcp:(Tcpv4.input t.tcpv4
