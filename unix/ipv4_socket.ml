@@ -17,27 +17,30 @@
 open Lwt
 
 type id = string
-type ipv4 = unit
-type t = unit
+type t = Ipaddr.V4.t option
 type +'a io = 'a Lwt.t
 type error = [ `Unimplemented | `Unknown of string ]
-type ipv4addr = Ipaddr.V4.t
+type ipaddr = Ipaddr.V4.t
+type prefix = Ipaddr.V4.t (* FIXME *)
 type ethif = unit
 type buffer = Cstruct.t
-type callback = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
+type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
 
 let id _ = ()
-let disconnect () = return_unit
-let connect () = return (`Ok ())
+let disconnect _ = return_unit
+let connect _ = return (`Ok None)
 
-let input ~tcp:_ ~udp:_ ~default:_ _ _ = return_unit
-let allocate_frame ~proto:_ ~dest_ip:_ _ = fail (Failure "Not implemented")
+let input_arpv4 _ _ = fail (Failure "Not implemented")
+let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
+let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
 let write _ _ _ = fail (Failure "Not implemented")
 let writev _ _ _ = fail (Failure "Not implemented")
 
-let get_ipv4 _ = Ipaddr.V4.of_string_exn "0.0.0.0"
-let set_ipv4 _ _ = fail (Failure "Not implemented")
-let get_ipv4_netmask _ = Ipaddr.V4.of_string_exn "255.255.255.0"
-let get_ipv4_gateways _ = raise (Failure "Not implemented")
-let set_ipv4_netmask _ _ = fail (Failure "Not implemented")
-let set_ipv4_gateways _ _ = fail (Failure "Not implemented")
+let get_ip _ = [Ipaddr.V4.of_string_exn "0.0.0.0"]
+let set_ip _ _ = fail (Failure "Not implemented")
+let get_ip_netmasks _ = [Ipaddr.V4.of_string_exn "255.255.255.0"]
+let get_ip_gateways _ = raise (Failure "Not implemented")
+let set_ip_netmask _ _ = fail (Failure "Not implemented")
+let set_ip_gateways _ _ = fail (Failure "Not implemented")
+let get_source _ ~dst:_ = raise (Failure "Not implemented")
+let checksum _ _ = raise (Failure "Not implemented")

@@ -52,7 +52,7 @@
 
 1.1.2 (27-March-2014):
 * Fix DHCP variable length option parsing for MTU responses, which
-  in turns improves robustness on Amazon EC2 (fix from @yomimono 
+  in turns improves robustness on Amazon EC2 (fix from @yomimono
   via mirage/mirage-tcpip#48)
 
 1.1.1 (21-February-2014):
@@ -93,7 +93,7 @@
 * Version bump to catch up with mirage-platform.
 
 0.5.2 (08-Feb-2013):
-* Encourage scatter-gather I/O all the time, rather than playing tricks 
+* Encourage scatter-gather I/O all the time, rather than playing tricks
   with packet header buffers. This simplifies the output path considerably
   and cuts minor heap allocations down.
 * Install the packed `cmx` along with the `cmxa` to ensure that the

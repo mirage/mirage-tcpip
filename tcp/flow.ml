@@ -16,16 +16,16 @@
 
 open Lwt
 
-module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
   type flow = Pcb.pcb
-  type ipv4 = IP.t
-  type ipv4addr = Ipaddr.V4.t
+  type ip = IP.t
+  type ipaddr = IP.ipaddr
   type buffer = Cstruct.t
   type +'a io = 'a Lwt.t
-  type ipv4input = src:ipv4addr -> dst:ipv4addr -> buffer -> unit io
+  type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
   type t = Pcb.t
   type callback = flow -> unit Lwt.t
 
@@ -65,12 +65,12 @@ module Make(IP:V1_LWT.IPV4)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   let create_connection tcp (daddr, dport) =
     Pcb.connect tcp ~dest_ip:daddr ~dest_port:dport >>= function
     | `Timeout ->
-      Printf.printf "Failed to connect to %s:%d\n%!"
-        (Ipaddr.V4.to_string daddr) dport;
+      (* Printf.printf "Failed to connect to %s:%d\n%!" *)
+        (* (Ipaddr.V4.to_string daddr) dport; *)
       return (`Error `Timeout)
     | `Rst ->
-      Printf.printf "Refused connection to %s:%d\n%!"
-        (Ipaddr.V4.to_string daddr) dport;
+      (* Printf.printf "Refused connection to %s:%d\n%!" *)
+        (* (Ipaddr.V4.to_string daddr) dport; *)
       return (`Error `Refused)
     | `Ok (fl, _) ->
       return (`Ok fl)
