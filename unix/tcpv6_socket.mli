@@ -1,5 +1,6 @@
 (*
- * Copyright (c) 2010 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
-module Make ( IP:V1_LWT.IPV4 ) : V1_LWT.UDPV4 
-  with type ipv4 = IP.t
-   and type ipv4input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
+include V1_LWT.TCP with type ip = Ipaddr.V6.t option
+                    and type ipaddr = Ipaddr.V6.t
+                    and type ipinput = unit Lwt.t
+                    and type flow = Lwt_unix.file_descr
