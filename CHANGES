@@ -1,4 +1,4 @@
-2.1.1 (trunk):
+2.1.1 (2014-12-12):
 * Improve console printing for the DHCP client to output line
   breaks properly on Xen consoles.
 
