@@ -55,13 +55,14 @@ module Make(Ip: V1_LWT.IP) = struct
       | Some p -> return p
     end >>= fun source_port ->
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
+    let frame = Cstruct.set_len frame (header_len + Wire_structs.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
     Wire_structs.set_udp_source_port udp_buf source_port;
     Wire_structs.set_udp_dest_port udp_buf dest_port;
+    Wire_structs.set_udp_length udp_buf (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
+    (* Wire_structs.set_udp_checksum udp_buf 0; *)
     let csum = Ip.checksum frame (udp_buf :: bufs) in
     Wire_structs.set_udp_checksum udp_buf csum;
-    Wire_structs.set_udp_length udp_buf (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
-    let frame = Cstruct.set_len frame (header_len + Wire_structs.sizeof_udp) in
     Ip.writev t.ip frame bufs
 
   let write ?source_port ~dest_ip ~dest_port t buf =
