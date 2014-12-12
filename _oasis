@@ -1,8 +1,8 @@
 OASISFormat: 0.3
 Name:        tcpip
-Version:     2.1.1
+Version:     2.2.0
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
-Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier
+Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier, Nicolas Ojeda Bar
 License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
@@ -36,7 +36,7 @@ Library ethif
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Arpv4
+  Modules:            Ethif
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
 Library ipv4
@@ -44,23 +44,31 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4
+  Modules:            Ipv4, Arpv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
-Library udpv4
+Library ipv6
   CompiledObject:     best
   Path:               lib
   Findlibparent:      tcpip
-  Findlibname:        udpv4
-  Modules:            Udpv4
+  Findlibname:        ipv6
+  Modules:            Ipv6, Ndpv6
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,uint
+
+Library udp
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        udp
+  Modules:            Udp
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
-Library tcpv4
+Library tcp
   CompiledObject:     best
   Pack:               true
   Path:               tcp
   Findlibparent:      tcpip
-  Findlibname:        tcpv4
+  Findlibname:        tcp
   Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,
                       Window,Segment,User_buffer,Pcb,Flow
   BuildDepends:       io-page,
@@ -69,7 +77,8 @@ Library tcpv4
                       cstruct,
                       lwt,
                       tcpip,
-                      tcpip.ipv4
+                      tcpip.ipv4,
+                      tcpip.ipv6
 
 Library channel
   CompiledObject:     best
@@ -94,7 +103,7 @@ Library dhcpv4
                       ipaddr,
                       cstruct,
                       lwt,
-                      tcpip.udpv4
+                      tcpip.udp
 
 Library "tcpip-stack-direct"
   CompiledObject:     best
@@ -108,8 +117,8 @@ Library "tcpip-stack-direct"
                       cstruct,
                       lwt,
                       tcpip.ethif,
-                      tcpip.udpv4,
-                      tcpip.tcpv4,
+                      tcpip.udp,
+                      tcpip.tcp,
                       tcpip.dhcpv4
 
 Library "ethif-unix"
@@ -134,14 +143,39 @@ Library "ipv4-unix"
                       lwt,
                       lwt.unix
 
+Library "ipv6-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        ipv6-unix
+  Modules:            Ipv6_unix
+  BuildDepends:       tcpip.ethif-unix,
+                      tcpip.ipv6,
+                      lwt,
+                      lwt.unix
+
 Library "udpv4-unix"
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        udpv4-unix
   Modules:            Udpv4_unix
-  BuildDepends:       tcpip.udpv4,
+  BuildDepends:       tcpip.udp,
                       tcpip.ipv4-unix,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "udpv6-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv6-unix
+  Modules:            Udpv6_unix
+  BuildDepends:       tcpip.udp,
+                      tcpip.ipv6-unix,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,
@@ -154,7 +188,20 @@ Library "udpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv4-socket
   Modules:            Udpv4_socket
-  BuildDepends:       tcpip.udpv4,
+  BuildDepends:       tcpip.udp,
+                      lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "udpv6-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        udpv6-socket
+  Modules:            Udpv6_socket
+  BuildDepends:       tcpip.udp,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,
@@ -167,8 +214,25 @@ Library "tcpv4-unix"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-unix
   Modules:            Tcpv4_unix
-  BuildDepends:       tcpip.tcpv4,
+  BuildDepends:       tcpip.tcp,
                       tcpip.ipv4-unix,
+                      tcpip.channel,
+                      lwt,
+                      lwt.unix,
+                      mirage-unix,
+                      mirage-clock-unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
+Library "tcpv6-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv6-unix
+  Modules:            Tcpv6_unix
+  BuildDepends:       tcpip.tcp,
+                      tcpip.ipv6-unix,
                       tcpip.channel,
                       lwt,
                       lwt.unix,
@@ -190,6 +254,18 @@ Library "tcpv4-socket"
                       cstruct.lwt,
                       io-page.unix
 
+Library "tcpv6-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        tcpv6-socket
+  Modules:            Tcpv6_socket
+  BuildDepends:       lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
 Library "tcpip-stack-unix"
   CompiledObject:     best
   Path:               unix
@@ -198,6 +274,8 @@ Library "tcpip-stack-unix"
   Modules:            Tcpip_stack_unix
   BuildDepends:       tcpip.udpv4-unix,
                       tcpip.tcpv4-unix,
+                      tcpip.udpv6-unix,
+                      tcpip.tcpv6-unix,
                       tcpip.stack-direct,
                       lwt,
                       lwt.unix,
@@ -213,9 +291,9 @@ Library "tcpip-stack-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-socket
-  Modules:            Tcpip_stack_socket, Ipv4_socket
-  BuildDepends:       tcpip.udpv4-socket,
-                      tcpip.tcpv4-socket,
+  Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
+  BuildDepends:       tcpip.udpv4-socket, tcpip.udpv6-socket,
+                      tcpip.tcpv4-socket, tcpip.tcpv6-socket,
                       lwt,
                       lwt.unix,
                       ipaddr.unix,

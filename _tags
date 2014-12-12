@@ -33,29 +33,33 @@ true: annot, bin_annot
 "lib/ethif.cmxs": use_ethif
 # Library ipv4
 "lib/ipv4.cmxs": use_ipv4
-# Library udpv4
-"lib/udpv4.cmxs": use_udpv4
-# Library tcpv4
-"tcp/tcpv4.cmxs": use_tcpv4
-"tcp/options.cmx": for-pack(Tcpv4)
-"tcp/wire.cmx": for-pack(Tcpv4)
-"tcp/state.cmx": for-pack(Tcpv4)
-"tcp/tcptimer.cmx": for-pack(Tcpv4)
-"tcp/sequence.cmx": for-pack(Tcpv4)
-"tcp/sliding_window.cmx": for-pack(Tcpv4)
-"tcp/ack.cmx": for-pack(Tcpv4)
-"tcp/window.cmx": for-pack(Tcpv4)
-"tcp/segment.cmx": for-pack(Tcpv4)
-"tcp/user_buffer.cmx": for-pack(Tcpv4)
-"tcp/pcb.cmx": for-pack(Tcpv4)
-"tcp/flow.cmx": for-pack(Tcpv4)
+# Library ipv6
+"lib/ipv6.cmxs": use_ipv6
+# Library udp
+"lib/udp.cmxs": use_udp
+# Library tcp
+"tcp/tcp.cmxs": use_tcp
+"tcp/options.cmx": for-pack(Tcp)
+"tcp/wire.cmx": for-pack(Tcp)
+"tcp/state.cmx": for-pack(Tcp)
+"tcp/tcptimer.cmx": for-pack(Tcp)
+"tcp/sequence.cmx": for-pack(Tcp)
+"tcp/sliding_window.cmx": for-pack(Tcp)
+"tcp/ack.cmx": for-pack(Tcp)
+"tcp/window.cmx": for-pack(Tcp)
+"tcp/segment.cmx": for-pack(Tcp)
+"tcp/user_buffer.cmx": for-pack(Tcp)
+"tcp/pcb.cmx": for-pack(Tcp)
+"tcp/flow.cmx": for-pack(Tcp)
 <tcp/*.ml{,i,y}>: pkg_cstruct
 <tcp/*.ml{,i,y}>: pkg_io-page
 <tcp/*.ml{,i,y}>: pkg_ipaddr
 <tcp/*.ml{,i,y}>: pkg_lwt
 <tcp/*.ml{,i,y}>: pkg_mirage-profile
 <tcp/*.ml{,i,y}>: pkg_mirage-types
+<tcp/*.ml{,i,y}>: pkg_uint
 <tcp/*.ml{,i,y}>: use_ipv4
+<tcp/*.ml{,i,y}>: use_ipv6
 <tcp/*.ml{,i,y}>: use_tcpip
 # Library channel
 "channel/channel.cmxs": use_channel
@@ -73,7 +77,7 @@ true: annot, bin_annot
 <dhcp/*.ml{,i,y}>: pkg_mirage-profile
 <dhcp/*.ml{,i,y}>: pkg_mirage-types
 <dhcp/*.ml{,i,y}>: use_tcpip
-<dhcp/*.ml{,i,y}>: use_udpv4
+<dhcp/*.ml{,i,y}>: use_udp
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i,y}>: pkg_cstruct
@@ -82,24 +86,36 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: pkg_uint
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
 <lib/*.ml{,i,y}>: use_ipv4
+<lib/*.ml{,i,y}>: use_ipv6
+<lib/*.ml{,i,y}>: use_tcp
 <lib/*.ml{,i,y}>: use_tcpip
-<lib/*.ml{,i,y}>: use_tcpv4
-<lib/*.ml{,i,y}>: use_udpv4
+<lib/*.ml{,i,y}>: use_udp
 # Library ethif-unix
 "unix/ethif-unix.cmxs": use_ethif-unix
 # Library ipv4-unix
 "unix/ipv4-unix.cmxs": use_ipv4-unix
+# Library ipv6-unix
+"unix/ipv6-unix.cmxs": use_ipv6-unix
 # Library udpv4-unix
 "unix/udpv4-unix.cmxs": use_udpv4-unix
+# Library udpv6-unix
+"unix/udpv6-unix.cmxs": use_udpv6-unix
 # Library udpv4-socket
 "unix/udpv4-socket.cmxs": use_udpv4-socket
+# Library udpv6-socket
+"unix/udpv6-socket.cmxs": use_udpv6-socket
 # Library tcpv4-unix
 "unix/tcpv4-unix.cmxs": use_tcpv4-unix
+# Library tcpv6-unix
+"unix/tcpv6-unix.cmxs": use_tcpv6-unix
 # Library tcpv4-socket
 "unix/tcpv4-socket.cmxs": use_tcpv4-socket
+# Library tcpv6-socket
+"unix/tcpv6-socket.cmxs": use_tcpv6-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
@@ -107,16 +123,21 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
 <unix/*.ml{,i,y}>: pkg_mirage-types.lwt
 <unix/*.ml{,i,y}>: pkg_mirage-unix
+<unix/*.ml{,i,y}>: pkg_uint
 <unix/*.ml{,i,y}>: use_channel
 <unix/*.ml{,i,y}>: use_dhcpv4
 <unix/*.ml{,i,y}>: use_ethif
 <unix/*.ml{,i,y}>: use_ethif-unix
 <unix/*.ml{,i,y}>: use_ipv4
 <unix/*.ml{,i,y}>: use_ipv4-unix
+<unix/*.ml{,i,y}>: use_ipv6
+<unix/*.ml{,i,y}>: use_ipv6-unix
+<unix/*.ml{,i,y}>: use_tcp
 <unix/*.ml{,i,y}>: use_tcpip-stack-direct
-<unix/*.ml{,i,y}>: use_tcpv4
 <unix/*.ml{,i,y}>: use_tcpv4-unix
+<unix/*.ml{,i,y}>: use_tcpv6-unix
 <unix/*.ml{,i,y}>: use_udpv4-unix
+<unix/*.ml{,i,y}>: use_udpv6-unix
 # Library tcpip-stack-socket
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
 <unix/*.ml{,i,y}>: pkg_cstruct
@@ -131,8 +152,10 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_mirage-types
 <unix/*.ml{,i,y}>: use_tcpip
 <unix/*.ml{,i,y}>: use_tcpv4-socket
-<unix/*.ml{,i,y}>: use_udpv4
+<unix/*.ml{,i,y}>: use_tcpv6-socket
+<unix/*.ml{,i,y}>: use_udp
 <unix/*.ml{,i,y}>: use_udpv4-socket
+<unix/*.ml{,i,y}>: use_udpv6-socket
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
 <tcp/pcb.ml>: pkg_cstruct.syntax

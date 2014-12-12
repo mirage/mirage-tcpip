@@ -18,13 +18,13 @@ open Lwt
 
 type socket_ipv4_input = unit Lwt.t
 
-module type UDPV4_SOCKET = V1_LWT.UDPV4
-  with type ipv4input = socket_ipv4_input
-   and type ipv4 = Ipaddr.V4.t option
+module type UDPV4_SOCKET = V1_LWT.UDP
+  with type ipinput = socket_ipv4_input
+   and type ip = Ipaddr.V4.t option
 
-module type TCPV4_SOCKET = V1_LWT.TCPV4
-  with type ipv4input = socket_ipv4_input
-   and type ipv4 = Ipaddr.V4.t option
+module type TCPV4_SOCKET = V1_LWT.TCP
+  with type ipinput = socket_ipv4_input
+   and type ip = Ipaddr.V4.t option
 
 module Tcpv4 = Tcpv4_socket
 module Udpv4 = Udpv4_socket
@@ -45,7 +45,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
 
   type udpv4 = Udpv4_socket.t
   type tcpv4 = Tcpv4_socket.t
-  type ipv4  = unit
+  type ipv4  = Ipaddr.V4.t option
 
   type t = {
     id    : id;
@@ -63,7 +63,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let id { id; _ } = id
   let udpv4 { udpv4; _ } = udpv4
   let tcpv4 { tcpv4; _ } = tcpv4
-  let ipv4 _ = ()
+  let ipv4 _ = None
 
   (* List of IP addresses to bind to *)
   let configure t addrs =
