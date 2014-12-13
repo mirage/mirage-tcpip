@@ -56,7 +56,7 @@ module Ipv6_wire = Wire_structs.Ipv6_wire
 
 (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
 module Ipaddr = struct
-  include Ipaddr
+  include Ipaddr.V6
   let of_cstruct cs =
     let hihi = Cstruct.BE.get_uint32 cs 0 in
     let hilo = Cstruct.BE.get_uint32 cs 4 in
