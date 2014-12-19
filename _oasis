@@ -53,7 +53,7 @@ Library ipv6
   Findlibparent:      tcpip
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,uint
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library udp
   CompiledObject:     best
