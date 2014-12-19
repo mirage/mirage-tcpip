@@ -105,7 +105,13 @@ let multicast_mac =
     Cstruct.BE.set_uint32 pbuf 2 n;
     Macaddr.of_bytes_exn (Cstruct.to_string pbuf)
 
-let float_of_uint32 n = Uint32.to_float @@ Uint32.of_int32 n
+(* let float_of_uint32 n = Uint32.to_float (Uint32.of_int32 n)
+   but we can't use uint on Xen. *)
+let float_of_uint32 n =
+  if n >= 0l then Int32.to_float n
+  else
+    let m = Int32.logand n 0x7fffffffl in
+    Int32.to_float m +. 2. ** 31.
 
 module Defaults = struct
   let min_random_factor          = 0.5
@@ -285,9 +291,6 @@ end = struct
 end
 
 module PacketQueue = BoundedMap (Ipaddr)
-
-let float_of_uint32 n =
-  Uint32.to_float (Uint32.of_int32 n)
 
 module Parser : sig
   type result =
