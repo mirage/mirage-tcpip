@@ -98,7 +98,7 @@ Library dhcpv4
   Findlibparent:      tcpip
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
-  BuildDepends:       io-page,
+  BuildDepends:       io-page, bytes,
                       mirage-types,
                       ipaddr,
                       cstruct,
