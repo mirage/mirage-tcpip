@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 79d6c9ed0b8e11fef32f21eb0e5294c4)
+# DO NOT EDIT (digest: 7dcd2ecfa887fabd382ff037756aa81c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,6 +19,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: oasis_library_tcpip_ccopt
 "lib/checksum_stubs.c": oasis_library_tcpip_ccopt
 <lib/tcpip.{cma,cmxa}>: use_libtcpip_stubs
+"lib/checksum_stubs.c": pkg_bytes
 "lib/checksum_stubs.c": pkg_cstruct
 "lib/checksum_stubs.c": pkg_io-page
 "lib/checksum_stubs.c": pkg_ipaddr
@@ -51,6 +52,7 @@ true: annot, bin_annot
 "tcp/user_buffer.cmx": for-pack(Tcp)
 "tcp/pcb.cmx": for-pack(Tcp)
 "tcp/flow.cmx": for-pack(Tcp)
+<tcp/*.ml{,i,y}>: pkg_bytes
 <tcp/*.ml{,i,y}>: pkg_cstruct
 <tcp/*.ml{,i,y}>: pkg_io-page
 <tcp/*.ml{,i,y}>: pkg_ipaddr
@@ -70,6 +72,7 @@ true: annot, bin_annot
 <channel/*.ml{,i,y}>: pkg_mirage-types
 # Library dhcpv4
 "dhcp/dhcpv4.cmxs": use_dhcpv4
+<dhcp/*.ml{,i,y}>: pkg_bytes
 <dhcp/*.ml{,i,y}>: pkg_cstruct
 <dhcp/*.ml{,i,y}>: pkg_io-page
 <dhcp/*.ml{,i,y}>: pkg_ipaddr
@@ -80,6 +83,7 @@ true: annot, bin_annot
 <dhcp/*.ml{,i,y}>: use_udp
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
+<lib/*.ml{,i,y}>: pkg_bytes
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
@@ -140,6 +144,7 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: use_udpv6-unix
 # Library tcpip-stack-socket
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
+<unix/*.ml{,i,y}>: pkg_bytes
 <unix/*.ml{,i,y}>: pkg_cstruct
 <unix/*.ml{,i,y}>: pkg_cstruct.lwt
 <unix/*.ml{,i,y}>: pkg_io-page

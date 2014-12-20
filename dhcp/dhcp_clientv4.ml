@@ -73,7 +73,7 @@ module Make (Console : V1_LWT.CONSOLE)
   (* Send a client broadcast packet *)
   let output_broadcast t ~xid ~yiaddr ~siaddr ~options =
     let options = Dhcpv4_option.Packet.to_bytes options in
-    let options_len = String.length options in
+    let options_len = Bytes.length options in
     let total_len = options_len + sizeof_dhcp in
     let buf = Io_page.(to_cstruct (get 1)) in
     set_dhcp_op buf (mode_to_int BootRequest);
@@ -89,9 +89,9 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_giaddr buf 0l;
     (* TODO add a pad/fill function in cstruct *)
     let macaddr = Macaddr.to_bytes t.mac in
-    set_dhcp_chaddr (macaddr ^ (String.make 10 '\000')) 0 buf;
-    set_dhcp_sname (String.make 64 '\000') 0 buf;
-    set_dhcp_file (String.make 128 '\000') 0 buf;
+    set_dhcp_chaddr (macaddr ^ (Bytes.make 10 '\000')) 0 buf;
+    set_dhcp_sname (Bytes.make 64 '\000') 0 buf;
+    set_dhcp_file (Bytes.make 128 '\000') 0 buf;
     set_dhcp_cookie buf 0x63825363l;
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
@@ -109,12 +109,12 @@ module Make (Console : V1_LWT.CONSOLE)
     let of_byte x =
       Printf.sprintf "%02x" (Char.code x) in
     let chaddr_to_string x =
-      let chaddr_size = (String.length x) in
-      let dst_buffer = (String.make (chaddr_size * 2) '\000') in
+      let chaddr_size = (Bytes.length x) in
+      let dst_buffer = (Bytes.make (chaddr_size * 2) '\000') in
       for i = 0 to (chaddr_size - 1) do
         let thischar = of_byte x.[i] in
-        String.set dst_buffer (i*2) (String.get thischar 0);
-        String.set dst_buffer ((i*2)+1) (String.get thischar 1)
+        Bytes.set dst_buffer (i*2) (Bytes.get thischar 0);
+        Bytes.set dst_buffer ((i*2)+1) (Bytes.get thischar 1)
       done;
       dst_buffer
     in
