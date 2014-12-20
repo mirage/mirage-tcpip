@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7dcd2ecfa887fabd382ff037756aa81c)
+# DO NOT EDIT (digest: 67ffe3d1ae0f586991f8c38ab831f735)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -59,7 +59,6 @@ true: annot, bin_annot
 <tcp/*.ml{,i,y}>: pkg_lwt
 <tcp/*.ml{,i,y}>: pkg_mirage-profile
 <tcp/*.ml{,i,y}>: pkg_mirage-types
-<tcp/*.ml{,i,y}>: pkg_uint
 <tcp/*.ml{,i,y}>: use_ipv4
 <tcp/*.ml{,i,y}>: use_ipv6
 <tcp/*.ml{,i,y}>: use_tcpip
@@ -90,7 +89,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
-<lib/*.ml{,i,y}>: pkg_uint
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
 <lib/*.ml{,i,y}>: use_ipv4
@@ -127,7 +125,6 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
 <unix/*.ml{,i,y}>: pkg_mirage-types.lwt
 <unix/*.ml{,i,y}>: pkg_mirage-unix
-<unix/*.ml{,i,y}>: pkg_uint
 <unix/*.ml{,i,y}>: use_channel
 <unix/*.ml{,i,y}>: use_dhcpv4
 <unix/*.ml{,i,y}>: use_ethif

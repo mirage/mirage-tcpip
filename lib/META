@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 88fee6bec89a638c7487e44a2cbf21f0)
+# DO NOT EDIT (digest: f15df63bf06f9b2d59bdfa061c8bb0e0)
 version = "2.2.1"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct mirage-profile bytes"
@@ -184,7 +184,7 @@ package "ipv6-unix" (
 package "ipv6" (
  version = "2.2.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip uint"
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
