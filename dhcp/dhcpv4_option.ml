@@ -152,7 +152,7 @@ let t_to_string (t:t) =
   | `Client_id id -> str "Client id" id
   | `Domain_search d -> str "Domain search" d
   | `Netbios_name_server d -> ip_list "NetBIOS name server" d
-  | `Unknown (c,x) -> sprintf "Unknown(%d[%d])" (Char.code c) (String.length x)
+  | `Unknown (c,x) -> sprintf "Unknown(%d[%d])" (Char.code c) (Bytes.length x)
   | `End -> "End"
 
 let ipv4_addr_of_bytes x =
@@ -188,10 +188,10 @@ module Marshal = struct
     |`End -> 255
     |`Unknown c -> Char.code c
 
-  let to_byte x = String.make 1 (Char.chr (t_to_code x))
+  let to_byte x = Bytes.make 1 (Char.chr (t_to_code x))
 
   let uint32_to_bytes s =
-    let x = String.create 4 in
+    let x = Bytes.create 4 in
     let (>!) x y = Int32.logand (Int32.shift_right x y) 255l in
     Bytes.set x 0 (Char.chr (Int32.to_int (s >! 24)));
     Bytes.set x 1 (Char.chr (Int32.to_int (s >! 16)));
@@ -200,13 +200,13 @@ module Marshal = struct
     x
 
   let uint16_to_bytes s =
-    let x = String.create 2 in
+    let x = Bytes.create 2 in
     Bytes.set x 0 (Char.chr (s land 255));
     Bytes.set x 1 (Char.chr ((s lsl 8) land 255));
     x
 
-  let size x = String.make 1 (Char.chr x)
-  let str c x = to_byte c :: (size (String.length x)) :: [x]
+  let size x = Bytes.make 1 (Char.chr x)
+  let str c x = to_byte c :: (size (Bytes.length x)) :: [x]
   let uint32 c x = to_byte c :: [ "\004"; uint32_to_bytes x]
   let uint16 c x = to_byte c :: [ "\002"; uint16_to_bytes x]
   let ip_list c ips =
@@ -242,7 +242,7 @@ module Marshal = struct
           |`Nak -> "\006"
           |`Release -> "\007"
           |`Inform -> "\008"
-          |`Unknown x -> String.make 1 x in
+          |`Unknown x -> Bytes.make 1 x in
         to_byte `Message_type :: "\001" :: [mcode mtype]
       |`Server_identifier id -> ip_one `Server_identifier id
       |`Parameter_request ps ->
@@ -254,14 +254,14 @@ module Marshal = struct
       |`Domain_search _ ->
         assert false (* not supported yet, requires annoying DNS compression *)
       |`End -> [to_byte `End]
-      |`Unknown (c,x) -> [ (String.make 1 c); x ]
-    in String.concat "" bits
+      |`Unknown (c,x) -> [ (Bytes.make 1 c); x ]
+    in Bytes.concat "" bits
 
   let options mtype xs =
-    let buf = String.make 312 '\000' in
-    let p = String.concat "" (List.map to_bytes (`Message_type mtype :: xs @ [`End])) in
+    let buf = Bytes.make 312 '\000' in
+    let p = Bytes.concat "" (List.map to_bytes (`Message_type mtype :: xs @ [`End])) in
     (* DHCP packets have minimum length, hence the blit into buf *)
-    String.blit p 0 buf 0 (String.length p);
+    Bytes.blit p 0 buf 0 (Bytes.length p);
     buf
 end
 
@@ -298,15 +298,15 @@ module Unmarshal = struct
   let of_bytes buf : t list =
     let pos = ref 0 in
     let getc () =  (* Get one character *)
-      let r = String.get buf !pos in
+      let r = Bytes.get buf !pos in
       pos := !pos + 1;
       r in
     let getint () = (* Get one integer *)
       Char.code (getc ()) in
     let slice len = (* Get a substring *)
-      if (!pos + len) > (String.length buf) || !pos > (String.length buf)
-      then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (String.length buf) ));
-      let r = String.sub buf !pos len in
+      if (!pos + len) > (Bytes.length buf) || !pos > (Bytes.length buf)
+      then raise (Error (sprintf "Requested too much string at %d %d (%d)" !pos len (Bytes.length buf) ));
+      let r = Bytes.sub buf !pos len in
       pos := !pos + len;
       r in
     let check c = (* Check that a char is the provided value *)
