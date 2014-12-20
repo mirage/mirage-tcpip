@@ -1,6 +1,6 @@
 OASISFormat: 0.3
 Name:        tcpip
-Version:     2.2.0
+Version:     2.2.1
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier, Nicolas Ojeda Bar
 License:     ISC
@@ -19,7 +19,7 @@ Library tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,mirage-profile
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,mirage-profile,bytes
   XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
 
 Library tcpip_xen
@@ -98,7 +98,7 @@ Library dhcpv4
   Findlibparent:      tcpip
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
-  BuildDepends:       io-page,
+  BuildDepends:       io-page, bytes,
                       mirage-types,
                       ipaddr,
                       cstruct,

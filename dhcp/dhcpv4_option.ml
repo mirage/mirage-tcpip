@@ -193,16 +193,16 @@ module Marshal = struct
   let uint32_to_bytes s =
     let x = String.create 4 in
     let (>!) x y = Int32.logand (Int32.shift_right x y) 255l in
-    x.[0] <- Char.chr (Int32.to_int (s >! 24));
-    x.[1] <- Char.chr (Int32.to_int (s >! 16));
-    x.[2] <- Char.chr (Int32.to_int (s >! 8));
-    x.[3] <- Char.chr (Int32.to_int (s >! 0));
+    Bytes.set x 0 (Char.chr (Int32.to_int (s >! 24)));
+    Bytes.set x 1 (Char.chr (Int32.to_int (s >! 16)));
+    Bytes.set x 2 (Char.chr (Int32.to_int (s >! 8)));
+    Bytes.set x 3 (Char.chr (Int32.to_int (s >! 0)));
     x
 
   let uint16_to_bytes s =
     let x = String.create 2 in
-    x.[0] <- Char.chr (s land 255);
-    x.[1] <- Char.chr ((s lsl 8) land 255);
+    Bytes.set x 0 (Char.chr (s land 255));
+    Bytes.set x 1 (Char.chr ((s lsl 8) land 255));
     x
 
   let size x = String.make 1 (Char.chr x)
