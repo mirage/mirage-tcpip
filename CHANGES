@@ -1,3 +1,6 @@
+2.2.1 (2014-12-20):
+* Use `Bytes` instead of `String` to begin the `-safe-string` migration in OCaml 4.02.0.
+
 2.2.0 (2014-12-18):
 
 Add IPv6 support. This changeset minimises interface changes to the existing
