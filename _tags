@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 79d6c9ed0b8e11fef32f21eb0e5294c4)
+# DO NOT EDIT (digest: 16171a2ce16cf80a792b9f49b6bcf8b8)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -51,6 +51,7 @@ true: annot, bin_annot
 "tcp/user_buffer.cmx": for-pack(Tcp)
 "tcp/pcb.cmx": for-pack(Tcp)
 "tcp/flow.cmx": for-pack(Tcp)
+<tcp/*.ml{,i,y}>: pkg_bytes
 <tcp/*.ml{,i,y}>: pkg_cstruct
 <tcp/*.ml{,i,y}>: pkg_io-page
 <tcp/*.ml{,i,y}>: pkg_ipaddr
@@ -80,6 +81,7 @@ true: annot, bin_annot
 <dhcp/*.ml{,i,y}>: use_udp
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
+<lib/*.ml{,i,y}>: pkg_bytes
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
@@ -118,6 +120,7 @@ true: annot, bin_annot
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i,y}>: pkg_bytes
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
 <unix/*.ml{,i,y}>: pkg_mirage-console.unix
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix

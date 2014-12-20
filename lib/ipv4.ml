@@ -59,13 +59,13 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
     let mac_of_multicast ip =
       let ipb = Ipaddr.V4.to_bytes ip in
-      let macb = String.create 6 in
-      macb.[0] <- Char.chr 0x01;
-      macb.[1] <- Char.chr 0x00;
-      macb.[2] <- Char.chr 0x5E;
-      macb.[3] <- Char.chr ((Char.code ipb.[1]) land 0x7F);
-      macb.[4] <- ipb.[2];
-      macb.[5] <- ipb.[3];
+      let macb = Bytes.create 6 in
+      Bytes.set macb 0 (Char.chr 0x01);
+      Bytes.set macb 1 (Char.chr 0x00);
+      Bytes.set macb 2 (Char.chr 0x5E);
+      Bytes.set macb 3 (Char.chr ((Char.code ipb.[1]) land 0x7F));
+      Bytes.set macb 4 (Bytes.get ipb 2);
+      Bytes.set macb 5 (Bytes.get ipb 3);
       Macaddr.of_bytes_exn macb
 
     let destination_mac t =
