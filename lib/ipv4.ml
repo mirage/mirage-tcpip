@@ -124,11 +124,35 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
   let write t frame buf =
     writev t frame [buf]
 
+  let icmp_dst_unreachable buf =
+    let descr =
+      match Wire_structs.get_icmpv4_code buf with
+      | 0  -> "Destination network unreachable"
+      | 1  -> "Destination host unreachable"
+      | 2  -> "Destination protocol unreachable"
+      | 3  -> "Destination port unreachable"
+      | 4  -> "Fragmentation required, and DF flag set"
+      | 5  -> "Source route failed"
+      | 6  -> "Destination network unknown"
+      | 7  -> "Destination host unknown"
+      | 8  -> "Source host isolated"
+      | 9  -> "Network administratively prohibited"
+      | 10 -> "Host administratively prohibited"
+      | 11 -> "Network unreachable for TOS"
+      | 12 -> "Host unreachable for TOS"
+      | 13 -> "Communication administratively prohibited"
+      | 14 -> "Host Precedence Violation"
+      | 15 -> "Precedence cutoff in effect"
+      | code -> Printf.sprintf "Unknown code: %d" code in
+    printf "ICMP Destination Unreachable: %s\n%!" descr;
+    return ()
+
   let icmp_input t src _hdr buf =
     MProf.Trace.label "icmp_input";
     match Wire_structs.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
       return (printf "ICMP: discarding echo reply\n%!")
+    |3 -> icmp_dst_unreachable buf
     |8 -> (* echo request *)
       (* convert the echo request into an echo reply *)
       let csum =
