@@ -1,3 +1,5 @@
+* Readded tracing and ARP fixes which got accidentally reverted in the IPv6 merge.
+
 2.2.1 (2014-12-20):
 * Use `Bytes` instead of `String` to begin the `-safe-string` migration in OCaml 4.02.0 (#93).
 * Remove dependency on `uint` to avoid the need for a C stub (#92).
