@@ -35,6 +35,11 @@ type error = [
   | `Refused
 ]
 
+let error_message = function
+  | `Unknown msg -> msg
+  | `Timeout -> "Timeout while attempting to connect"
+  | `Refused -> "Connection refused"
+
 let connect id =
   let t =
     match id with
