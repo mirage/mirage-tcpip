@@ -20,8 +20,10 @@ type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit
 module type UDPV4_DIRECT = V1_LWT.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipinput = direct_ipv4_input
+module type TCPV4_DIRECT = sig
+  include V1_LWT.TCPV4 with type ipinput = direct_ipv4_input
+  val watch: t -> listeners:(int -> callback option) ->  unit Lwt.t
+end
 
 module Make
     (Console : V1_LWT.CONSOLE)
@@ -121,9 +123,18 @@ struct
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
     with Not_found -> None
 
+  let default_tcpv4_listeners t =
+    try
+      let res = Some (Hashtbl.find t.tcpv4_listeners (-1)) in
+      Printf.printf "Found a default tcp listener\n";
+      res
+    with Not_found ->
+      Printf.printf "No default tcp listener\n";
+      None
+
   let tcpv4_listeners t dst_port =
     try Some (Hashtbl.find t.tcpv4_listeners dst_port)
-    with Not_found -> None
+    with Not_found -> default_tcpv4_listeners t
 
   let listen t =
     Netif.listen t.netif (
@@ -139,6 +150,9 @@ struct
             t.ipv4)
         ~ipv6:(fun _ -> return_unit)
         t.ethif)
+
+  let watch t =
+    Tcpv4.watch t.tcpv4 ~listeners:(tcpv4_listeners t)
 
   let connect id =
     let { V1_LWT.console = c; interface = netif; mode; _ } = id in
@@ -167,6 +181,7 @@ struct
     let _ = listen t in
     configure t t.mode
     >>= fun () ->
+    ignore_result (watch t);
     (* TODO: this is fine for now, because the DHCP state machine isn't fully
        implemented and its thread will terminate after one successful lease
        transaction.  For a DHCP thread that runs forever, `configure` will need

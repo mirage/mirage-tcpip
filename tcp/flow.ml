@@ -16,7 +16,7 @@
 
 open Lwt
 
-module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module Make(IP:Wire.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
@@ -76,11 +76,16 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
       return (`Ok fl)
 
   let input t ~listeners ~src ~dst buf =
-    Pcb.input t ~listeners ~src ~dst buf
+    let t = Pcb.with_listeners listeners t in
+    Pcb.input t ~src ~dst buf
 
   let connect ipv4 =
     return (`Ok (Pcb.create ipv4))
 
   let disconnect _ =
     return_unit
+
+  let watch t ~listeners =
+    let t = Pcb.with_listeners listeners t in
+    Pcb.watch t
 end
