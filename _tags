@@ -207,3 +207,4 @@ true: annot, bin_annot, principal, strict_sequence, debug
 <lib/wire_structs.ml>: pkg_cstruct.syntax
 <lib/arpv4.ml>: pkg_cstruct.syntax
 <dhcp/dhcp_clientv4.ml>: pkg_cstruct.syntax
+<tcp/options.ml>: pkg_sexplib.syntax

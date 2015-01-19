@@ -30,3 +30,6 @@ type t =
 val marshal: Cstruct.t -> t list -> int
 val unmarshal : Cstruct.t -> t list
 val prettyprint : t list -> string
+
+val to_string: t list -> string
+val of_string: string -> t list
