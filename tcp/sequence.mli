@@ -46,3 +46,4 @@ val of_int: int -> t
 val to_int32: t -> int32
 val to_int: t -> int
 val to_string: t -> string
+val of_string: string -> t
