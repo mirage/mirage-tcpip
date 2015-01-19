@@ -18,13 +18,23 @@ val get_options : Cstruct.t -> Options.t list
 val set_options : Cstruct.t -> Options.t list -> int
 val get_payload : Cstruct.t -> Cstruct.t
 
-module Make(Ip:V1_LWT.IP) : sig
+module type IP = sig
+  (* XXX: to add to the mirage-types/V1.ml/IP signature *)
+  include V1_LWT.IP
+  val to_string: ipaddr -> string
+  val of_string_exn: string -> ipaddr
+end
+
+module Make(Ip:IP) : sig
   type id = {
     dest_port: int;               (* Remote TCP port *)
     dest_ip: Ip.ipaddr;         (* Remote IP address *)
     local_port: int;              (* Local TCP port *)
     local_ip: Ip.ipaddr;        (* Local IP address *)
   }
+
+  val path_of_id: id -> string list
+  val id_of_path: string list -> id
 
   val xmit : ip:Ip.t -> id:id ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->

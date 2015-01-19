@@ -30,7 +30,15 @@ let set_options buf ts =
 let get_payload buf =
   Cstruct.shift buf (Tcp_wire.get_data_offset buf)
 
-module Make (Ip:V1_LWT.IP) = struct
+module type IP = sig
+  (* XXX: to add to the mirage-types/V1.ml/IP signature *)
+  include V1_LWT.IP
+  val to_string: ipaddr -> string
+  val of_string_exn: string -> ipaddr
+end
+
+module Make (Ip:IP) = struct
+
   type id = {
     dest_port: int;               (* Remote TCP port *)
     dest_ip: Ip.ipaddr;         (* Remote IP address *)
@@ -38,6 +46,23 @@ module Make (Ip:V1_LWT.IP) = struct
     local_ip: Ip.ipaddr;        (* Local IP address *)
   }
 
+  let path_of_id { dest_port; dest_ip; local_port; local_ip } =
+    [ Ip.to_string local_ip;
+      string_of_int local_port;
+      Ip.to_string dest_ip;
+      string_of_int dest_port; ]
+
+  let id_of_path = function
+  | [ local_ip; local_port; dest_ip; dest_port ] ->
+    let local_ip = Ip.of_string_exn local_ip in
+    let local_port = int_of_string local_port in
+    let dest_ip = Ip.of_string_exn dest_ip in
+    let dest_port = int_of_string dest_port in
+    { local_ip; local_port; dest_ip; dest_port }
+  | p -> failwith (Printf.sprintf "id_of_path: %s" (String.concat "/" p))
+
+  (* Output a general TCP packet, checksum it, and if a reference is provided,
+     also record the sent packet for retranmission purposes *)
   let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options datav =
     (* Make a TCP/IP header frame *)
