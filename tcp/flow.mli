@@ -15,7 +15,10 @@
  *)
 
 
-module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) : V1_LWT.TCP
-  with type ip = IP.t
-   and type ipaddr = IP.ipaddr
-   and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) : sig
+  include V1_LWT.TCP
+    with type ip = IP.t
+     and type ipaddr = IP.ipaddr
+     and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+  val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+end

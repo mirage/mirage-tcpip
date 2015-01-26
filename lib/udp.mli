@@ -15,7 +15,10 @@
  *)
 
 
-module Make ( IP:V1_LWT.IP ) : V1_LWT.UDP
-  with type ip = IP.t
-   and type ipaddr = IP.ipaddr
-   and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+module Make ( IP:V1_LWT.IP ) : sig
+  include V1_LWT.UDP
+    with type ip = IP.t
+     and type ipaddr = IP.ipaddr
+     and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+  val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+end
