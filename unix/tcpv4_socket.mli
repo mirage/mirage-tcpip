@@ -18,3 +18,4 @@ include V1_LWT.TCP with type ip = Ipaddr.V4.t option
                     and type ipaddr = Ipaddr.V4.t
                     and type ipinput = unit Lwt.t
                     and type flow = Lwt_unix.file_descr
+val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
