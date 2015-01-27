@@ -134,7 +134,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
   (* Output functions *)
 
   let alloc_obuf t =
-    let buf = Cstruct.of_bigarray (Io_page.get 1) in
+    let buf = Io_page.to_cstruct (Io_page.get 1) in
     t.obuf <- Some buf;
     t.opos <- 0;
     buf
