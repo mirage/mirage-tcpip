@@ -35,6 +35,11 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | `Refused
   ]
 
+  let error_message = function
+    | `Unknown msg -> msg
+    | `Timeout -> "Timeout while attempting to connect"
+    | `Refused -> "Connection refused"
+
   let id t = Pcb.ip t
 
   let get_dest t = Pcb.get_dest t
