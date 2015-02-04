@@ -18,7 +18,7 @@
 open Lwt
 open Printf
 
-module Make (Ethif : V1_LWT.ETHIF) = struct
+module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
@@ -27,12 +27,11 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     tpa: Ipaddr.V4.t;
   }
 
-  (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
-
   type t = {
     ethif : Ethif.t;
-    cache: (Ipaddr.V4.t, Macaddr.t Lwt.t) Hashtbl.t;
-    pending: (Ipaddr.V4.t, Macaddr.t Lwt.u) Hashtbl.t;
+    cache: (Ipaddr.V4.t, (Macaddr.t option) Lwt.t) Hashtbl.t;
+    pending: (Ipaddr.V4.t, (Macaddr.t option) Lwt.u) Hashtbl.t;
+    timeouts: (Ipaddr.V4.t, unit Lwt.t) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
@@ -54,7 +53,11 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   cenum op {
     Op_request = 1;
     Op_reply
-  } as uint16_t
+    } as uint16_t
+
+  let arp_timeout = 5. (* 60. *) (* age entries out of cache after this many seconds *)
+  let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
+  let probe_num = 3 (* how many probes to send before giving up *)
 
   (* Prettyprint cache contents *)
   let prettyprint t =
@@ -64,7 +67,8 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
           (Ipaddr.V4.to_string ip)
           (match Lwt.state entry with
            | Sleep -> "I"
-           | Return mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+           | Return (Some mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
+           | Return (None) -> sprintf "Failed"
            | Fail ex -> Printexc.to_string ex
           )
       ) t.cache
@@ -90,13 +94,31 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     |2 -> (* Reply *)
       let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
       let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
-      printf "ARP: updating %s -> %s\n%!"
+      printf "ARP: updating %s -> %s\n%!" 
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
       if Hashtbl.mem t.pending spa then begin
-        wakeup (Hashtbl.find t.pending spa) sha;
+        wakeup (Hashtbl.find t.pending spa) (Some sha);
         Hashtbl.remove t.pending spa;
+      end else begin
+        (* In the case of gratuitous/unsolicited ARPs, we still want to create a 
+           cache entry *) 
+        Hashtbl.add t.cache spa (return (Some sha));
       end;
+      (* call the existing timeout's canceller so this entry isn't prematurely
+         aged out of the cache *)
+      if Hashtbl.mem t.timeouts spa then begin
+        Lwt.cancel (Hashtbl.find t.timeouts spa);
+        Hashtbl.remove t.timeouts spa
+      end;
+      (* Set a timeout to age this entry out of the cache *)
+      let timeout = (Time.sleep arp_timeout) >>= (fun () -> 
+          printf "ARP: removing %s (timed out)\n%!" (Ipaddr.V4.to_string spa);
+          Hashtbl.remove t.cache spa;
+          Hashtbl.remove t.timeouts spa;
+          return_unit
+        ) in
+      Hashtbl.add t.timeouts spa timeout;
       return_unit
     |n ->
       printf "ARP: Unknown message %d ignored\n%!" n;
@@ -171,22 +193,44 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
-  let query t ip =
+  let query t ip : (Macaddr.t option) Lwt.t =
     if Hashtbl.mem t.cache ip then (
-      Hashtbl.find t.cache ip
+      (Hashtbl.find t.cache ip)
     ) else (
-      let response, waker = MProf.Trace.named_wait "ARP response" in
-      (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-      Hashtbl.add t.cache ip response;
-      Hashtbl.add t.pending ip waker;
-      (* First request, so send a query packet *)
-      output_probe t ip >>= fun () ->
-      response
+      let rec try_query t ip counter : (Macaddr.t option) Lwt.t = 
+        Hashtbl.remove t.pending ip; (* responses are too little, too late *)
+        Hashtbl.remove t.cache ip; (* new attempts to resolve should not be referred
+                                        to the previous sleeping thread *)
+        match counter with 
+        | 0 -> return None
+        | n ->
+        (* TODO: do we need to do anything else to clean up the threads? *)
+        (* TODO: we need a facility for failing and notifying the caller that
+          the address could not be resolved *)
+        let response, waker = MProf.Trace.named_wait "ARP response" in
+        Hashtbl.add t.cache ip response;
+        Hashtbl.add t.pending ip waker; (* if we get a response, the input state
+                                         * machine will know which thread to wake
+                                         * *)
+        output_probe t ip >>= fun () -> 
+        Time.sleep probe_repeat_delay >>= fun () ->
+        match Lwt.state response with
+        | Return mac -> return (Some mac)
+        | Sleep -> try_query t ip (n - 1)
+        | Fail n -> Lwt.fail n 
+        (* TODO: this is not so great, because we impose a probe_repeat_delay
+          wait even when the ARP request was received immediately, don't we? *)
+      in
+      (* try_query t ip probe_num >>= fun m -> match m with
+      | None -> Hashtbl.remove t.cache ip; return None
+         | Some (mac : (Macaddr.t option) Lwt.t) -> mac *)
+      try_query t ip probe_num
     )
 
   let create ethif =
     let cache = Hashtbl.create 7 in
     let pending = Hashtbl.create 7 in
+    let timeouts = Hashtbl.create 7 in
     let bound_ips = [] in
-    { ethif; cache; pending; bound_ips }
+    { ethif; cache; pending; timeouts; bound_ips }
 end
