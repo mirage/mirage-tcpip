@@ -26,6 +26,10 @@ type ipaddr = Ipaddr.V6.t
 type ethif = unit
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
+type uipaddr = Ipaddr.t
+
+let to_uipaddr ip = Ipaddr.V6 ip
+let of_uipaddr ip = Some (Ipaddr.to_v6 ip)
 
 let id _ = ()
 let disconnect () = return_unit
