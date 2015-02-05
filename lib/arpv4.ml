@@ -55,7 +55,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     Op_reply
     } as uint16_t
 
-  let arp_timeout = 5. (* 60. *) (* age entries out of cache after this many seconds *)
+  let arp_timeout = 60. (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
   let probe_num = 3 (* how many probes to send before giving up *)
 
