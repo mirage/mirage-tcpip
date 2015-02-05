@@ -94,7 +94,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
     |2 -> (* Reply *)
       let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
       let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
-      printf "ARP: updating %s -> %s\n%!" 
+      printf "ARP: updating %s -> %s\n%!"
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
       if Hashtbl.mem t.pending spa then begin
