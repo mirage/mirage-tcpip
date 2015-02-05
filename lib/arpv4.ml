@@ -193,9 +193,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
-  let query t ip : (Macaddr.t option) Lwt.t =
+  let query t ip =
     if Hashtbl.mem t.cache ip then (
-      (Hashtbl.find t.cache ip)
+      Hashtbl.find t.cache ip
     ) else (
       let rec try_query t ip counter : (Macaddr.t option) Lwt.t = 
         Hashtbl.remove t.pending ip; (* responses are too little, too late *)
@@ -204,26 +204,16 @@ module Make (Ethif : V1_LWT.ETHIF) (Time : V1_LWT.TIME) = struct
         match counter with 
         | 0 -> return None
         | n ->
-        (* TODO: do we need to do anything else to clean up the threads? *)
-        (* TODO: we need a facility for failing and notifying the caller that
-          the address could not be resolved *)
-        let response, waker = MProf.Trace.named_wait "ARP response" in
-        Hashtbl.add t.cache ip response;
-        Hashtbl.add t.pending ip waker; (* if we get a response, the input state
-                                         * machine will know which thread to wake
-                                         * *)
-        output_probe t ip >>= fun () -> 
-        Time.sleep probe_repeat_delay >>= fun () ->
-        match Lwt.state response with
-        | Return mac -> return (Some mac)
-        | Sleep -> try_query t ip (n - 1)
-        | Fail n -> Lwt.fail n 
-        (* TODO: this is not so great, because we impose a probe_repeat_delay
-          wait even when the ARP request was received immediately, don't we? *)
+          let response, waker = MProf.Trace.named_wait "ARP response" in
+          Hashtbl.add t.cache ip response;
+          Hashtbl.add t.pending ip waker; 
+          output_probe t ip >>= fun () -> 
+          Time.sleep probe_repeat_delay >>= fun () ->
+          match Lwt.state response with
+          | Return mac -> return (Some mac)
+          | Sleep -> try_query t ip (n - 1)
+          | Fail n -> Lwt.fail n 
       in
-      (* try_query t ip probe_num >>= fun m -> match m with
-      | None -> Hashtbl.remove t.cache ip; return None
-         | Some (mac : (Macaddr.t option) Lwt.t) -> mac *)
       try_query t ip probe_num
     )
 
