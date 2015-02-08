@@ -368,7 +368,6 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
      will not be greater than the transmit window.
   *)
   let output ?(flags=No_flags) ?(options=[]) ~xmit ~rexmit q data =
-    let rexmit = false in
     printf "output xmit=%b rexmit=%b %s\n" xmit rexmit
       (String.concat "-" (List.map Cstruct.to_string data));
     (* Transmit the packet to the wire
