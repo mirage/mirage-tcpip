@@ -194,6 +194,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       Hashtbl.replace cache spa (Lwt.return sha);
     in
     add "192.168.2.1" "5e:f9:38:f8:f1:64";
-    add "10.0.1.1"    "00:25:90:2c:e7:91";
+    add "10.0.2.1"    "c0:3f:d5:67:09:5e";
     { ethif; cache; pending; bound_ips }
 end
