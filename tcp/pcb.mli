@@ -14,7 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
+module KV: sig
+  module type S = sig
+    val read  : string -> string option Lwt.t
+    val write : (string * string) list -> unit Lwt.t
+    val remove: string -> unit Lwt.t
+    val watch : string -> unit Lwt.t
+    val directory: string -> string list Lwt.t
+  end
+  val set: (module S) -> unit
+  include S
+end
+
+val set_mode: [ `Fast_start_proxy | `Fast_start_app | `Normal ] -> unit
+
+module Make(Ip:Wire.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
 
   (** Overall state of the TCP stack *)
   type t
@@ -29,8 +43,9 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
 
   val ip : t -> Ip.t
 
-  val input: t -> listeners:(int -> (pcb -> unit Lwt.t) option)
-    -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
+  val input: t -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
+
+  val with_listeners: (int -> (pcb -> unit Lwt.t) option) -> t -> t
 
   val connect: t -> dest_ip:Ip.ipaddr -> dest_port:int -> connection_result Lwt.t
 
@@ -57,4 +72,6 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
 
   val create: Ip.t -> t
   (* val tcpstats: t -> unit *)
+
+  val watch: t -> unit Lwt.t
 end
