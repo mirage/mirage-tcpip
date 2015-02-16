@@ -427,6 +427,31 @@ end = struct
     in
     {Packet.NA.router; solicited; override; target; tlla}
 
+  let dst_unreachable icmpbuf =
+    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    | 0 -> "No route to destination"
+    | 1 -> "Communication with destination administratively prohibited"
+    | 2 -> "Beyond scope of source address"
+    | 3 -> "Address unreachable"
+    | 4 -> "Port unreachable"
+    | 5 -> "Source address failed ingress/egress policy"
+    | 6 -> "Reject route to destination"
+    | 7 -> "Error in Source Routing Header"
+    | c -> "Unknown code: " ^ string_of_int c
+
+  let time_exceeded icmpbuf =
+    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    | 0 -> "Hop limit exceeded in transit"
+    | 1 -> "Fragment reassembly time exceeded"
+    | c -> "Unknown code: " ^ string_of_int c
+
+  let parameter_problem icmpbuf =
+    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    | 0 -> "Erroneous header field encountered"
+    | 1 -> "Unrecognized Next Header type encountered"
+    | 2 -> "Unrocognized IPv6 option encountered"
+    | c -> "Unknown code: " ^ string_of_int c
+
   (* buf : icmp packet with ipv6 header *)
   let parse_icmp ~src ~dst buf poff =
     let icmpbuf  = Cstruct.shift buf poff in
@@ -469,6 +494,18 @@ end = struct
             Drop
           else
             NA (src, dst, na)
+      | 1 ->
+        Printf.printf "ICMP6 Destination Unreachable: %s\n%!" (dst_unreachable icmpbuf);
+        Drop
+      | 2 ->
+        Printf.printf "ICMP6 Packet Too Big\n%!";
+        Drop
+      | 3 ->
+        Printf.printf "ICMP6 Time Exceeded: %s\n%!" (time_exceeded icmpbuf);
+        Drop
+      | 4 ->
+        Printf.printf "ICMP6 Parameter Problem: %s\n%!" (parameter_problem icmpbuf);
+        Drop
       | n ->
         Printf.printf "ICMP6: Unknown packet type: ty=%d\n%!" n;
         Drop
