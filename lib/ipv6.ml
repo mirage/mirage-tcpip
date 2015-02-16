@@ -54,6 +54,8 @@ end
 
 module Ipv6_wire = Wire_structs.Ipv6_wire
 
+module I = Ipaddr
+
 (* This is temporary. See https://github.com/mirage/ocaml-ipaddr/pull/36 *)
 module Ipaddr = struct
   include Ipaddr.V6
@@ -987,4 +989,9 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     let state = add_prefix ~now t.state pfx in
     t.state <- state;
     Lwt.return_unit
+
+  type uipaddr = I.t
+  let to_uipaddr ip = I.V6 ip
+  let of_uipaddr ip = Some (I.to_v6 ip)
+
 end
