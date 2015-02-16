@@ -1,3 +1,7 @@
+2.2.3
+* Add ICMPv6 error reporting functions (#101)
+* Add universal IP address converters (#108)
+
 2.2.2 (2015-01-11):
 * Readded tracing and ARP fixes which got accidentally reverted in the IPv6 merge. (#96)
 
