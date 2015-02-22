@@ -188,5 +188,12 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     let cache = Hashtbl.create 7 in
     let pending = Hashtbl.create 7 in
     let bound_ips = [] in
+    let add ip mac =
+      let spa = Ipaddr.V4.of_string_exn ip in
+      let sha = Macaddr.of_string_exn mac in
+      Hashtbl.replace cache spa (Lwt.return sha);
+    in
+    add "192.168.2.1" "5e:f9:38:f8:f1:64";
+    add "10.0.2.1"    "c0:3f:d5:67:09:5e";
     { ethif; cache; pending; bound_ips }
 end

@@ -28,6 +28,50 @@ cstruct pseudo_header {
     uint16_t len
   } as big_endian
 
+(* FIXME more generic way to proxy connections *)
+type mode =
+  [ `Fast_start_proxy
+  | `Fast_start_app
+  | `Normal ]
+
+let mode: mode ref = ref `Normal
+let set_mode x = mode := x
+
+module KV: sig
+  module type S = sig
+    val read  : string -> string option Lwt.t
+    val write : (string * string) list -> unit Lwt.t
+    val remove: string -> unit Lwt.t
+    val watch : string -> unit Lwt.t
+    val directory: string -> string list Lwt.t
+  end
+  val set: (module S) -> unit
+  include S
+end = struct
+  module type S = sig
+    val read  : string -> string option Lwt.t
+    val write : (string * string) list -> unit Lwt.t
+    val remove: string -> unit Lwt.t
+    val watch : string -> unit Lwt.t
+    val directory: string -> string list Lwt.t
+  end
+  module D: S = struct
+    let not_set   = (fun _ -> failwith "Not set")
+    let read      = not_set
+    let write     = not_set
+    let remove    = not_set
+    let watch     = not_set
+    let directory = not_set
+  end
+  let t = ref (module D: S)
+  let set r = t := r
+  let read x = let (module M) = !t in M.read x
+  let write x = let (module M) = !t in M.write x
+  let remove x = let (module M) = !t in M.remove x
+  let watch x = let (module M) = !t in M.watch x
+  let directory x = let (module M) = !t in M.directory x
+end
+
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
@@ -57,6 +101,7 @@ struct
 
   type t = {
     ip : Ip.t;
+    listeners: int -> (pcb -> unit Lwt.t) option;
     mutable localport : int;
     channels: (WIRE.id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
@@ -66,6 +111,8 @@ struct
     (* clients in the process of connecting *)
     connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
+
+  let with_listeners listeners t = { t with listeners }
 
   let ip { ip; _ } = ip
 
@@ -128,7 +175,7 @@ struct
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
-         TXS.output ~flags:Segment.Fin pcb.txq []
+         TXS.output ~flags:Segment.Fin pcb.txq ~xmit:true ~rexmit:true []
         )
       | _ -> return_unit
 
@@ -271,16 +318,175 @@ struct
       (rx_wnd_scaleoffer, tx_f),
       (Options.Window_size_shift rx_wnd_scaleoffer :: [])
 
-  type pcb_params =
-    { tx_wnd: int;
+  module Syn = struct
+
+    type t =
+      { tx_wnd: int;
+        sequence: int32;
+        options: Options.t list;
+        tx_isn: Sequence.t;
+        rx_wnd: int;
+        rx_wnd_scaleoffer: int }
+
+    let short_path_of_id id = String.concat "/" (WIRE.path_of_id id)
+    let path_of_id id = short_path_of_id id ^ "/syn"
+
+    let write _t id params =
+      let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+        params
+      in
+      let path = path_of_id id in
+      let key k = Filename.concat path k in
+      KV.write [
+        key "tx_wnd"           , string_of_int tx_wnd;
+        key "sequence"         , Int32.to_string sequence;
+        key "options"          , Options.to_string options;
+        key "tx_isn"           , Sequence.to_string tx_isn;
+        key "rx_wnd"           , string_of_int rx_wnd;
+        key "rx_wnd_scaleoffer", string_of_int rx_wnd_scaleoffer
+      ]
+
+    let read _t ~clean id =
+      let path = path_of_id id in
+      KV.read path >>= function
+      | None   -> return_none
+      | Some _ ->
+        (* XXX: use a transaction *)
+        let read k = KV.read (Filename.concat path k) in
+        let (>>|) x f =
+          x >>= function
+          | None   -> return_none
+          | Some x -> f x in
+        read "tx_wnd"   >>| fun tx_wnd ->
+        read "sequence" >>| fun sequence ->
+        read "options"  >>| fun options ->
+        read "tx_isn"   >>| fun tx_isn ->
+        read "rx_wnd"   >>| fun rx_wnd ->
+        read "rx_wnd_scaleoffer" >>| fun rx_wnd_scaleoffer ->
+        (if clean then KV.remove (short_path_of_id id) else return_unit) >>= fun () ->
+        try
+          let tx_wnd = int_of_string tx_wnd in
+          let sequence = Int32.of_string sequence in
+          let options = Options.of_string options in
+          let tx_isn = Sequence.of_string tx_isn in
+          let rx_wnd = int_of_string rx_wnd in
+          let rx_wnd_scaleoffer = int_of_string rx_wnd_scaleoffer in
+          return
+            (Some { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer })
+        with Failure _ ->
+          KV.remove path >>= fun () ->
+          return_none
+
+    let write t id params =
+      let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+        params
+      in
+      let path = path_of_id id in
+      let key k = Filename.concat path k in
+      KV.write [
+        key "tx_wnd"           , string_of_int tx_wnd;
+        key "sequence"         , Int32.to_string sequence;
+        key "options"          , Options.to_string options;
+        key "tx_isn"           , Sequence.to_string tx_isn;
+        key "rx_wnd"           , string_of_int rx_wnd;
+        key "rx_wnd_scaleoffer", string_of_int rx_wnd_scaleoffer
+      ] >>= fun () ->
+      read t ~clean:false id >>= function
+      | Some p ->
+        assert (params = p);
+        return_unit
+      | None ->
+        printf "cannot read syn cookie\n%!";
+        return_unit
+
+  end
+
+  module Data = struct
+
+    type t = Cstruct.t
+
+    let path_of_id id =
+      String.concat "/" (WIRE.path_of_id id) ^ "/data"
+
+    let write t id data =
+      printf "Writing Data cookies.\n";
+      let path = path_of_id id ^ "/" ^ string_of_float (Clock.time ()) in
+      KV.write [path, Cstruct.to_string data]
+
+    let read t id =
+      printf "Reading Data cookies.\n";
+      let path = path_of_id id in
+      begin KV.directory path >>= fun dirs ->
+        Lwt_list.map_s (fun dir ->
+            KV.read (path ^ "/" ^ dir) >>= function
+            | None   -> fail (Failure "read")
+            | Some s -> return s
+          ) dirs
+      end >>= fun ts ->
+      KV.remove path >>= fun () ->
+      return (Some ts)
+
+  end
+
+  module Ack = struct
+
+    type t = {
+      ack_number: int32;
       sequence: int32;
-      options: Options.t list;
-      tx_isn: Sequence.t;
-      rx_wnd: int;
-      rx_wnd_scaleoffer: int }
+      syn: bool;
+      fin: bool;
+      pkt: Data.t;
+    }
+
+    let path_of_id id =
+      String.concat "/" (WIRE.path_of_id id) ^ "/ack"
+
+    let write t id params =
+      let { ack_number; sequence; syn; fin; pkt } =
+        params
+      in
+      let path = path_of_id id in
+      let key k = Filename.concat path k in
+      KV.write [
+        key "ack_number", Int32.to_string ack_number;
+        key "sequence"  , Int32.to_string sequence;
+        key "syn"       , string_of_bool syn;
+        key "fin"       , string_of_bool fin;
+        key "pkt"       , Cstruct.to_string pkt;
+      ]
+
+    let read t id =
+      let path = path_of_id id in
+      KV.read path >>= function
+      | None   -> return_none
+      | Some _ ->
+        (* XXX: use a transaction *)
+        let read k = KV.read (Filename.concat path k) in
+        let (>>|) x f =
+          x >>= function
+          | None   -> return_none
+          | Some x -> f x in
+        read "ack_number" >>| fun ack_number ->
+        read "sequence"   >>| fun sequence ->
+        read "syn"        >>| fun syn ->
+        read "fin"        >>| fun fin ->
+        read "pkt"        >>| fun pkt ->
+        KV.remove path    >>= fun () ->
+        try
+          let ack_number = Int32.of_string ack_number in
+          let sequence = Int32.of_string sequence in
+          let syn = bool_of_string syn in
+          let fin = bool_of_string fin in
+          let pkt = Cstruct.of_string pkt in
+          return
+            (Some { ack_number; sequence; syn; fin; pkt })
+        with Failure _ ->
+          return_none
+
+  end
 
   let new_pcb t params id =
-    let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+    let { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
     in
     let tx_mss = List.fold_left (fun a ->
@@ -339,20 +545,54 @@ struct
     Gc.finalise fnth th;
     return (pcb, th, opts)
 
-  let new_server_connection t params id pushf =
+  let is_not_for_me t id =
+     not (List.mem id.WIRE.local_ip (Ip.get_ip t.ip))
+
+  let string_of_ip ip = Ipaddr.to_string (Ip.to_uipaddr ip)
+
+  let is_managed id =
+    let ip = string_of_ip id.WIRE.local_ip in
+    KV.read ip >>= function
+    | Some "managed" -> return true
+    | _ -> return false
+
+  let new_server_connection t ~xmit params id pushf =
     new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
-    STATE.tick pcb.state (State.Send_synack params.tx_isn);
+    STATE.tick pcb.state (State.Send_synack params.Syn.tx_isn);
     (* Add the PCB to our listens table *)
-    Hashtbl.replace t.listens id (params.tx_isn, (pushf, (pcb, th)));
+    begin if !mode = `Fast_start_proxy && is_not_for_me t id then (
+        let ip = string_of_ip id.WIRE.local_ip in
+        is_managed id >>= function
+        | true ->
+          printf "%s has already started, no need to manage SYN packets on \
+                  its behalf." ip;
+          return_unit
+        | false ->
+          printf
+            "Proxy in fast-start mode, writing the SYN parameters in \
+             xenstore ...\n";
+          (* If running in `fast-start` proxy mode, simply hand over the
+               connection parameters to the app. *)
+          Syn.write t id params
+      ) else (
+        Hashtbl.replace t.listens id (params.Syn.tx_isn, (pushf, (pcb, th)));
+        return_unit
+      )
+    end >>= fun () ->
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
-    TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
-    return (pcb, th)
+    begin if xmit then (
+      let rexmit = !mode <> `Fast_start_proxy in
+      TXS.output ~flags:Segment.Syn ~options pcb.txq ~rexmit ~xmit []
+      ) else
+        return_unit
+    end >>= fun () ->
+    return_unit
 
   let new_client_connection t params id ack_number =
-    let tx_isn = params.tx_isn in
-    let params = { params with tx_isn = Sequence.incr tx_isn } in
+    let tx_isn = params.Syn.tx_isn in
+    let params = { params with Syn.tx_isn = Sequence.incr tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
@@ -360,11 +600,12 @@ struct
     Hashtbl.add t.channels id (pcb, th);
     STATE.tick pcb.state (State.Recv_synack (Sequence.of_int32 ack_number));
     (* xmit ACK *)
-    TXS.output pcb.txq [] >>= fun () ->
+    TXS.output pcb.txq ~xmit:true ~rexmit:true [] >>= fun () ->
     return (pcb, th)
 
   let process_reset t id =
-    match hashtbl_find t.connects id with
+    if is_not_for_me t id then return_unit
+    else match hashtbl_find t.connects id with
     | Some (wakener, _) ->
       (* URG_TODO: check if RST ack num is valid before it is accepted *)
       Hashtbl.remove t.connects id;
@@ -382,6 +623,8 @@ struct
         return_unit
 
   let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+    if is_not_for_me t id then return_unit
+    else (
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
@@ -392,7 +635,7 @@ struct
            sent in the SYN *)
         let rx_wnd_scaleoffer = wscale_default in
         new_client_connection t
-          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+          { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
           id ack_number
         >>= fun (pcb, th) ->
         Lwt.wakeup wakener (`Ok (pcb, th));
@@ -406,25 +649,53 @@ struct
       (* Incomming SYN-ACK with no pending connect and no matching pcb
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+    )
 
-  let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match listeners id.WIRE.local_port with
+  let process_syn t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+    (* In fast-start mode an app never replies to SYN packets. A proxy
+       in fast-start mode replies to all the SYNS. *)
+    if (!mode <> `Fast_start_proxy && is_not_for_me t id) then (
+      printf "ignoring SYN packet\n";
+      return_unit
+    ) else (
+    begin if !mode = `Fast_start_proxy then is_managed id else return false end
+    >>= function
+    | true -> printf "proxy ignoring SYN packet\n"; return_unit
+    | false ->
+    (* XXX: we should bypass that in the proxy case *)
+    match t.listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       let tx_wnd = Tcp_wire.get_tcp_window pkt in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
-      new_server_connection t
-        { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+      new_server_connection t ~xmit:(not (is_not_for_me t id))
+        { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
         id pushf
-      >>= fun _ ->
+      >>= fun () ->
       return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+    )
+
+  let process_syn_cookies t id =
+    match t.listeners id.WIRE.local_port with
+    | None -> return_unit
+    | Some pushf ->
+      Syn.read t ~clean:true id >>= function
+      | Some params ->
+        printf "Found SYN cookies.\n";
+        new_server_connection t ~xmit:true params id pushf >>= fun () ->
+        return_unit
+      | None ->
+        printf "No SYN cookies.\n";
+        return_unit
+        >>= fun _ -> return_unit
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
-    match hashtbl_find t.listens id with
+    if is_not_for_me t id then return_unit
+    else match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         (* Established connection - promote to active channels *)
@@ -446,7 +717,33 @@ struct
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let input_no_pcb t listeners pkt id =
+  let process_ack_cookies t id =
+    Ack.read t id >>= function
+    | None -> printf "No ACK cookies.\n"; return_unit
+    | Some { Ack.ack_number; sequence; syn; fin; pkt } ->
+      match hashtbl_find t.listens id with
+      | Some (tx_isn, (pushf, newconn)) ->
+        if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+          (* Established connection - promote to active channels *)
+          Hashtbl.remove t.listens id;
+          Hashtbl.add t.channels id newconn;
+          (* Finish processing ACK, so pcb.state is correct *)
+          Rx.input t pkt newconn >>= fun () ->
+          (* send new connection up to listener *)
+          pushf (fst newconn)
+        ) else
+          (* No RST because we are trying to connect on this id *)
+          return_unit
+      | None ->
+        match hashtbl_find t.connects id with
+        | Some _ ->
+          (* No RST because we are trying to connect on this id *)
+          return_unit
+        | None ->
+          (* ACK but no matching pcb and no listen - send RST *)
+          Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+
+  let input_no_pcb t pkt id =
     match verify_checksum id pkt with
     | false -> printf "RX.input: checksum error\n%!"; return_unit
     | true ->
@@ -462,7 +759,7 @@ struct
         match syn, ack with
         | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
                             ~options ~syn ~fin
-        | true , false -> process_syn t id ~listeners ~pkt ~ack_number ~sequence
+        | true , false -> process_syn t id ~pkt ~ack_number ~sequence
                             ~options ~syn ~fin
         | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
         | false, false ->
@@ -470,7 +767,7 @@ struct
           return_unit
 
   (* Main input function for TCP packets *)
-  let input t ~listeners ~src ~dst data =
+  let input t ~src ~dst data =
     let source_port = Tcp_wire.get_tcp_src_port data in
     let dest_port = Tcp_wire.get_tcp_dst_port data in
     let id =
@@ -484,7 +781,7 @@ struct
       (* PCB exists, so continue the connection state machine in tcp_input *)
       (Rx.input t data)
       (* No existing PCB, so check if it is a SYN for a listening function *)
-      (input_no_pcb t listeners data)
+      (input_no_pcb t data)
 
   (* Blocking read on a PCB *)
   let read pcb =
@@ -595,6 +892,47 @@ struct
     let _ = connecttimer t id tx_isn options window 0 in
     th
 
+  let watchers = Hashtbl.create 4
+
+  let watch t =
+    let ips = List.map string_of_ip (Ip.get_ip t.ip) in
+    let read_xs ip =
+      KV.directory ip >>= fun ports ->
+      printf "Ports: %s\n" (String.concat " " ports);
+      Lwt_list.fold_left_s (fun acc port ->
+          KV.directory (sprintf "%s/%s" ip port) >>= fun dest_ips ->
+          printf "Dest-ip: %s\n" (String.concat " " dest_ips);
+          Lwt_list.fold_left_s (fun acc dest_ip ->
+              KV.directory (sprintf "%s/%s/%s" ip port dest_ip) >>=
+              fun dest_ports ->
+              printf "Dest-ports: %s\n" (String.concat " " dest_ports);
+              Lwt_list.fold_left_s (fun acc dest_port ->
+                  let id = WIRE.id_of_path [ip; port; dest_ip; dest_port] in
+                  return (id :: acc)
+                ) acc dest_ports
+            ) acc dest_ips
+        ) [] ports
+      >>= fun ids ->
+      printf "Found %d started connections.\n" (List.length ids);
+      Lwt_list.iter_p (fun id ->
+          Lwt.catch
+            (fun () -> process_syn_cookies t id)
+            (fun e -> printf "Error: %s" (Printexc.to_string e); return_unit)
+        ) ids >>= fun () ->
+      return_unit
+    in
+    if !mode = `Fast_start_app && not (Hashtbl.mem watchers t.ip) then (
+      printf "FAST-START mode. Watching xenstore for incoming SYN!\n";
+      Hashtbl.add watchers t.ip ();
+      Lwt_list.iter_p (fun ip ->
+          KV.write [ ip, "managed" ] >>= fun () ->
+          read_xs ip
+        ) ips
+    ) else (
+      printf "NORMAL mode.\n";
+      return_unit
+    )
+
   (* Construct the main TCP thread *)
   let create ip =
     let _ = Random.self_init () in
@@ -602,6 +940,7 @@ struct
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { ip; localport; channels; listens; connects }
+    let listeners = fun _ -> None in
+    { ip; localport; channels; listens; connects; listeners }
 
 end

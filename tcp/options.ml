@@ -16,6 +16,8 @@
 
 (* TCP options parsing *)
 
+open Sexplib.Std
+
 exception Bad_option of string
 
 type t =
@@ -26,6 +28,15 @@ type t =
   | SACK of (int32 * int32) list  (* RFC2018 *)
   | Timestamp of int32 * int32    (* RFC1323 3.2 *)
   | Unknown of int * string       (* RFC793 *)
+with sexp
+
+type ts = t list with sexp
+
+let to_string ts =
+  Sexplib.Sexp.to_string (sexp_of_ts ts)
+
+let of_string str =
+  ts_of_sexp (Sexplib.Sexp.of_string str)
 
 let report_error n =
   let error = Printf.sprintf "Invalid option %d presented" n in
@@ -158,7 +169,7 @@ let marshal buf ts =
     tlen+3
   | _ -> assert false
 
-let to_string = function
+let string_of_t = function
   | Noop -> "Noop"
   | MSS m -> Printf.sprintf "MSS=%d" m
   | Window_size_shift b -> Printf.sprintf "Window>>%d" b
@@ -169,4 +180,4 @@ let to_string = function
   | Unknown (t,_) -> Printf.sprintf "%d?" t
 
 let prettyprint s =
-  Printf.sprintf "[ %s ]" (String.concat "; " (List.map to_string s))
+  Printf.sprintf "[ %s ]" (String.concat "; " (List.map string_of_t s))
