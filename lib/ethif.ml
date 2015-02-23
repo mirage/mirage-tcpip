@@ -40,25 +40,27 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     MProf.Trace.label "ethif.input";
-    let broadcast_mac = Macaddr.to_bytes Macaddr.broadcast in
-    let local_mac = Macaddr.to_bytes (mac t) in
-    let frame_mac = Wire_structs.copy_ethernet_dst frame in
-    if (((Bytes.compare frame_mac local_mac) == 0) || ((Bytes.compare frame_mac broadcast_mac) == 0)) then
-      match Wire_structs.get_ethernet_ethertype frame with
-      | 0x0806 ->
-        arpv4 frame (* ARP *)
-      | 0x0800 -> (* IPv4 *)
-        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-        ipv4 payload
-      | 0x86dd ->
-        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-        ipv6 payload
-      | _etype ->
-        let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-        (* TODO default etype payload *)
-        return_unit
-    else
-      return_unit
+    let frame_mac = Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) in
+    match frame_mac with
+    | None -> return_unit
+    | Some frame_mac -> begin
+        if (((Macaddr.compare frame_mac (mac t)) == 0) || (not (Macaddr.is_unicast frame_mac))) then
+          match Wire_structs.get_ethernet_ethertype frame with
+          | 0x0806 ->
+            arpv4 frame (* ARP *)
+          | 0x0800 -> (* IPv4 *)
+            let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+            ipv4 payload
+          | 0x86dd ->
+            let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+            ipv6 payload
+          | _etype ->
+            let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+            (* TODO default etype payload *)
+            return_unit
+        else
+          return_unit
+      end
 
   let write t frame =
     MProf.Trace.label "ethif.write";
