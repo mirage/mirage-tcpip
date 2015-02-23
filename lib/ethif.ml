@@ -36,21 +36,28 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   }
 
   let id t = t.netif
+  let mac t = Netif.mac t.netif
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     MProf.Trace.label "ethif.input";
-    match Wire_structs.get_ethernet_ethertype frame with
-    | 0x0806 ->
-      arpv4 frame (* ARP *)
-    | 0x0800 -> (* IPv4 *)
-      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-      ipv4 payload
-    | 0x86dd ->
-      let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-      ipv6 payload
-    | _etype ->
-      let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-      (* TODO default etype payload *)
+    let broadcast_mac = Macaddr.to_bytes Macaddr.broadcast in
+    let local_mac = Macaddr.to_bytes (mac t) in
+    let frame_mac = Wire_structs.copy_ethernet_dst frame in
+    if (((Bytes.compare frame_mac local_mac) == 0) || ((Bytes.compare frame_mac broadcast_mac) == 0)) then
+      match Wire_structs.get_ethernet_ethertype frame with
+      | 0x0806 ->
+        arpv4 frame (* ARP *)
+      | 0x0800 -> (* IPv4 *)
+        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+        ipv4 payload
+      | 0x86dd ->
+        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+        ipv6 payload
+      | _etype ->
+        let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+        (* TODO default etype payload *)
+        return_unit
+    else
       return_unit
 
   let write t frame =
@@ -66,5 +73,4 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     return (`Ok { netif })
 
   let disconnect _ = return_unit
-  let mac t = Netif.mac t.netif
 end
