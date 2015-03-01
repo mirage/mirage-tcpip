@@ -4,33 +4,46 @@ cstruct ethernet {
     uint16_t       ethertype
   } as big_endian
 
-cstruct ipv4 {
-    uint8_t        hlen_version;
-    uint8_t        tos;
-    uint16_t       len;
-    uint16_t       id;
-    uint16_t       off;
-    uint8_t        ttl;
-    uint8_t        proto;
-    uint16_t       csum;
-    uint32_t       src;
-    uint32_t       dst
-  } as big_endian
-
-cstruct icmpv4 {
-    uint8_t ty;
-    uint8_t code;
-    uint16_t csum;
-    uint16_t id;
-    uint16_t seq
-  } as big_endian
-
 cstruct udp {
     uint16_t source_port;
     uint16_t dest_port;
     uint16_t length;
     uint16_t checksum
   } as big_endian
+
+module Ipv4_wire = struct
+  cstruct ipv4 {
+      uint8_t        hlen_version;
+      uint8_t        tos;
+      uint16_t       len;
+      uint16_t       id;
+      uint16_t       off;
+      uint8_t        ttl;
+      uint8_t        proto;
+      uint16_t       csum;
+      uint32_t       src;
+      uint32_t       dst
+    } as big_endian
+
+  cstruct icmpv4 {
+      uint8_t ty;
+      uint8_t code;
+      uint16_t csum;
+      uint16_t id;
+      uint16_t seq
+    } as big_endian
+
+  let int_to_protocol = function
+    | 1  -> Some `ICMP
+    | 6  -> Some `TCP
+    | 17 -> Some `UDP
+    | _  -> None
+
+  let protocol_to_int = function
+    | `ICMP   -> 1
+    | `TCP    -> 6
+    | `UDP    -> 17
+end
 
 module Tcp_wire = struct
   cstruct tcp {
@@ -95,6 +108,17 @@ module Ipv6_wire = struct
       uint8_t        src[16];
       uint8_t        dst[16]
     } as big_endian
+
+  let int_to_protocol = function
+    | 58  -> Some `ICMP
+    | 6  -> Some `TCP
+    | 17 -> Some `UDP
+    | _  -> None
+
+  let protocol_to_int = function
+    | `ICMP   -> 58
+    | `TCP    -> 6
+    | `UDP    -> 17
 
   cstruct icmpv6 {
       uint8_t        ty;
