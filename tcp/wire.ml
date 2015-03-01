@@ -73,7 +73,7 @@ module Make (Ip:V1_LWT.IP) = struct
     Tcp_wire.set_tcp_window tcp_frame window;
     Tcp_wire.set_tcp_checksum tcp_frame 0;
     Tcp_wire.set_tcp_urg_ptr tcp_frame 0;
-    let checksum = Ip.checksum frame (tcp_frame :: datav) in
+    let checksum = Ip.checksum ~src:id.local_ip ~dst:id.dest_ip ~proto:`TCP (tcp_frame :: datav) in
     Tcp_wire.set_tcp_checksum tcp_frame checksum;
     (* printf "TCP.xmit checksum %04x %s.%d->%s.%d rst %b syn %b fin %b psh %b seq
          %lu ack %lu %s datalen %d datafrag %d dataoff %d olen %d\n%!" checksum
