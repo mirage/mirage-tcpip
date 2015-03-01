@@ -177,14 +177,19 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let dst = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_dst buf) in
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     (* XXX this will raise exception for 0-length payload *)
+    (* XXX this will at least raise if advertised header length is wrong *)
     let hdr, data = Cstruct.split buf ihl in
-    assert (Cstruct.len data = payload_len);
-    let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
-    match Wire_structs.Ipv4_wire.int_to_protocol proto with
-    | Some `ICMP -> icmp_input t src hdr data
-    | Some `TCP  -> tcp ~src ~dst data
-    | Some `UDP  -> udp ~src ~dst data
-    | None       -> default ~proto ~src ~dst data
+    let checksum = Tcpip_checksum.ones_complement hdr in
+    if (checksum = 0) && (Cstruct.len data = payload_len) then
+      let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
+      match Wire_structs.Ipv4_wire.int_to_protocol proto with
+      | Some `ICMP -> icmp_input t src hdr data
+      | Some `TCP  -> tcp ~src ~dst data
+      | Some `UDP  -> udp ~src ~dst data
+      | None       -> default ~proto ~src ~dst data
+    else
+      (printf "broken packet\n" ;
+       return_unit)
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
