@@ -20,14 +20,6 @@ open Printf
 
 module Tcp_wire = Wire_structs.Tcp_wire
 
-cstruct pseudo_header {
-    uint32_t src;
-    uint32_t dst;
-    uint8_t res;
-    uint8_t proto;
-    uint16_t len
-  } as big_endian
-
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
@@ -68,31 +60,6 @@ struct
   }
 
   let ip { ip; _ } = ip
-
-  (*
-  let pbuf =
-    Cstruct.sub (Cstruct.of_bigarray (Io_page.get 1)) 0 sizeof_pseudo_header
-
-  let checksum ~src ~dst =
-    fun data ->
-      set_pseudo_header_src pbuf (Ipaddr.V4.to_int32 src);
-      set_pseudo_header_dst pbuf (Ipaddr.V4.to_int32 dst);
-      set_pseudo_header_res pbuf 0;
-      set_pseudo_header_proto pbuf 6;
-      set_pseudo_header_len pbuf (Cstruct.lenv data);
-      Tcpip_checksum.ones_complement_list (pbuf::data)
-
-  let verify_checksum id pkt =
-    let csum = checksum ~src:id.dest_ip ~dst:id.local_ip [pkt] in
-    match csum with
-    | 0 -> true
-    | _ ->
-      printf "0x%X 0x%X %s " csum (get_tcpv4_checksum pkt)
-        (Ipaddr.V4.to_string id.dest_ip);
-      false
-  *)
-
-  let verify_checksum _ _ = true
 
   let wscale_default = 2
 
@@ -160,25 +127,22 @@ struct
 
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t pkt (pcb,_) =
-      match verify_checksum pcb.id pkt with
-      | false -> printf "RX.input: checksum error\n%!"; return_unit
-      | true ->
-        (* URG_TODO: Deal correctly with incomming RST segment *)
-        let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
-        let ack_number =
-          Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
-        in
-        let fin = Tcp_wire.get_fin pkt in
-        let syn = Tcp_wire.get_syn pkt in
-        let ack = Tcp_wire.get_ack pkt in
-        let window = Tcp_wire.get_tcp_window pkt in
-        let data = Wire.get_payload pkt in
-        let seg =
-          RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
-        in
-        let { rxq; _ } = pcb in
-        (* Coalesce any outstanding segments and retrieve ready segments *)
-        RXS.input rxq seg
+      (* URG_TODO: Deal correctly with incomming RST segment *)
+      let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
+      let ack_number =
+        Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
+      in
+      let fin = Tcp_wire.get_fin pkt in
+      let syn = Tcp_wire.get_syn pkt in
+      let ack = Tcp_wire.get_ack pkt in
+      let window = Tcp_wire.get_tcp_window pkt in
+      let data = Wire.get_payload pkt in
+      let seg =
+        RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
+      in
+      let { rxq; _ } = pcb in
+      (* Coalesce any outstanding segments and retrieve ready segments *)
+      RXS.input rxq seg
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
@@ -447,44 +411,44 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners pkt id =
-    match verify_checksum id pkt with
-    | false -> printf "RX.input: checksum error\n%!"; return_unit
-    | true ->
-      match Tcp_wire.get_rst pkt with
-      | true -> process_reset t id
-      | false ->
-        let sequence = Tcp_wire.get_tcp_sequence pkt in
-        let options = Wire.get_options pkt in
-        let ack_number = Tcp_wire.get_tcp_ack_number pkt in
-        let syn = Tcp_wire.get_syn pkt in
-        let ack = Tcp_wire.get_ack pkt in
-        let fin = Tcp_wire.get_fin pkt in
-        match syn, ack with
-        | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
-                            ~options ~syn ~fin
-        | true , false -> process_syn t id ~listeners ~pkt ~ack_number ~sequence
-                            ~options ~syn ~fin
-        | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
-        | false, false ->
-          (* What the hell is this packet? No SYN,ACK,RST *)
-          return_unit
+    match Tcp_wire.get_rst pkt with
+    | true -> process_reset t id
+    | false ->
+      let sequence = Tcp_wire.get_tcp_sequence pkt in
+      let options = Wire.get_options pkt in
+      let ack_number = Tcp_wire.get_tcp_ack_number pkt in
+      let syn = Tcp_wire.get_syn pkt in
+      let ack = Tcp_wire.get_ack pkt in
+      let fin = Tcp_wire.get_fin pkt in
+      match syn, ack with
+      | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
+                          ~options ~syn ~fin
+      | true , false -> process_syn t id ~listeners ~pkt ~ack_number ~sequence
+                          ~options ~syn ~fin
+      | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
+      | false, false ->
+        (* What the hell is this packet? No SYN,ACK,RST *)
+        return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    let source_port = Tcp_wire.get_tcp_src_port data in
-    let dest_port = Tcp_wire.get_tcp_dst_port data in
-    let id =
-      { WIRE.local_port = dest_port;
-        dest_ip         = src;
-        local_ip        = dst;
-        dest_port       = source_port }
-    in
-    (* Lookup connection from the active PCB hash *)
-    with_hashtbl t.channels id
-      (* PCB exists, so continue the connection state machine in tcp_input *)
-      (Rx.input t data)
-      (* No existing PCB, so check if it is a SYN for a listening function *)
-      (input_no_pcb t listeners data)
+    match Ip.checksum ~proto:`TCP ~src ~dst [data] with
+    | 0 ->
+      let source_port = Tcp_wire.get_tcp_src_port data in
+      let dest_port = Tcp_wire.get_tcp_dst_port data in
+      let id =
+        { WIRE.local_port = dest_port;
+          dest_ip         = src;
+          local_ip        = dst;
+          dest_port       = source_port }
+      in
+      (* Lookup connection from the active PCB hash *)
+      with_hashtbl t.channels id
+        (* PCB exists, so continue the connection state machine in tcp_input *)
+        (Rx.input t data)
+        (* No existing PCB, so check if it is a SYN for a listening function *)
+        (input_no_pcb t listeners data)
+    | _ -> printf "input: checksum error\n%!"; return_unit
 
   (* Blocking read on a PCB *)
   let read pcb =
