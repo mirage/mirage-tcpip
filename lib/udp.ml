@@ -38,16 +38,25 @@ module Make(Ip: V1_LWT.IP) = struct
 
   (* FIXME: [t] is not taken into account at all? *)
   let input ~listeners _t ~src ~dst buf =
-    let dst_port = Wire_structs.get_udp_dest_port buf in
-    let data =
-      Cstruct.sub buf Wire_structs.sizeof_udp
-        (Wire_structs.get_udp_length buf - Wire_structs.sizeof_udp)
-    in
-    match listeners ~dst_port with
-    | None -> return_unit
-    | Some fn ->
-      let src_port = Wire_structs.get_udp_source_port buf in
-      fn ~src ~dst ~src_port data
+    (* TODO: allow zero checksum only for IPv4! *)
+    match
+      if Wire_structs.get_udp_checksum buf = 0 then
+        0
+      else
+        Ip.checksum ~proto:`UDP ~src ~dst [buf]
+    with
+    | 0 ->
+      let dst_port = Wire_structs.get_udp_dest_port buf in
+      let data =
+        Cstruct.sub buf Wire_structs.sizeof_udp
+          (Wire_structs.get_udp_length buf - Wire_structs.sizeof_udp)
+      in
+      ( match listeners ~dst_port with
+        | None -> return_unit
+        | Some fn ->
+          let src_port = Wire_structs.get_udp_source_port buf in
+          fn ~src ~dst ~src_port data )
+    | _ -> Printf.printf "input: checksum error\n%!"; return_unit
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
     begin match source_port with
@@ -57,11 +66,12 @@ module Make(Ip: V1_LWT.IP) = struct
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
     let frame = Cstruct.set_len frame (header_len + Wire_structs.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
+    let src = Ip.get_source t.ip ~dst:dest_ip in
     Wire_structs.set_udp_source_port udp_buf source_port;
     Wire_structs.set_udp_dest_port udp_buf dest_port;
     Wire_structs.set_udp_length udp_buf (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
     (* Wire_structs.set_udp_checksum udp_buf 0; *)
-    let csum = Ip.checksum frame (udp_buf :: bufs) in
+    let csum = Ip.checksum ~src ~dst:dest_ip ~proto:`UDP (udp_buf :: bufs) in
     Wire_structs.set_udp_checksum udp_buf csum;
     Ip.writev t.ip frame bufs
 

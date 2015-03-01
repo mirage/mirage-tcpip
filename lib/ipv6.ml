@@ -133,16 +133,14 @@ let cksum_buf =
   let pbuf = Io_page.to_cstruct (Io_page.get 1) in
   Cstruct.set_len pbuf 8
 
-let checksum' ~proto frame bufs =
+let checksum ~src ~dst ~proto bufs =
   Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv bufs));
-  Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int proto);
-  let src_dst = Cstruct.sub frame 8 (2 * 16) in
+  Cstruct.BE.set_uint32 cksum_buf 4 (Int32.of_int (Wire_structs.Ipv6_wire.protocol_to_int proto));
+  let src = Ipaddr.to_bytes src
+  and dst = Ipaddr.to_bytes dst
+  in
+  let src_dst = Cstruct.of_string (src ^ dst) in
   Tcpip_checksum.ones_complement_list (src_dst :: cksum_buf :: bufs)
-
-let checksum frame bufs =
-  let frame = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-  let proto = Ipv6_wire.get_ipv6_nhdr frame in
-  checksum' ~proto frame bufs
 
 module Allocate = struct
   let frame ~mac ~hlim ~src ~dst ~proto =
@@ -154,12 +152,12 @@ module Allocate = struct
     Ipaddr.to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
     Ipaddr.to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
     Ipv6_wire.set_ipv6_hlim ipbuf hlim;
-    Ipv6_wire.set_ipv6_nhdr ipbuf proto;
+    Ipv6_wire.set_ipv6_nhdr ipbuf (Wire_structs.Ipv6_wire.protocol_to_int proto);
     let header_len = Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
     (ethernet_frame, header_len)
 
   let error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:`ICMP in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
     let maxbuf = Defaults.min_link_mtu - (header_len + Ipv6_wire.sizeof_icmpv6) in
     (* FIXME ? hlim = 255 *)
@@ -169,11 +167,11 @@ module Allocate = struct
     Ipv6_wire.set_icmpv6_code icmpbuf code;
     Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf; buf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:`ICMP [ icmpbuf; buf ];
     (eth_frame, buf :: [])
 
   let ns ~mac ~src ~dst ~tgt =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:`ICMP in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_llopt) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
@@ -185,11 +183,11 @@ module Allocate = struct
     Ipv6_wire.set_llopt_len optbuf  1;
     Macaddr.to_cstruct_raw mac optbuf 2;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:`ICMP [ icmpbuf ];
     eth_frame
 
   let na ~mac ~src ~dst ~tgt ~sol =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:`ICMP in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
@@ -201,13 +199,13 @@ module Allocate = struct
     Ipv6_wire.set_llopt_len optbuf 1;
     Macaddr.to_cstruct_raw mac optbuf 2;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:`ICMP [ icmpbuf ];
     eth_frame
 
   let rs ~mac select_source =
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:`ICMP in
     let include_slla = Ipaddr.(compare src unspecified) != 0 in
     let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
     let eth_frame =
@@ -222,11 +220,11 @@ module Allocate = struct
       Macaddr.to_cstruct_raw mac optbuf 2
     end;
     Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum ~src ~dst ~proto:`ICMP [ icmpbuf ];
     eth_frame
 
   let pong ~mac ~src ~dst ~hlim ~id ~seq ~data =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim ~proto:58 in
+    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim ~proto:`ICMP in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_pingv6) in
     let icmpbuf = Cstruct.shift eth_frame header_len in
     Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
@@ -234,7 +232,7 @@ module Allocate = struct
     Ipv6_wire.set_pingv6_id icmpbuf id;
     Ipv6_wire.set_pingv6_seq icmpbuf seq;
     Ipv6_wire.set_pingv6_csum icmpbuf 0;
-    Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum eth_frame (icmpbuf :: data :: []);
+    Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum ~src ~dst ~proto:`ICMP [icmpbuf ; data];
     (eth_frame, data :: [])
 end
 
@@ -457,7 +455,7 @@ end = struct
   (* buf : icmp packet with ipv6 header *)
   let parse_icmp ~src ~dst buf poff =
     let icmpbuf  = Cstruct.shift buf poff in
-    let csum = checksum' ~proto:58 buf [ icmpbuf ] in
+    let csum = checksum ~proto:`ICMP ~src ~dst [icmpbuf] in
     if csum != 0 then begin
       Printf.printf "ICMP6: Checksum error, dropping packet: csum=0x%x\n%!" csum;
       Drop
@@ -924,7 +922,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     end acts
 
   let allocate_frame t ~dst ~proto =
-    let proto = match proto with `ICMP -> 58 | `UDP -> 17 | `TCP -> 6 in
     let src = AddressList.select_source t.state.address_list dst in
     Allocate.frame ~mac:t.state.mac ~src ~hlim:t.state.cur_hop_limit ~dst ~proto
 

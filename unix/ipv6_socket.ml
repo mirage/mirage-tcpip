@@ -45,5 +45,5 @@ let set_ip _ _ = fail (Failure "Not implemented")
 let get_ip_gateways _ = raise (Failure "Not implemented")
 let set_ip_gateways _ _ = fail (Failure "Not implemented")
 
-let checksum _ _ = raise (Failure "Not implemented")
+let checksum ~src:_ ~dst:_ ~proto:_ _ = raise (Failure "Not implemented")
 let get_source _ ~dst:_ = raise (Failure "Not implemented")
