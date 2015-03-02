@@ -1,11 +1,10 @@
 # OASIS_START
-# DO NOT EDIT (digest: 930522b050ab87350477f790a86dd9d6)
+# DO NOT EDIT (digest: a1d3c8591e91c674b25051803a310a2d)
 Options
 Wire
 State
 Tcptimer
 Sequence
-Sliding_window
 Ack
 Window
 Segment
