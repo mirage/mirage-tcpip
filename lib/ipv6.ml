@@ -924,7 +924,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     end acts
 
   let allocate_frame t ~dst ~proto =
-    let proto = match proto with `ICMP -> 58 | `UDP -> 17 | `TCP -> 6 in
+    let proto = Ipv6_wire.protocol_to_int proto in
     let src = AddressList.select_source t.state.address_list dst in
     Allocate.frame ~mac:t.state.mac ~src ~hlim:t.state.cur_hop_limit ~dst ~proto
 
