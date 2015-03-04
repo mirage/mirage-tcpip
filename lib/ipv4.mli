@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make ( N:V1_LWT.ETHIF ) : V1_LWT.IPV4 with type ethif = N.t
+module Make ( N:V1_LWT.ETHIF ) (T:V1_LWT.TIME) : V1_LWT.IPV4 with type ethif = N.t
