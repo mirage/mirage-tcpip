@@ -3,7 +3,7 @@ wget https://raw.githubusercontent.com/samoht/ocaml-travisci-skeleton/master/.tr
 sh .travis-opam.sh
 
 export OPAMYES=1
-opam remote add mirage git://github.com/mirage/mirage-dev
+#opam remote add mirage git://github.com/mirage/mirage-dev
 eval `opam config env`
 prefix=`opam config var prefix`
 
