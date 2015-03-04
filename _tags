@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 67ffe3d1ae0f586991f8c38ab831f735)
+# DO NOT EDIT (digest: f9fff6055d6ed99bbe8e141b101ae9f5)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -45,7 +45,6 @@ true: annot, bin_annot
 "tcp/state.cmx": for-pack(Tcp)
 "tcp/tcptimer.cmx": for-pack(Tcp)
 "tcp/sequence.cmx": for-pack(Tcp)
-"tcp/sliding_window.cmx": for-pack(Tcp)
 "tcp/ack.cmx": for-pack(Tcp)
 "tcp/window.cmx": for-pack(Tcp)
 "tcp/segment.cmx": for-pack(Tcp)

@@ -69,7 +69,7 @@ Library tcp
   Path:               tcp
   Findlibparent:      tcpip
   Findlibname:        tcp
-  Modules:            Options,Wire,State,Tcptimer,Sequence,Sliding_window,Ack,
+  Modules:            Options,Wire,State,Tcptimer,Sequence,Ack,
                       Window,Segment,User_buffer,Pcb,Flow
   BuildDepends:       io-page,
                       mirage-types,
