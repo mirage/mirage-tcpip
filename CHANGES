@@ -3,6 +3,8 @@
 * Add universal IP address converters (#108)
 * Add `error_message` functions for human-readable errors (#98)
 * Improve debug logging for ICMP Destination Unreachable packets.
+* Filter incoming frames by MAC address to stop sending unnecessary RSTs. (#114)
+* Unhook unused modules `Sliding_window` and `Profiler` from the build. (#112)
 
 2.2.2 (2015-01-11):
 * Readded tracing and ARP fixes which got accidentally reverted in the IPv6 merge. (#96)
