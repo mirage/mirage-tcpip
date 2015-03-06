@@ -140,24 +140,10 @@ struct
         ~ipv6:(fun _ -> return_unit)
         t.ethif)
 
-  let connect id =
+  let connect id ethif ipv4 udpv4 tcpv4 =
     let { V1_LWT.console = c; interface = netif; mode; _ } = id in
-    let or_error fn t err =
-      fn t
-      >>= function
-      | `Error _ -> fail (Failure err)
-      | `Ok r -> return r
-    in
     Console.log_s c "Manager: connect"
     >>= fun () ->
-    or_error Ethif.connect netif "ethif"
-    >>= fun ethif ->
-    or_error Ipv4.connect ethif "ipv4"
-    >>= fun ipv4 ->
-    or_error Udpv4.connect ipv4 "udpv4"
-    >>= fun udpv4 ->
-    or_error Tcpv4.connect ipv4 "tcpv4"
-    >>= fun tcpv4 ->
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; c; mode; netif; ethif; ipv4; tcpv4; udpv4;
