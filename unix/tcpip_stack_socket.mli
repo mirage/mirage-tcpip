@@ -14,13 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Console:V1_LWT.CONSOLE) : V1_LWT.STACKV4
-  with type console = Console.t
-   and type netif   = Ipaddr.V4.t list
-   and type mode    = unit
-   and type tcpv4   = Tcpv4_socket.t
-   and type udpv4   = Udpv4_socket.t
-   and type ipv4    = Ipaddr.V4.t option
-   and module UDPV4 = Udpv4_socket
-   and module TCPV4 = Tcpv4_socket
-   and module IPV4  = Ipv4_socket
+module Make(Console:V1_LWT.CONSOLE) : sig
+  include V1_LWT.STACKV4
+    with type console = Console.t
+     and type netif   = Ipaddr.V4.t list
+     and type mode    = unit
+     and type tcpv4   = Tcpv4_socket.t
+     and type udpv4   = Udpv4_socket.t
+     and type ipv4    = Ipaddr.V4.t option
+     and module UDPV4 = Udpv4_socket
+     and module TCPV4 = Tcpv4_socket
+     and module IPV4  = Ipv4_socket
+  val connect : (console, netif, mode) V1_LWT.stackv4_config ->
+    Udpv4_socket.t -> Tcpv4_socket.t -> [> `Ok of t | `Error of error ] Lwt.t
+end
