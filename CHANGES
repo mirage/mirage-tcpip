@@ -1,3 +1,6 @@
+2.3.0 (2015-03-09):
+* Fix `STACKV4` for the `DEVICE` signature which has `connect` removed (in Mirage types 2.3+).
+
 2.2.3 (2015-03-09):
 * Add ICMPv6 error reporting functions (#101)
 * Add universal IP address converters (#108)
