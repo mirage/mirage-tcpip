@@ -122,20 +122,10 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     let t, _ = Lwt.task () in
     t (* TODO cancellation *)
 
-  let connect id =
+  let connect id udpv4 tcpv4 =
     let { V1_LWT.console = c; interface; _ } = id in
-    let or_error fn t err =
-      fn t
-      >>= function
-      | `Error _ -> fail (Failure err)
-      | `Ok r -> return r
-    in
     Console.log_s c "Manager: connect"
     >>= fun () ->
-    or_error Udpv4.connect None "udpv4"
-    >>= fun udpv4 ->
-    or_error Tcpv4.connect None "tcpv4"
-    >>= fun tcpv4 ->
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; c; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in

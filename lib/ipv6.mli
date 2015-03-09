@@ -14,4 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) : V1_LWT.IPV6 with type ethif = E.t
+module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) : sig
+  include V1_LWT.IPV6 with type ethif = E.t
+  val connect : ethif -> [> `Ok of t | `Error of error ] Lwt.t
+end
