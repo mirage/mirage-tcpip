@@ -10,6 +10,19 @@ cenum ethertype {
     IPv6 = 0x86dd;
   } as uint16_t
 
+let parse_ethernet_frame frame =
+  if Cstruct.len frame >= 60 then
+    (* minimum payload is 46 + source + destination + type *)
+    let payload = Cstruct.shift frame sizeof_ethernet
+    and typ = get_ethernet_ethertype frame
+    in
+    match Macaddr.of_bytes (copy_ethernet_dst frame) with
+    | Some destination_mac -> Some (int_to_ethertype typ, destination_mac, payload)
+    | None -> None
+  else
+    None
+
+
 cstruct udp {
     uint16_t source_port;
     uint16_t dest_port;

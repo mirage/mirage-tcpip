@@ -42,23 +42,16 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    if Cstruct.len frame >= 60 then
-      (* minimum payload is 46 + source + destination + type *)
-      match Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) with
-      | Some frame_mac when of_interest frame_mac ->
-        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet
-        and ethertype = Wire_structs.get_ethernet_ethertype frame
-        in
-        Wire_structs.(
-          match int_to_ethertype ethertype with
-          | Some ARP -> arpv4 frame
-          | Some IPv4 -> ipv4 payload
-          | Some IPv6 -> ipv6 payload
-          | None -> return_unit (* TODO default etype payload *)
-          )
-      | _ -> return_unit
-    else
-      return_unit
+    match Wire_structs.parse_ethernet_frame frame with
+    | Some (typ, destination, payload) when of_interest destination ->
+      begin
+        match typ with
+        | Some Wire_structs.ARP -> arpv4 frame
+        | Some Wire_structs.IPv4 -> ipv4 payload
+        | Some Wire_structs.IPv6 -> ipv6 payload
+        | None -> return_unit (* TODO: default ethertype payload handler *)
+      end
+    | _ -> return_unit
 
   let write t frame =
     MProf.Trace.label "ethif.write";
