@@ -49,11 +49,13 @@ module Make(Netif : V1_LWT.NETWORK) = struct
         let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet
         and ethertype = Wire_structs.get_ethernet_ethertype frame
         in
-        Wire_structs.(match int_to_ethertype ethertype with
+        Wire_structs.(
+          match int_to_ethertype ethertype with
           | Some ARP -> arpv4 frame
           | Some IPv4 -> ipv4 payload
           | Some IPv6 -> ipv6 payload
-          | None -> (* TODO default etype payload *) return_unit)
+          | None -> return_unit (* TODO default etype payload *)
+          )
       | _ -> return_unit
     else
       return_unit
