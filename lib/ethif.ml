@@ -21,7 +21,6 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ipv4addr = Ipaddr.V4.t
   type macaddr = Macaddr.t
   type netif = Netif.t
 
@@ -40,25 +39,26 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     MProf.Trace.label "ethif.input";
-    let frame_mac = Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) in
-    match frame_mac with
-    | None           -> Lwt.return_unit
-    | Some frame_mac ->
-      if Macaddr.compare frame_mac (mac t) = 0
-         || not (Macaddr.is_unicast frame_mac)
-      then match Wire_structs.get_ethernet_ethertype frame with
-        | 0x0806 -> arpv4 frame (* ARP *)
-        | 0x0800 -> (* IPv4 *)
-          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          ipv4 payload
-        | 0x86dd ->
-          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          ipv6 payload
-        | _etype ->
-          let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          (* TODO default etype payload *)
-          Lwt.return_unit
-      else Lwt.return_unit
+    let of_interest dest =
+      Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
+    in
+    if Cstruct.len frame >= 60 then
+      (* minimum payload is 46 + source + destination + type *)
+      match Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) with
+      | Some frame_mac when of_interest frame_mac ->
+        begin
+          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet
+          and ethertype = Wire_structs.get_ethernet_ethertype frame
+          in
+          match Wire_structs.ethertype_to_protocol ethertype with
+          | Some `ARP -> arpv4 frame
+          | Some `IPv4 -> ipv4 payload
+          | Some `IPv6 -> ipv6 payload
+          | None -> return_unit (* TODO default etype payload *)
+        end
+      | _ -> return_unit
+    else
+      return_unit
 
   let write t frame =
     MProf.Trace.label "ethif.write";
