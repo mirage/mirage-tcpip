@@ -46,16 +46,14 @@ module Make(Netif : V1_LWT.NETWORK) = struct
       (* minimum payload is 46 + source + destination + type *)
       match Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) with
       | Some frame_mac when of_interest frame_mac ->
-        begin
-          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet
-          and ethertype = Wire_structs.get_ethernet_ethertype frame
-          in
-          match Wire_structs.ethertype_to_protocol ethertype with
-          | Some `ARP -> arpv4 frame
-          | Some `IPv4 -> ipv4 payload
-          | Some `IPv6 -> ipv6 payload
-          | None -> return_unit (* TODO default etype payload *)
-        end
+        let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet
+        and ethertype = Wire_structs.get_ethernet_ethertype frame
+        in
+        Wire_structs.(match int_to_ethertype ethertype with
+          | Some ARP -> arpv4 frame
+          | Some IPv4 -> ipv4 payload
+          | Some IPv6 -> ipv6 payload
+          | None -> (* TODO default etype payload *) return_unit)
       | _ -> return_unit
     else
       return_unit

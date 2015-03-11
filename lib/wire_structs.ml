@@ -4,16 +4,11 @@ cstruct ethernet {
     uint16_t       ethertype
   } as big_endian
 
-let ethertype_to_protocol = function
-  | 0x0806 -> Some `ARP
-  | 0x0800 -> Some `IPv4
-  | 0x86dd -> Some `IPv6
-  | _ -> None
-
-let protocol_to_ethertype = function
-  | `ARP -> 0x0806
-  | `IPv4 -> 0x0800
-  | `IPv6 -> 0x86dd
+cenum ethertype {
+    ARP  = 0x0806;
+    IPv4 = 0x0800;
+    IPv6 = 0x86dd;
+  } as uint16_t
 
 cstruct udp {
     uint16_t source_port;
