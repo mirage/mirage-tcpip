@@ -75,7 +75,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
       |ip when is_local t ip -> (* Local *)
         Lwt.catch
           (fun () -> Arpv4.query t.arp ip)
-          (function Not_found -> Lwt.fail (No_route_to_destination_address ip) | e -> Lwt.fail e)
+          (function (Arpv4.ARP_timeout _) -> Lwt.fail (No_route_to_destination_address ip) | e -> Lwt.fail e)
       |ip when Ipaddr.V4.is_multicast ip ->
         return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)

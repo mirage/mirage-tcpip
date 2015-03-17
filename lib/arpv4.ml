@@ -19,6 +19,9 @@ open Lwt
 open Printf
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+
+  exception ARP_timeout of Ipaddr.V4.t
+
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
@@ -223,7 +226,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;
-            Lwt.wakeup_exn waker Not_found;
+            Lwt.wakeup_exn waker (ARP_timeout ip);
             Lwt.return_unit
           end
       in

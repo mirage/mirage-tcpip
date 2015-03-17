@@ -18,6 +18,9 @@
 (** INTERNAL: ARP protocol. *)
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) : sig
+
+  exception ARP_timeout of Ipaddr.V4.t
+
   (** Type of an ARP record. ARP records are included in Ethif.t
       values. They contain, among other bits, a list of bound IPs, and a
       IPv4 -> MAC hashtbl. *)
