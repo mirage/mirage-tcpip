@@ -30,7 +30,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
   type entry =
-    | Pending of Macaddr.t option Lwt_condition.t
+    | Pending of Macaddr.t Lwt.t * Macaddr.t Lwt.u
     | Confirmed of float * Macaddr.t
 
   type t = {
@@ -90,9 +90,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let expire = now +. arp_timeout in
     try
       match Hashtbl.find t.cache ip with
-      | Pending cond ->
+      | Pending (_, w) ->
         Hashtbl.replace t.cache ip (Confirmed (expire, mac));
-        Lwt_condition.broadcast cond (Some mac)
+        Lwt.wakeup w mac
       | Confirmed _ ->
         Hashtbl.replace t.cache ip (Confirmed (expire, mac))
     with
@@ -199,18 +199,16 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
   let query t ip =
-    let wait c = Lwt_condition.wait c >>= function None -> Lwt.fail Not_found | Some mac -> Lwt.return mac in
     try match Hashtbl.find t.cache ip with
-      | Pending cond ->
-        wait cond
+      | Pending (t, _) ->
+        t
       | Confirmed (_, mac) ->
         Lwt.return mac
     with
     | Not_found ->
-      let cond = MProf.Trace.named_condition "ARP response" in
+      let response, waker = MProf.Trace.named_wait "ARP response" in
       (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-      Hashtbl.add t.cache ip (Pending cond);
-      let response = wait cond in
+      Hashtbl.add t.cache ip (Pending (response, waker));
       let rec retry n () =
         (* First request, so send a query packet *)
         output_probe t ip >>= fun () ->
@@ -222,7 +220,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
             retry (n+1) ()
           else begin
             Hashtbl.remove t.cache ip;
-            Lwt_condition.broadcast cond None;
+            Lwt.wakeup_exn waker Not_found;
             Lwt.return_unit
           end
       in
