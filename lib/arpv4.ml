@@ -29,10 +29,14 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
+  type entry =
+    | Pending
+    | Confirmed of Macaddr.t
+
   type t = {
     ethif : Ethif.t;
-    cache: (Ipaddr.V4.t, Macaddr.t Lwt.t) Hashtbl.t;
-    pending: (Ipaddr.V4.t, Macaddr.t Lwt.u) Hashtbl.t;
+    cache: (Ipaddr.V4.t, entry) Hashtbl.t;
+    pending: (Ipaddr.V4.t, Macaddr.t Lwt_condition.t) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
@@ -62,12 +66,18 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Hashtbl.iter (fun ip entry ->
         printf "%s -> %s\n%!"
           (Ipaddr.V4.to_string ip)
-          (match Lwt.state entry with
-           | Sleep -> "I"
-           | Return mac -> sprintf "V(%s)" (Macaddr.to_string mac)
-           | Fail ex -> Printexc.to_string ex
+          (match entry with
+           | Pending -> "I"
+           | Confirmed mac -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
       ) t.cache
+
+  let notify t ip mac =
+    try
+      Lwt_condition.broadcast (Hashtbl.find t.pending ip) mac;
+      Hashtbl.remove t.pending ip
+    with
+    | Not_found -> ()
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
@@ -93,10 +103,8 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       printf "ARP: updating %s -> %s\n%!"
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
-      if Hashtbl.mem t.pending spa then begin
-        wakeup (Hashtbl.find t.pending spa) sha;
-        Hashtbl.remove t.pending spa;
-      end;
+      Hashtbl.replace t.cache spa (Confirmed sha);
+      notify t spa sha;
       return_unit
     |n ->
       printf "ARP: Unknown message %d ignored\n%!" n;
@@ -172,17 +180,21 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
   let query t ip =
-    if Hashtbl.mem t.cache ip then (
-      Hashtbl.find t.cache ip
-    ) else (
-      let response, waker = MProf.Trace.named_wait "ARP response" in
+    try match Hashtbl.find t.cache ip with
+      | Pending ->
+        Lwt_condition.wait (Hashtbl.find t.pending ip)
+      | Confirmed mac ->
+        Lwt.return mac
+    with
+    | Not_found ->
+      let cond = MProf.Trace.named_condition "ARP response" in
       (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-      Hashtbl.add t.cache ip response;
-      Hashtbl.add t.pending ip waker;
+      Hashtbl.add t.cache ip Pending;
+      Hashtbl.add t.pending ip cond;
+      let response = Lwt_condition.wait cond in
       (* First request, so send a query packet *)
       output_probe t ip >>= fun () ->
       response
-    )
 
   let create ethif =
     let cache = Hashtbl.create 7 in
