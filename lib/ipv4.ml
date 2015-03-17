@@ -17,9 +17,9 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) = struct
+module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
-  module Arpv4 = Arpv4.Make (Ethif)
+  module Arpv4 = Arpv4.Make (Ethif) (Clock) (Time)
 
   (** IO operation errors *)
   type error = [

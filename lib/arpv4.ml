@@ -18,7 +18,7 @@
 open Lwt
 open Printf
 
-module Make (Ethif : V1_LWT.ETHIF) = struct
+module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
@@ -31,7 +31,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   type entry =
     | Pending of Macaddr.t Lwt_condition.t
-    | Confirmed of Macaddr.t
+    | Confirmed of float * Macaddr.t
 
   type t = {
     ethif : Ethif.t;
@@ -59,6 +59,20 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Op_reply
   } as uint16_t
 
+  let arp_timeout = 60. (* age entries out of cache after this many seconds *)
+  let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
+  let probe_num = 3 (* how many probes to send before giving up *)
+
+  let rec tick t () =
+    let now = Clock.time () in
+    let expired = Hashtbl.fold (fun ip entry expired ->
+        match entry with
+        | Pending _ -> expired
+        | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
+    in
+    List.iter (Hashtbl.remove t.cache) expired;
+    Time.sleep arp_timeout >>= tick t
+
   (* Prettyprint cache contents *)
   let prettyprint t =
     printf "ARP info:\n";
@@ -67,21 +81,23 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
           (Ipaddr.V4.to_string ip)
           (match entry with
            | Pending _ -> "I"
-           | Confirmed mac -> sprintf "V(%s)" (Macaddr.to_string mac)
+           | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
       ) t.cache
 
   let notify t ip mac =
+    let now = Clock.time () in
+    let expire = now +. arp_timeout in
     try
       match Hashtbl.find t.cache ip with
       | Pending cond ->
-        Hashtbl.replace t.cache ip (Confirmed mac);
+        Hashtbl.replace t.cache ip (Confirmed (expire, mac));
         Lwt_condition.broadcast cond mac
       | Confirmed _ ->
-        Hashtbl.replace t.cache ip (Confirmed mac)
+        Hashtbl.replace t.cache ip (Confirmed (expire, mac))
     with
     | Not_found ->
-      Hashtbl.replace t.cache ip (Confirmed mac)
+      Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
@@ -186,7 +202,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     try match Hashtbl.find t.cache ip with
       | Pending cond ->
         Lwt_condition.wait cond
-      | Confirmed mac ->
+      | Confirmed (_, mac) ->
         Lwt.return mac
     with
     | Not_found ->
@@ -201,5 +217,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   let create ethif =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
-    { ethif; cache; bound_ips }
+    let t = { ethif; cache; bound_ips } in
+    Lwt.async (tick t);
+    t
 end
