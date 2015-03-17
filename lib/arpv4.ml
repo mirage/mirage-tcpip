@@ -20,8 +20,6 @@ open Printf
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
-  exception ARP_timeout of Ipaddr.V4.t
-
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
@@ -32,8 +30,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
+  type result = [ `Ok of Macaddr.t | `Timeout ]
+
   type entry =
-    | Pending of Macaddr.t Lwt.t * Macaddr.t Lwt.u
+    | Pending of result Lwt.t * result Lwt.u
     | Confirmed of float * Macaddr.t
 
   type t = {
@@ -96,7 +96,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       match Hashtbl.find t.cache ip with
       | Pending (_, w) ->
         Hashtbl.replace t.cache ip (Confirmed (expire, mac));
-        Lwt.wakeup w mac
+        Lwt.wakeup w (`Ok mac)
       | Confirmed _ ->
         Hashtbl.replace t.cache ip (Confirmed (expire, mac))
     with
@@ -207,7 +207,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       | Pending (t, _) ->
         t
       | Confirmed (_, mac) ->
-        Lwt.return mac
+        Lwt.return (`Ok mac)
     with
     | Not_found ->
       let response, waker = MProf.Trace.named_wait "ARP response" in
@@ -226,7 +226,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;
-            Lwt.wakeup_exn waker (ARP_timeout ip);
+            Lwt.wakeup waker `Timeout;
             Lwt.return_unit
           end
       in
