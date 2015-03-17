@@ -70,6 +70,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | Pending _ -> expired
         | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
     in
+    List.iter (fun ip -> printf "ARP: timeout %s\n%!" (Ipaddr.V4.to_string ip)) expired;
     List.iter (Hashtbl.remove t.cache) expired;
     Time.sleep arp_timeout >>= tick t
 
@@ -216,9 +217,11 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
                      (Time.sleep probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
         | `Ok -> Lwt.return_unit
         | `Timeout ->
-          if n < probe_num then
-            retry (n+1) ()
-          else begin
+          if n < probe_num then begin
+            let n = n+1 in
+            printf "ARP: retrying %s (n=%d)\n%!" (Ipaddr.V4.to_string ip) n;
+            retry n ()
+          end else begin
             Hashtbl.remove t.cache ip;
             Lwt.wakeup_exn waker Not_found;
             Lwt.return_unit
