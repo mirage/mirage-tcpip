@@ -212,8 +212,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       let rec retry n () =
         (* First request, so send a query packet *)
         output_probe t ip >>= fun () ->
-        Lwt.pick [ (Lwt.protected response >>= fun _ -> Lwt.return `Ok);
-                   (Time.sleep probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
+        Lwt.choose [ (response >>= fun _ -> Lwt.return `Ok);
+                     (Time.sleep probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
         | `Ok -> Lwt.return_unit
         | `Timeout ->
           if n < probe_num then
