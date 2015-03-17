@@ -30,13 +30,12 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
   type entry =
-    | Pending
+    | Pending of Macaddr.t Lwt_condition.t
     | Confirmed of Macaddr.t
 
   type t = {
     ethif : Ethif.t;
     cache: (Ipaddr.V4.t, entry) Hashtbl.t;
-    pending: (Ipaddr.V4.t, Macaddr.t Lwt_condition.t) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
@@ -67,17 +66,22 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
         printf "%s -> %s\n%!"
           (Ipaddr.V4.to_string ip)
           (match entry with
-           | Pending -> "I"
+           | Pending _ -> "I"
            | Confirmed mac -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
       ) t.cache
 
   let notify t ip mac =
     try
-      Lwt_condition.broadcast (Hashtbl.find t.pending ip) mac;
-      Hashtbl.remove t.pending ip
+      match Hashtbl.find t.cache ip with
+      | Pending cond ->
+        Hashtbl.replace t.cache ip (Confirmed mac);
+        Lwt_condition.broadcast cond mac
+      | Confirmed _ ->
+        Hashtbl.replace t.cache ip (Confirmed mac)
     with
-    | Not_found -> ()
+    | Not_found ->
+      Hashtbl.replace t.cache ip (Confirmed mac)
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
@@ -103,7 +107,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       printf "ARP: updating %s -> %s\n%!"
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
-      Hashtbl.replace t.cache spa (Confirmed sha);
       notify t spa sha;
       return_unit
     |n ->
@@ -181,16 +184,15 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
      waiting for a response *)
   let query t ip =
     try match Hashtbl.find t.cache ip with
-      | Pending ->
-        Lwt_condition.wait (Hashtbl.find t.pending ip)
+      | Pending cond ->
+        Lwt_condition.wait cond
       | Confirmed mac ->
         Lwt.return mac
     with
     | Not_found ->
       let cond = MProf.Trace.named_condition "ARP response" in
       (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-      Hashtbl.add t.cache ip Pending;
-      Hashtbl.add t.pending ip cond;
+      Hashtbl.add t.cache ip (Pending cond);
       let response = Lwt_condition.wait cond in
       (* First request, so send a query packet *)
       output_probe t ip >>= fun () ->
@@ -198,7 +200,6 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   let create ethif =
     let cache = Hashtbl.create 7 in
-    let pending = Hashtbl.create 7 in
     let bound_ips = [] in
-    { ethif; cache; pending; bound_ips }
+    { ethif; cache; bound_ips }
 end
