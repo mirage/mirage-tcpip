@@ -31,6 +31,7 @@ depends: [
   "mirage-net-unix" {>= "1.1.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile"
+  "mirage-flow" {test}
 ]
 depopts: [
   "mirage-xen"
