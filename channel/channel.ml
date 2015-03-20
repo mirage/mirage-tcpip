@@ -35,14 +35,15 @@ module Make(Flow:V1_LWT.FLOW) = struct
     abort_u: unit Lwt.u;
   }
 
-  exception Closed
+  exception End_of_file (* at least one user understands this exception *)
+  exception Ibuf_refill_error
 
   let create flow =
     let ibuf = None in
     let obufq = [] in
     let obuf = None in
     let opos = 0 in
-    let abort_t, abort_u = Lwt.task () in
+    let abort_t, abort_u = MProf.Trace.named_task "Channel.t.abort" in
     { ibuf; obuf; flow; obufq; opos; abort_t; abort_u }
 
   let to_flow { flow; _ } = flow
@@ -52,8 +53,13 @@ module Make(Flow:V1_LWT.FLOW) = struct
     | `Ok buf ->
       t.ibuf <- Some buf;
       return_unit
-    | `Error _ | `Eof ->
-      fail Closed
+    | `Error _ ->
+      fail Ibuf_refill_error
+    | `Eof ->
+      (* close the flow before throwing exception; otherwise it will never be
+         GC'd *)
+      Flow.close t.flow >>= fun () -> 
+      fail End_of_file
 
   let rec get_ibuf t =
     match t.ibuf with
@@ -63,20 +69,24 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   (* Read one character from the input channel *)
   let read_char t =
-    get_ibuf t >>= fun buf ->
+    get_ibuf t (* the fact that we returned means we have at least 1 char *) 
+    >>= fun buf ->
     let c = Cstruct.get_char buf 0 in
-    t.ibuf <- Some (Cstruct.shift buf 1);
+    t.ibuf <- Some (Cstruct.shift buf 1); (* advance read buffer, possibly to
+                                             EOF *)
     return c
 
   (* Read up to len characters from the input channel
      and at most a full view. If not specified, read all *)
   let read_some ?len t =
+    (* get_ibuf potentially throws EOF-related exceptions *)
     get_ibuf t >>= fun buf ->
     let avail = Cstruct.len buf in
     let len = match len with |Some len -> len |None -> avail in
     if len < avail then begin
       let hd,tl = Cstruct.split buf len in
-      t.ibuf <- Some tl;
+      t.ibuf <- Some tl; (* leave some in the buffer; next time, we won't do a
+                            blocking read *)
       return hd
     end else begin
       t.ibuf <- None;
@@ -89,27 +99,39 @@ module Make(Flow:V1_LWT.FLOW) = struct
     Lwt_stream.from (fun () ->
         Lwt.catch
           (fun () -> read_some ?len t >>= fun v -> return (Some v))
-          (function Closed -> return_none | e -> fail e)
+          (function End_of_file -> return_none | e -> fail e)
+      )
+
+ (* Read up to len characters from the input channel as a
+    stream (and read all available if no length specified *)
+  let read_stream ?len t =
+    Lwt_stream.from (fun () ->
+        Lwt.catch
+          (fun () -> read_some ?len t >>= fun v -> return (Some v))
+          (function End_of_file -> return_none | e -> fail e)
       )
 
   (* Read until a character is found *)
   let read_until t ch =
-    get_ibuf t >>= fun buf ->
-    let len = Cstruct.len buf in
-    let rec scan off =
-      if off = len then None else begin
-        if Cstruct.get_char buf off = ch then
-          Some off else scan (off+1)
-      end
-    in
-    match scan 0 with
-    |None -> (* not found, return what we have until EOF *)
-      t.ibuf <- None;
-      return (false, buf)
-    |Some off -> (* found, so split the buffer *)
-      let hd = Cstruct.sub buf 0 off in
-      t.ibuf <- Some (Cstruct.shift buf (off+1));
-      return (true, hd)
+    Lwt.catch 
+       (fun () -> get_ibuf t >>= fun buf ->
+       let len = Cstruct.len buf in
+       let rec scan off =
+         if off = len then None else begin
+           if Cstruct.get_char buf off = ch then
+             Some off else scan (off+1)
+         end
+       in
+       match scan 0 with
+       |None -> (* not found, return what we have until EOF *)
+         t.ibuf <- None; (* basically guaranteeing that next read is EOF *)
+         return (false, buf)
+       |Some off -> (* found, so split the buffer *)
+         let hd = Cstruct.sub buf 0 off in
+         t.ibuf <- Some (Cstruct.shift buf (off+1));
+         return (true, hd)
+       )
+      (function End_of_file -> return (false, Cstruct.create 0) | e -> fail e)
 
   (* This reads a line of input, which is terminated either by a CRLF
      sequence, or the end of the channel (which counts as a line).
