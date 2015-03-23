@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: eb45ac9a32e8e620fbd40661957d7b1b)
+# DO NOT EDIT (digest: f07509fc184dadc7227e522e969c33b0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -67,6 +67,7 @@ true: annot, bin_annot
 <channel/*.ml{,i,y}>: pkg_io-page
 <channel/*.ml{,i,y}>: pkg_ipaddr
 <channel/*.ml{,i,y}>: pkg_lwt
+<channel/*.ml{,i,y}>: pkg_lwt.syntax
 <channel/*.ml{,i,y}>: pkg_mirage-profile
 <channel/*.ml{,i,y}>: pkg_mirage-types
 # Library dhcpv4
@@ -120,6 +121,7 @@ true: annot, bin_annot
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i,y}>: pkg_lwt.syntax
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
 <unix/*.ml{,i,y}>: pkg_mirage-console.unix
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
@@ -166,6 +168,7 @@ true: annot, bin_annot
 "lib_test/test_channel.byte": pkg_io-page.unix
 "lib_test/test_channel.byte": pkg_ipaddr
 "lib_test/test_channel.byte": pkg_lwt
+"lib_test/test_channel.byte": pkg_lwt.syntax
 "lib_test/test_channel.byte": pkg_lwt.unix
 "lib_test/test_channel.byte": pkg_mirage-flow
 "lib_test/test_channel.byte": pkg_mirage-profile
@@ -177,6 +180,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
 <lib_test/*.ml{,i,y}>: pkg_lwt
+<lib_test/*.ml{,i,y}>: pkg_lwt.syntax
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
