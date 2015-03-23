@@ -25,6 +25,13 @@ module Make(Flow:V1_LWT.FLOW) = struct
   type +'a io = 'a Lwt.t
   type 'a io_stream = 'a Lwt_stream.t
 
+  exception End_of_file (* at least one user understands this exception *)
+  exception Write_error of string
+  exception Read_error of string (* is this a meaningful way to split these?
+                                        Surely the caller knows whether they were
+                                        reading or writing.  Unfortunately
+                                        Flow.error is abstract. *)
+
   type t = {
     flow: flow;
     mutable ibuf: Cstruct.t option; (* Queue of incoming buf *)
@@ -34,9 +41,6 @@ module Make(Flow:V1_LWT.FLOW) = struct
     abort_t: unit Lwt.t;
     abort_u: unit Lwt.u;
   }
-
-  exception End_of_file (* at least one user understands this exception *)
-  exception Ibuf_refill_error
 
   let create flow =
     let ibuf = None in
@@ -51,10 +55,14 @@ module Make(Flow:V1_LWT.FLOW) = struct
   let ibuf_refill t =
     Flow.read t.flow >>= function
     | `Ok buf ->
+      (* users of get_ibuf (and therefore ibuf_refill) expect the buffer
+         returned here to have length >0; if Flow.read ever gives us empty
+         buffers, this will be violated causing Channel users to see Cstruct
+         exceptions *)
       t.ibuf <- Some buf;
       return_unit
-    | `Error _ ->
-      fail Ibuf_refill_error
+    | `Error e ->
+      fail (Read_error (Flow.error_message e))
     | `Eof ->
       (* close the flow before throwing exception; otherwise it will never be
          GC'd *)
@@ -63,9 +71,9 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   let rec get_ibuf t =
     match t.ibuf with
-    |None -> ibuf_refill t >>= fun () -> get_ibuf t
-    |Some buf when Cstruct.len buf = 0 -> ibuf_refill t >>= fun () -> get_ibuf t
-    |Some buf -> return buf
+    | None -> ibuf_refill t >>= fun () -> get_ibuf t
+    | Some buf when Cstruct.len buf = 0 -> ibuf_refill t >>= fun () -> get_ibuf t
+    | Some buf -> return buf
 
   (* Read one character from the input channel *)
   let read_char t =
@@ -92,15 +100,6 @@ module Make(Flow:V1_LWT.FLOW) = struct
       t.ibuf <- None;
       return buf
     end
-
-  (* Read up to len characters from the input channel as a
-     stream (and read all available if no length specified *)
-  let read_stream ?len t =
-    Lwt_stream.from (fun () ->
-        Lwt.catch
-          (fun () -> read_some ?len t >>= fun v -> return (Some v))
-          (function End_of_file -> return_none | e -> fail e)
-      )
 
  (* Read up to len characters from the input channel as a
     stream (and read all available if no length specified *)
@@ -217,12 +216,15 @@ module Make(Flow:V1_LWT.FLOW) = struct
     queue_obuf t;
     let l = List.rev t.obufq in
     t.obufq <- [];
-    Flow.writev t.flow l
-    >>= fun _ -> return_unit
+    Flow.writev t.flow l >>= function
+    | `Ok () -> Lwt.return_unit
+    | `Error (e : Flow.error) -> fail (Write_error (Flow.error_message e))
+    | `Eof -> fail (End_of_file)
 
   let close t =
-    flush t
-    >>= fun () ->
-    Flow.close t.flow
+    try_lwt
+      flush t 
+    finally 
+      Flow.close t.flow 
 
 end
