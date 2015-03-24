@@ -31,6 +31,7 @@ depends: [
   "ipaddr" {>= "2.2.0"}
   "mirage-profile"
   "mirage-flow" {test}
+  "ounit2" {test}
 ]
 depopts: [
   "mirage-xen"
