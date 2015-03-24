@@ -1,8 +1,9 @@
 OASISFormat: 0.4
 Name:        tcpip
-Version:     2.3.0
+Version:     2.4.0
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
-Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier, Nicolas Ojeda Bar
+Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier,
+             Nicolas Ojeda Bar, Thomas Gazagnaire
 License:     ISC
 Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
