@@ -17,9 +17,9 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) = struct
+module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
-  module Arpv4 = Arpv4.Make (Ethif)
+  module Arpv4 = Arpv4.Make (Ethif) (Clock) (Time)
 
   (** IO operation errors *)
   type error = [
@@ -73,12 +73,21 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
         return Macaddr.broadcast
       |ip when is_local t ip -> (* Local *)
-        Arpv4.query t.arp ip
+        Arpv4.query t.arp ip >>= begin function
+          | `Ok mac -> Lwt.return mac
+          | `Timeout -> Lwt.fail (No_route_to_destination_address ip)
+        end
       |ip when Ipaddr.V4.is_multicast ip ->
         return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
           match t.gateways with
-          |hd::_ -> Arpv4.query t.arp hd
+          |hd::_ ->
+            Arpv4.query t.arp hd >>= begin function
+              | `Ok mac -> Lwt.return mac
+              | `Timeout ->
+                printf "IP.output: arp timeout to gw %s\n%!" (Ipaddr.V4.to_string ip);
+                fail (No_route_to_destination_address ip)
+            end
           |[] ->
             printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
             fail (No_route_to_destination_address ip)

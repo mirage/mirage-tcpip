@@ -17,7 +17,8 @@
 
 (** INTERNAL: ARP protocol. *)
 
-module Make (Ethif : V1_LWT.ETHIF) : sig
+module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) : sig
+
   (** Type of an ARP record. ARP records are included in Ethif.t
       values. They contain, among other bits, a list of bound IPs, and a
       IPv4 -> MAC hashtbl. *)
@@ -51,7 +52,7 @@ module Make (Ethif : V1_LWT.ETHIF) : sig
   (** [query arp ip] queries the cache in [arp] for an ARP entry
       corresponding to [ip], which may result in the sender sleeping
       waiting for a response. *)
-  val query: t -> Ipaddr.V4.t -> Macaddr.t Lwt.t
+  val query: t -> Ipaddr.V4.t -> [ `Ok of Macaddr.t | `Timeout ] Lwt.t
 
   (** Prettyprint cache contents *)
   val prettyprint: t -> unit
