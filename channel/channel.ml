@@ -27,10 +27,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   exception End_of_file (* at least one user understands this exception *)
   exception Write_error of string
-  exception Read_error of string (* is this a meaningful way to split these?
-                                        Surely the caller knows whether they were
-                                        reading or writing.  Unfortunately
-                                        Flow.error is abstract. *)
+  exception Read_error of string 
 
   type t = {
     flow: flow;
