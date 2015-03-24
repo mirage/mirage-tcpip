@@ -14,4 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(F:V1_LWT.FLOW) : V1_LWT.CHANNEL with type flow = F.flow
+module Make(F:V1_LWT.FLOW) : sig
+  include V1_LWT.CHANNEL with type flow = F.flow
+  
+  exception End_of_file
+  exception Read_error of string
+  exception Write_error of string
+
+end

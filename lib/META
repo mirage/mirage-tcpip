@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 22882ae34792fd8f66fa101d4ff23bcd)
+# DO NOT EDIT (digest: 21cb243d33c9355d3bd79282fe0e1009)
 version = "2.3.0"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct mirage-profile bytes"
@@ -250,7 +250,8 @@ package "dhcpv4" (
 package "channel" (
  version = "2.3.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page mirage-types ipaddr cstruct lwt"
+ requires =
+ "io-page mirage-profile mirage-types ipaddr cstruct lwt lwt.syntax"
  archive(byte) = "channel.cma"
  archive(byte, plugin) = "channel.cma"
  archive(native) = "channel.cmxa"

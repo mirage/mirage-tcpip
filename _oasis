@@ -87,10 +87,12 @@ Library channel
   Findlibname:        channel
   Modules:            Channel
   BuildDepends:       io-page,
+                      mirage-profile,
                       mirage-types,
                       ipaddr,
                       cstruct,
-                      lwt
+                      lwt,
+                      lwt.syntax
 
 Library dhcpv4
   CompiledObject:     best
@@ -298,3 +300,14 @@ Library "tcpip-stack-socket"
                       lwt.unix,
                       ipaddr.unix,
                       io-page.unix
+
+Executable test_channel
+  Build$: flag(tests)
+  Path: lib_test
+  MainIs: test_channel.ml
+  ByteOpt: -g
+  BuildDepends: oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel, mirage-flow
+
+Test test_channel
+  Run$: flag(tests)
+  Command: $test_channel
