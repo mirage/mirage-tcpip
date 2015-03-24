@@ -18,7 +18,8 @@
 open Lwt
 open Printf
 
-module Make (Ethif : V1_LWT.ETHIF) = struct
+module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+
   type arp = {
     op: [ `Request |`Reply |`Unknown of int ];
     sha: Macaddr.t;
@@ -29,10 +30,15 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
 
   (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
+  type result = [ `Ok of Macaddr.t | `Timeout ]
+
+  type entry =
+    | Pending of result Lwt.t * result Lwt.u
+    | Confirmed of float * Macaddr.t
+
   type t = {
     ethif : Ethif.t;
-    cache: (Ipaddr.V4.t, Macaddr.t Lwt.t) Hashtbl.t;
-    pending: (Ipaddr.V4.t, Macaddr.t Lwt.u) Hashtbl.t;
+    cache: (Ipaddr.V4.t, entry) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
@@ -56,18 +62,46 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
     Op_reply
   } as uint16_t
 
+  let arp_timeout = 60. (* age entries out of cache after this many seconds *)
+  let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
+  let probe_num = 3 (* how many probes to send before giving up *)
+
+  let rec tick t () =
+    let now = Clock.time () in
+    let expired = Hashtbl.fold (fun ip entry expired ->
+        match entry with
+        | Pending _ -> expired
+        | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
+    in
+    List.iter (fun ip -> printf "ARP: timeout %s\n%!" (Ipaddr.V4.to_string ip)) expired;
+    List.iter (Hashtbl.remove t.cache) expired;
+    Time.sleep arp_timeout >>= tick t
+
   (* Prettyprint cache contents *)
   let prettyprint t =
     printf "ARP info:\n";
     Hashtbl.iter (fun ip entry ->
         printf "%s -> %s\n%!"
           (Ipaddr.V4.to_string ip)
-          (match Lwt.state entry with
-           | Sleep -> "I"
-           | Return mac -> sprintf "V(%s)" (Macaddr.to_string mac)
-           | Fail ex -> Printexc.to_string ex
+          (match entry with
+           | Pending _ -> "I"
+           | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
       ) t.cache
+
+  let notify t ip mac =
+    let now = Clock.time () in
+    let expire = now +. arp_timeout in
+    try
+      match Hashtbl.find t.cache ip with
+      | Pending (_, w) ->
+        Hashtbl.replace t.cache ip (Confirmed (expire, mac));
+        Lwt.wakeup w (`Ok mac)
+      | Confirmed _ ->
+        Hashtbl.replace t.cache ip (Confirmed (expire, mac))
+    with
+    | Not_found ->
+      Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
@@ -93,10 +127,7 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
       printf "ARP: updating %s -> %s\n%!"
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
-      if Hashtbl.mem t.pending spa then begin
-        wakeup (Hashtbl.find t.pending spa) sha;
-        Hashtbl.remove t.pending spa;
-      end;
+      notify t spa sha;
       return_unit
     |n ->
       printf "ARP: Unknown message %d ignored\n%!" n;
@@ -172,21 +203,40 @@ module Make (Ethif : V1_LWT.ETHIF) = struct
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
   let query t ip =
-    if Hashtbl.mem t.cache ip then (
-      Hashtbl.find t.cache ip
-    ) else (
+    try match Hashtbl.find t.cache ip with
+      | Pending (t, _) ->
+        t
+      | Confirmed (_, mac) ->
+        Lwt.return (`Ok mac)
+    with
+    | Not_found ->
       let response, waker = MProf.Trace.named_wait "ARP response" in
       (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
-      Hashtbl.add t.cache ip response;
-      Hashtbl.add t.pending ip waker;
-      (* First request, so send a query packet *)
-      output_probe t ip >>= fun () ->
+      Hashtbl.add t.cache ip (Pending (response, waker));
+      let rec retry n () =
+        (* First request, so send a query packet *)
+        output_probe t ip >>= fun () ->
+        Lwt.choose [ (response >>= fun _ -> Lwt.return `Ok);
+                     (Time.sleep probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
+        | `Ok -> Lwt.return_unit
+        | `Timeout ->
+          if n < probe_num then begin
+            let n = n+1 in
+            printf "ARP: retrying %s (n=%d)\n%!" (Ipaddr.V4.to_string ip) n;
+            retry n ()
+          end else begin
+            Hashtbl.remove t.cache ip;
+            Lwt.wakeup waker `Timeout;
+            Lwt.return_unit
+          end
+      in
+      Lwt.async (retry 0);
       response
-    )
 
   let create ethif =
     let cache = Hashtbl.create 7 in
-    let pending = Hashtbl.create 7 in
     let bound_ips = [] in
-    { ethif; cache; pending; bound_ips }
+    let t = { ethif; cache; bound_ips } in
+    Lwt.async (tick t);
+    t
 end
