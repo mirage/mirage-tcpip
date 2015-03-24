@@ -1,3 +1,6 @@
+2.4.0: (2015-03-24)
+* ARP improvements (#118)
+
 2.3.0 (2015-03-09):
 * Fix `STACKV4` for the `DEVICE` signature which has `connect` removed (in Mirage types 2.3+).
 
@@ -8,7 +11,7 @@
 * Improve debug logging for ICMP Destination Unreachable packets.
 * Filter incoming frames by MAC address to stop sending unnecessary RSTs. (#114)
 * Unhook unused modules `Sliding_window` and `Profiler` from the build. (#112)
-* Add an explicit `connect` method to the signatures. (#100) 
+* Add an explicit `connect` method to the signatures. (#100)
 
 2.2.2 (2015-01-11):
 * Readded tracing and ARP fixes which got accidentally reverted in the IPv6 merge. (#96)
