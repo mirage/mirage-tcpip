@@ -28,8 +28,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     tpa: Ipaddr.V4.t;
   }
 
-  (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
-
   type result = [ `Ok of Macaddr.t | `Timeout ]
 
   type entry =
@@ -41,26 +39,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     cache: (Ipaddr.V4.t, entry) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
-
-  cstruct arp {
-    uint8_t dst[6];
-    uint8_t src[6];
-    uint16_t ethertype;
-    uint16_t htype;
-    uint16_t ptype;
-    uint8_t hlen;
-    uint8_t plen;
-    uint16_t op;
-    uint8_t sha[6];
-    uint32_t spa;
-    uint8_t tha[6];
-    uint32_t tpa
-  } as big_endian
-
-  cenum op {
-    Op_request = 1;
-    Op_reply
-  } as uint16_t
 
   let arp_timeout = 60. (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
@@ -105,6 +83,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
+    let open Wire_structs.Arpv4_wire in
     MProf.Trace.label "arpv4.input";
     match get_arp_op frame with
     |1 -> (* Request *)
@@ -134,6 +113,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       return_unit
 
   and output t arp =
+    let open Wire_structs.Arpv4_wire in
     (* Obtain a buffer to write into *)
     let buf = Io_page.to_cstruct (Io_page.get 1) in
     (* Write the ARP packet *)
