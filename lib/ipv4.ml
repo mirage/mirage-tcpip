@@ -187,7 +187,6 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     (* XXX this will raise exception for 0-length payload *)
     let hdr, data = Cstruct.split buf ihl in
-    assert (Cstruct.len data >= payload_len);
     let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
     match Wire_structs.Ipv4_wire.int_to_protocol proto with
     | Some `ICMP -> icmp_input t src hdr data
