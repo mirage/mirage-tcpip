@@ -184,7 +184,6 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let ihl = (Wire_structs.Ipv4_wire.get_ipv4_hlen_version buf land 0xf) * 4 in
     let src = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_src buf) in
     let dst = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_dst buf) in
-    let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     (* XXX this will raise exception for 0-length payload *)
     let hdr, data = Cstruct.split buf ihl in
     let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
