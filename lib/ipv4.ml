@@ -176,15 +176,15 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
     let src = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_src buf) in
     let dst = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_dst buf) in
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
-    (* XXX this will raise exception for 0-length payload *)
     let hdr, data = Cstruct.split buf ihl in
-    assert (Cstruct.len data = payload_len);
-    let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
-    match Wire_structs.Ipv4_wire.int_to_protocol proto with
-    | Some `ICMP -> icmp_input t src hdr data
-    | Some `TCP  -> tcp ~src ~dst data
-    | Some `UDP  -> udp ~src ~dst data
-    | None       -> default ~proto ~src ~dst data
+    if Cstruct.len data >= payload_len then begin
+      let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
+      match Wire_structs.Ipv4_wire.int_to_protocol proto with
+      | Some `ICMP -> icmp_input t src hdr data
+      | Some `TCP  -> tcp ~src ~dst data
+      | Some `UDP  -> udp ~src ~dst data
+      | None       -> default ~proto ~src ~dst data
+    end
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
