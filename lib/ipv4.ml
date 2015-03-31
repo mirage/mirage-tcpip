@@ -184,7 +184,7 @@ module Make(Ethif : V1_LWT.ETHIF) = struct
       | Some `TCP  -> tcp ~src ~dst data
       | Some `UDP  -> udp ~src ~dst data
       | None       -> default ~proto ~src ~dst data
-    end
+    end else return_unit
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
