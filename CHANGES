@@ -1,3 +1,6 @@
+2.3.1 (2015-03-31):
+* Do not raise an assertion if an IP frame has extra trailing bytes (#221).
+
 2.3.0 (2015-03-09):
 * Fix `STACKV4` for the `DEVICE` signature which has `connect` removed (in Mirage types 2.3+).
 
