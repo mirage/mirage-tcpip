@@ -1,6 +1,4 @@
 opam-version: "1.2"
-name: "tcpip"
-version: "2.2.3"
 maintainer:   "anil@recoil.org"
 homepage:     "https://github.com/mirage/mirage-tcpip"
 dev-repo:     "https://github.com/mirage/mirage-tcpip.git"
