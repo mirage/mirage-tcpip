@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        tcpip
-Version:     2.4.0
+Version:     2.4.1
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier,
              Nicolas Ojeda Bar, Thomas Gazagnaire
