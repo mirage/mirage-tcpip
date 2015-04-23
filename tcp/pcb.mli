@@ -29,8 +29,9 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
 
   val ip : t -> Ip.t
 
-  val input: t -> listeners:(int -> (pcb -> unit Lwt.t) option)
-    -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
+  val input: t -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
+
+  val with_listeners: (int -> (pcb -> unit Lwt.t) option) -> t -> t
 
   val connect: t -> dest_ip:Ip.ipaddr -> dest_port:int -> connection_result Lwt.t
 

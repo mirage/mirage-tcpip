@@ -57,6 +57,7 @@ struct
 
   type t = {
     ip : Ip.t;
+    listeners: int -> (pcb -> unit Lwt.t) option;
     mutable localport : int;
     channels: (WIRE.id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
@@ -66,6 +67,8 @@ struct
     (* clients in the process of connecting *)
     connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
+
+  let with_listeners listeners t = { t with listeners }
 
   let ip { ip; _ } = ip
 
@@ -381,8 +384,8 @@ struct
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match listeners id.WIRE.local_port with
+  let process_syn t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+    match t.listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       let tx_wnd = Tcp_wire.get_tcp_window pkt in
@@ -420,7 +423,7 @@ struct
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let input_no_pcb t listeners pkt id =
+  let input_no_pcb t pkt id =
     match Tcp_wire.get_rst pkt with
     | true -> process_reset t id
     | false ->
@@ -433,7 +436,7 @@ struct
       match syn, ack with
       | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
                           ~options ~syn ~fin
-      | true , false -> process_syn t id ~listeners ~pkt ~ack_number ~sequence
+      | true , false -> process_syn t id ~pkt ~ack_number ~sequence
                           ~options ~syn ~fin
       | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
       | false, false ->
@@ -441,7 +444,7 @@ struct
         return_unit
 
   (* Main input function for TCP packets *)
-  let input t ~listeners ~src ~dst data =
+  let input t ~src ~dst data =
     match verify_checksum src dst data with
     | false -> printf "RX.input: checksum error\n%!"; return_unit
     | true ->
@@ -458,7 +461,7 @@ struct
         (* PCB exists, so continue the connection state machine in tcp_input *)
         (Rx.input t data)
         (* No existing PCB, so check if it is a SYN for a listening function *)
-        (input_no_pcb t listeners data)
+        (input_no_pcb t data)
 
   (* Blocking read on a PCB *)
   let read pcb =
@@ -576,6 +579,7 @@ struct
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { ip; localport; channels; listens; connects }
+    let listeners = fun _ -> None in
+    { ip; localport; channels; listens; connects; listeners }
 
 end
