@@ -26,6 +26,9 @@ module Make(Ip:V1_LWT.IP) : sig
     local_ip: Ip.ipaddr;        (* Local IP address *)
   }
 
+  val path_of_id: id -> string list
+  val id_of_path: string list -> id
+
   val xmit : ip:Ip.t -> id:id ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
