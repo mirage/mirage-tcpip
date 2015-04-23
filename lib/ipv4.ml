@@ -17,7 +17,12 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+module type ETHIF = sig
+  include V1_LWT.ETHIF
+  val promiscuous_mode: t -> bool
+end
+
+module Make(Ethif : ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
   module Arpv4 = Arpv4.Make (Ethif) (Clock) (Time)
 
@@ -186,14 +191,16 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let dst = Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_dst buf) in
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     let hdr, data = Cstruct.split buf ihl in
-    if Cstruct.len data >= payload_len then begin
+    if (Ethif.promiscuous_mode t.ethif || Ipaddr.V4.compare t.ip dst = 0)
+    && Cstruct.len data >= payload_len then
       let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
       match Wire_structs.Ipv4_wire.int_to_protocol proto with
       | Some `ICMP -> icmp_input t src hdr data
       | Some `TCP  -> tcp ~src ~dst data
       | Some `UDP  -> udp ~src ~dst data
       | None       -> default ~proto ~src ~dst data
-    end else return_unit
+    else
+      return_unit
 
   let connect ethif =
     let ip = Ipaddr.V4.any in
