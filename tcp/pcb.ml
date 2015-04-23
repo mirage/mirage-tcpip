@@ -316,6 +316,9 @@ struct
     Gc.finalise fnth th;
     return (pcb, th, opts)
 
+  let is_not_for_me t id =
+    not (List.mem id.WIRE.local_ip (Ip.get_ip t.ip))
+
   let new_server_connection t params id pushf =
     new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
@@ -341,87 +344,91 @@ struct
     return (pcb, th)
 
   let process_reset t id =
-    match hashtbl_find t.connects id with
-    | Some (wakener, _) ->
-      (* URG_TODO: check if RST ack num is valid before it is accepted *)
-      Hashtbl.remove t.connects id;
-      Lwt.wakeup wakener `Rst;
-      return_unit
-    | None ->
-      match hashtbl_find t.listens id with
-      | Some (_, (_, (pcb, th))) ->
-        Hashtbl.remove t.listens id;
-        STATE.tick pcb.state State.Recv_rst;
-        Lwt.cancel th;
+    if is_not_for_me t id then return_unit
+    else match hashtbl_find t.connects id with
+      | Some (wakener, _) ->
+        (* URG_TODO: check if RST ack num is valid before it is accepted *)
+        Hashtbl.remove t.connects id;
+        Lwt.wakeup wakener `Rst;
         return_unit
       | None ->
-        (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
-        return_unit
+        match hashtbl_find t.listens id with
+        | Some (_, (_, (pcb, th))) ->
+          Hashtbl.remove t.listens id;
+          STATE.tick pcb.state State.Recv_rst;
+          Lwt.cancel th;
+          return_unit
+        | None ->
+          (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
+          return_unit
 
   let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match hashtbl_find t.connects id with
-    | Some (wakener, tx_isn) ->
-      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
-        Hashtbl.remove t.connects id;
-        let tx_wnd = Tcp_wire.get_tcp_window pkt in
-        let rx_wnd = 65535 in
-        (* TODO: fix hardcoded value - it assumes that this value was
-           sent in the SYN *)
-        let rx_wnd_scaleoffer = wscale_default in
-        new_client_connection t
-          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-          id ack_number
-        >>= fun (pcb, th) ->
-        Lwt.wakeup wakener (`Ok (pcb, th));
-        return_unit
-      ) else
-        (* Normally sending a RST reply to a random pkt would be in
-           order but here we stay quiet since we are actively trying
-           to connect this id *)
-        return_unit
-    | None ->
-      (* Incomming SYN-ACK with no pending connect and no matching pcb
-         - send RST *)
-      Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+    if is_not_for_me t id then return_unit
+    else match hashtbl_find t.connects id with
+      | Some (wakener, tx_isn) ->
+        if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+          Hashtbl.remove t.connects id;
+          let tx_wnd = Tcp_wire.get_tcp_window pkt in
+          let rx_wnd = 65535 in
+          (* TODO: fix hardcoded value - it assumes that this value was
+             sent in the SYN *)
+          let rx_wnd_scaleoffer = wscale_default in
+          new_client_connection t
+            { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+            id ack_number
+          >>= fun (pcb, th) ->
+          Lwt.wakeup wakener (`Ok (pcb, th));
+          return_unit
+        ) else
+          (* Normally sending a RST reply to a random pkt would be in
+             order but here we stay quiet since we are actively trying
+             to connect this id *)
+          return_unit
+      | None ->
+        (* Incomming SYN-ACK with no pending connect and no matching pcb
+           - send RST *)
+        Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    match t.listeners id.WIRE.local_port with
-    | Some pushf ->
-      let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
-      let tx_wnd = Tcp_wire.get_tcp_window pkt in
-      (* TODO: make this configurable per listener *)
-      let rx_wnd = 65535 in
-      let rx_wnd_scaleoffer = wscale_default in
-      new_server_connection t
-        { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-        id pushf
-      >>= fun _ ->
-      return_unit
-    | None ->
-      Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
-
-  let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
-    match hashtbl_find t.listens id with
-    | Some (tx_isn, (pushf, newconn)) ->
-      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
-        (* Established connection - promote to active channels *)
-        Hashtbl.remove t.listens id;
-        Hashtbl.add t.channels id newconn;
-        (* Finish processing ACK, so pcb.state is correct *)
-        Rx.input t pkt newconn >>= fun () ->
-        (* send new connection up to listener *)
-        pushf (fst newconn)
-      ) else
-        (* No RST because we are trying to connect on this id *)
-        return_unit
-    | None ->
-      match hashtbl_find t.connects id with
-      | Some _ ->
-        (* No RST because we are trying to connect on this id *)
+    if is_not_for_me t id then return_unit
+    else match t.listeners id.WIRE.local_port with
+      | Some pushf ->
+        let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
+        let tx_wnd = Tcp_wire.get_tcp_window pkt in
+        (* TODO: make this configurable per listener *)
+        let rx_wnd = 65535 in
+        let rx_wnd_scaleoffer = wscale_default in
+        new_server_connection t
+          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+          id pushf
+        >>= fun _ ->
         return_unit
       | None ->
-        (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+
+  let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
+    if is_not_for_me t id then return_unit
+    else match hashtbl_find t.listens id with
+      | Some (tx_isn, (pushf, newconn)) ->
+        if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+          (* Established connection - promote to active channels *)
+          Hashtbl.remove t.listens id;
+          Hashtbl.add t.channels id newconn;
+          (* Finish processing ACK, so pcb.state is correct *)
+          Rx.input t pkt newconn >>= fun () ->
+          (* send new connection up to listener *)
+          pushf (fst newconn)
+        ) else
+          (* No RST because we are trying to connect on this id *)
+          return_unit
+      | None ->
+        match hashtbl_find t.connects id with
+        | Some _ ->
+          (* No RST because we are trying to connect on this id *)
+          return_unit
+        | None ->
+          (* ACK but no matching pcb and no listen - send RST *)
+          Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t pkt id =
     match Tcp_wire.get_rst pkt with
