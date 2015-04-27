@@ -17,9 +17,7 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
-
-  module Arpv4 = Arpv4.Make (Ethif) (Clock) (Time)
+module Make(Ethif : V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
   (** IO operation errors *)
   type error = [
@@ -195,11 +193,10 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
       | None       -> default ~proto ~src ~dst data
     end else return_unit
 
-  let connect ethif =
+  let connect ethif arp =
     let ip = Ipaddr.V4.any in
     let netmask = Ipaddr.V4.any in
     let gateways = [] in
-    let arp = Arpv4.create ethif in
     let t = { ethif; arp; ip; netmask; gateways } in
     return (`Ok t)
 

@@ -40,6 +40,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipaddr = Ipaddr.V4.t
+  type ethif = Ethif.t
+  type id = t
+  type error
+
   let arp_timeout = 60. (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
   let probe_num = 3 (* how many probes to send before giving up *)
@@ -58,14 +65,14 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   (* Prettyprint cache contents *)
   let prettyprint t =
     printf "ARP info:\n";
-    Hashtbl.iter (fun ip entry ->
-        printf "%s -> %s\n%!"
+    Hashtbl.fold (fun ip entry existing -> existing ^
+        sprintf "%s -> %s\n%!"
           (Ipaddr.V4.to_string ip)
           (match entry with
            | Pending _ -> "I"
            | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
-      ) t.cache
+      ) t.cache ""
 
   let notify t ip mac =
     let now = Clock.time () in
@@ -219,4 +226,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let t = { ethif; cache; bound_ips } in
     Lwt.async (tick t);
     t
+
+  let disconnect t = Lwt.return_unit (* TODO: should kill tick *)
 end
