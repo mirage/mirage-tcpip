@@ -133,6 +133,17 @@ Library "ethif-unix"
                       lwt,
                       lwt.unix
 
+Library "arpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        arpv4-unix
+  Modules:            Arpv4_unix
+  BuildDepends:       tcpip.ethif,
+                      mirage-net-unix,
+                      lwt,
+                      lwt.unix
+
 Library "ipv4-unix"
   CompiledObject:     best
   Path:               unix

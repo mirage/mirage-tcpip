@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2d1b9525b9bbdadb8aa16578f62a0f66)
+# DO NOT EDIT (digest: becc5647f605ea6f049fe44f57f846a0)
 version = "2.4.1"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct mirage-profile bytes"
@@ -256,6 +256,17 @@ package "channel" (
  archive(native) = "channel.cmxa"
  archive(native, plugin) = "channel.cmxs"
  exists_if = "channel.cma"
+)
+
+package "arpv4-unix" (
+ version = "2.4.1"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
+ archive(byte) = "arpv4-unix.cma"
+ archive(byte, plugin) = "arpv4-unix.cma"
+ archive(native) = "arpv4-unix.cmxa"
+ archive(native, plugin) = "arpv4-unix.cmxs"
+ exists_if = "arpv4-unix.cma"
 )
 # OASIS_STOP
 
