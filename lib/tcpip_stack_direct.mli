@@ -27,6 +27,7 @@ module Make
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
+    (Arpv4   : V1_LWT.ARP)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
@@ -40,5 +41,5 @@ module Make
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
   val connect : (console, netif, mode) V1_LWT.stackv4_config ->
-    Ethif.t -> Ipv4.t -> Udpv4.t -> Tcpv4.t -> [> `Ok of t | `Error of error ] Lwt.t
+    Ethif.t -> Arpv4.t -> Ipv4.t -> Udpv4.t -> Tcpv4.t -> [> `Ok of t | `Error of error ] Lwt.t
 end
