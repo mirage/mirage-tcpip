@@ -27,7 +27,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   exception End_of_file (* at least one user understands this exception *)
   exception Write_error of string
-  exception Read_error of string 
+  exception Read_error of string
 
   type t = {
     flow: flow;
@@ -63,7 +63,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     | `Eof ->
       (* close the flow before throwing exception; otherwise it will never be
          GC'd *)
-      Flow.close t.flow >>= fun () -> 
+      Flow.close t.flow >>= fun () ->
       fail End_of_file
 
   let rec get_ibuf t =
@@ -74,7 +74,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   (* Read one character from the input channel *)
   let read_char t =
-    get_ibuf t (* the fact that we returned means we have at least 1 char *) 
+    get_ibuf t (* the fact that we returned means we have at least 1 char *)
     >>= fun buf ->
     let c = Cstruct.get_char buf 0 in
     t.ibuf <- Some (Cstruct.shift buf 1); (* advance read buffer, possibly to
@@ -109,7 +109,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
 
   (* Read until a character is found *)
   let read_until t ch =
-    Lwt.catch 
+    Lwt.catch
        (fun () -> get_ibuf t >>= fun buf ->
        let len = Cstruct.len buf in
        let rec scan off =
