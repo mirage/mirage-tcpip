@@ -220,7 +220,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Lwt.async (retry 0);
       response
 
-  let create ethif =
+  let connect ethif =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
     let t = { ethif; cache; bound_ips } in
