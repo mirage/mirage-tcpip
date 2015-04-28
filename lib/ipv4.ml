@@ -17,7 +17,7 @@
 open Lwt
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   (** IO operation errors *)
   type error = [
@@ -34,7 +34,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) (Clock : V1.CLOCK) (Time 
   type macaddr = Ethif.macaddr
 
   type t = {
-    ethif: Ethif.t;
+    ethif : Ethif.t;
     arp : Arpv4.t;
     mutable ip: Ipaddr.V4.t;
     mutable netmask: Ipaddr.V4.t;
