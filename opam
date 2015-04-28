@@ -14,10 +14,12 @@ tags: ["org:mirage"]
 
 build: [
   ["./configure" "--prefix" prefix
-    "--%{mirage-xen:enable}%-xen"
+      "--%{mirage-flow+ounit:enable}%-tests"
+      "--%{mirage-xen:enable}%-xen"
   ]
   [make]
 ]
+build-test: [make "test"]
 install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
