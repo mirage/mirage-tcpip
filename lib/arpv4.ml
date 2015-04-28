@@ -225,7 +225,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let bound_ips = [] in
     let t = { ethif; cache; bound_ips } in
     Lwt.async (tick t);
-    t
+    Lwt.return (`Ok t)
 
   let disconnect t = Lwt.return_unit (* TODO: should kill tick *)
 end
