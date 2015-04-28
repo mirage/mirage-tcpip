@@ -219,9 +219,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
     | `Eof -> fail (End_of_file)
 
   let close t =
-    try_lwt
-      flush t 
-    finally 
-      Flow.close t.flow 
+    Lwt.catch
+      (fun () -> flush t)
+      (fun _  -> Flow.close t.flow)
 
 end
