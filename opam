@@ -14,10 +14,12 @@ tags: ["org:mirage"]
 
 build: [
   ["./configure" "--prefix" prefix
-    "--%{mirage-xen:enable}%-xen"
+      "--%{mirage-flow+alcotest:enable}%-tests"
+      "--%{mirage-xen:enable}%-xen"
   ]
   [make]
 ]
+build-test: [make "test"]
 install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
@@ -30,6 +32,8 @@ depends: [
   "mirage-net-unix" {>= "1.1.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile"
+  "mirage-flow" {test}
+  "alcotest" {test}
 ]
 depopts: [
   "mirage-xen"
