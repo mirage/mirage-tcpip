@@ -25,9 +25,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
   type +'a io = 'a Lwt.t
   type 'a io_stream = 'a Lwt_stream.t
 
-  exception End_of_file (* at least one user understands this exception *)
-  exception Write_error of string
-  exception Read_error of string
+  exception Write_error of Flow.error
+  exception Read_error of Flow.error
 
   type t = {
     flow: flow;
@@ -56,7 +55,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
       t.ibuf <- Some buf;
       return_unit
     | `Error e ->
-      fail (Read_error (Flow.error_message e))
+      fail (Read_error e)
     | `Eof ->
       (* close the flow before throwing exception; otherwise it will never be
          GC'd *)
@@ -212,7 +211,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     t.obufq <- [];
     Flow.writev t.flow l >>= function
     | `Ok () -> Lwt.return_unit
-    | `Error (e : Flow.error) -> fail (Write_error (Flow.error_message e))
+    | `Error (e : Flow.error) -> fail (Write_error e)
     | `Eof -> fail (End_of_file)
 
   let close t =
