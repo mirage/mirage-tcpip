@@ -299,3 +299,15 @@ Library "tcpip-stack-socket"
                       lwt.unix,
                       ipaddr.unix,
                       io-page.unix
+
+Executable test
+  Build$: flag(tests)
+  Path: lib_test
+  MainIs: test.ml
+  ByteOpt: -g
+  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,
+                mirage-flow
+
+Test test
+  Run$: flag(tests)
+  Command: $test
