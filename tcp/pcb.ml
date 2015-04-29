@@ -30,7 +30,8 @@ cstruct pseudo_header {
     uint16_t len
   } as big_endian
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
+module Make
+    (KV: KV.S)(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
   module RXS = Segment.Rx(Time)

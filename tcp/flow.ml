@@ -16,9 +16,24 @@
 
 open Lwt
 
-module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module type S =
+  functor (IP:V1_LWT.IP) ->
+  functor (TM:V1_LWT.TIME) ->
+  functor (C:V1.CLOCK) ->
+  functor (R:V1.RANDOM) ->
+  sig
+    include V1_LWT.TCP
+      with type ip = IP.t
+       and type ipaddr = IP.ipaddr
+       and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+    val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+  end
 
-  module Pcb = Pcb.Make(IP)(TM)(C)(R)
+module Make_ext
+    (KV: KV.S)(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) =
+struct
+
+  module Pcb = Pcb.Make(KV)(IP)(TM)(C)(R)
 
   type flow = Pcb.pcb
   type ip = IP.t
@@ -91,3 +106,5 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     return_unit
 
 end
+
+module Make = Make_ext(KV.Global)

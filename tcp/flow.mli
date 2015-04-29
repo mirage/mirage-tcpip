@@ -14,11 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type S =
+  functor (IP:V1_LWT.IP) ->
+  functor (TM:V1_LWT.TIME) ->
+  functor (C:V1.CLOCK) ->
+  functor (R:V1.RANDOM) ->
+  sig
+    include V1_LWT.TCP
+      with type ip = IP.t
+       and type ipaddr = IP.ipaddr
+       and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+    val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+  end
 
-module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) : sig
-  include V1_LWT.TCP
-    with type ip = IP.t
-     and type ipaddr = IP.ipaddr
-     and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
-  val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
-end
+module Make_ext (KV: KV.S): S
+
+module Make: S
