@@ -180,12 +180,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let add_ip t ip =
     if not (List.mem ip t.bound_ips) then
       set_ips t (ip :: t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   let remove_ip t ip =
     if List.mem ip t.bound_ips then
       set_ips t (List.filter ((<>) ip) t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
