@@ -88,7 +88,6 @@ Library channel
   Findlibname:        channel
   Modules:            Channel
   BuildDepends:       io-page,
-                      mirage-profile,
                       mirage-types,
                       ipaddr,
                       cstruct,
