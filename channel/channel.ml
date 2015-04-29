@@ -211,8 +211,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
     t.obufq <- [];
     Flow.writev t.flow l >>= function
     | `Ok () -> Lwt.return_unit
-    | `Error (e : Flow.error) -> fail (Write_error e)
-    | `Eof -> fail (End_of_file)
+    | `Error e -> fail (Write_error e)
+    | `Eof -> fail End_of_file
 
   let close t =
     Lwt.finalize (fun () -> flush t) (fun () -> Flow.close t.flow)
