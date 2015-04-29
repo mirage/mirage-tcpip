@@ -7,27 +7,21 @@ module Channel = Channel.Make(Fflow)
 let cmp a b =
   match (String.compare a b) with | 0 -> true | _ -> false
 
-let printer = function
-  | `Success -> "success"
-  | `Failure s -> s
+let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
 
 let test_read_char_eof () =
   let f = Fflow.make () in
   let c = Channel.create f in
   let try_char_read () =
     Channel.read_char c >>= fun ch ->
-    OUnit.assert_failure
-      (Printf.sprintf "character %c was returned from \
-                       Channel.read_char on an empty flow" ch)
+    fail "character %c was returned from Channel.read_char on an empty flow" ch
   in
   Lwt.try_bind
     (try_char_read)
-    (fun () -> Lwt.return (`Failure "no exception" )) (* "success" case (no exceptions) *)
+    (fun () -> fail "no exception") (* "success" case (no exceptions) *)
     (function
-      | End_of_file -> Lwt.return (`Success)
-      | e -> Lwt.return (`Failure (Printf.sprintf "wrong exception: %s"
-                                     (Printexc.to_string e)))
-    )
+      | End_of_file -> Lwt.return_unit
+      | e -> fail "wrong exception: %s" (Printexc.to_string e))
 
 let test_read_until_eof () =
   let check a b = OUnit.assert_equal ~printer:(fun a -> a) ~cmp a
@@ -51,11 +45,7 @@ let test_read_until_eof () =
   | false, _ ->
     OUnit.assert_failure "thought we couldn't find a 'v' in input test"
 
-let _ =
-  Lwt_main.run (
-    test_read_char_eof () >>= fun res ->
-    OUnit.assert_equal ~printer `Success res;
-    test_read_until_eof () >>= fun () ->
-    Printf.printf "\027[32mOK\027[m\n%!";
-    Lwt.return_unit
-  )
+let suite = [
+  "read_char + EOF" , test_read_char_eof;
+  "read_until + EOF", test_read_until_eof;
+]

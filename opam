@@ -14,7 +14,7 @@ tags: ["org:mirage"]
 
 build: [
   ["./configure" "--prefix" prefix
-      "--%{mirage-flow+ounit:enable}%-tests"
+      "--%{mirage-flow+alcotest:enable}%-tests"
       "--%{mirage-xen:enable}%-xen"
   ]
   [make]
@@ -33,7 +33,7 @@ depends: [
   "ipaddr" {>= "2.2.0"}
   "mirage-profile"
   "mirage-flow" {test}
-  "ounit" {test}
+  "alcotest" {test}
 ]
 depopts: [
   "mirage-xen"
