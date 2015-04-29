@@ -31,6 +31,8 @@ cstruct pseudo_header {
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
+  let () = Random.self_init ()
+
   module RXS = Segment.Rx(Time)
   module TXS = Segment.Tx(Time)(Clock)
   module ACK = Ack.Immediate
@@ -574,7 +576,6 @@ struct
 
   (* Construct the main TCP thread *)
   let create ip =
-    let _ = Random.self_init () in
     let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
