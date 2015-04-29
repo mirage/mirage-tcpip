@@ -1,4 +1,6 @@
-PKG lwt ipaddr lwt mirage-types cstruct io-page uint mirage-flow oUnit alcotest
+PKG lwt ipaddr lwt mirage-types cstruct io-page uint mirage-profile
+PKG mirage-flow oUnit alcotest
+
 B _build/**
 S lib/
 S tcp/
