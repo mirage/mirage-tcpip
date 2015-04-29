@@ -16,14 +16,15 @@ let test_read_char_eof () =
   let c = Channel.create f in
   let try_char_read () =
     Channel.read_char c >>= fun ch ->
-    OUnit.assert_failure (Printf.sprintf "character %c was returned from
-    Channel.read_char on an empty flow" ch)
+    OUnit.assert_failure
+      (Printf.sprintf "character %c was returned from \
+                       Channel.read_char on an empty flow" ch)
   in
   Lwt.try_bind
     (try_char_read)
     (fun () -> Lwt.return (`Failure "no exception" )) (* "success" case (no exceptions) *)
     (function
-      | Channel.End_of_file -> Lwt.return (`Success)
+      | End_of_file -> Lwt.return (`Success)
       | e -> Lwt.return (`Failure (Printf.sprintf "wrong exception: %s"
                                      (Printexc.to_string e)))
     )
