@@ -1,4 +1,4 @@
-PKG lwt ipaddr lwt mirage-types cstruct io-page uint
+PKG lwt ipaddr lwt mirage-types cstruct io-page uint mirage-flow oUnit
 B _build/**
 S lib/
 S tcp/
