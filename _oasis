@@ -300,13 +300,14 @@ Library "tcpip-stack-socket"
                       ipaddr.unix,
                       io-page.unix
 
-Executable test_channel
+Executable test
   Build$: flag(tests)
   Path: lib_test
-  MainIs: test_channel.ml
+  MainIs: test.ml
   ByteOpt: -g
-  BuildDepends: oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel, mirage-flow
+  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,
+                mirage-flow
 
-Test test_channel
+Test test
   Run$: flag(tests)
-  Command: $test_channel
+  Command: $test
