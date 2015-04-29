@@ -56,5 +56,6 @@ let _ =
     test_read_char_eof () >>= fun res ->
     OUnit.assert_equal ~printer `Success res;
     test_read_until_eof () >>= fun () ->
+    Printf.printf "\027[32mOK\027[m\n%!";
     Lwt.return_unit
   )
