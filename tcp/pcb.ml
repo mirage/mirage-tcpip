@@ -18,6 +18,8 @@
 open Lwt
 open Printf
 
+let () = Random.self_init ()
+
 module Tcp_wire = Wire_structs.Tcp_wire
 
 cstruct pseudo_header {
@@ -581,7 +583,6 @@ struct
 
   (* Construct the main TCP thread *)
   let create ip =
-    let _ = Random.self_init () in
     let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
