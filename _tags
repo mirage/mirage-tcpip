@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: eb45ac9a32e8e620fbd40661957d7b1b)
+# DO NOT EDIT (digest: fca6c6a3798e580ac314566d2509aa30)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -67,7 +67,6 @@ true: annot, bin_annot
 <channel/*.ml{,i,y}>: pkg_io-page
 <channel/*.ml{,i,y}>: pkg_ipaddr
 <channel/*.ml{,i,y}>: pkg_lwt
-<channel/*.ml{,i,y}>: pkg_mirage-profile
 <channel/*.ml{,i,y}>: pkg_mirage-types
 # Library dhcpv4
 "dhcp/dhcpv4.cmxs": use_dhcpv4
@@ -168,7 +167,6 @@ true: annot, bin_annot
 "lib_test/test_channel.byte": pkg_lwt
 "lib_test/test_channel.byte": pkg_lwt.unix
 "lib_test/test_channel.byte": pkg_mirage-flow
-"lib_test/test_channel.byte": pkg_mirage-profile
 "lib_test/test_channel.byte": pkg_mirage-types
 "lib_test/test_channel.byte": pkg_oUnit
 "lib_test/test_channel.byte": use_channel
@@ -179,7 +177,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
-<lib_test/*.ml{,i,y}>: pkg_mirage-profile
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: use_channel
