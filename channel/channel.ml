@@ -35,8 +35,6 @@ module Make(Flow:V1_LWT.FLOW) = struct
     mutable obufq: Cstruct.t list;  (* Queue of completed writebuf *)
     mutable obuf: Cstruct.t option; (* Active write buffer *)
     mutable opos: int;                 (* Position in active write buffer *)
-    abort_t: unit Lwt.t;
-    abort_u: unit Lwt.u;
   }
 
   let create flow =
@@ -44,8 +42,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let obufq = [] in
     let obuf = None in
     let opos = 0 in
-    let abort_t, abort_u = MProf.Trace.named_task "Channel.t.abort" in
-    { ibuf; obuf; flow; obufq; opos; abort_t; abort_u }
+    { ibuf; obuf; flow; obufq; opos }
 
   let to_flow { flow; _ } = flow
 
