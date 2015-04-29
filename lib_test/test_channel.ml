@@ -4,7 +4,7 @@ open Lwt
    ensure that EOF conditions on the underlying flow are handled properly *)
 module Channel = Channel.Make(Fflow)
 
-let cmp a b = 
+let cmp a b =
   match (String.compare a b) with | 0 -> true | _ -> false
 
 let printer = function
@@ -12,17 +12,17 @@ let printer = function
   | `Failure s -> s
 
 let test_read_char_eof () =
-  let f = Fflow.make () in 
+  let f = Fflow.make () in
   let c = Channel.create f in
-  let try_char_read () = 
-    Channel.read_char c >>= fun ch -> 
+  let try_char_read () =
+    Channel.read_char c >>= fun ch ->
     OUnit.assert_failure (Printf.sprintf "character %c was returned from
     Channel.read_char on an empty flow" ch)
   in
-  Lwt.try_bind 
-    (try_char_read) 
+  Lwt.try_bind
+    (try_char_read)
     (fun () -> Lwt.return (`Failure "no exception" )) (* "success" case (no exceptions) *)
-    (function 
+    (function
       | Channel.End_of_file -> Lwt.return (`Success)
       | e -> Lwt.return (`Failure (Printf.sprintf "wrong exception: %s"
                                      (Printexc.to_string e)))
@@ -36,7 +36,7 @@ let test_read_until_eof () =
   let f = Fflow.make ~input () in
   let c = Channel.create f in
   Channel.read_until c 'v' >>= function
-  | true, buf -> 
+  | true, buf ->
     check "I am the " buf;
     Channel.read_until c '\xff' >>= fun (found, buf) ->
     OUnit.assert_equal ~msg:"claimed we found a char that couldn't have been
@@ -47,7 +47,7 @@ let test_read_until_eof () =
       false found;
     OUnit.assert_equal ~printer:string_of_int 0 (Cstruct.len buf);
     Lwt.return_unit
-  | false, _ -> 
+  | false, _ ->
     OUnit.assert_failure "thought we couldn't find a 'v' in input test"
 
 let _ =
