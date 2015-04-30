@@ -33,6 +33,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   type t = {
     netif: Netif.t;
+    mutable promiscuous: bool;
   }
 
   let id t = t.netif
@@ -44,8 +45,10 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     match frame_mac with
     | None -> return_unit
     | Some frame_mac -> begin
-        if (((Macaddr.compare frame_mac (mac t)) == 0) || (not (Macaddr.is_unicast frame_mac))) then
-          match Wire_structs.get_ethernet_ethertype frame with
+        if t.promiscuous
+        || Macaddr.compare frame_mac (mac t) = 0
+        || not (Macaddr.is_unicast frame_mac)
+        then match Wire_structs.get_ethernet_ethertype frame with
           | 0x0806 ->
             arpv4 frame (* ARP *)
           | 0x0800 -> (* IPv4 *)
@@ -72,7 +75,12 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   let connect netif =
     MProf.Trace.label "ethif.connect";
-    return (`Ok { netif })
+    return (`Ok { netif; promiscuous = false })
 
   let disconnect _ = return_unit
+
+  let enable_promiscuous_mode t = t.promiscuous <- true
+  let disable_promiscuous_mode t = t.promiscuous <- false
+  let promiscuous_mode t = t.promiscuous
+
 end

@@ -18,4 +18,7 @@
 module Make ( N:V1_LWT.NETWORK ) : sig
   include V1_LWT.ETHIF with type netif = N.t
   val connect : netif -> [> `Ok of t | `Error of error ] Lwt.t
+  val enable_promiscuous_mode: t -> unit
+  val disable_promiscuous_mode: t -> unit
+  val promiscuous_mode: t -> bool
 end
