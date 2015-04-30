@@ -18,16 +18,29 @@ type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit
 module type UDPV4_DIRECT = V1_LWT.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipinput = direct_ipv4_input
+module type TCPV4_DIRECT = sig
+  include V1_LWT.TCPV4 with type ipinput = direct_ipv4_input
+  val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
+end
+
+module type IPV4_DIRECT = sig
+  include V1_LWT.IPV4
+  val add_mac: t -> ipaddr ->  Macaddr.t -> unit
+end
+
+module type ETHIF_DIRECT = sig
+  include V1_LWT.ETHIF
+  val enable_promiscuous_mode: t -> unit
+  val disable_promiscuous_mode: t -> unit
+end
 
 module Make
     (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
-    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
-    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Ethif   : ETHIF_DIRECT with type netif = Netif.t)
+    (Ipv4    : IPV4_DIRECT with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
   include V1_LWT.STACKV4

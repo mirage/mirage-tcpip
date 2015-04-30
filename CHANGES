@@ -1,3 +1,10 @@
+2.4.3 (trunk)
+* Allow the ARP stack to be configured in promiscuous mode
+* Process only IP packets with the right destination IP
+* Make TCP options, sequences, and wires serializable
+* Do not call `Random.self_iniit` on every new connection
+* Expose functions to add entries in the ARP table
+
 2.4.2 (2015-04-29)
 * Fix a memory leak in `Channel` (#119, by @yomimono)
 * Add basic unit-test for channels (#119, by @yomimono)

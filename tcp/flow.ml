@@ -16,9 +16,25 @@
 
 open Lwt
 
-module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module type S =
+  functor (IP:V1_LWT.IP) ->
+  functor (TM:V1_LWT.TIME) ->
+  functor (C:V1.CLOCK) ->
+  functor (R:V1.RANDOM) ->
+  sig
+    include V1_LWT.TCP
+      with type ip = IP.t
+       and type ipaddr = IP.ipaddr
+       and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
+    val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+    val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
+  end
 
-  module Pcb = Pcb.Make(IP)(TM)(C)(R)
+module Make_ext
+    (KV: KV.S)(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) =
+struct
+
+  module Pcb = Pcb.Make(KV)(IP)(TM)(C)(R)
 
   type flow = Pcb.pcb
   type ip = IP.t
@@ -81,11 +97,18 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
       return (`Ok fl)
 
   let input t ~listeners ~src ~dst buf =
-    Pcb.input t ~listeners ~src ~dst buf
+    let t = Pcb.with_listeners listeners t in
+    Pcb.input t ~src ~dst buf
 
-  let connect ipv4 =
-    return (`Ok (Pcb.create ipv4))
+  let connect ipv4 = Pcb.create ipv4 >|= fun t -> `Ok t
 
   let disconnect _ =
     return_unit
+
+  let watch ~log t ~listeners =
+    let t = Pcb.with_listeners listeners t in
+    Pcb.watch ~log t
+
 end
+
+module Make = Make_ext(KV.Global)
