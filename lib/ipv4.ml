@@ -51,6 +51,8 @@ module Make(Ethif : ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
   let input_arpv4 t buf =
     Arpv4.input t.arp buf
 
+  let add_mac t = Arpv4.add t.arp
+
   let id { ethif; _ } = ethif
 
   module Routing = struct

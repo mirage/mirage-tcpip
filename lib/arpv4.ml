@@ -103,6 +103,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     | Not_found ->
       Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
+  let add t ip mac = notify t ip mac
+
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
     MProf.Trace.label "arpv4.input";

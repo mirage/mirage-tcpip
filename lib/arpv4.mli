@@ -28,6 +28,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) : sig
       [t]. *)
   val create: Ethif.t -> t
 
+  val add: t -> Ipaddr.V4.t -> Macaddr.t -> unit
+  (** Add an entry in the ARP table. *)
+
   (** [set_ips arp] sets the bound IP address list, which will xmit a
       GARP packet also. *)
   val set_ips: t -> Ipaddr.V4.t list -> unit Lwt.t
