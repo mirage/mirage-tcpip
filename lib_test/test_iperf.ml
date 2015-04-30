@@ -40,17 +40,16 @@ let msg = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345
 
 let mlen = String.length msg
 
-
 let write_and_check flow buf =
   S.T.write flow buf >>= function
-      | `Ok () -> Lwt.return_unit
-      | `Eof -> S.T.close flow >>= fun () -> raise (Failure "EOF while writing to TCP flow")
-      | `Error _ -> S.T.close flow >>= fun () -> raise (Failure "Error while writing to TCP flow")
+  | `Ok () -> Lwt.return_unit
+  | `Eof -> S.T.close flow >>= fun () -> raise (Failure "EOF while writing to TCP flow")
+  | `Error _ -> S.T.close flow >>= fun () -> raise (Failure "Error while writing to TCP flow")
 
 let tcp_connect t (ip, port) =
   S.T.create_connection t (ip, port) >>= function
-      | `Error e -> raise (Failure (Printf.sprintf "Unable to connect to %s:%d" (Ipaddr.V4.to_string ip) port))
-      | `Ok f -> Lwt.return f
+  | `Error e -> raise (Failure (Printf.sprintf "Unable to connect to %s:%d" (Ipaddr.V4.to_string ip) port))
+  | `Ok f -> Lwt.return f
 
 let iperfclient c s dest_ip dport =
   let iperftx flow =
@@ -59,8 +58,8 @@ let iperfclient c s dest_ip dport =
     Cstruct.blit_from_string msg 0 a 0 mlen;
     let amt = 50000000 in
     let rec loop = function
-          | 0 -> Lwt.return_unit
-          | n -> write_and_check flow a >>= fun () -> loop (n-1)
+      | 0 -> Lwt.return_unit
+      | n -> write_and_check flow a >>= fun () -> loop (n-1)
     in
     loop (amt / mlen) >>= fun () ->
     let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
@@ -75,9 +74,9 @@ let iperfclient c s dest_ip dport =
 
 let print_data c st ts_now = 
   C.log_s c (Printf.sprintf "Iperf server: t = %f, rate = %Ld KBits/s, totbytes = %Ld, live_words = %d%!"
-    (ts_now -. st.start_time)
-    (Int64.of_float (((Int64.to_float st.bin_bytes) /. (ts_now -. st.last_time)) /. 125.))
-    st.bytes Gc.((stat()).live_words)) >>= fun () ->
+               (ts_now -. st.start_time)
+               (Int64.of_float (((Int64.to_float st.bin_bytes) /. (ts_now -. st.last_time)) /. 125.))
+               st.bytes Gc.((stat()).live_words)) >>= fun () ->
   st.last_time <- ts_now;
   st.bin_bytes <- 0L;
   st.bin_packets <- 0L;
@@ -92,14 +91,15 @@ let iperf c s server_done_u flow =
     match f with
     | `Error _ -> raise (Failure "Unknown error in server while reading")
     | `Eof ->
-        let ts_now = (Clock.time ()) in 
-        st.bin_bytes <- st.bytes;
-        st.bin_packets <- st.packets;
-        st.last_time <- st.start_time;
-        print_data c st ts_now >>= fun () ->
-        S.T.close flow >>= fun () ->
-        C.log_s c "Iperf server: Done - closed connection."
-    | `Ok data -> begin
+      let ts_now = (Clock.time ()) in 
+      st.bin_bytes <- st.bytes;
+      st.bin_packets <- st.packets;
+      st.last_time <- st.start_time;
+      print_data c st ts_now >>= fun () ->
+      S.T.close flow >>= fun () ->
+      C.log_s c "Iperf server: Done - closed connection."
+    | `Ok data -> 
+      begin
         let l = Cstruct.len data in
         st.bytes <- (Int64.add st.bytes (Int64.of_int l));
         st.packets <- (Int64.add st.packets 1L);
@@ -107,11 +107,11 @@ let iperf c s server_done_u flow =
         st.bin_packets <- (Int64.add st.bin_packets 1L);
         let ts_now = (Clock.time ()) in 
         (if ((ts_now -. st.last_time) >= 1.0) then
-              print_data c st ts_now
-        else
-              Lwt.return_unit) >>= fun () ->
+           print_data c st ts_now
+         else
+           Lwt.return_unit) >>= fun () ->
         iperf_h flow
-    end
+      end
   in
   iperf_h flow >>= fun () ->
   Lwt.wakeup server_done_u ();
@@ -128,30 +128,30 @@ let tcp_iperf backend () =
   let timeout = 30.0 in
 
   Lwt.pick [
-      (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
-       fail "iperf test timed out after %f seconds" timeout) ;
-      
-      (server_ready >>= fun () ->
-       Lwt_unix.sleep 1.0 >>= fun() ->
-       C.log_s c (Printf.sprintf "I am client with IP %s, trying to connect to server @ %s:%d" (Ipaddr.V4.to_string client_ip) (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
-       iperfclient c client_s server_ip port) ;
+    (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
+     fail "iperf test timed out after %f seconds" timeout) ;
 
-      (Lwt_unix.sleep 1.0 >>= fun () ->
-       C.log_s c (Printf.sprintf "I am server with IP %s, expecting connections on port %d" (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
-       S.listen_tcpv4 server_s ~port (iperf c server_s server_done_u);
-       Lwt.wakeup server_ready_u ();
-       S.listen server_s) ] >>= fun () ->
+    (server_ready >>= fun () ->
+     Lwt_unix.sleep 1.0 >>= fun() ->
+     C.log_s c (Printf.sprintf "I am client with IP %s, trying to connect to server @ %s:%d" (Ipaddr.V4.to_string client_ip) (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
+     iperfclient c client_s server_ip port) ;
+
+    (Lwt_unix.sleep 1.0 >>= fun () ->
+     C.log_s c (Printf.sprintf "I am server with IP %s, expecting connections on port %d" (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
+     S.listen_tcpv4 server_s ~port (iperf c server_s server_done_u);
+     Lwt.wakeup server_ready_u ();
+     S.listen server_s) ] >>= fun () ->
   C.log_s c "Waiting for server_done..." >>= fun () ->
   server_done >>= fun () ->
   Lwt.return_unit (* exit cleanly *)
 
 let test_tcp_iperf_two_stacks_basic () =
-    let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-    tcp_iperf backend ()
+  let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+  tcp_iperf backend ()
 
 let test_tcp_iperf_two_stacks_trailing_bytes () =
-    let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-    tcp_iperf backend ()
+  let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+  tcp_iperf backend ()
 
 let suite = [
   "test_tcp_iperf_two_stacks_basic" , test_tcp_iperf_two_stacks_basic;
