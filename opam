@@ -33,6 +33,7 @@ depends: [
   "ipaddr" {>= "2.2.0"}
   "mirage-profile"
   "mirage-flow" {test}
+  "mirage-vnetif" {test}
   "alcotest" {test}
 ]
 depopts: [
