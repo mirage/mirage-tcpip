@@ -18,8 +18,8 @@ open Lwt
 open Common
 
 module Time = struct
-    type 'a io = 'a Lwt.t
-    include Lwt_unix
+  type 'a io = 'a Lwt.t
+  include Lwt_unix
 end
 
 module Clock = Unix
@@ -27,28 +27,28 @@ module Clock = Unix
 module Console = Console_unix
 
 module S = struct
-    module B = Basic_backend.Make
-    module V = Vnetif.Make(B)
-    module E = Ethif.Make(V)
-    module I = Ipv4.Make(E)(Clock)(Time)
-    module U = Udp.Make(I)
-    module T = Tcp.Flow.Make(I)(Time)(Clock)(Random)
-    module S = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(I)(U)(T)
-    include S
+  module B = Basic_backend.Make
+  module V = Vnetif.Make(B)
+  module E = Ethif.Make(V)
+  module I = Ipv4.Make(E)(Clock)(Time)
+  module U = Udp.Make(I)
+  module T = Tcp.Flow.Make(I)(Time)(Clock)(Random)
+  module S = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(I)(U)(T)
+  include S
 end
 
 let create_stack c backend ip netmask gw =
-    or_error "backend" S.V.connect backend >>= fun netif ->
-    (* Printf.printf (Printf.sprintf "Connected to backend with mac %s" (Macaddr.to_string (S.V.mac netif))) *)
-    or_error "ethif" S.E.connect netif >>= fun ethif ->
-    or_error "ipv4" S.I.connect ethif >>= fun ipv4 ->
-    or_error "udpv4" S.U.connect ipv4 >>= fun udpv4 ->
-    or_error "tcpv4" S.T.connect ipv4 >>= fun tcpv4 ->
-    let config = {
-        V1_LWT.name = "stack";
-        console = c; 
-        interface = netif;
-        mode = `IPv4 (ip, netmask, gw);
-    } in
-    or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
+  or_error "backend" S.V.connect backend >>= fun netif ->
+  (* Printf.printf (Printf.sprintf "Connected to backend with mac %s" (Macaddr.to_string (S.V.mac netif))) *)
+  or_error "ethif" S.E.connect netif >>= fun ethif ->
+  or_error "ipv4" S.I.connect ethif >>= fun ipv4 ->
+  or_error "udpv4" S.U.connect ipv4 >>= fun udpv4 ->
+  or_error "tcpv4" S.T.connect ipv4 >>= fun tcpv4 ->
+  let config = {
+    V1_LWT.name = "stack";
+    console = c; 
+    interface = netif;
+    mode = `IPv4 (ip, netmask, gw);
+  } in
+  or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
 
