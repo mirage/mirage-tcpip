@@ -23,13 +23,18 @@ module type UDPV4_DIRECT = V1_LWT.UDPV4
 module type TCPV4_DIRECT = V1_LWT.TCPV4
   with type ipinput = direct_ipv4_input
 
+module type IPV4_DIRECT = sig
+  include V1_LWT.IPV4
+  val add_mac: t -> ipaddr ->  Macaddr.t -> unit
+end
+
 module Make
     (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
-    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Ipv4    : IPV4_DIRECT with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) =
 struct
@@ -125,20 +130,28 @@ struct
     try Some (Hashtbl.find t.tcpv4_listeners dst_port)
     with Not_found -> None
 
+  let update_arp t ip = function
+    | None     -> ()
+    | Some mac -> Ipv4.add_mac t.ipv4 ip mac
+
   let listen t =
-    Netif.listen t.netif (
+    Netif.listen t.netif (fun frame ->
+      let src_mac = Macaddr.of_bytes (Wire_structs.copy_ethernet_src frame) in
       Ethif.input
         ~arpv4:(Ipv4.input_arpv4 t.ipv4)
         ~ipv4:(
-          Ipv4.input
-            ~tcp:(Tcpv4.input t.tcpv4
-                    ~listeners:(tcpv4_listeners t))
-            ~udp:(Udpv4.input t.udpv4
-                    ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> return_unit)
-            t.ipv4)
+          fun buf ->
+            let src_ip =
+              Ipaddr.V4.of_int32 (Wire_structs.Ipv4_wire.get_ipv4_src buf)
+            in
+            update_arp t src_ip src_mac;
+            Ipv4.input
+              ~tcp:(Tcpv4.input t.tcpv4 ~listeners:(tcpv4_listeners t))
+              ~udp:(Udpv4.input t.udpv4 ~listeners:(udpv4_listeners t))
+              ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> return_unit)
+              t.ipv4 buf)
         ~ipv6:(fun _ -> return_unit)
-        t.ethif)
+        t.ethif frame)
 
   let connect id ethif ipv4 udpv4 tcpv4 =
     let { V1_LWT.console = c; interface = netif; mode; _ } = id in

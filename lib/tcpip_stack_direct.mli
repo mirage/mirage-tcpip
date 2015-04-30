@@ -21,13 +21,18 @@ module type UDPV4_DIRECT = V1_LWT.UDPV4
 module type TCPV4_DIRECT = V1_LWT.TCPV4
   with type ipinput = direct_ipv4_input
 
+module type IPV4_DIRECT = sig
+  include V1_LWT.IPV4
+  val add_mac: t -> ipaddr ->  Macaddr.t -> unit
+end
+
 module Make
     (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
-    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Ipv4    : IPV4_DIRECT with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
   include V1_LWT.STACKV4
