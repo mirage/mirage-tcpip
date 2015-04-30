@@ -46,9 +46,9 @@ let create_stack c backend ip netmask gw =
     or_error "tcpv4" S.T.connect ipv4 >>= fun tcpv4 ->
     let config = {
         V1_LWT.name = "stack";
-        V1_LWT.console = c; 
-        V1_LWT.interface = netif;
-        V1_LWT.mode = `IPv4 (ip, netmask, gw);
+        console = c; 
+        interface = netif;
+        mode = `IPv4 (ip, netmask, gw);
     } in
     or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
 
