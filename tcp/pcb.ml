@@ -30,6 +30,12 @@ cstruct pseudo_header {
     uint16_t len
   } as big_endian
 
+type mode = [ `Synjitsu | `Synjitsu_app | `Normal ]
+
+let mode_: mode ref = ref `Normal
+let set_mode x = mode_ := x
+let mode () = !mode_
+
 module Make
     (KV: KV.S)(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
@@ -251,16 +257,69 @@ struct
       (rx_wnd_scaleoffer, tx_f),
       (Options.Window_size_shift rx_wnd_scaleoffer :: [])
 
-  type pcb_params =
-    { tx_wnd: int;
-      sequence: int32;
-      options: Options.t list;
-      tx_isn: Sequence.t;
-      rx_wnd: int;
-      rx_wnd_scaleoffer: int }
+  module Syn = struct
+
+    type t =
+      { tx_wnd: int;
+        sequence: int32;
+        options: Options.t list;
+        tx_isn: Sequence.t;
+        rx_wnd: int;
+        rx_wnd_scaleoffer: int }
+
+    let short_path_of_id id = WIRE.path_of_id id
+    let path_of_id id = short_path_of_id id @ ["syn"]
+
+    let read t id =
+      let path = path_of_id id in
+      KV.read path >>= function
+      | None   -> return_none
+      | Some _ ->
+        (* XXX: use a transaction *)
+        let read k = KV.read (path @ [k]) in
+        let (>>|) x f =
+          x >>= function
+          | None   -> return_none
+          | Some x -> f x in
+        read "tx_wnd"   >>| fun tx_wnd ->
+        read "sequence" >>| fun sequence ->
+        read "options"  >>| fun options ->
+        read "tx_isn"   >>| fun tx_isn ->
+        read "rx_wnd"   >>| fun rx_wnd ->
+        read "rx_wnd_scaleoffer" >>| fun rx_wnd_scaleoffer ->
+        KV.remove (short_path_of_id id) >>= fun () ->
+        try
+          let tx_wnd = int_of_string tx_wnd in
+          let sequence = Int32.of_string sequence in
+          let options = Options.of_string options in
+          let tx_isn = Sequence.of_string tx_isn in
+          let rx_wnd = int_of_string rx_wnd in
+          let rx_wnd_scaleoffer = int_of_string rx_wnd_scaleoffer in
+          return
+            (Some { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer })
+        with Failure _ ->
+          KV.remove path >>= fun () ->
+          return_none
+
+    let write t id params =
+      let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+        params
+      in
+      let path = path_of_id id in
+      let key k = path @ [k] in
+      KV.writev [
+        key "tx_wnd"           , string_of_int tx_wnd;
+        key "sequence"         , Int32.to_string sequence;
+        key "options"          , Options.to_string options;
+        key "tx_isn"           , Sequence.to_string tx_isn;
+        key "rx_wnd"           , string_of_int rx_wnd;
+        key "rx_wnd_scaleoffer", string_of_int rx_wnd_scaleoffer
+      ]
+
+  end
 
   let new_pcb t params id =
-    let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
+    let { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
     in
     let tx_mss = List.fold_left (fun a ->
@@ -322,20 +381,35 @@ struct
   let is_not_for_me t id =
     not (List.mem id.WIRE.local_ip (Ip.get_ip t.ip))
 
-  let new_server_connection t params id pushf =
-    new_pcb t params id >>= fun (pcb, th, opts) ->
-    STATE.tick pcb.state State.Passive_open;
-    STATE.tick pcb.state (State.Send_synack params.tx_isn);
-    (* Add the PCB to our listens table *)
-    Hashtbl.replace t.listens id (params.tx_isn, (pushf, (pcb, th)));
-    (* Queue a SYN ACK for transmission *)
-    let options = Options.MSS 1460 :: opts in
-    TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
-    return (pcb, th)
+  let string_of_ip ip = Ipaddr.to_string (Ip.to_uipaddr ip)
+
+  let is_managed t id =
+    let ip = [string_of_ip id.WIRE.local_ip] in
+    KV.read ip >>= function
+    | Some "managed" -> return true
+    | _ -> return false
+
+  let new_server_connection t params id pushf = match pushf with
+    | Some pushf ->
+      new_pcb t params id >>= fun (pcb, th, opts) ->
+      STATE.tick pcb.state State.Passive_open;
+      STATE.tick pcb.state (State.Send_synack params.Syn.tx_isn);
+      (* Add the PCB to our listens table *)
+      Hashtbl.replace t.listens id (params.Syn.tx_isn, (pushf, (pcb, th)));
+      (* Queue a SYN ACK for transmission *)
+      let options = Options.MSS 1460 :: opts in
+      TXS.output ~flags:Segment.Syn ~options pcb.txq []
+    | None ->
+      if not (!mode_ = `Synjitsu && is_not_for_me t id) then return_unit
+      else is_managed t id >>= function
+        | true  -> return_unit
+        | false ->
+          printf "Synjitsu: writing the SYN parameters to xenstore ...\n";
+          Syn.write t id params
 
   let new_client_connection t params id ack_number =
-    let tx_isn = params.tx_isn in
-    let params = { params with tx_isn = Sequence.incr tx_isn } in
+    let tx_isn = params.Syn.tx_isn in
+    let params = { params with Syn.tx_isn = Sequence.incr tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
@@ -377,7 +451,7 @@ struct
              sent in the SYN *)
           let rx_wnd_scaleoffer = wscale_default in
           new_client_connection t
-            { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+            { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
             id ack_number
           >>= fun (pcb, th) ->
           Lwt.wakeup wakener (`Ok (pcb, th));
@@ -393,21 +467,35 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    if is_not_for_me t id then return_unit
-    else match t.listeners id.WIRE.local_port with
-      | Some pushf ->
+    if !mode_ <> `Synjitsu && is_not_for_me t id then return_unit
+    else
+      let send_syn pushf =
         let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
         let tx_wnd = Tcp_wire.get_tcp_window pkt in
         (* TODO: make this configurable per listener *)
         let rx_wnd = 65535 in
         let rx_wnd_scaleoffer = wscale_default in
-        new_server_connection t
-          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-          id pushf
-        >>= fun _ ->
-        return_unit
+        let params =
+          { Syn.tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+        in
+        new_server_connection t params id pushf
+      in
+      if !mode_ = `Synjitsu && is_not_for_me t id then send_syn None
+      else match t.listeners id.WIRE.local_port with
+        | Some pushf -> send_syn (Some pushf)
+        | None       -> Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+
+  let process_syn_cookies t id =
+    match t.listeners id.WIRE.local_port with
+    | None       -> return_unit
+    | Some pushf ->
+      Syn.read t id >>= function
+      | Some params ->
+        printf "Found SYN cookies.\n";
+        new_server_connection t params id (Some pushf)
       | None ->
-        Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+        printf "No SYN cookies.\n";
+        return_unit
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
     if is_not_for_me t id then return_unit
@@ -582,6 +670,45 @@ struct
     let _ = connecttimer t id tx_isn options window 0 in
     th
 
+  let watchers = Hashtbl.create 4
+
+  let watch ~log t =
+    log "Pcb.watch" >>= fun () ->
+    let log fmt = Printf.ksprintf log fmt in
+    let ips = List.map string_of_ip (Ip.get_ip t.ip) in
+    let read_xs ip =
+      KV.dirs [ip] >>= fun ports ->
+      log "Ports: %s" (String.concat " " ports) >>= fun () ->
+      Lwt_list.fold_left_s (fun acc port ->
+          KV.dirs [ip; port] >>= fun dest_ips ->
+          log "Dest-ip: %s" (String.concat " " dest_ips) >>= fun () ->
+          Lwt_list.fold_left_s (fun acc dest_ip ->
+              KV.dirs [ip; port; dest_ip] >>= fun dest_ports ->
+              log "Dest-ports: %s" (String.concat " " dest_ports) >>= fun () ->
+              Lwt_list.fold_left_s (fun acc dest_port ->
+                  let id = WIRE.id_of_path [ip; port; dest_ip; dest_port] in
+                  return (id :: acc)
+                ) acc dest_ports
+            ) acc dest_ips
+        ) [] ports
+      >>= fun ids ->
+      printf "Found %d started connections.\n" (List.length ids);
+      Lwt_list.iter_p (fun id ->
+          Lwt.catch
+            (fun () -> process_syn_cookies t id)
+            (fun e -> printf "Error: %s" (Printexc.to_string e); return_unit)
+        ) ids >>= fun () ->
+      return_unit
+    in
+    if !mode_ = `Synjitsu_app && not (Hashtbl.mem watchers t.ip) then (
+      printf "Synjitsu-app mode. Watching xenstore for incoming SYN!\n";
+      Hashtbl.add watchers t.ip ();
+      Lwt_list.iter_p (fun ip ->
+          KV.writev [ [ip], "managed" ] >>= fun () ->
+          read_xs ip
+        ) ips
+    ) else return_unit
+
   (* Construct the main TCP thread *)
   let create ip =
     let localport = 10000 + (Random.int 10000) in
@@ -589,6 +716,6 @@ struct
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
     let listeners = fun _ -> None in
-    { ip; localport; channels; listens; connects; listeners }
+    Lwt.return { ip; localport; channels; listens; connects; listeners }
 
 end

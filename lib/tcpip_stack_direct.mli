@@ -18,8 +18,10 @@ type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit
 module type UDPV4_DIRECT = V1_LWT.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipinput = direct_ipv4_input
+module type TCPV4_DIRECT = sig
+  include V1_LWT.TCPV4 with type ipinput = direct_ipv4_input
+  val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
+end
 
 module type IPV4_DIRECT = sig
   include V1_LWT.IPV4

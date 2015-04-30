@@ -27,6 +27,7 @@ module type S =
        and type ipaddr = IP.ipaddr
        and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
     val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+    val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
   end
 
 module Make_ext
@@ -99,11 +100,14 @@ struct
     let t = Pcb.with_listeners listeners t in
     Pcb.input t ~src ~dst buf
 
-  let connect ipv4 =
-    return (`Ok (Pcb.create ipv4))
+  let connect ipv4 = Pcb.create ipv4 >|= fun t -> `Ok t
 
   let disconnect _ =
     return_unit
+
+  let watch ~log t ~listeners =
+    let t = Pcb.with_listeners listeners t in
+    Pcb.watch ~log t
 
 end
 

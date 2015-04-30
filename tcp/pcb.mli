@@ -14,6 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** PCB *)
+
+(** {1 Stack modes} *)
+
+type mode = [ `Synjitsu | `Synjitsu_app | `Normal ]
+(** The type for the different modes of the stack:
+
+    {ul{
+
+    {- the [`Synjitsu] mode makes the stack write all the SYN packets
+    that it receives into the KV store.}
+
+    {- the [`Syn_watcher] mode makes the stack read SYN packet into
+    the KV store.}
+
+    {- [`Normal] is the normal mode.} }
+
+*)
+
+val set_mode: mode -> unit
+(** Set the mode for all TCP stacks. FIXME: should be per stack. *)
+
+val mode: unit -> mode
+(** Get the global stack mode. *)
+
 module Make
     (KV: KV.S)(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM):
 sig
@@ -58,6 +83,9 @@ sig
   val write_nodelay: pcb -> Cstruct.t -> unit Lwt.t
   val writev_nodelay: pcb -> Cstruct.t list -> unit Lwt.t
 
-  val create: Ip.t -> t
+  val create: Ip.t -> t Lwt.t
   (* val tcpstats: t -> unit *)
+
+  val watch: log:(string -> unit Lwt.t) -> t -> unit Lwt.t
+
 end

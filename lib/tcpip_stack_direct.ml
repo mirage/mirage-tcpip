@@ -20,8 +20,10 @@ type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit
 module type UDPV4_DIRECT = V1_LWT.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
-  with type ipinput = direct_ipv4_input
+module type TCPV4_DIRECT = sig
+  include V1_LWT.TCPV4 with type ipinput = direct_ipv4_input
+  val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
+end
 
 module type IPV4_DIRECT = sig
   include V1_LWT.IPV4
@@ -136,11 +138,14 @@ struct
     try Some (Hashtbl.find t.tcpv4_listeners dst_port)
     with Not_found -> None
 
+  let watch t =
+    Tcpv4.watch ~log:(Console.log_s t.c) t.tcpv4 ~listeners:(tcpv4_listeners t)
+
   let update_arp t ip = function
     | None     -> ()
     | Some mac -> Ipv4.add_mac t.ipv4 ip mac
 
-  let listen t =
+  let listen_net t =
     Netif.listen t.netif (fun frame ->
       let src_mac = Macaddr.of_bytes (Wire_structs.copy_ethernet_src frame) in
       Ethif.input
@@ -159,6 +164,9 @@ struct
         ~ipv6:(fun _ -> return_unit)
         t.ethif frame)
 
+  let listen t =
+    Lwt.join [ watch t; listen_net t]
+
   let connect id ethif ipv4 udpv4 tcpv4 =
     let { V1_LWT.console = c; interface = netif; mode; _ } = id in
     Console.log_s c "Manager: connect"
@@ -169,7 +177,8 @@ struct
               udpv4_listeners; tcpv4_listeners } in
     Console.log_s t.c "Manager: configuring"
     >>= fun () ->
-    let _ = listen t in
+    if Tcp.Pcb.mode () = `Synjitsu then Ethif.enable_promiscuous_mode t.ethif;
+    Lwt.async (fun () -> listen_net t);  (* FIXME: allow cancellation *)
     configure t t.mode
     >>= fun () ->
     (* TODO: this is fine for now, because the DHCP state machine isn't fully

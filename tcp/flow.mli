@@ -25,6 +25,7 @@ module type S =
        and type ipaddr = IP.ipaddr
        and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
     val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+    val watch: log:(string -> unit Lwt.t) -> t -> listeners:(int -> callback option) ->  unit Lwt.t
   end
 
 module Make_ext (KV: KV.S): S
