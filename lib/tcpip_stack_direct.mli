@@ -26,12 +26,18 @@ module type IPV4_DIRECT = sig
   val add_mac: t -> ipaddr ->  Macaddr.t -> unit
 end
 
+module type ETHIF_DIRECT = sig
+  include V1_LWT.ETHIF
+  val enable_promiscuous_mode: t -> unit
+  val disable_promiscuous_mode: t -> unit
+end
+
 module Make
     (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
-    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
+    (Ethif   : ETHIF_DIRECT with type netif = Netif.t)
     (Ipv4    : IPV4_DIRECT with type ethif = Ethif.t)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
