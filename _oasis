@@ -303,6 +303,7 @@ Library "tcpip-stack-socket"
 Executable test
   Build$: flag(tests)
   Path: lib_test
+  Custom: true
   MainIs: test.ml
   ByteOpt: -g
   BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,

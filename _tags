@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 15d53e871a92d88d920df4532149d433)
+# DO NOT EDIT (digest: ff3f3aaffeb9a8ae52f69f7e1b8a25ee)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -167,7 +167,6 @@ true: annot, bin_annot
 "lib_test/test.byte": pkg_io-page.unix
 "lib_test/test.byte": pkg_ipaddr
 "lib_test/test.byte": pkg_lwt
-"lib_test/test.byte": pkg_lwt.syntax
 "lib_test/test.byte": pkg_lwt.unix
 "lib_test/test.byte": pkg_mirage-console.unix
 "lib_test/test.byte": pkg_mirage-flow
@@ -188,7 +187,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
 <lib_test/*.ml{,i,y}>: pkg_lwt
-<lib_test/*.ml{,i,y}>: pkg_lwt.syntax
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-console.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
@@ -202,6 +200,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
+"lib_test/test.byte": custom
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
 <tcp/pcb.ml>: pkg_cstruct.syntax
