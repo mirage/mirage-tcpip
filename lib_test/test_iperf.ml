@@ -44,8 +44,8 @@ let mlen = String.length msg
 let write_and_check flow buf =
   S.T.write flow buf >>= function
       | `Ok () -> Lwt.return_unit
-      | `Eof -> S.T.close flow >> raise (Failure "EOF while writing to TCP flow")
-      | `Error _ -> S.T.close flow >> raise (Failure "Error while writing to TCP flow")
+      | `Eof -> S.T.close flow >>= fun () -> raise (Failure "EOF while writing to TCP flow")
+      | `Error _ -> S.T.close flow >>= fun () -> raise (Failure "Error while writing to TCP flow")
 
 let tcp_connect t (ip, port) =
   S.T.create_connection t (ip, port) >>= function
@@ -88,7 +88,8 @@ let iperf c s server_done_u flow =
   let t0 = Clock.time () in
   let st = {bytes=0L; packets=0L; bin_bytes=0L; bin_packets=0L; start_time = t0; last_time = t0} in
   let rec iperf_h flow =
-    match_lwt (S.T.read flow) with
+    S.T.read flow >>= fun f ->
+    match f with
     | `Error _ -> raise (Failure "Unknown error in server while reading")
     | `Eof ->
         let ts_now = (Clock.time ()) in 
