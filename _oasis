@@ -71,7 +71,7 @@ Library tcp
   Findlibparent:      tcpip
   Findlibname:        tcp
   Modules:            Options,Wire,State,Tcptimer,Sequence,Ack,
-                      Window,Segment,User_buffer,Pcb,Flow
+                      Window,Segment,User_buffer,Pcb,Flow, KV
   BuildDepends:       io-page,
                       mirage-types,
                       ipaddr,
