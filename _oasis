@@ -306,7 +306,7 @@ Executable test
   MainIs: test.ml
   ByteOpt: -g
   BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,
-                mirage-flow, mirage-vnetif, mirage-console.unix, tcpip.ethif, tcpip.tcp, lwt.syntax
+                mirage-flow, mirage-vnetif, mirage-console.unix, tcpip.ethif, tcpip.tcp
 
 Test test
   Run$: flag(tests)

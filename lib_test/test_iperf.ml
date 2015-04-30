@@ -58,9 +58,11 @@ let iperfclient c s dest_ip dport =
     let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
     let amt = 50000000 in
-    for_lwt i = (amt / mlen) downto 1 do
-      write_and_check flow a 
-    done >>= fun () ->
+    let rec loop = function
+          | 0 -> Lwt.return_unit
+          | n -> write_and_check flow a >>= fun () -> loop (n-1)
+    in
+    loop (amt / mlen) >>= fun () ->
     let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
     write_and_check flow a >>= fun () ->
     S.T.close flow
