@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f83d0a0452c27843bf6a217896f189b8)
+# DO NOT EDIT (digest: ff3f3aaffeb9a8ae52f69f7e1b8a25ee)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -161,27 +161,46 @@ true: annot, bin_annot
 "lib_test/test.byte": oasis_executable_test_byte
 <lib_test/*.ml{,i,y}>: oasis_executable_test_byte
 "lib_test/test.byte": pkg_alcotest
+"lib_test/test.byte": pkg_bytes
 "lib_test/test.byte": pkg_cstruct
 "lib_test/test.byte": pkg_io-page
 "lib_test/test.byte": pkg_io-page.unix
 "lib_test/test.byte": pkg_ipaddr
 "lib_test/test.byte": pkg_lwt
 "lib_test/test.byte": pkg_lwt.unix
+"lib_test/test.byte": pkg_mirage-console.unix
 "lib_test/test.byte": pkg_mirage-flow
+"lib_test/test.byte": pkg_mirage-profile
 "lib_test/test.byte": pkg_mirage-types
+"lib_test/test.byte": pkg_mirage-vnetif
 "lib_test/test.byte": pkg_oUnit
 "lib_test/test.byte": use_channel
+"lib_test/test.byte": use_ethif
+"lib_test/test.byte": use_ipv4
+"lib_test/test.byte": use_ipv6
+"lib_test/test.byte": use_tcp
+"lib_test/test.byte": use_tcpip
 <lib_test/*.ml{,i,y}>: pkg_alcotest
+<lib_test/*.ml{,i,y}>: pkg_bytes
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
+<lib_test/*.ml{,i,y}>: pkg_mirage-console.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
+<lib_test/*.ml{,i,y}>: pkg_mirage-profile
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
+<lib_test/*.ml{,i,y}>: pkg_mirage-vnetif
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: use_channel
+<lib_test/*.ml{,i,y}>: use_ethif
+<lib_test/*.ml{,i,y}>: use_ipv4
+<lib_test/*.ml{,i,y}>: use_ipv6
+<lib_test/*.ml{,i,y}>: use_tcp
+<lib_test/*.ml{,i,y}>: use_tcpip
+"lib_test/test.byte": custom
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
 <tcp/pcb.ml>: pkg_cstruct.syntax
