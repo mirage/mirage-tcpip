@@ -58,9 +58,35 @@ let tcp_connect_two_stacks backend =
      Lwt.return_unit) ] >>= fun () ->
   Lwt.return_unit
 
+let tcp_connect_one_stack backend =
+  or_error "console" Console.connect "console" >>= fun c ->
+  create_stack c backend server_ip netmask [gw] >>= fun s1 ->
+  let timeout = 15.0 in
+  Lwt.pick [
+    (Lwt_unix.sleep timeout >>= fun () ->
+     fail "connect test timedout after %f seconds" timeout) ;
+
+    (S.listen_tcpv4 s1 ~port:80 (fun f -> accept c f test_string);
+     S.listen s1) ;
+
+    (Lwt_unix.sleep 1.0 >>= fun () ->
+     or_error "connect" (S.T.create_connection (S.tcpv4 s1)) (server_ip, 80) >>= fun flow ->
+     C.log_s c "Connected to other end...%!" >>= fun () ->
+     S.T.write flow (Cstruct.of_string test_string) >>= (function
+         | `Ok () -> C.log_s c "wrote hello world%!"
+         | `Error _ -> fail "client tried to write, got error%!"
+         | `Eof -> fail "client tried to write, got eof%!") >>= fun () ->
+     S.T.close flow >>= fun () ->
+     Lwt.return_unit) ] >>= fun () ->
+  Lwt.return_unit
+
 let test_tcp_connect_two_stacks_basic () =
   let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
   tcp_connect_two_stacks backend
+
+let test_tcp_connect_one_stack_basic () =
+  let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+  tcp_connect_one_stack backend
 
 let test_tcp_connect_two_stacks_trailing_bytes () =
   let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
@@ -69,4 +95,5 @@ let test_tcp_connect_two_stacks_trailing_bytes () =
 let suite = [
   "test_tcp_connect_two_stacks_basic" , test_tcp_connect_two_stacks_basic;
   "test_tcp_connect_two_stacks_trailing_bytes" , test_tcp_connect_two_stacks_trailing_bytes;
+  "test_tcp_connect_one_stack_basic" , test_tcp_connect_one_stack_basic;
 ]
