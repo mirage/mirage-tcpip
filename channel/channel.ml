@@ -130,7 +130,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let rec get acc =
       read_until t '\n' >>= function
       |(false, v) ->
-        get (v :: acc)
+        if Cstruct.len v = 0 then return (v :: acc) else get (v :: acc)
       |(true, v) -> begin
           (* chop the CR if present *)
           let vlen = Cstruct.len v in
