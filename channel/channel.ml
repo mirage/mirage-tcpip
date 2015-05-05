@@ -94,8 +94,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
       return buf
     end
 
- (* Read up to len characters from the input channel as a
-    stream (and read all available if no length specified *)
+  (* Read up to len characters from the input channel as a
+     stream (and read all available if no length specified *)
   let read_stream ?len t =
     Lwt_stream.from (fun () ->
         Lwt.catch
@@ -106,23 +106,21 @@ module Make(Flow:V1_LWT.FLOW) = struct
   (* Read until a character is found *)
   let read_until t ch =
     Lwt.catch
-       (fun () -> get_ibuf t >>= fun buf ->
-       let len = Cstruct.len buf in
-       let rec scan off =
-         if off = len then None else begin
-           if Cstruct.get_char buf off = ch then
-             Some off else scan (off+1)
-         end
-       in
-       match scan 0 with
-       |None -> (* not found, return what we have until EOF *)
-         t.ibuf <- None; (* basically guaranteeing that next read is EOF *)
-         return (false, buf)
-       |Some off -> (* found, so split the buffer *)
-         let hd = Cstruct.sub buf 0 off in
-         t.ibuf <- Some (Cstruct.shift buf (off+1));
-         return (true, hd)
-       )
+      (fun () ->
+         get_ibuf t >>= fun buf ->
+         let len = Cstruct.len buf in
+         let rec scan off =
+           if off = len then None
+           else if Cstruct.get_char buf off = ch then Some off else scan (off+1)
+         in
+         match scan 0 with
+         | None ->                (* not found, return what we have until EOF *)
+           t.ibuf <- None;    (* basically guaranteeing that next read is EOF *)
+           return (false, buf)
+         | Some off ->                          (* found, so split the buffer *)
+           let hd = Cstruct.sub buf 0 off in
+           t.ibuf <- Some (Cstruct.shift buf (off+1));
+           return (true, hd))
       (function End_of_file -> return (false, Cstruct.create 0) | e -> fail e)
 
   (* This reads a line of input, which is terminated either by a CRLF
