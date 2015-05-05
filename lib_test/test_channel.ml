@@ -23,10 +23,12 @@ let test_read_char_eof () =
       | End_of_file -> Lwt.return_unit
       | e -> fail "wrong exception: %s" (Printexc.to_string e))
 
+let check a b =
+  OUnit.assert_equal ~printer:(fun a -> a) ~cmp a (Cstruct.to_string b)
+
 let test_read_until_eof () =
-  let check a b = OUnit.assert_equal ~printer:(fun a -> a) ~cmp a
-      (Cstruct.to_string b) in
-  let input = Fflow.input_string "I am the very model of a modern major general"
+  let input =
+    Fflow.input_string "I am the very model of a modern major general"
   in
   let f = Fflow.make ~input () in
   let c = Channel.create f in
@@ -45,7 +47,16 @@ let test_read_until_eof () =
   | false, _ ->
     OUnit.assert_failure "thought we couldn't find a 'v' in input test"
 
+let test_read_line () =
+  let input = "I am the very model of a modern major general" in
+  let f = Fflow.make ~input:(Fflow.input_string input) () in
+  let c = Channel.create f in
+  Channel.read_line c  >>= fun buf ->
+  check input (Cstruct.of_string (Cstruct.copyv buf));
+  Lwt.return_unit
+
 let suite = [
   "read_char + EOF" , test_read_char_eof;
   "read_until + EOF", test_read_until_eof;
+  "read_line"       , test_read_line;
 ]
