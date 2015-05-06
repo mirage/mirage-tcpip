@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7393f336ded5d3196fee85454f11b838)
+# DO NOT EDIT (digest: 3aaf3c493a58f81728c3d7e5f6258a6b)
 version = "2.4.3"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires = "io-page mirage-types ipaddr cstruct mirage-profile bytes"
@@ -272,7 +272,7 @@ package "arpv4-unix" (
 package "arpv4" (
  version = "2.4.3"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "tcpip io-page mirage-types ipaddr cstruct lwt"
+ requires = "tcpip io-page mirage-types ipaddr cstruct lwt cstruct.syntax"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"

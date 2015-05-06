@@ -45,8 +45,8 @@ Library arpv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        arpv4
-  Modules:            Arpv4
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
+  Modules:            Arpv4, Arpv4_wire
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt,cstruct.syntax
 
 Library ipv4
   CompiledObject:     best
