@@ -40,6 +40,14 @@ Library ethif
   Modules:            Ethif
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
+Library arpv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        arpv4
+  Modules:            Arpv4
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
+
 Library ipv4
   CompiledObject:     best
   Path:               lib
