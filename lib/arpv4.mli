@@ -20,6 +20,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) : sig
 
   type ethif = Ethif.t
 
-  (** [create] creates a value of type [t]. *)
+  (** [connect] creates a value of type [t]. *)
   val connect : ethif -> [> `Ok of t | `Error of error ] Lwt.t
 end
