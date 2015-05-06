@@ -53,7 +53,7 @@ Library ipv4
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4, Arpv4
+  Modules:            Ipv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library ipv6
