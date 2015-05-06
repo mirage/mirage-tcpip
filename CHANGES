@@ -1,3 +1,13 @@
+2.4.3 (2015-05-05)
+* Fix infinite loop in `Channel.read_line` when the line does not contain a CRLF
+  sequence (#131)
+
+2.4.2 (2015-04-29)
+* Fix a memory leak in `Channel` (#119, by @yomimono)
+* Add basic unit-test for channels (#119, by @yomimono)
+* Add alcotest testing templates
+* Modernize Travis CI scripts
+
 2.4.1 (2015-04-21):
 * Merge between 2.4.0 and 2.3.1
 

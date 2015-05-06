@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        tcpip
-Version:     2.4.1
+Version:     2.4.3
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier,
              Nicolas Ojeda Bar, Thomas Gazagnaire
@@ -310,3 +310,16 @@ Library "tcpip-stack-socket"
                       lwt.unix,
                       ipaddr.unix,
                       io-page.unix
+
+Executable test
+  Build$: flag(tests)
+  Path: lib_test
+  Custom: true
+  MainIs: test.ml
+  ByteOpt: -g
+  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,
+                mirage-flow, mirage-vnetif, mirage-console.unix, tcpip.ethif, tcpip.tcp
+
+Test test
+  Run$: flag(tests)
+  Command: $test

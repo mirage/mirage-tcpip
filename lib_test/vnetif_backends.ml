@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2015 Magnus Skjegstad <magnus@skjegstad.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,8 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(F:V1_LWT.FLOW) : sig
-  include V1_LWT.CHANNEL with type flow = F.flow
-  exception Read_error of F.error
-  exception Write_error of F.error
+module Trailing_bytes = struct
+  module X = Basic_backend.Make
+  include X
+
+  let max_bytes_to_add = Int32.of_int 512
+
+  (* Just adds trailing bytes, doesn't store anything in them *)
+  let add_random_bytes src =
+    let bytes_to_add = (Int32.to_int (Random.int32 max_bytes_to_add)) in
+    let len = Cstruct.len src in
+    let dst = Cstruct.create (len + bytes_to_add) in
+    Cstruct.blit src 0 dst 0 len;
+    dst
+
+  let write t id buffer =
+    X.write t id (add_random_bytes buffer)
+
+  let writev t id buffers =
+    let new_buffers = List.map (fun a -> (add_random_bytes a)) buffers in
+    X.writev t id new_buffers
+
 end

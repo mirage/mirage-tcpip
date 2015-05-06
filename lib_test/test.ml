@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2011-2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,8 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(F:V1_LWT.FLOW) : sig
-  include V1_LWT.CHANNEL with type flow = F.flow
-  exception Read_error of F.error
-  exception Write_error of F.error
-end
+let suite = [
+    "channel", Test_channel.suite ;
+    "connect", Test_connect.suite ;
+    "iperf", Test_iperf.suite ;
+]
+
+let run test () =
+  Lwt_main.run (test ())
+
+let () =
+  let suite = List.map (fun (n, s) ->
+      n, List.map (fun (d, f) -> d, `Quick, run f) s
+    ) suite
+  in
+  Alcotest.run "irmin" suite
