@@ -1,5 +1,5 @@
 language: c
 script: bash -ex .travis-ci.sh
 env:
-  - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix PINS=mirage-types:https://github.com/yomimono/mirage#separate_arp
-  - OCAML_VERSION=4.01 PACKAGE=tcpip MIRAGE_MODE=xen PINS=mirage-types:https://github.com/yomimono/mirage#separate_arp
+  - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix PINS=mirage-types:https://github.com/yomimono/mirage.git#separate_arp
+  - OCAML_VERSION=4.01 PACKAGE=tcpip MIRAGE_MODE=xen PINS=mirage-types:https://github.com/yomimono/mirage.git#separate_arp
