@@ -125,7 +125,7 @@ let tcp_iperf backend () =
 
   let server_ready, server_ready_u = Lwt.wait () in
   let server_done, server_done_u = Lwt.wait () in
-  let timeout = 30.0 in
+  let timeout = 120.0 in
 
   Lwt.pick [
     (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
