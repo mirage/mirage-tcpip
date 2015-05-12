@@ -28,8 +28,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     tpa: Ipaddr.V4.t;
   }
 
-  (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
-
   type result = [ `Ok of Macaddr.t | `Timeout ]
 
   type entry =
@@ -42,25 +40,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
-  cstruct arp {
-    uint8_t dst[6];
-    uint8_t src[6];
-    uint16_t ethertype;
-    uint16_t htype;
-    uint16_t ptype;
-    uint8_t hlen;
-    uint8_t plen;
-    uint16_t op;
-    uint8_t sha[6];
-    uint32_t spa;
-    uint8_t tha[6];
-    uint32_t tpa
-  } as big_endian
-
-  cenum op {
-    Op_request = 1;
-    Op_reply
-  } as uint16_t
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipaddr = Ipaddr.V4.t
+  type ethif = Ethif.t
+  type id = t
+  type error
 
   let arp_timeout = 60. (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
@@ -80,14 +65,14 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   (* Prettyprint cache contents *)
   let prettyprint t =
     printf "ARP info:\n";
-    Hashtbl.iter (fun ip entry ->
-        printf "%s -> %s\n%!"
+    Hashtbl.fold (fun ip entry existing -> existing ^
+        sprintf "%s -> %s\n%!"
           (Ipaddr.V4.to_string ip)
           (match entry with
            | Pending _ -> "I"
            | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
           )
-      ) t.cache
+      ) t.cache ""
 
   let notify t ip mac =
     let now = Clock.time () in
@@ -105,6 +90,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
+    let open Arpv4_wire in
     MProf.Trace.label "arpv4.input";
     match get_arp_op frame with
     |1 -> (* Request *)
@@ -134,6 +120,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       return_unit
 
   and output t arp =
+    let open Arpv4_wire in
     (* Obtain a buffer to write into *)
     let buf = Io_page.to_cstruct (Io_page.get 1) in
     (* Write the ARP packet *)
@@ -193,12 +180,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let add_ip t ip =
     if not (List.mem ip t.bound_ips) then
       set_ips t (ip :: t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   let remove_ip t ip =
     if List.mem ip t.bound_ips then
       set_ips t (List.filter ((<>) ip) t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
@@ -233,10 +220,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Lwt.async (retry 0);
       response
 
-  let create ethif =
+  let connect ethif =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
     let t = { ethif; cache; bound_ips } in
     Lwt.async (tick t);
-    t
+    Lwt.return (`Ok t)
+
+  let disconnect t = Lwt.return_unit (* TODO: should kill tick *)
 end

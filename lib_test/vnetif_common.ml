@@ -30,10 +30,11 @@ module S = struct
   module B = Basic_backend.Make
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
-  module I = Ipv4.Make(E)(Clock)(Time)
+  module A = Arpv4.Make(E)(Clock)(Time)
+  module I = Ipv4.Make(E)(A)
   module U = Udp.Make(I)
   module T = Tcp.Flow.Make(I)(Time)(Clock)(Random)
-  module S = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(I)(U)(T)
+  module S = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(A)(I)(U)(T)
   include S
 end
 
@@ -41,7 +42,8 @@ let create_stack c backend ip netmask gw =
   or_error "backend" S.V.connect backend >>= fun netif ->
   (* Printf.printf (Printf.sprintf "Connected to backend with mac %s" (Macaddr.to_string (S.V.mac netif))) *)
   or_error "ethif" S.E.connect netif >>= fun ethif ->
-  or_error "ipv4" S.I.connect ethif >>= fun ipv4 ->
+  or_error "arpv4" S.A.connect ethif >>= fun arpv4 ->
+  or_error "ipv4" (S.I.connect ethif) arpv4 >>= fun ipv4 ->
   or_error "udpv4" S.U.connect ipv4 >>= fun udpv4 ->
   or_error "tcpv4" S.T.connect ipv4 >>= fun tcpv4 ->
   let config = {
@@ -50,5 +52,5 @@ let create_stack c backend ip netmask gw =
     interface = netif;
     mode = `IPv4 (ip, netmask, gw);
   } in
-  or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
+  or_error "stack" (S.connect config ethif arpv4 ipv4 udpv4) tcpv4
 

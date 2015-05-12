@@ -15,45 +15,11 @@
  *
  *)
 
-(** INTERNAL: ARP protocol. *)
-
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) : sig
+  include V1_LWT.ARP
 
-  (** Type of an ARP record. ARP records are included in Ethif.t
-      values. They contain, among other bits, a list of bound IPs, and a
-      IPv4 -> MAC hashtbl. *)
-  type t
+  type ethif = Ethif.t
 
-  (** [create ~get_etherbuf ~output ~get_mac] creates a value of type
-      [t]. *)
-  val create: Ethif.t -> t
-
-  (** [set_ips arp] sets the bound IP address list, which will xmit a
-      GARP packet also. *)
-  val set_ips: t -> Ipaddr.V4.t list -> unit Lwt.t
-
-  (** [get_ips arp] gets the bound IP address list in the [arp]
-      value. *)
-  val get_ips: t -> Ipaddr.V4.t list
-
-  (** [add_ip arp ip] adds [ip] to the bound IP address list in the
-      [arp] value, which will xmit a GARP packet also. *)
-  val add_ip: t -> Ipaddr.V4.t -> unit Lwt.t
-
-  (** [remove_ip arp ip] removes [ip] to the bound IP address list in
-      the [arp] value, which will xmit a GARP packet also. *)
-  val remove_ip: t -> Ipaddr.V4.t -> unit Lwt.t
-
-  (** [input arp frame] will handle an ethernet frame containing an ARP
-      packet. If it is a response, it will update its cache, otherwise
-      will try to satisfy the request. *)
-  val input: t -> Cstruct.t -> unit Lwt.t
-
-  (** [query arp ip] queries the cache in [arp] for an ARP entry
-      corresponding to [ip], which may result in the sender sleeping
-      waiting for a response. *)
-  val query: t -> Ipaddr.V4.t -> [ `Ok of Macaddr.t | `Timeout ] Lwt.t
-
-  (** Prettyprint cache contents *)
-  val prettyprint: t -> unit
+  (** [connect] creates a value of type [t]. *)
+  val connect : ethif -> [> `Ok of t | `Error of error ] Lwt.t
 end
