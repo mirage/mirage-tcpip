@@ -56,7 +56,7 @@ let iperfclient c s dest_ip dport =
     C.log_s c (Printf.sprintf "Iperf client: Made connection to server.%!") >>= fun () ->
     let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
-    let amt = 50000000 in
+    let amt = 25000000 in
     let rec loop = function
       | 0 -> Lwt.return_unit
       | n -> write_and_check flow a >>= fun () -> loop (n-1)
@@ -125,7 +125,7 @@ let tcp_iperf backend () =
 
   let server_ready, server_ready_u = Lwt.wait () in
   let server_done, server_done_u = Lwt.wait () in
-  let timeout = 30.0 in
+  let timeout = 120.0 in
 
   Lwt.pick [
     (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
