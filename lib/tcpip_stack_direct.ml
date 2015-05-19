@@ -93,17 +93,51 @@ struct
       (match info.Dhcp.netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
       (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
 
+  let configure_bootvar t (ip_addr, gateways, netmask) =
+    Ipv4.set_ip t.ipv4 ip_addr
+    >>= fun () ->
+    (match netmask with
+     |Some nm -> Ipv4.set_ip_netmask t.ipv4 nm
+     |None -> return_unit)
+    >>= fun () ->
+    Ipv4.set_ip_gateways t.ipv4 gateways
+    >>= fun () ->
+    Printf.ksprintf (Console.log_s t.c) "IP configuration received and bound to %s nm %s gw [%s]"
+      (Ipaddr.V4.to_string ip_addr)
+      (match netmask with None -> "none" | Some nm -> Ipaddr.V4.to_string nm)
+      (String.concat ", " (List.map Ipaddr.V4.to_string gateways))
+
   let configure t config =
     match config with
     | `DHCP -> begin
         (* TODO: spawn a background thread to reconfigure the interface
            when future offers are received. *)
-        let dhcp, offers = Dhcp.create t.c (Ethif.mac t.ethif) t.udpv4 in
-        listen_udpv4 t ~port:68 (Dhcp.input dhcp);
-        (* TODO: stop listening to this port when done with DHCP. *)
-        Lwt_stream.get offers >>= function
-        | None -> Console.log_s t.c ("No DHCP offer received")
-        | Some offer -> configure_dhcp t offer
+        Bootvar.create () >>= fun bootvars ->
+        let bvar = match bootvars with
+          | `Error msg -> raise (Failure msg)
+          | `Ok v -> v
+        in
+        (try
+           let ip = Bootvar.get_exn bvar "ip" in
+           let gw = Bootvar.get_exn bvar "gw" in
+           let nm =
+           (try
+              Some (Ipaddr.V4.of_string_exn (Bootvar.get_exn bvar "netmask"))
+            with
+              Bootvar.Parameter_not_found s -> None
+           ) in
+           configure_bootvar t (Ipaddr.V4.of_string_exn ip, [Ipaddr.V4.of_string_exn gw], nm)
+         with
+           Bootvar.Parameter_not_found s -> Console.log_s t.c
+             (Printf.sprintf "Parameter %s not found." s)
+           >>= fun () ->
+           let dhcp, offers = Dhcp.create t.c (Ethif.mac t.ethif) t.udpv4 in
+           listen_udpv4 t ~port:68 (Dhcp.input dhcp);
+           (* TODO: stop listening to this port when done with DHCP. *)
+           Lwt_stream.get offers >>= function
+           | None -> Console.log_s t.c ("No DHCP offer received")
+           | Some offer -> configure_dhcp t offer
+        )
       end
     | `IPv4 (addr, netmask, gateways) ->
       Console.log_s t.c (Printf.sprintf "Manager: Interface to %s nm %s gw [%s]\n%!"

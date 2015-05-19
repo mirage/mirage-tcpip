@@ -120,7 +120,8 @@ Library "tcpip-stack-direct"
                       tcpip.ethif,
                       tcpip.udp,
                       tcpip.tcp,
-                      tcpip.dhcpv4
+                      tcpip.dhcpv4,
+                      mirage-bootvar
 
 Library "ethif-unix"
   CompiledObject:     best
