@@ -105,7 +105,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     Wire_structs.Ipv4_wire.set_ipv4_csum buf checksum
 
   let allocate_frame t ~dst ~proto =
-    let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
+    let ethernet_frame = Cstruct.create Wire_structs.page_size in
     let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
     Wire_structs.set_ethernet_src smac 0 ethernet_frame;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x0800;
@@ -225,8 +225,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
   let get_ip_gateways { gateways; _ } = gateways
 
   let checksum =
-    let pbuf = Io_page.to_cstruct (Io_page.get 1) in
-    let pbuf = Cstruct.set_len pbuf 4 in
+    let pbuf = Cstruct.create 4 in
     Cstruct.set_uint8 pbuf 0 0;
     fun frame bufs ->
       let frame = Cstruct.shift frame Wire_structs.sizeof_ethernet in

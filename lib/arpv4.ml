@@ -135,7 +135,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   and output t arp =
     (* Obtain a buffer to write into *)
-    let buf = Io_page.to_cstruct (Io_page.get 1) in
+    let buf = Cstruct.create Wire_structs.page_size in
     (* Write the ARP packet *)
     let dmac = Macaddr.to_bytes arp.tha in
     let smac = Macaddr.to_bytes arp.sha in

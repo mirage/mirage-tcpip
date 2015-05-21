@@ -129,9 +129,7 @@ let compute_reachable_time dt =
   let r = Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor)) in
   r *. dt
 
-let cksum_buf =
-  let pbuf = Io_page.to_cstruct (Io_page.get 1) in
-  Cstruct.set_len pbuf 8
+let cksum_buf = Cstruct.create 8
 
 let checksum' ~proto frame bufs =
   Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv bufs));
@@ -146,7 +144,7 @@ let checksum frame bufs =
 
 module Allocate = struct
   let frame ~mac ~hlim ~src ~dst ~proto =
-    let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
+    let ethernet_frame = Cstruct.create Wire_structs.page_size in
     let ipbuf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
     Macaddr.to_cstruct_raw mac (Wire_structs.get_ethernet_src ethernet_frame) 0;
     Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)

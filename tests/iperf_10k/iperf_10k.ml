@@ -90,7 +90,7 @@ let iperfclient_p mgr src_ip dest_ip dport =
   let iperftxrx chan =
     st.openconn_client <- (Int64.add st.openconn_client 1L);
     OS.Time.sleep (spread_time +. Random.float spread_time) >>
-    let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
+    let a = Cstruct.create mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
     let amt = mlen in
     Net.Flow.write chan a >>

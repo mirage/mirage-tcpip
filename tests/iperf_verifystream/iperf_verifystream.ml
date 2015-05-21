@@ -72,7 +72,7 @@ let iperfclient mgr src_ip dest_ip dport =
       in	    
       let mstrlen = String.length mstr in
       let mlen = if mstrlen < l then mstrlen else l in
-      let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
+      let a = Cstruct.create mlen in
       Cstruct.blit_from_string mstr 0 a 0 mlen;
       calcsum a txsum txbnum;
       Net.Flow.write chan a >>

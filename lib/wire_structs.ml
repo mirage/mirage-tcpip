@@ -208,3 +208,5 @@ module Ipv6_wire = struct
 
   let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4
 end
+
+let page_size = 4096

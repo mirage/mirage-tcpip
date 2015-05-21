@@ -56,7 +56,7 @@ let server_done, server_done_u = Lwt.wait ()
 let iperfclient mgr src_ip dest_ip dport =
   let iperftx chan =
     printf "Iperf client: Made connection to server. \n%!";
-    let a = Cstruct.sub (OS.Io_page.(to_cstruct (get 1))) 0 mlen in
+    let a = Cstruct.create mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
     let amt = 1000000 in
     for_lwt i = (amt / mlen) downto 1 do

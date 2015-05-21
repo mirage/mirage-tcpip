@@ -11,10 +11,8 @@ module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ "
     in
     let make_chars how_many start_at =
-      let buf = Io_page.(to_cstruct (get 1)) in
       let output = (String.sub (charpool ^ charpool) start_at how_many) ^ "\n" in
-      Cstruct.blit_from_string output 0 buf 0 (String.length output);
-      Cstruct.set_len buf (String.length output)
+      Cstruct.of_string output
     in
 
     S.TCPV4.write flow (make_chars how_many start_at) >>= function
