@@ -54,7 +54,7 @@ let tcp_connect t (ip, port) =
 let iperfclient c s dest_ip dport =
   let iperftx flow =
     C.log_s c (Printf.sprintf "Iperf client: Made connection to server.%!") >>= fun () ->
-    let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
+    let a = Cstruct.create mlen in
     Cstruct.blit_from_string msg 0 a 0 mlen;
     let amt = 25000000 in
     let rec loop = function

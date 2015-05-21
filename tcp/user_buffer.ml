@@ -157,13 +157,13 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   let compactbufs bl =
     (* TODO: fix hardecoded threshold *)
     if (List.length bl > 8) then begin
-      let b = Io_page.(to_cstruct (get 1)) in
+      let l = List.fold_left (fun acc b -> acc + Cstruct.len b) 0 bl in
+      let b = Cstruct.create l in
       let copyf doff ab =
         Cstruct.blit ab 0 b doff (Cstruct.len ab);
         doff + (Cstruct.len ab)
       in
-      let l = List.fold_left copyf 0 bl in
-      let b = Cstruct.sub b 0 l in
+      let _ = List.fold_left copyf 0 bl in
       [b]
     end else begin
       bl
