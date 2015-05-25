@@ -46,7 +46,7 @@ let tcp_connect_two_stacks backend =
      S.listen_tcpv4 s1 ~port:80 (fun f -> accept c f test_string);
      S.listen s1) ;
 
-    (Lwt_unix.sleep 1.0 >>= fun () ->
+    (Lwt_unix.sleep 0.1 >>= fun () ->
      create_stack c backend client_ip netmask [gw] >>= fun s2 ->
      or_error "connect" (S.T.create_connection (S.tcpv4 s2)) (server_ip, 80) >>= fun flow ->
      C.log_s c "Connected to other end...%!" >>= fun () ->
@@ -55,16 +55,24 @@ let tcp_connect_two_stacks backend =
          | `Error _ -> fail "client tried to write, got error%!"
          | `Eof -> fail "client tried to write, got eof%!") >>= fun () ->
      S.T.close flow >>= fun () ->
+     Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
      Lwt.return_unit) ] >>= fun () ->
+
   Lwt.return_unit
 
 let test_tcp_connect_two_stacks_basic () =
-  let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-  tcp_connect_two_stacks backend
+  Lwt_io.with_file ~mode:Lwt_io.output "tcp_connect_two_stacks_basic.pcap" (fun oc ->
+      let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+      create_pcap_recorder backend oc >>= fun recorder_id ->
+      tcp_connect_two_stacks backend >>= fun () ->
+      Lwt.return (disable_backend_listener backend recorder_id))
 
 let test_tcp_connect_two_stacks_trailing_bytes () =
-  let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-  tcp_connect_two_stacks backend
+  Lwt_io.with_file ~mode:Lwt_io.output "tcp_connect_two_stacks_trailing_bytes.pcap" (fun oc ->
+      let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+      create_pcap_recorder backend oc >>= fun recorder_id ->
+      tcp_connect_two_stacks backend >>= fun () ->
+      Lwt.return (disable_backend_listener backend recorder_id) )
 
 let suite = [
   "test_tcp_connect_two_stacks_basic" , test_tcp_connect_two_stacks_basic;

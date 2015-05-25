@@ -52,3 +52,34 @@ let create_stack c backend ip netmask gw =
   } in
   or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
 
+let create_backend_listener backend listenf =
+  match (S.B.register backend) with
+  | `Error e -> fail "Error occured while registering to backend" 
+  | `Ok id -> (S.B.set_listen_fn backend id listenf); id
+
+let disable_backend_listener backend id =
+  S.B.set_listen_fn backend id (fun buf -> Lwt.return_unit)
+
+let create_pcap_recorder backend channel =
+  let header_buf = Cstruct.create Pcap.sizeof_pcap_header in
+  Pcap.LE.set_pcap_header_magic_number header_buf Pcap.magic_number;
+  Pcap.LE.set_pcap_header_network header_buf Pcap.Network.(to_int32 Ethernet);
+  Pcap.LE.set_pcap_header_sigfigs header_buf 0l;
+  Pcap.LE.set_pcap_header_snaplen header_buf 0xffffl;
+  Pcap.LE.set_pcap_header_thiszone header_buf 0l;
+  Pcap.LE.set_pcap_header_version_major header_buf Pcap.major_version;
+  Pcap.LE.set_pcap_header_version_minor header_buf Pcap.minor_version;
+  Lwt_io.write channel (Cstruct.to_string header_buf) >>= fun () ->
+  Lwt_io.flush channel >>= fun () ->
+  let pcap_record channel buffer =
+    let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
+    let time = Unix.gettimeofday () in
+    Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.len buffer));
+    Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.len buffer));
+    Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time); 
+    Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.rem (Int32.of_float (time *. 1000000.0)) 1000000l);
+    Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer)) >>= fun () ->
+    Lwt_io.flush channel (* always flush *)
+  in
+  let recorder_id = create_backend_listener backend (pcap_record channel) in
+  Lwt.return recorder_id
