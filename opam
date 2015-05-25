@@ -14,7 +14,7 @@ tags: ["org:mirage"]
 
 build: [
   ["./configure" "--prefix" prefix
-      "--%{mirage-flow+alcotest+mirage-vnetif:enable}%-tests"
+      "--%{mirage-flow+alcotest+mirage-vnetif+pcap-format:enable}%-tests"
       "--%{mirage-xen:enable}%-xen"
   ]
   [make]
@@ -35,6 +35,7 @@ depends: [
   "mirage-flow" {test}
   "mirage-vnetif" {test}
   "alcotest" {test}
+  "pcap-format" {test} 
 ]
 depopts: [
   "mirage-xen"

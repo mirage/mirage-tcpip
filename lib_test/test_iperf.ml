@@ -120,8 +120,6 @@ let iperf c s server_done_u flow =
 let tcp_iperf backend () =
   or_error "console" Console.connect "console" >>= fun c ->
   let port = 5001 in
-  create_stack c backend server_ip netmask [gw] >>= fun server_s ->
-  create_stack c backend client_ip netmask [gw] >>= fun client_s ->
 
   let server_ready, server_ready_u = Lwt.wait () in
   let server_done, server_done_u = Lwt.wait () in
@@ -134,10 +132,12 @@ let tcp_iperf backend () =
     (server_ready >>= fun () ->
      Lwt_unix.sleep 1.0 >>= fun() ->
      C.log_s c (Printf.sprintf "I am client with IP %s, trying to connect to server @ %s:%d" (Ipaddr.V4.to_string client_ip) (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
+     create_stack c backend client_ip netmask [gw] >>= fun client_s ->
      iperfclient c client_s server_ip port) ;
 
     (Lwt_unix.sleep 1.0 >>= fun () ->
      C.log_s c (Printf.sprintf "I am server with IP %s, expecting connections on port %d" (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
+     create_stack c backend server_ip netmask [gw] >>= fun server_s ->
      S.listen_tcpv4 server_s ~port (iperf c server_s server_done_u);
      Lwt.wakeup server_ready_u ();
      S.listen server_s) ] >>= fun () ->
@@ -146,12 +146,18 @@ let tcp_iperf backend () =
   Lwt.return_unit (* exit cleanly *)
 
 let test_tcp_iperf_two_stacks_basic () =
-  let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-  tcp_iperf backend ()
+  Lwt_io.with_file ~mode:Lwt_io.output "tcp_iperf_two_stacks_basic.pcap" (fun oc ->
+      let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+      create_pcap_recorder backend oc >>= fun recorder_id ->
+      tcp_iperf backend () >>= fun () ->
+      Lwt.return (disable_backend_listener backend recorder_id))
 
 let test_tcp_iperf_two_stacks_trailing_bytes () =
-  let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
-  tcp_iperf backend ()
+  Lwt_io.with_file ~mode:Lwt_io.output "tcp_iperf_two_stacks_trailing_bytes.pcap" (fun oc ->
+      let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
+      create_pcap_recorder backend oc >>= fun recorder_id ->
+      tcp_iperf backend () >>= fun () ->
+      Lwt.return (disable_backend_listener backend recorder_id))
 
 let suite = [
   "test_tcp_iperf_two_stacks_basic" , test_tcp_iperf_two_stacks_basic;
