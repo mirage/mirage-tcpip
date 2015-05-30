@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ff3f3aaffeb9a8ae52f69f7e1b8a25ee)
+# DO NOT EDIT (digest: b6ed565b34f5e3985ce861199483c585)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -86,6 +86,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_mirage-bootvar
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: use_dhcpv4
@@ -119,6 +120,7 @@ true: annot, bin_annot
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i,y}>: pkg_mirage-bootvar
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
 <unix/*.ml{,i,y}>: pkg_mirage-console.unix
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
