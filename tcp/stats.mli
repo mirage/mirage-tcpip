@@ -33,6 +33,7 @@ type t = {
   tcp_listens : counter;
   tcp_channels: counter;
   tcp_connects: counter;
+  tcp_timers  : counter;
 }
 
 val pp: Format.formatter -> t -> unit
@@ -48,6 +49,9 @@ val decr_channel: unit -> unit
 
 val incr_connect: unit -> unit
 val decr_connect: unit -> unit
+
+val incr_timer: unit -> unit
+val decr_timer: unit -> unit
 
 val create: unit -> t
 

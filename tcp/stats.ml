@@ -55,17 +55,21 @@ type t = {
   tcp_listens : counter;
   tcp_channels: counter;
   tcp_connects: counter;
-
+  tcp_timers  : counter;
 }
 
-let pp fmt t = Format.fprintf fmt "[%a|%a|%a%a]"
-    pp_counter t.tcp_listens pp_counter t.tcp_channels pp_counter t.tcp_connects
+let pp fmt t = Format.fprintf fmt "[%a|%a|%a|%a%a]"
+    pp_counter t.tcp_timers
+    pp_counter t.tcp_listens
+    pp_counter t.tcp_channels
+    pp_counter t.tcp_connects
     Gc.pp ()
 
 let tcp_flows = ref zero
 let tcp_listens = ref zero
 let tcp_channels = ref zero
 let tcp_connects = ref zero
+let tcp_timers = ref zero
 
 let incr r = let c = !r in r := { c with incrs = c.incrs + 1 }
 let decr r = let c = !r in r := { c with decrs = c.decrs + 1 }
@@ -82,9 +86,13 @@ let decr_channel t = decr tcp_channels
 let incr_connect t = incr tcp_connects
 let decr_connect t = decr tcp_connects
 
+let incr_timer t = incr tcp_timers
+let decr_timer t = decr tcp_timers
+
 let create () = {
   tcp_flows    = !tcp_flows;
   tcp_listens  = !tcp_listens;
   tcp_channels = !tcp_channels;
   tcp_connects = !tcp_connects;
+  tcp_timers   = !tcp_timers;
 }
