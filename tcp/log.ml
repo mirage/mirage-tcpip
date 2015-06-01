@@ -20,25 +20,30 @@ type t = {
   name: string;
   id  : int;
   mutable enabled: bool;
+  mutable stats: bool;
 }
 
 let c = ref 0
 
 let f t fmt =
-  if t.enabled then
+  if t.enabled && t.stats then
     let stats = Stats.create () in
     Format.printf ("Tcp.%s%a: " ^^ fmt ^^ "\n%!") t.name Stats.pp stats
+  else if t.enabled then
+    Format.printf ("Tcp.%s: " ^^ fmt ^^ "\n%!") t.name
   else
     Format.ifprintf Format.std_formatter fmt
 
-let create ?(enabled=false) name =
+let create ?(enabled=false) ?(stats=true) name =
   incr c;
-  { name; id = !c; enabled }
+  { name; id = !c; stats; enabled }
 
 let enable  t = t.enabled <- true
 let disable t = t.enabled <- false
 let enabled t = t.enabled
 let name    t = t.name
+let stats   t = t.stats
+let set_stats t b = t.stats <- b
 
 let rec pp_print_list ?(pp_sep = Format.pp_print_cut) pp_v ppf = function
   | [] -> ()
