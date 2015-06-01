@@ -36,10 +36,12 @@ module Make(Time:V1_LWT.TIME) = struct
 
   let rec timerloop t s =
     Log.f debug "timerloop";
+    Stats.incr_timer ();
     Time.sleep t.period >>= fun () ->
     t.expire s >>= function
     | Stoptimer ->
       Log.f debug "timerloop: stoptimer";
+      Stats.decr_timer ();
       t.running <- false;
       return_unit
     | Continue d ->
@@ -56,7 +58,7 @@ module Make(Time:V1_LWT.TIME) = struct
     if not t.running then begin
       t.period <- p;
       t.running <- true;
-      Lwt.async (fun () ->timerloop t s);
+      Lwt.async (fun () -> timerloop t s);
       return_unit
     end else
       return_unit
