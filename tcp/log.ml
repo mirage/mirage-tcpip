@@ -38,3 +38,11 @@ let enable  t = t.enabled <- true
 let disable t = t.enabled <- false
 let enabled t = t.enabled
 let name    t = t.name
+
+let rec pp_print_list ?(pp_sep = Format.pp_print_cut) pp_v ppf = function
+  | [] -> ()
+  | [v] -> pp_v ppf v
+  | v :: vs ->
+    pp_v ppf v;
+    pp_sep ppf ();
+    pp_print_list ~pp_sep pp_v ppf vs

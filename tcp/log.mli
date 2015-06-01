@@ -36,3 +36,14 @@ val name: t -> string
 
 val f: t -> ('a, Format.formatter, unit) format -> 'a
 (** Print some information on a logger. *)
+
+val pp_print_list:
+  ?pp_sep:(Format.formatter -> unit -> unit) ->
+  (Format.formatter -> 'a -> unit) -> (Format.formatter -> 'a list -> unit)
+(** [pp_print_list ?pp_sep pp_v ppf l] prints the list [l]. [pp_v] is
+    used on the elements of [l] and each element is separated by
+    a call to [pp_sep] (defaults to {!pp_print_cut}). Does nothing on
+    empty lists.
+
+    @since 4.02.0
+*)

@@ -160,7 +160,7 @@ let marshal buf ts =
 
 let pp_sack fmt x =
   let pp_v fmt (l, r) = Format.fprintf fmt "[%lu,%lu]" l r in
-  Format.pp_print_list pp_v fmt x
+  Log.pp_print_list pp_v fmt x
 
 let pp fmt = function
   | Noop                -> Format.fprintf fmt "Noop"
@@ -174,5 +174,5 @@ let pp fmt = function
 let pps fmt = function
   | [] -> Format.fprintf fmt "[]"
   | x  ->
-    let ppl fmt x = Format.pp_print_list pp fmt x in
+    let ppl fmt x = Log.pp_print_list pp fmt x in
     Format.fprintf fmt "[ %a ]" ppl x
