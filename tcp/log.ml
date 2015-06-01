@@ -26,7 +26,8 @@ let c = ref 0
 
 let f t fmt =
   if t.enabled then
-    Format.printf ("Tcp.%s: " ^^ fmt ^^ "\n%!") t.name
+    let stats = Stats.create () in
+    Format.printf ("Tcp.%s%a: " ^^ fmt ^^ "\n%!") t.name Stats.pp stats
   else
     Format.ifprintf Format.std_formatter fmt
 

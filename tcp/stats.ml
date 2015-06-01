@@ -33,7 +33,7 @@ type t = {
   tcp_connects: counter;
 }
 
-let pp fmt t = Format.fprintf fmt "listens=%a channels=%a connects=%a"
+let pp fmt t = Format.fprintf fmt "[%a|%a|%a]"
     pp_counter t.tcp_listens pp_counter t.tcp_channels pp_counter t.tcp_connects
 
 let tcp_flows = ref zero
