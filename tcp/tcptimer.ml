@@ -34,23 +34,26 @@ module Make(Time:V1_LWT.TIME) = struct
     let running = false in
     {period; expire; running}
 
-  let rec timerloop t s =
+  let timerloop t s =
     Log.f debug "timerloop";
     Stats.incr_timer ();
-    Time.sleep t.period >>= fun () ->
-    t.expire s >>= function
-    | Stoptimer ->
-      Log.f debug "timerloop: stoptimer";
-      Stats.decr_timer ();
-      t.running <- false;
-      return_unit
-    | Continue d ->
-      Log.f debug "timerloop: continuer";
-      timerloop t d
-    | ContinueSetPeriod (p, d) ->
-      Log.f debug "timerloop: coontinuesetperiod";
-      t.period <- p;
-      timerloop t d
+    let rec aux t s =
+      Time.sleep t.period >>= fun () ->
+      t.expire s >>= function
+      | Stoptimer ->
+        Log.f debug "timerloop: stoptimer";
+        Stats.decr_timer ();
+        t.running <- false;
+        return_unit
+      | Continue d ->
+        Log.f debug "timerloop: continuer";
+        aux t d
+      | ContinueSetPeriod (p, d) ->
+        Log.f debug "timerloop: coontinuesetperiod";
+        t.period <- p;
+        aux t d
+    in
+    aux t s
 
   let period t = t.period
 
