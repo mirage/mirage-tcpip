@@ -14,17 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = {
-  tcp_flows   : int;
-  tcp_listens : int;
-  tcp_channels: int;
-  tcp_connects: int;
+type counter = {
+  incrs: int;
+  decrs: int;
 }
 
-let tcp_flows = ref 0
-let tcp_listens = ref 0
-let tcp_channels = ref 0
-let tcp_connects = ref 0
+let zero = { incrs = 0; decrs = 0 }
+let value c = c.incrs - c.decrs
+let incrs c = c.incrs
+let decrs c = c.decrs
+
+type t = {
+  tcp_flows   : counter;
+  tcp_listens : counter;
+  tcp_channels: counter;
+  tcp_connects: counter;
+}
+
+
+let tcp_flows = ref zero
+let tcp_listens = ref zero
+let tcp_channels = ref zero
+let tcp_connects = ref zero
+
+let incr r = let c = !r in r := { c with incrs = c.incrs + 1 }
+let decr r = let c = !r in r := { c with decrs = c.decrs + 1 }
 
 let incr_flow t = incr tcp_flows
 let decr_flow t = decr tcp_flows

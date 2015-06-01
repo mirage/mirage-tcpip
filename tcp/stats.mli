@@ -16,11 +16,23 @@
 
 (** TCP Statistics *)
 
+type counter
+(** The type for counters. *)
+
+val value: counter -> int
+(** The counter value. [value t] is [{!incr} t] - [{!decrs} t].*)
+
+val incrs: counter -> int
+(** How many time the counter has been increased. *)
+
+val decrs: counter -> int
+(** How many time the counter has been decreased. *)
+
 type t = {
-  tcp_flows   : int;
-  tcp_listens : int;
-  tcp_channels: int;
-  tcp_connects: int;
+  tcp_flows   : counter;
+  tcp_listens : counter;
+  tcp_channels: counter;
+  tcp_connects: counter;
 }
 
 val incr_flow: unit -> unit
