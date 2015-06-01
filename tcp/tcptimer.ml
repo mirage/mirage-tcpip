@@ -41,9 +41,9 @@ module Make(Time:V1_LWT.TIME) = struct
       Time.sleep t.period >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
-        Log.f debug "timerloop: stoptimer";
         Stats.decr_timer ();
         t.running <- false;
+        Log.f debug "timerloop: stoptimer";
         return_unit
       | Continue d ->
         Log.f debug "timerloop: continuer";
