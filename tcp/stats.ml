@@ -24,6 +24,8 @@ let value c = c.incrs - c.decrs
 let incrs c = c.incrs
 let decrs c = c.decrs
 
+let pp_counter fmt t = Format.fprintf fmt "%d" (value t)
+
 type t = {
   tcp_flows   : counter;
   tcp_listens : counter;
@@ -31,6 +33,8 @@ type t = {
   tcp_connects: counter;
 }
 
+let pp fmt t = Format.fprintf fmt "listens=%a channels=%a connects=%a"
+    pp_counter t.tcp_listens pp_counter t.tcp_channels pp_counter t.tcp_connects
 
 let tcp_flows = ref zero
 let tcp_listens = ref zero

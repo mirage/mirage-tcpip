@@ -35,6 +35,8 @@ type t = {
   tcp_connects: counter;
 }
 
+val pp: Format.formatter -> t -> unit
+
 val incr_flow: unit -> unit
 val decr_flow: unit -> unit
 

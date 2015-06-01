@@ -89,10 +89,11 @@ struct
   }
 
   let pp_stats fmt t =
-    Format.fprintf fmt "[%d channels / %d listens / %d connects]"
+    Format.fprintf fmt "[channels=%d  listens=%d connects=%d|%a]"
       (Hashtbl.length t.channels)
       (Hashtbl.length t.listens)
       (Hashtbl.length t.connects)
+      Stats.pp (Stats.create ())
 
   let ip { ip; _ } = ip
 
@@ -253,13 +254,15 @@ struct
     match hashtbl_find t.channels id with
     | Some _ ->
       Log.f debug "removed from channels!!";
-      Hashtbl.remove t.channels id
+      Hashtbl.remove t.channels id;
+      Stats.decr_channel ();
     | None ->
       match hashtbl_find t.listens id with
       | Some (isn, _) ->
         if isn = tx_isn then (
           Log.f debug "removing incomplete listen pcb";
-          Hashtbl.remove t.listens id
+          Hashtbl.remove t.listens id;
+          Stats.decr_listen ();
         )
       | None ->
         Log.f debug "error in removing pcb - no such connection"
@@ -353,7 +356,13 @@ struct
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
-    Hashtbl.replace t.listens id (params.tx_isn, (pushf, (pcb, th)));
+    if Hashtbl.mem t.listens id then (
+      Log.f info "WARNING: connection already being attempted";
+      Hashtbl.remove t.listens id;
+      Stats.decr_listen ();
+    );
+    Hashtbl.add t.listens id (params.tx_isn, (pushf, (pcb, th)));
+    Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
@@ -368,6 +377,7 @@ struct
     STATE.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
     Hashtbl.add t.channels id (pcb, th);
+    Stats.incr_channel ();
     STATE.tick pcb.state (State.Recv_synack (Sequence.of_int32 ack_number));
     (* xmit ACK *)
     TXS.output pcb.txq [] >>= fun () ->
@@ -379,12 +389,14 @@ struct
     | Some (wakener, _) ->
       (* URG_TODO: check if RST ack num is valid before it is accepted *)
       Hashtbl.remove t.connects id;
+      Stats.decr_connect ();
       Lwt.wakeup wakener `Rst;
       return_unit
     | None ->
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
+        Stats.decr_listen ();
         STATE.tick pcb.state State.Recv_rst;
         Lwt.cancel th;
         return_unit
@@ -398,6 +410,7 @@ struct
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         Hashtbl.remove t.connects id;
+        Stats.decr_connect ();
         let tx_wnd = Tcp_wire.get_tcp_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
@@ -443,7 +456,9 @@ struct
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         (* Established connection - promote to active channels *)
         Hashtbl.remove t.listens id;
+        Stats.decr_listen ();
         Hashtbl.add t.channels id newconn;
+        Stats.incr_channel ();
         (* Finish processing ACK, so pcb.state is correct *)
         Rx.input t pkt newconn >>= fun () ->
         (* send new connection up to listener *)
@@ -578,6 +593,7 @@ struct
       if isn = tx_isn then
         if count > 3 then (
           Hashtbl.remove t.connects id;
+          Stats.decr_connect ();
           Lwt.wakeup wakener `Timeout;
           return_unit
         ) else (
@@ -599,9 +615,13 @@ struct
     in
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
-    if Hashtbl.mem t.connects id then
+    if Hashtbl.mem t.connects id then (
       Log.f info "WARNING: connection already being attempted";
-    Hashtbl.replace t.connects id (wakener, tx_isn);
+      Hashtbl.remove t.connects id;
+      Stats.decr_connect ();
+    );
+    Hashtbl.add t.connects id (wakener, tx_isn);
+    Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
     let _ = connecttimer t id tx_isn options window 0 in
     th
