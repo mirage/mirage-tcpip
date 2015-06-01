@@ -14,6 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Gc = struct
+
+  let gc = ref false
+  let enable () = gc := true
+  let disable () = gc := false
+
+  let full = ref false
+  let full_major b = full := b
+
+  let words () =
+    let t = Gc.stat () in
+    t.Gc.live_words / 1_000
+
+  let run_full_major () = if !full then Gc.full_major ()
+
+  let pp fmt () =
+    match !gc with
+    | false -> ()
+    | true  ->
+      run_full_major ();
+      Format.fprintf fmt "|%dk" (words ())
+
+end
+
 type counter = {
   incrs: int;
   decrs: int;
@@ -31,10 +55,12 @@ type t = {
   tcp_listens : counter;
   tcp_channels: counter;
   tcp_connects: counter;
+
 }
 
-let pp fmt t = Format.fprintf fmt "[%a|%a|%a]"
+let pp fmt t = Format.fprintf fmt "[%a|%a|%a%a]"
     pp_counter t.tcp_listens pp_counter t.tcp_channels pp_counter t.tcp_connects
+    Gc.pp ()
 
 let tcp_flows = ref zero
 let tcp_listens = ref zero

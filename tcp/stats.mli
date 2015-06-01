@@ -50,3 +50,22 @@ val incr_connect: unit -> unit
 val decr_connect: unit -> unit
 
 val create: unit -> t
+
+module Gc: sig
+  (** Show GC stats *)
+
+  val enable: unit -> unit
+  (** Show live works (in k) on every debug line. *)
+
+  val disable: unit -> unit
+
+  val full_major: bool -> unit
+  (** [full_major true] runs a [Gc.full_major] before printing any
+      debug statement. Quite expensive but can sometimes be useful. By
+      default, it is set to [false].
+
+      {b Note:} This is very slow, use it if you really need it!
+
+  *)
+
+end
