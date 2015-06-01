@@ -98,7 +98,7 @@ module Rx(Time:V1_LWT.TIME) = struct
     let pp_v fmt seg =
       Format.fprintf fmt "%a[%d]" Sequence.pp seg.sequence (len seg)
     in
-    Format.pp_print_list pp_v fmt (S.elements t.segs)
+    Log.pp_print_list pp_v fmt (S.elements t.segs)
 
   (* If there is a FIN flag at the end of this segment set.  TODO:
      should look for a FIN and chop off the rest of the set as they
