@@ -19,14 +19,21 @@
 type t
 (** The type for managing logging values. *)
 
-val create: ?enabled:bool -> string -> t
-(** Create a new section. By default, the section is disabled. *)
+val create: ?enabled:bool -> ?stats:bool -> string -> t
+(** Create a new section. By default, the section is disabled and the
+    stats are printed. *)
 
 val enable: t -> unit
 (** Enable a section. *)
 
 val disable: t -> unit
 (** Disable a section. *)
+
+val set_stats: t -> bool -> unit
+(** Display the stats on every debug line. *)
+
+val stats: t -> bool
+(** Check if the stats are displayed. *)
 
 val enabled: t -> bool
 (** [enabled t] is [true] iff [t] is enabled. *)
