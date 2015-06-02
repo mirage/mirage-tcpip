@@ -146,14 +146,14 @@ let tcp_iperf backend () =
   Lwt.return_unit (* exit cleanly *)
 
 let test_tcp_iperf_two_stacks_basic () =
-  Lwt_io.with_file ~mode:Lwt_io.output "tcp_iperf_two_stacks_basic.pcap" (fun oc ->
+  Lwt_io.with_file ~mode:Lwt_io.output "tests/pcap/tcp_iperf_two_stacks_basic.pcap" (fun oc ->
       let backend = S.B.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
       create_pcap_recorder backend oc >>= fun recorder_id ->
       tcp_iperf backend () >>= fun () ->
       Lwt.return (disable_backend_listener backend recorder_id))
 
 let test_tcp_iperf_two_stacks_trailing_bytes () =
-  Lwt_io.with_file ~mode:Lwt_io.output "tcp_iperf_two_stacks_trailing_bytes.pcap" (fun oc ->
+  Lwt_io.with_file ~mode:Lwt_io.output "tests/pcap/tcp_iperf_two_stacks_trailing_bytes.pcap" (fun oc ->
       let backend = Vnetif_backends.Trailing_bytes.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in (* use_async_readers must be true with tcpip *)
       create_pcap_recorder backend oc >>= fun recorder_id ->
       tcp_iperf backend () >>= fun () ->
