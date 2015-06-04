@@ -14,25 +14,41 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Trailing_bytes = struct
+module type Backend = sig
+  include Vnetif.BACKEND
+  val create : unit -> t
+end
+
+(** This backend adds a random number of trailing bytes to each frame *)
+module Trailing_bytes : Backend = struct
   module X = Basic_backend.Make
   include X
 
-  let max_bytes_to_add = Int32.of_int 512
+  let max_bytes_to_add = 10
 
   (* Just adds trailing bytes, doesn't store anything in them *)
   let add_random_bytes src =
-    let bytes_to_add = (Int32.to_int (Random.int32 max_bytes_to_add)) in
+    let bytes_to_add = Random.int max_bytes_to_add in
     let len = Cstruct.len src in
     let dst = Cstruct.create (len + bytes_to_add) in
     Cstruct.blit src 0 dst 0 len;
     dst
 
-  let write t id buffer =
-    X.write t id (add_random_bytes buffer)
+  let set_listen_fn t id fn =
+    (* Add random bytes before returning result to real listener *)
+    X.set_listen_fn t id (fun buf ->
+        fn (add_random_bytes buf))
 
-  let writev t id buffers =
-    let new_buffers = List.map (fun a -> (add_random_bytes a)) buffers in
-    X.writev t id new_buffers
+  let create () =
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
 
+end 
+
+(** This backend delivers all packets unmodified *)
+module Basic : Backend = struct
+  module X = Basic_backend.Make
+  include X
+
+  let create () =
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
 end
