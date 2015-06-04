@@ -78,5 +78,5 @@ let test_tcp_connect_two_stacks_trailing_bytes () =
 
 let suite = [
   "test_tcp_connect_two_stacks_basic" , test_tcp_connect_two_stacks_basic;
-  (* "test_tcp_connect_two_stacks_trailing_bytes" , test_tcp_connect_two_stacks_trailing_bytes; -- Disabled while waiting for https://github.com/mirage/mirage-tcpip/pull/145 *)
+  "test_tcp_connect_two_stacks_trailing_bytes" , test_tcp_connect_two_stacks_trailing_bytes;
 ]
