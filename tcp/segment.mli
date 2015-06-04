@@ -16,6 +16,9 @@
 
 (** TCP segments *)
 
+val info : Log.t
+val debug : Log.t
+
 (** The receive queue stores out-of-order segments, and can coalesece
     them on input and pass on an ordered list up the stack to the
     application.
