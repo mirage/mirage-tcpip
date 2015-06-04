@@ -7,7 +7,8 @@ bash -ex .travis-opam.sh
 
 export OPAMYES=1
 eval `opam config env`
-prefix=`opam config var prefix`
+
+opam repo add mirage-dev https://github.com/mirage/mirage-dev.git
 
 git clone git://github.com/mirage/mirage-www
 cd mirage-www
