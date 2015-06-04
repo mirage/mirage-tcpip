@@ -17,69 +17,106 @@
 open Lwt
 open Common
 
+(* TODO Some of these modules and signatures could eventually be moved to mirage-vnetif *)
+
 module Time = struct
   type 'a io = 'a Lwt.t
   include Lwt_unix
 end
 
 module Clock = Unix
-
 module Console = Console_unix
 
-module S = struct
-  module B = Basic_backend.Make
+module type VNETIF_STACK =
+sig
+  type backend
+  type buffer
+  type 'a io
+  type id
+  module Stackv4 : V1_LWT.STACKV4
+  (** Create a new backend *)
+  val create_backend : unit -> backend
+  (** Create a new stack connected to an existing backend *)
+  val create_stack : Console.t -> backend -> Ipaddr.V4.t -> Ipaddr.V4.t -> Ipaddr.V4.t list -> Stackv4.t Lwt.t
+  (** Add a listener function to the backend *)
+  val create_backend_listener : backend -> (buffer -> unit io) -> id
+  (** Disable a listener function *)
+  val disable_backend_listener : backend -> id -> unit
+  (** Create a pcap recorder that listens to traffic on the specified backend and writes pcap data to an output_channel*)
+  val create_pcap_recorder : backend -> Lwt_io.output_channel -> id Lwt.t
+  (** Records pcap data from the backend while running the specified function. Disables the pcap recorder when the function exits. *)
+  val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
+end
+
+module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
+  type backend = B.t
+  type buffer = B.buffer
+  type 'a io = 'a B.io
+  type id = B.id
+
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
   module I = Ipv4.Make(E)(Clock)(Time)
   module U = Udp.Make(I)
   module T = Tcp.Flow.Make(I)(Time)(Clock)(Random)
-  module S = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(I)(U)(T)
-  include S
+  module Stackv4 = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(I)(U)(T)
+
+  let create_backend () =
+    B.create ()
+
+  let create_stack c backend ip netmask gw =
+    or_error "backend" V.connect backend >>= fun netif ->
+    or_error "ethif" E.connect netif >>= fun ethif ->
+    or_error "ipv4" I.connect ethif >>= fun ipv4 ->
+    or_error "udpv4" U.connect ipv4 >>= fun udpv4 ->
+    or_error "tcpv4" T.connect ipv4 >>= fun tcpv4 ->
+    let config = {
+      V1_LWT.name = "stack";
+      console = c; 
+      interface = netif;
+      mode = `IPv4 (ip, netmask, gw);
+    } in
+    or_error "stack" (Stackv4.connect config ethif ipv4 udpv4) tcpv4
+
+  let create_backend_listener backend listenf =
+    match (B.register backend) with
+    | `Error e -> fail "Error occured while registering to backend" 
+    | `Ok id -> (B.set_listen_fn backend id listenf); id
+
+  let disable_backend_listener backend id =
+    B.set_listen_fn backend id (fun buf -> Lwt.return_unit)
+
+  let create_pcap_recorder backend channel =
+    let header_buf = Cstruct.create Pcap.sizeof_pcap_header in
+    Pcap.LE.set_pcap_header_magic_number header_buf Pcap.magic_number;
+    Pcap.LE.set_pcap_header_network header_buf Pcap.Network.(to_int32 Ethernet);
+    Pcap.LE.set_pcap_header_sigfigs header_buf 0l;
+    Pcap.LE.set_pcap_header_snaplen header_buf 0xffffl;
+    Pcap.LE.set_pcap_header_thiszone header_buf 0l;
+    Pcap.LE.set_pcap_header_version_major header_buf Pcap.major_version;
+    Pcap.LE.set_pcap_header_version_minor header_buf Pcap.minor_version;
+    Lwt_io.write channel (Cstruct.to_string header_buf) >>= fun () ->
+    Lwt_io.flush channel >>= fun () ->
+    let pcap_record channel buffer =
+      let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
+      let time = Unix.gettimeofday () in
+      Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.len buffer));
+      Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.len buffer));
+      Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time); 
+      let frac = (time -. (float_of_int (truncate time))) *. 1000000.0 in
+      Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.of_float frac);
+      Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer)) >>= fun () ->
+      Lwt_io.flush channel (* always flush *)
+    in
+    let recorder_id = create_backend_listener backend (pcap_record channel) in
+    Lwt.return recorder_id
+
+  let record_pcap backend pcap_file fn =
+    Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
+        create_pcap_recorder backend oc >>= fun recorder_id ->
+        fn () >>= fun () ->
+        disable_backend_listener backend recorder_id;
+        Lwt.return_unit
+      )
 end
 
-let create_stack c backend ip netmask gw =
-  or_error "backend" S.V.connect backend >>= fun netif ->
-  (* Printf.printf (Printf.sprintf "Connected to backend with mac %s" (Macaddr.to_string (S.V.mac netif))) *)
-  or_error "ethif" S.E.connect netif >>= fun ethif ->
-  or_error "ipv4" S.I.connect ethif >>= fun ipv4 ->
-  or_error "udpv4" S.U.connect ipv4 >>= fun udpv4 ->
-  or_error "tcpv4" S.T.connect ipv4 >>= fun tcpv4 ->
-  let config = {
-    V1_LWT.name = "stack";
-    console = c; 
-    interface = netif;
-    mode = `IPv4 (ip, netmask, gw);
-  } in
-  or_error "stack" (S.connect config ethif ipv4 udpv4) tcpv4
-
-let create_backend_listener backend listenf =
-  match (S.B.register backend) with
-  | `Error e -> fail "Error occured while registering to backend" 
-  | `Ok id -> (S.B.set_listen_fn backend id listenf); id
-
-let disable_backend_listener backend id =
-  S.B.set_listen_fn backend id (fun buf -> Lwt.return_unit)
-
-let create_pcap_recorder backend channel =
-  let header_buf = Cstruct.create Pcap.sizeof_pcap_header in
-  Pcap.LE.set_pcap_header_magic_number header_buf Pcap.magic_number;
-  Pcap.LE.set_pcap_header_network header_buf Pcap.Network.(to_int32 Ethernet);
-  Pcap.LE.set_pcap_header_sigfigs header_buf 0l;
-  Pcap.LE.set_pcap_header_snaplen header_buf 0xffffl;
-  Pcap.LE.set_pcap_header_thiszone header_buf 0l;
-  Pcap.LE.set_pcap_header_version_major header_buf Pcap.major_version;
-  Pcap.LE.set_pcap_header_version_minor header_buf Pcap.minor_version;
-  Lwt_io.write channel (Cstruct.to_string header_buf) >>= fun () ->
-  Lwt_io.flush channel >>= fun () ->
-  let pcap_record channel buffer =
-    let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
-    let time = Unix.gettimeofday () in
-    Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.len buffer));
-    Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.len buffer));
-    Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time); 
-    Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.rem (Int32.of_float (time *. 1000000.0)) 1000000l);
-    Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer)) >>= fun () ->
-    Lwt_io.flush channel (* always flush *)
-  in
-  let recorder_id = create_backend_listener backend (pcap_record channel) in
-  Lwt.return recorder_id
