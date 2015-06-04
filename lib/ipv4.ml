@@ -187,6 +187,8 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     let hdr, data = Cstruct.split buf ihl in
     if Cstruct.len data >= payload_len then begin
+      (* Strip trailing bytes. See: https://github.com/mirage/mirage-net-xen/issues/24 *)
+      let data = Cstruct.sub data 0 payload_len in
       let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
       match Wire_structs.Ipv4_wire.int_to_protocol proto with
       | Some `ICMP -> icmp_input t src hdr data
