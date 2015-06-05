@@ -44,6 +44,30 @@ module Trailing_bytes : Backend = struct
 
 end 
 
+(** This backend drops packets *)
+module Uniform_packet_loss : Backend = struct
+  module X = Basic_backend.Make
+  include X
+
+  let drop_p = 0.01
+
+  let write t id buffer =
+    if Random.float 1.0 < drop_p then
+        Lwt.return_unit (* drop packet *)
+    else
+        X.write t id buffer (* pass to real write *)
+
+  let writev t id buffers =
+    if Random.float 1.0 < drop_p then
+        Lwt.return_unit (* drop packet *)
+    else
+        X.writev t id buffers (* pass to real writev *)
+
+  let create () =
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
+
+end 
+
 (** This backend delivers all packets unmodified *)
 module Basic : Backend = struct
   module X = Basic_backend.Make
