@@ -19,7 +19,7 @@ build: [
   ]
   [make]
 ]
-build-test: [make "test"]
+build-test: [make "test" "TESTFLAGS=-v"]
 install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
