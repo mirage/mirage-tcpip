@@ -134,10 +134,10 @@ let ack_seq t = t.ack_seq
 let ack_win t = t.ack_win
 
 let set_ack_serviced t v = t.ack_serviced <- v
-let set_ack_seq t s =
+let set_ack_seq_win t s w =
   MProf.Counter.increase count_ackd_segs (Sequence.(sub s t.ack_seq |> to_int));
-  t.ack_seq <- s
-let set_ack_win t w = t.ack_win <- w
+  t.ack_seq <- s;
+  t.ack_win <- w
 
 (* TODO: scale the window down so we can advertise it correctly with
    window scaling on the wire *)
