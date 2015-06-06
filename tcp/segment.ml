@@ -96,11 +96,6 @@ module Rx(Time:V1_LWT.TIME) = struct
       try (S.max_elt q).syn
       with Not_found -> false *)
 
-  (* Determine the transmit window, from the last segment *)
-  let window q =
-    try (S.max_elt q).window
-    with Not_found -> 0
-
   let is_empty q = S.is_empty q.segs
 
   (* Given an input segment, the window information, and a receive
@@ -138,22 +133,18 @@ module Rx(Time:V1_LWT.TIME) = struct
       q.segs <- waiting;
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
-        if seg.ack then begin
+        if seg.ack && (Sequence.geq seg.ack_number (Window.ack_seq q.wnd)) then begin
           StateTick.tick q.state (State.Recv_ack seg.ack_number);
-          let win = window ready in
           let data_in_flight = Window.tx_inflight q.wnd in
-          let seq_has_changed = (Window.ack_seq q.wnd) <> seg.ack_number in
-          let win_has_changed = (Window.ack_win q.wnd) <> win in
-          if ((data_in_flight && (Window.ack_serviced q.wnd || not seq_has_changed)) ||
+          let ack_has_advanced = (Window.ack_seq q.wnd) <> seg.ack_number in
+          let win_has_changed = (Window.ack_win q.wnd) <> seg.window in
+          if ((data_in_flight && (Window.ack_serviced q.wnd || not ack_has_advanced)) ||
               (not data_in_flight && win_has_changed)) then begin
             Window.set_ack_serviced q.wnd false;
-            Window.set_ack_seq q.wnd seg.ack_number;
-            Window.set_ack_win q.wnd win;
-            Lwt_mvar.put q.tx_ack (seg.ack_number, win)
+            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
+            Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
           end else begin
-             if (Sequence.gt seg.ack_number (Window.ack_seq q.wnd)) then
-               Window.set_ack_seq q.wnd seg.ack_number;
-             Window.set_ack_win q.wnd win;
+            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
             return_unit
           end
         end else return_unit in
