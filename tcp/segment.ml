@@ -105,8 +105,8 @@ module Rx(Time:V1_LWT.TIME) = struct
   let input (q:t) seg =
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
-    (* URG_TODO also check that this is a valid RST i.e. the seq/ack numbers are in the window *)
-    if (seg.rst) then begin
+    (* TODO check that this test for a valid RST is valid *)
+    if (seg.rst && (Window.valid q.wnd seg.sequence)) then begin
         StateTick.tick q.state State.Recv_rst;
         (* Dump all the received but out of order frames *)
         q.segs <- S.empty;
