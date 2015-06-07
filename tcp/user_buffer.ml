@@ -22,6 +22,9 @@ open Lwt
    queue size changes *)
 module Rx = struct
 
+ (* TODO: check that flow control works on the rx side - ie if the application
+    stops taking data the window closes so the other side stops sending *)
+
   type t = {
     q: Cstruct.t option Lwt_sequence.t;
     wnd: Window.t;
@@ -307,6 +310,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     | None -> return_unit
     | Some w ->
       Lwt.wakeup w ();
+      (* TODO: check if this should wake all writers not just one *)
       return_unit
 
   (* Indicate that more bytes are available for waiting writers.
@@ -315,6 +319,17 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
      Window will internally scale it up. *)
   let free t _sz =
     clear_buffer t >>= fun () ->
+    inform_app t
+
+  let rec dump_buffer t = 
+    match Lwt_sequence.is_empty t.buffer with
+    | true -> return_unit
+    | false ->
+      let _ = Lwt_sequence.take_l t.buffer in
+      dump_buffer t
+
+  let reset t  =
+    dump_buffer t >>= fun () ->
     inform_app t
 
 end
