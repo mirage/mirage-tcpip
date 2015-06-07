@@ -20,7 +20,7 @@ type action =
   | Recv_synack of Sequence.t
   | Recv_ack of Sequence.t
   | Recv_fin
-  | Recv_finack of Sequence.t
+  (* | Recv_finack of Sequence.t *)
   | Send_syn of Sequence.t
   | Send_synack of Sequence.t
   | Send_rst
@@ -41,6 +41,7 @@ type tcpstate =
   | Fin_wait_2 of int
   | Closing of Sequence.t
   | Time_wait
+  | Reset
 
 val string_of_tcpstate : tcpstate -> string
 
