@@ -44,8 +44,7 @@ val ack_seq : t -> Sequence.t
 val ack_win : t -> int
 
 val set_ack_serviced : t -> bool -> unit
-val set_ack_seq : t -> Sequence.t -> unit
-val set_ack_win : t -> int -> unit
+val set_ack_seq_win : t -> Sequence.t -> int -> unit
 
 (* rx_wnd: number of bytes we are willing to accept *)
 val rx_wnd : t -> int32
