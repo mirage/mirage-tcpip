@@ -161,7 +161,13 @@ let test_tcp_iperf_two_stacks_trailing_bytes () =
   let module Test = Test_iperf (Vnetif_backends.Trailing_bytes) in
   Test.record_pcap "tests/pcap/tcp_iperf_two_stacks_trailing_bytes.pcap" Test.tcp_iperf
 
+let test_tcp_iperf_two_stacks_uniform_packet_loss () =
+  let module Test = Test_iperf (Vnetif_backends.Uniform_packet_loss) in
+  Test.record_pcap "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss.pcap" Test.tcp_iperf
+
+
 let suite = [
   "test_tcp_iperf_two_stacks_basic" , test_tcp_iperf_two_stacks_basic;
   "test_tcp_iperf_two_stacks_trailing_bytes" , test_tcp_iperf_two_stacks_trailing_bytes;
+  "test_tcp_iperf_two_stacks_uniform_packet_loss" , test_tcp_iperf_two_stacks_uniform_packet_loss;
 ]
