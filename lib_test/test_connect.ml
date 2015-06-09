@@ -16,6 +16,7 @@
 
 open Common
 open Vnetif_common
+
 let (>>=) = Lwt.(>>=)
 
 module Test_connect (B : Vnetif_backends.Backend) = struct
@@ -52,7 +53,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     | `Ok b    ->
       OS.Time.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
-      expect "accept" expected (Cstruct.to_string b) >>= fun () ->
+      assert_string "accept" expected (Cstruct.to_string b);
       log_s c "Connection closed"
 
   let test_tcp_connect_two_stacks () =
@@ -100,9 +101,11 @@ let test_tcp_connect_two_stacks_trailing_bytes () =
     Test.test_tcp_connect_two_stacks
 
 let suite = [
-  "connect two stacks, basic test",
+
+  "connect two stacks, basic test", `Quick,
   test_tcp_connect_two_stacks_basic;
 
-  "connect two stacks, with trailing bytes",
+  "connect two stacks, with trailing bytes", `Quick,
   test_tcp_connect_two_stacks_trailing_bytes;
+
 ]
