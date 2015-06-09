@@ -24,6 +24,18 @@ let peek_opt_l seq =
     let _ = Lwt_sequence.add_l s seq in
     Some s
 
+let peek_l seq =
+  match Lwt_sequence.take_opt_l seq with
+  | None -> assert false
+  | Some s ->
+    let _ = Lwt_sequence.add_l s seq in
+    s
+
+let rec reset_seq segs =
+  match Lwt_sequence.take_opt_l segs with
+  | None -> ()
+  | Some _ -> reset_seq segs
+
 (* The receive queue stores out-of-order segments, and can
    coalesece them on input and pass on an ordered list up the
    stack to the application.
@@ -105,21 +117,20 @@ module Rx(Time:V1_LWT.TIME) = struct
   let input (q:t) seg =
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
-    (* TODO check that this test for a valid RST is valid *)
-    if (seg.rst && (Window.valid q.wnd seg.sequence)) then begin
-        StateTick.tick q.state State.Recv_rst;
-        (* Dump all the received but out of order frames *)
-        q.segs <- S.empty;
-        (* Signal TX side *)
-        let txalert ack_svcd = match ack_svcd with
-        | true -> Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
-        | false -> return_unit
-        in
-        txalert (Window.ack_serviced q.wnd) >>= fun () ->
-        (* Use the fin path to inform the application of end of stream *)
-        Lwt_mvar.put q.rx_data (None, Some 0)
-    end else if not (Window.valid q.wnd seg.sequence) then return_unit
-    else
+    if not (Window.valid q.wnd seg.sequence) then Lwt.return_unit
+    else if seg.rst then (
+      StateTick.tick q.state State.Recv_rst;
+      (* Dump all the received but out of order frames *)
+      q.segs <- S.empty;
+      (* Signal TX side *)
+      let txalert ack_svcd =
+        if not ack_svcd then Lwt.return_unit
+        else Lwt_mvar.put q.tx_ack (Window.ack_seq q.wnd, Window.ack_win q.wnd)
+      in
+      txalert (Window.ack_serviced q.wnd) >>= fun () ->
+      (* Use the fin path to inform the application of end of stream *)
+      Lwt_mvar.put q.rx_data (None, Some 0)
+    ) else
       (* Insert the latest segment *)
       let segs = S.add seg q.segs in
       (* Walk through the set and get a list of contiguous segments *)
@@ -281,13 +292,6 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     | _ ->
       Tcptimer.Stoptimer
 
-  let peek_l seq =
-    match Lwt_sequence.take_opt_l seq with
-    | None -> assert false
-    | Some s ->
-      let _ = Lwt_sequence.add_l s seq in
-      s
-
   let rto_t q tx_ack =
     (* Listen for incoming TX acks from the receive queue and ACK
        segments in our retransmission queue *)
@@ -342,12 +346,11 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
       begin match State.state q.state with
-        | State.Reset -> let rec empty_segs segs =
-          match Lwt_sequence.take_opt_l segs with
-          | None -> ()
-          | Some s -> empty_segs segs
-	  in
-	  empty_segs q.segs
+        | State.Reset ->
+          (* Note: This is not stricly necessary, as the PCB will be
+             GCed later on.  However, it helps removing pressure on
+             the GC. *)
+          reset_seq q.segs
         | _ ->
           let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
           let dupacktest () =
