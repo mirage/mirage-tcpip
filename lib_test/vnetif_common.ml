@@ -42,8 +42,6 @@ sig
   val create_backend_listener : backend -> (buffer -> unit io) -> id
   (** Disable a listener function *)
   val disable_backend_listener : backend -> id -> unit
-  (** Create a pcap recorder that listens to traffic on the specified backend and writes pcap data to an output_channel*)
-  val create_pcap_recorder : backend -> Lwt_io.output_channel -> id Lwt.t
   (** Records pcap data from the backend while running the specified function. Disables the pcap recorder when the function exits. *)
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
@@ -96,7 +94,6 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
     Pcap.LE.set_pcap_header_version_major header_buf Pcap.major_version;
     Pcap.LE.set_pcap_header_version_minor header_buf Pcap.minor_version;
     Lwt_io.write channel (Cstruct.to_string header_buf) >>= fun () ->
-    Lwt_io.flush channel >>= fun () ->
     let pcap_record channel buffer =
       let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
       let time = Unix.gettimeofday () in
@@ -105,8 +102,12 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
       Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time); 
       let frac = (time -. (float_of_int (truncate time))) *. 1000000.0 in
       Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.of_float frac);
-      Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer)) >>= fun () ->
-      Lwt_io.flush channel (* always flush *)
+      (try 
+          Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer))
+      with 
+          Lwt_io.Channel_closed msg -> Printf.printf "Warning: Pcap output channel already closed: %s.\n" msg; Lwt.return_unit)
+      >>= fun () ->
+      Lwt.return_unit
     in
     let recorder_id = create_backend_listener backend (pcap_record channel) in
     Lwt.return recorder_id
