@@ -14,7 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+let (>>=) = Lwt.(>>=)
+let (>|=) = Lwt.(>|=)
+
+(* TODO: modify V1.TCP to have a proper return type *)
+
+exception Bad_state of State.tcpstate
 
 module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
@@ -35,57 +40,54 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | `Refused
   ]
 
+  let err_timeout () =
+    (* Printf.printf "Failed to connect to %s:%d\n%!" *)
+    (* (Ipaddr.V4.to_string daddr) dport; *)
+    Lwt.return (`Error `Timeout)
+
+  let err_refused () =
+    (* Printf.printf "Refused connection to %s:%d\n%!" *)
+    (* (Ipaddr.V4.to_string daddr) dport; *)
+    Lwt.return (`Error `Refused)
+
+  let ok x = Lwt.return (`Ok x)
+
   let error_message = function
     | `Unknown msg -> msg
     | `Timeout -> "Timeout while attempting to connect"
     | `Refused -> "Connection refused"
 
-  let id t = Pcb.ip t
+  let err_rewrite = function
+    | `Error (`Bad_state _) -> `Error `Refused
+    | `Ok () as x -> x
 
-  let get_dest t = Pcb.get_dest t
+  let err_raise = function
+    | `Error (`Bad_state s) -> Lwt.fail (Bad_state s)
+    | `Ok () -> Lwt.return_unit
+
+  let id = Pcb.ip
+  let get_dest = Pcb.get_dest
+  let close t = Pcb.close t
+  let input = Pcb.input
 
   let read t =
     (* TODO better error interface in Pcb *)
     Pcb.read t >>= function
-    | None -> return `Eof
-    | Some t -> return (`Ok t)
+    | None   -> Lwt.return `Eof
+    | Some t -> Lwt.return (`Ok t)
 
-  let write t view =
-    Pcb.write t view >>= fun () ->
-    return (`Ok ())
-
-  let writev t views =
-    Pcb.writev t views >>= fun () ->
-    return (`Ok ())
-
-  let write_nodelay t view =
-    Pcb.write_nodelay t view
-
-  let writev_nodelay t views =
-    Pcb.writev_nodelay t views
-
-  let close t =
-    Pcb.close t
+  let write t view = Pcb.write t view >|= err_rewrite
+  let writev t views = Pcb.writev t views >|= err_rewrite
+  let write_nodelay t view = Pcb.write_nodelay t view >>= err_raise
+  let writev_nodelay t views = Pcb.writev_nodelay t views >>= err_raise
+  let connect ipv4 = ok (Pcb.create ipv4)
+  let disconnect _ = Lwt.return_unit
 
   let create_connection tcp (daddr, dport) =
     Pcb.connect tcp ~dest_ip:daddr ~dest_port:dport >>= function
-    | `Timeout ->
-      (* Printf.printf "Failed to connect to %s:%d\n%!" *)
-        (* (Ipaddr.V4.to_string daddr) dport; *)
-      return (`Error `Timeout)
-    | `Rst ->
-      (* Printf.printf "Refused connection to %s:%d\n%!" *)
-        (* (Ipaddr.V4.to_string daddr) dport; *)
-      return (`Error `Refused)
-    | `Ok (fl, _) ->
-      return (`Ok fl)
+    | `Timeout    -> err_timeout ()
+    | `Rst        -> err_refused ()
+    | `Ok (fl, _) -> ok fl
 
-  let input t ~listeners ~src ~dst buf =
-    Pcb.input t ~listeners ~src ~dst buf
 
-  let connect ipv4 =
-    return (`Ok (Pcb.create ipv4))
-
-  let disconnect _ =
-    return_unit
 end
