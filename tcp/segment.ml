@@ -297,8 +297,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
               (* FIXME: suspicious ignore *)
               xmit ~flags ~wnd ~options ~seq rexmit_seg.data >>= fun () ->
               Window.backoff_rto wnd;
-              Log.f debug "PUSHING TIMER - new time = %f, new seq = %ld"
-                (Window.rto wnd) (Sequence.to_int32 rexmit_seg.seq);
+              Log.f debug "PUSHING TIMER - new time = %f, new seq = %a"
+                (Window.rto wnd) Sequence.pp rexmit_seg.seq;
               let ret =
                 Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
               in
