@@ -65,7 +65,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let mlen = String.length msg
 
-  let fail fmt = Printf.kprintf (fun str -> Lwt.fail (Failure str)) fmt
   let err_eof () = fail "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
@@ -216,12 +215,12 @@ let test_tcp_iperf_two_stacks_uniform_packet_loss () =
     "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss.pcap" Test.tcp_iperf
 
 let suite = [
-  "test_tcp_iperf_two_stacks_basic",
+  "iperf with two stacks, basic tests",
   test_tcp_iperf_two_stacks_basic;
 
-  "test_tcp_iperf_two_stacks_trailing_bytes",
+  "iperf with two stacks, testing trailing_bytes",
   test_tcp_iperf_two_stacks_trailing_bytes;
 
-  "test_tcp_iperf_two_stacks_uniform_packet_loss",
+  "iperf with two stacks and uniform packet loss",
   test_tcp_iperf_two_stacks_uniform_packet_loss;
 ]
