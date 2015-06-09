@@ -137,7 +137,6 @@ struct
 
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t pkt (pcb,_) =
-      (* URG_TODO: Deal correctly with incomming RST segment *)
       let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
       let ack_number =
         Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
@@ -145,10 +144,11 @@ struct
       let fin = Tcp_wire.get_fin pkt in
       let syn = Tcp_wire.get_syn pkt in
       let ack = Tcp_wire.get_ack pkt in
+      let rst = Tcp_wire.get_rst pkt in
       let window = Tcp_wire.get_tcp_window pkt in
       let data = Wire.get_payload pkt in
       let seg =
-        RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
+        RXS.segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data
       in
       let { rxq; _ } = pcb in
       (* Coalesce any outstanding segments and retrieve ready segments *)
@@ -193,13 +193,16 @@ struct
 
   module Wnd = struct
 
-    let thread ~urx:_ ~utx ~wnd:_ ~tx_wnd_update =
+    let thread ~urx:_ ~utx ~wnd:_ ~state ~tx_wnd_update =
       (* Monitor our transmit window when updates are received
          remotely, and tell the application that new space is
          available when it is blocked *)
       let rec tx_window_t () =
         Lwt_mvar.take tx_wnd_update >>= fun tx_wnd ->
-        UTX.free utx tx_wnd >>= fun () ->
+        begin match State.state state with
+          | State.Reset -> UTX.reset utx
+          | _ -> UTX.free utx tx_wnd
+        end >>= fun () ->
         tx_window_t ()
       in
       tx_window_t ()
@@ -303,7 +306,7 @@ struct
     let th =
       (Tx.thread t pcb ~send_ack ~rx_ack) <?>
       (Rx.thread pcb ~rx_data) <?>
-      (Wnd.thread ~utx ~urx ~wnd ~tx_wnd_update)
+      (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update)
     in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
@@ -470,7 +473,6 @@ struct
     min 4000 (min (Window.tx_mss pcb.wnd)
                 (Int32.to_int (UTX.available pcb.utx)))
 
-  (* URG_TODO: raise exception if not in Established or Close_wait state *)
   (* Wait for more write space *)
   let write_wait_for pcb sz =
     UTX.wait_for pcb.utx (Int32.of_int sz)
@@ -486,10 +488,12 @@ struct
       let remaing_bit = Cstruct.sub data av_len (len - av_len) in
       writefn pcb wfn first_bit  >>= fun () ->
       writefn pcb wfn remaing_bit
-    | _ -> wfn [data]
+    | _ ->
+      match State.state pcb.state with
+      | State.Established | State.Close_wait -> wfn [data]
+      (* URG_TODO: return error instead of dropping silently *)
+      | _ -> return_unit
 
-  (* URG_TODO: raise exception when trying to write to closed connection
-               instead of quietly returning *)
   (* Blocking write on a PCB *)
   let write pcb data = writefn pcb (UTX.write pcb.utx) data
   let writev pcb data = Lwt_list.iter_s (fun d -> write pcb d) data

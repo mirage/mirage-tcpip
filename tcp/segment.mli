@@ -31,7 +31,7 @@ module Rx (T:V1_LWT.TIME) : sig
   val string_of_segment: segment -> string
 
   val segment:
-    sequence:Sequence.t -> fin:bool -> syn:bool -> ack:bool ->
+    sequence:Sequence.t -> fin:bool -> syn:bool -> rst:bool -> ack:bool ->
     ack_number:Sequence.t -> window:int -> data:Cstruct.t ->
     segment
 

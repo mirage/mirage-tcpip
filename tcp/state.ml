@@ -23,7 +23,7 @@ type action =
   | Recv_synack of Sequence.t
   | Recv_ack of Sequence.t
   | Recv_fin
-  | Recv_finack of Sequence.t
+  (* | Recv_finack of Sequence.t *)
   | Send_syn of Sequence.t
   | Send_synack of Sequence.t
   | Send_rst
@@ -42,6 +42,7 @@ type tcpstate =
   | Fin_wait_2 of int
   | Closing of Sequence.t
   | Time_wait
+  | Reset
 
 type close_cb = unit -> unit
 
@@ -61,7 +62,7 @@ let string_of_action = function
   | Recv_synack x -> "Recv_synack " ^ (Sequence.to_string x)
   | Recv_ack x -> "Recv_ack " ^ (Sequence.to_string x)
   | Recv_fin -> "Recv_fin"
-  | Recv_finack x -> "Recv_finack " ^ (Sequence.to_string x)
+  (* | Recv_finack x -> "Recv_finack " ^ (Sequence.to_string x) *)
   | Send_syn x -> "Send_syn " ^ (Sequence.to_string x)
   | Send_synack x -> "Send_synack " ^ (Sequence.to_string x)
   | Send_rst -> "Send_rst"
@@ -127,7 +128,8 @@ module Make(Time:V1_LWT.TIME) = struct
       | Established, Recv_ack _ -> Established
       | Established, Send_fin a -> Fin_wait_1 a
       | Established, Recv_fin -> Close_wait
-      | Established, Timeout -> t.on_close (); Closed
+      | Established, Timeout ->  t.on_close (); Closed
+      | Established, Recv_rst -> t.on_close (); Reset
       | Fin_wait_1 a, Recv_ack b ->
         if diffone b a then
           let count = 0 in
@@ -136,16 +138,21 @@ module Make(Time:V1_LWT.TIME) = struct
         else
           Fin_wait_1 a
       | Fin_wait_1 a, Recv_fin -> Closing a
-      | Fin_wait_1 a, Recv_finack b -> if diffone b a then Time_wait else Fin_wait_1 a
       | Fin_wait_1 _, Timeout -> t.on_close (); Closed
+      | Fin_wait_1 _, Recv_rst -> t.on_close (); Reset
       | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
       | Fin_wait_2 _, Recv_fin -> let _ = timewait t time_wait_time in Time_wait
+      | Fin_wait_2 _, Recv_rst -> t.on_close (); Reset
       | Closing a, Recv_ack b -> if diffone b a then Time_wait else Closing a
+      | Closing _, Timeout -> t.on_close (); Closed
+      | Closing _, Recv_rst -> t.on_close (); Reset
       | Time_wait, Timeout -> t.on_close (); Closed
       | Close_wait,  Send_fin a -> Last_ack a
       | Close_wait,  Timeout -> t.on_close (); Closed
+      | Close_wait,  Recv_rst -> t.on_close (); Reset
       | Last_ack a, Recv_ack b -> if diffone b a then (t.on_close (); Closed) else Last_ack a
       | Last_ack _, Timeout -> t.on_close (); Closed
+      | Last_ack _, Recv_rst -> t.on_close (); Reset
       | x, _ -> x
     in
     t.state <- tstr t.state i
