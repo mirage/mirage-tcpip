@@ -70,7 +70,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
     or_error "tcpv4" T.connect ipv4 >>= fun tcpv4 ->
     let config = {
       V1_LWT.name = "stack";
-      console = c; 
+      console = c;
       interface = netif;
       mode = `IPv4 (ip, netmask, gw);
     } in
@@ -78,7 +78,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | `Error e -> fail "Error occured while registering to backend" 
+    | `Error e -> fail "Error occured while registering to backend"
     | `Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =
@@ -99,12 +99,12 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
       let time = Unix.gettimeofday () in
       Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.len buffer));
       Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.len buffer));
-      Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time); 
+      Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time);
       let frac = (time -. (float_of_int (truncate time))) *. 1000000.0 in
       Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.of_float frac);
-      (try 
+      (try
           Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer))
-      with 
+      with
           Lwt_io.Channel_closed msg -> Printf.printf "Warning: Pcap output channel already closed: %s.\n" msg; Lwt.return_unit)
       >>= fun () ->
       Lwt.return_unit
@@ -120,4 +120,3 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
         Lwt.return_unit
       )
 end
-

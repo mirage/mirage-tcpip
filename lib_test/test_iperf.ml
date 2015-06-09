@@ -16,9 +16,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Common
 open Vnetif_common
+let (>>=) = Lwt.(>>=)
 
 module Test_iperf (B : Vnetif_backends.Backend) = struct
 
@@ -93,12 +93,11 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     | `Error e -> err_connect e ip port ()
     | `Ok f    -> Lwt.return f
 
-  let iperfclient c s dest_ip dport =
+  let iperfclient c s amt dest_ip dport =
     let iperftx flow =
       log_s c "Iperf client: Made connection to server." >>= fun () ->
       let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
       Cstruct.blit_from_string msg 0 a 0 mlen;
-      let amt = 25000000 in
       let rec loop = function
         | 0 -> Lwt.return_unit
         | n -> write_and_check flow a >>= fun () -> loop (n-1)
@@ -164,8 +163,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.wakeup server_done_u ();
     Lwt.return_unit
 
-  let tcp_iperf () =
-    or_error "console" Console.connect "console" >>= fun c ->
+  let tcp_iperf amt () =
+    or_error "console" C.connect "console" >>= fun c ->
     let port = 5001 in
 
     let server_ready, server_ready_u = Lwt.wait () in
@@ -183,7 +182,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
          (Ipaddr.V4.to_string server_ip) port
        >>= fun () ->
        V.create_stack c backend client_ip netmask [gw] >>= fun client_s ->
-       iperfclient c client_s server_ip port);
+       iperfclient c client_s amt server_ip port);
 
       (log_s c "I am server with IP %s, expecting connections on port %d"
          (Ipaddr.V4.to_string server_ip) port >>= fun () ->
@@ -200,27 +199,42 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     V.record_pcap backend
 end
 
-let test_tcp_iperf_two_stacks_basic () =
+let test_tcp_iperf_two_stacks_basic amt () =
   let module Test = Test_iperf (Vnetif_backends.Basic) in
-  Test.record_pcap "tests/pcap/tcp_iperf_two_stacks_basic.pcap" Test.tcp_iperf
+  Test.record_pcap
+    "tests/pcap/tcp_iperf_two_stacks_basic.pcap"
+    (Test.tcp_iperf amt)
 
-let test_tcp_iperf_two_stacks_trailing_bytes () =
+let test_tcp_iperf_two_stacks_trailing_bytes amt () =
   let module Test = Test_iperf (Vnetif_backends.Trailing_bytes) in
   Test.record_pcap
-    "tests/pcap/tcp_iperf_two_stacks_trailing_bytes.pcap" Test.tcp_iperf
+    "tests/pcap/tcp_iperf_two_stacks_trailing_bytes.pcap"
+    (Test.tcp_iperf amt)
 
-let test_tcp_iperf_two_stacks_uniform_packet_loss () =
+let test_tcp_iperf_two_stacks_uniform_packet_loss amt () =
   let module Test = Test_iperf (Vnetif_backends.Uniform_packet_loss) in
   Test.record_pcap
-    "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss.pcap" Test.tcp_iperf
+    "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss.pcap"
+    (Test.tcp_iperf amt)
+
+let amt_quick = 10_000_000
+let amt_slow  = amt_quick * 100
 
 let suite = [
-  "iperf with two stacks, basic tests",
-  test_tcp_iperf_two_stacks_basic;
 
-  "iperf with two stacks, testing trailing_bytes",
-  test_tcp_iperf_two_stacks_trailing_bytes;
+  "iperf with two stacks, basic tests", `Quick,
+  test_tcp_iperf_two_stacks_basic amt_quick;
 
-  "iperf with two stacks and uniform packet loss",
-  test_tcp_iperf_two_stacks_uniform_packet_loss;
+  "iperf with two stacks, testing trailing_bytes", `Quick,
+  test_tcp_iperf_two_stacks_trailing_bytes amt_quick;
+
+  "iperf with two stacks and uniform packet loss", `Quick,
+  test_tcp_iperf_two_stacks_uniform_packet_loss amt_quick;
+
+  "iperf with two stacks, basic tests, longer", `Slow,
+  test_tcp_iperf_two_stacks_basic amt_slow;
+
+  "iperf with two stacks and uniform packet loss, longer", `Slow,
+  test_tcp_iperf_two_stacks_uniform_packet_loss amt_slow;
+
 ]

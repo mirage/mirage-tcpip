@@ -1,30 +1,28 @@
-open Lwt
+open Common
 
-(* this is a very small set of tests for the channel interface, intended to
-   ensure that EOF conditions on the underlying flow are handled properly *)
+let (>>=) = Lwt.(>>=)
+
+(* this is a very small set of tests for the channel interface,
+   intended to ensure that EOF conditions on the underlying flow are
+   handled properly *)
 module Channel = Channel.Make(Fflow)
 
-let cmp a b =
-  match (String.compare a b) with | 0 -> true | _ -> false
+let err_read ch =
+  fail "character %c was returned from Channel.read_char on an empty flow" ch
 
-let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
+let err_no_exception () = fail "no exception"
+let err_wrong_exception e = fail "wrong exception: %s" (Printexc.to_string e)
 
 let test_read_char_eof () =
   let f = Fflow.make () in
   let c = Channel.create f in
-  let try_char_read () =
-    Channel.read_char c >>= fun ch ->
-    fail "character %c was returned from Channel.read_char on an empty flow" ch
-  in
+  let try_char_read () = Channel.read_char c >>= err_read in
   Lwt.try_bind
     (try_char_read)
-    (fun () -> fail "no exception") (* "success" case (no exceptions) *)
+    err_no_exception (* "success" case (no exceptions) *)
     (function
       | End_of_file -> Lwt.return_unit
-      | e -> fail "wrong exception: %s" (Printexc.to_string e))
-
-let check a b =
-  OUnit.assert_equal ~printer:(fun a -> a) ~cmp a (Cstruct.to_string b)
+      | e -> err_wrong_exception e)
 
 let test_read_until_eof () =
   let input =
@@ -34,15 +32,17 @@ let test_read_until_eof () =
   let c = Channel.create f in
   Channel.read_until c 'v' >>= function
   | true, buf ->
-    check "I am the " buf;
+    assert_cstruct "wrong flow prefix"
+      (Cstruct.of_string "I am the ") buf;
     Channel.read_until c '\xff' >>= fun (found, buf) ->
-    OUnit.assert_equal ~msg:"claimed we found a char that couldn't have been
-      there in read_until" false found;
-    check "ery model of a modern major general" buf;
-    Channel.read_until c '\n' >>= fun (found, buf) ->
-    OUnit.assert_equal ~msg:"claimed we found a char after EOF in read_until"
+    assert_bool "found a char that couldn't have been there in read_until"
       false found;
-    OUnit.assert_equal ~printer:string_of_int 0 (Cstruct.len buf);
+    assert_cstruct "wrong flow suffix"
+      (Cstruct.of_string "ery model of a modern major general") buf;
+    Channel.read_until c '\n' >>= fun (found, buf) ->
+    assert_bool "found a char after EOF in read_until"
+      false found;
+    assert_int "wrong flow size" 0 (Cstruct.len buf);
     Lwt.return_unit
   | false, _ ->
     OUnit.assert_failure "thought we couldn't find a 'v' in input test"
@@ -52,11 +52,11 @@ let test_read_line () =
   let f = Fflow.make ~input:(Fflow.input_string input) () in
   let c = Channel.create f in
   Channel.read_line c  >>= fun buf ->
-  check input (Cstruct.of_string (Cstruct.copyv buf));
+  assert_string "read line" input (Cstruct.copyv buf);
   Lwt.return_unit
 
 let suite = [
-  "read_char + EOF" , test_read_char_eof;
-  "read_until + EOF", test_read_until_eof;
-  "read_line"       , test_read_line;
+  "read_char + EOF" , `Quick, test_read_char_eof;
+  "read_until + EOF", `Quick, test_read_until_eof;
+  "read_line"       , `Quick, test_read_line;
 ]
