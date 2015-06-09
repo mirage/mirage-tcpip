@@ -22,8 +22,8 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   module C = Console
   module V = VNETIF_STACK (B)
 
-  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0" 
-  let gw = Ipaddr.V4.of_string_exn "10.0.0.1" 
+  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
+  let gw = Ipaddr.V4.of_string_exn "10.0.0.1"
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
   let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
   let test_string = "Hello world from Mirage 123456789...."
@@ -64,7 +64,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     Lwt.return_unit
 
   let record_pcap =
-    V.record_pcap backend 
+    V.record_pcap backend
 
 end
 
