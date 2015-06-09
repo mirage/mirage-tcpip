@@ -65,7 +65,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let mlen = String.length msg
 
-  let fail fmt = Printf.kprintf failwith fmt
+  let fail fmt = Printf.kprintf (fun str -> Lwt.fail (Failure str)) fmt
   let err_eof () = fail "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
