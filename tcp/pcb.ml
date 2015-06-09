@@ -18,6 +18,24 @@
 open Lwt
 open Printf
 
+type error = [`Bad_state of State.tcpstate]
+
+type 'a result = [`Ok of 'a | `Error of error]
+let ok x = Lwt.return (`Ok x)
+let error s = Lwt.return (`Error (`Bad_state s))
+
+let (>+=) x f =
+  x >>= function
+  | `Ok x -> f x
+  | `Error _ as e -> Lwt.return e
+
+let iter_s f l =
+  let rec aux = function
+    | []   -> ok ()
+    | h::t -> f h >+= fun () -> aux t
+  in
+  aux l
+
 module Tcp_wire = Wire_structs.Tcp_wire
 
 cstruct pseudo_header {
@@ -486,28 +504,23 @@ struct
     | av_len when av_len < len ->
       let first_bit = Cstruct.sub data 0 av_len in
       let remaing_bit = Cstruct.sub data av_len (len - av_len) in
-      writefn pcb wfn first_bit  >>= fun () ->
+      writefn pcb wfn first_bit >+= fun () ->
       writefn pcb wfn remaing_bit
     | _ ->
       match State.state pcb.state with
-      | State.Established | State.Close_wait -> wfn [data]
-      (* URG_TODO: return error instead of dropping silently *)
-      | _ -> return_unit
+      | State.Established | State.Close_wait -> wfn [data] >>= ok
+      | e -> error e
 
   (* Blocking write on a PCB *)
   let write pcb data = writefn pcb (UTX.write pcb.utx) data
-  let writev pcb data = Lwt_list.iter_s (fun d -> write pcb d) data
-
+  let writev pcb data = iter_s (write pcb) data
   let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data
-  let writev_nodelay pcb data =
-    Lwt_list.iter_s (fun d -> write_nodelay pcb d) data
+  let writev_nodelay pcb data = iter_s (write_nodelay pcb) data
 
   (* Close - no more will be written *)
-  let close pcb =
-    Tx.close pcb
+  let close pcb = Tx.close pcb
 
-  let get_dest pcb =
-    pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
+  let get_dest pcb = pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
