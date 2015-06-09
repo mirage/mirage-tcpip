@@ -70,7 +70,6 @@ module Test_iperf ( B : Vnetif_backends.Backend ) = struct
       write_and_check flow a >>= fun () ->
       V.Stackv4.TCPV4.close flow
     in
-    OS.Time.sleep 1. >>= fun () ->
     C.log_s c (Printf.sprintf "Iperf client: Attempting connection.%!") >>= fun () ->
     tcp_connect (V.Stackv4.tcpv4 s) (dest_ip, dport) >>= fun flow ->
     iperftx flow >>= fun () ->
@@ -134,13 +133,12 @@ module Test_iperf ( B : Vnetif_backends.Backend ) = struct
        fail "iperf test timed out after %f seconds" timeout) ;
 
       (server_ready >>= fun () ->
-       Lwt_unix.sleep 1.0 >>= fun() ->
+       Lwt_unix.sleep 0.1 >>= fun() -> (* Give server 0.1 s to call listen *)
        C.log_s c (Printf.sprintf "I am client with IP %s, trying to connect to server @ %s:%d" (Ipaddr.V4.to_string client_ip) (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
        V.create_stack c backend client_ip netmask [gw] >>= fun client_s ->
        iperfclient c client_s server_ip port) ;
 
-      (Lwt_unix.sleep 1.0 >>= fun () ->
-       C.log_s c (Printf.sprintf "I am server with IP %s, expecting connections on port %d" (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
+      (C.log_s c (Printf.sprintf "I am server with IP %s, expecting connections on port %d" (Ipaddr.V4.to_string server_ip) port) >>= fun () ->
        V.create_stack c backend server_ip netmask [gw] >>= fun server_s ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf c server_s server_done_u);
        Lwt.wakeup server_ready_u ();
