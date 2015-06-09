@@ -17,7 +17,7 @@
 open Lwt
 
 let debug = Log.create "Segment"
-let info = Log.create ~enabled:true "Segment"
+let info = Log.create ~enabled:true ~stats:false "Segment"
 
 let lwt_sequence_add_l s seq =
   let (_:'a Lwt_sequence.node) = Lwt_sequence.add_l s seq in
