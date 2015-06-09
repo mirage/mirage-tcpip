@@ -43,6 +43,7 @@ module Rx(Time:V1_LWT.TIME) = struct
     fin: bool;
     syn: bool;
     ack: bool;
+    rst: bool;
     ack_number: Sequence.t;
     window: int;
   }
@@ -52,8 +53,8 @@ module Rx(Time:V1_LWT.TIME) = struct
       (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
       (Sequence.to_string seg.ack_number) seg.window
 
-  let segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data =
-    { sequence; fin; syn; ack; ack_number; window; data }
+  let segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data =
+    { sequence; fin; syn; ack; rst; ack_number; window; data }
 
   let len seg =
     (Cstruct.len seg.data) +
@@ -104,7 +105,20 @@ module Rx(Time:V1_LWT.TIME) = struct
   let input (q:t) seg =
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
-    if not (Window.valid q.wnd seg.sequence) then return_unit
+    (* TODO check that this test for a valid RST is valid *)
+    if (seg.rst && (Window.valid q.wnd seg.sequence)) then begin
+        StateTick.tick q.state State.Recv_rst;
+        (* Dump all the received but out of order frames *)
+        q.segs <- S.empty;
+        (* Signal TX side *)
+        let txalert ack_svcd = match ack_svcd with
+        | true -> Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
+        | false -> return_unit
+        in
+        txalert (Window.ack_serviced q.wnd) >>= fun () ->
+        (* Use the fin path to inform the application of end of stream *)
+        Lwt_mvar.put q.rx_data (None, Some 0)
+    end else if not (Window.valid q.wnd seg.sequence) then return_unit
     else
       (* Insert the latest segment *)
       let segs = S.add seg q.segs in
@@ -327,13 +341,22 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
       Window.set_ack_serviced q.wnd true;
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
-      let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
-      let dupacktest () =
-        0l = Sequence.to_int32 ack_len &&
-        Window.tx_wnd_unscaled q.wnd = Int32.of_int win &&
-        not (Lwt_sequence.is_empty q.segs)
-      in
-      serviceack (dupacktest ()) ack_len seq win;
+      begin match State.state q.state with
+        | State.Reset -> let rec empty_segs segs =
+          match Lwt_sequence.take_opt_l segs with
+          | None -> ()
+          | Some s -> empty_segs segs
+	  in
+	  empty_segs q.segs
+        | _ ->
+          let ack_len = Sequence.sub seq (Window.tx_una q.wnd) in
+          let dupacktest () =
+            0l = Sequence.to_int32 ack_len &&
+            Window.tx_wnd_unscaled q.wnd = Int32.of_int win &&
+            not (Lwt_sequence.is_empty q.segs)
+          in
+          serviceack (dupacktest ()) ack_len seq win
+      end;
       (* Inform the window thread of updates to the transmit window *)
       Lwt_mvar.put q.tx_wnd_update win >>= fun () ->
       tx_ack_t ()
