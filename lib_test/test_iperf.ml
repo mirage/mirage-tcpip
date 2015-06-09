@@ -26,8 +26,8 @@ module Test_iperf ( B : Vnetif_backends.Backend ) = struct
 
   let backend = V.create_backend ()
 
-  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0" 
-  let gw = Ipaddr.V4.of_string_exn "10.0.0.1" 
+  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
+  let gw = Ipaddr.V4.of_string_exn "10.0.0.1"
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
   let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
 
@@ -75,7 +75,7 @@ module Test_iperf ( B : Vnetif_backends.Backend ) = struct
     iperftx flow >>= fun () ->
     C.log_s c (Printf.sprintf "Iperf client: Done.%!")
 
-  let print_data c st ts_now = 
+  let print_data c st ts_now =
     C.log_s c (Printf.sprintf "Iperf server: t = %f, rate = %Ld KBits/s, totbytes = %Ld, live_words = %d%!"
                  (ts_now -. st.start_time)
                  (Int64.of_float (((Int64.to_float st.bin_bytes) /. (ts_now -. st.last_time)) /. 125.))
@@ -94,21 +94,21 @@ module Test_iperf ( B : Vnetif_backends.Backend ) = struct
       match f with
       | `Error _ -> raise (Failure "Unknown error in server while reading")
       | `Eof ->
-        let ts_now = (Clock.time ()) in 
+        let ts_now = (Clock.time ()) in
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
         print_data c st ts_now >>= fun () ->
         V.Stackv4.TCPV4.close flow >>= fun () ->
         C.log_s c "Iperf server: Done - closed connection."
-      | `Ok data -> 
+      | `Ok data ->
         begin
           let l = Cstruct.len data in
           st.bytes <- (Int64.add st.bytes (Int64.of_int l));
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
           st.bin_packets <- (Int64.add st.bin_packets 1L);
-          let ts_now = (Clock.time ()) in 
+          let ts_now = (Clock.time ()) in
           (if ((ts_now -. st.last_time) >= 1.0) then
              print_data c st ts_now
            else
