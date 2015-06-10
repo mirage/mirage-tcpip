@@ -18,7 +18,7 @@ open Lwt.Infix
 
 (* TODO: modify V1.TCP to have a proper return type *)
 
-exception Bad_state of State.tcpstate
+exception Refused
 
 let debug = Log.create "Flow"
 
@@ -65,7 +65,7 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | `Ok () as x -> x
 
   let err_raise = function
-    | `Error (`Bad_state s) -> Lwt.fail (Bad_state s)
+    | `Error (`Bad_state _) -> Lwt.fail Refused
     | `Ok () -> Lwt.return_unit
 
   let id = Pcb.ip
