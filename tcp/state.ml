@@ -58,37 +58,34 @@ let t ~on_close =
 
 let state t = t.state
 
-let ps = Format.pp_print_string
-let pf = Format.fprintf
-
 let pp_action fmt = function
-  | Passive_open  -> ps fmt "Passive_open"
-  | Recv_rst      -> ps fmt "Recv_rst"
-  | Recv_synack x -> pf fmt "Recv_synack(%a)" Sequence.pp x
-  | Recv_ack x    -> pf fmt "Recv_ack(%a)" Sequence.pp x
-  | Recv_fin      -> ps fmt "Recv_fin"
+  | Passive_open  -> Log.ps fmt "Passive_open"
+  | Recv_rst      -> Log.ps fmt "Recv_rst"
+  | Recv_synack x -> Log.pf fmt "Recv_synack(%a)" Sequence.pp x
+  | Recv_ack x    -> Log.pf fmt "Recv_ack(%a)" Sequence.pp x
+  | Recv_fin      -> Log.ps fmt "Recv_fin"
   (*  | Recv_finack x -> pf fmt "Recv_finack(%a)" Sequence.pp x *)
-  | Send_syn x    -> pf fmt "Send_syn(%a)" Sequence.pp x
-  | Send_synack x -> pf fmt "Send_synack(%a)" Sequence.pp x
-  | Send_rst      -> ps fmt "Send_rst"
-  | Send_fin x    -> pf fmt "Send_fin(%a)" Sequence.pp x
-  | Timeout       -> ps fmt "Timeout"
+  | Send_syn x    -> Log.pf fmt "Send_syn(%a)" Sequence.pp x
+  | Send_synack x -> Log.pf fmt "Send_synack(%a)" Sequence.pp x
+  | Send_rst      -> Log.ps fmt "Send_rst"
+  | Send_fin x    -> Log.pf fmt "Send_fin(%a)" Sequence.pp x
+  | Timeout       -> Log.ps fmt "Timeout"
 
 let pp_tcpstate fmt = function
-  | Closed       -> ps fmt "Closed"
-  | Listen       -> ps fmt "Listen"
-  | Syn_rcvd x   -> pf fmt "Syn_rcvd(%a)" Sequence.pp x
-  | Syn_sent x   -> pf fmt "Syn_sent(%a)" Sequence.pp x
-  | Established  -> ps fmt "Established"
-  | Close_wait   -> ps fmt "Close_wait"
-  | Last_ack x   -> pf fmt "Last_ack(%a)" Sequence.pp x
-  | Fin_wait_1 x -> pf fmt "Fin_wait_1(%a)" Sequence.pp x
-  | Fin_wait_2 i -> pf fmt "Fin_wait_2(%d)" i
-  | Closing x    -> pf fmt "Closing(%a)" Sequence.pp x
-  | Time_wait    -> ps fmt "Time_wait"
-  | Reset        -> ps fmt "Reset"
+  | Closed       -> Log.ps fmt "Closed"
+  | Listen       -> Log.ps fmt "Listen"
+  | Syn_rcvd x   -> Log.pf fmt "Syn_rcvd(%a)" Sequence.pp x
+  | Syn_sent x   -> Log.pf fmt "Syn_sent(%a)" Sequence.pp x
+  | Established  -> Log.ps fmt "Established"
+  | Close_wait   -> Log.ps fmt "Close_wait"
+  | Last_ack x   -> Log.pf fmt "Last_ack(%a)" Sequence.pp x
+  | Fin_wait_1 x -> Log.pf fmt "Fin_wait_1(%a)" Sequence.pp x
+  | Fin_wait_2 i -> Log.pf fmt "Fin_wait_2(%d)" i
+  | Closing x    -> Log.pf fmt "Closing(%a)" Sequence.pp x
+  | Time_wait    -> Log.ps fmt "Time_wait"
+  | Reset        -> Log.ps fmt "Reset"
 
-let pp fmt t = Format.fprintf fmt "{ %a }" pp_tcpstate t.state
+let pp fmt t = Log.pf fmt "{ %a }" pp_tcpstate t.state
 
 module Make(Time:V1_LWT.TIME) = struct
 
@@ -96,12 +93,12 @@ module Make(Time:V1_LWT.TIME) = struct
   let time_wait_time = (* 30. *) 2.
 
   let rec finwait2timer t count timeout =
-    Log.f debug "finwait2timer %.02f" timeout;
+    Log.f debug (fun fmt -> Log.pf fmt "finwait2timer %.02f" timeout);
     Time.sleep timeout
     >>= fun () ->
     match t.state with
     | Fin_wait_2 i ->
-      Log.f debug "finwait2timer: Fin_wait_2";
+      Log.s debug "finwait2timer: Fin_wait_2";
       if i = count then begin
         t.state <- Closed;
         t.on_close ();
@@ -110,15 +107,15 @@ module Make(Time:V1_LWT.TIME) = struct
         finwait2timer t i timeout
       end
     | s ->
-      Log.f debug "finwait2timer: %a" pp_tcpstate s;
+      Log.f debug (fun fmt -> Log.pf fmt "finwait2timer: %a" pp_tcpstate s);
       return_unit
 
   let timewait t twomsl =
-    Log.f debug "timewait %.02f" twomsl;
+    Log.f debug (fun fmt -> Log.pf fmt "timewait %.02f" twomsl);
     Time.sleep twomsl
     >>= fun () ->
     t.state <- Closed;
-    Log.f debug "timewait on_close";
+    Log.s debug "timewait on_close";
     t.on_close ();
     return_unit
 
@@ -168,8 +165,9 @@ module Make(Time:V1_LWT.TIME) = struct
     in
     let old_state = t.state in
     let new_state = tstr t.state i in
-    Log.f debug "%a  - %a -> %a"
-      pp_tcpstate old_state pp_action i pp_tcpstate new_state;
+    Log.f debug (fun fmt ->
+        Log.pf fmt "%a  - %a -> %a"
+          pp_tcpstate old_state pp_action i pp_tcpstate new_state);
     t.state <- new_state;
 
 end

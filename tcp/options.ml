@@ -159,20 +159,20 @@ let marshal buf ts =
   | _ -> assert false
 
 let pp_sack fmt x =
-  let pp_v fmt (l, r) = Format.fprintf fmt "[%lu,%lu]" l r in
+  let pp_v fmt (l, r) = Log.pf fmt "[%lu,%lu]" l r in
   Log.pp_print_list pp_v fmt x
 
 let pp fmt = function
-  | Noop                -> Format.fprintf fmt "Noop"
-  | MSS m               -> Format.fprintf fmt "MSS=%d" m
-  | Window_size_shift b -> Format.fprintf fmt "Window>> %d" b
-  | SACK_ok             -> Format.fprintf fmt "SACK_ok"
-  | SACK x              -> Format.fprintf fmt "SACK[%a]" pp_sack x
-  | Timestamp (a,b)     -> Format.fprintf fmt "Timestamp(%lu,%lu)" a b
-  | Unknown (t,_)       -> Format.fprintf fmt "%d?" t
+  | Noop                -> Log.ps fmt "Noop"
+  | MSS m               -> Log.pf fmt "MSS=%d" m
+  | Window_size_shift b -> Log.pf fmt "Window>> %d" b
+  | SACK_ok             -> Log.ps fmt "SACK_ok"
+  | SACK x              -> Log.pf fmt "SACK[%a]" pp_sack x
+  | Timestamp (a,b)     -> Log.pf fmt "Timestamp(%lu,%lu)" a b
+  | Unknown (t,_)       -> Log.pf fmt "%d?" t
 
 let pps fmt = function
-  | [] -> Format.fprintf fmt "[]"
+  | [] -> Log.ps fmt "[]"
   | x  ->
     let ppl fmt x = Log.pp_print_list pp fmt x in
-    Format.fprintf fmt "[ %a ]" ppl x
+    Log.pf fmt "[ %a ]" ppl x

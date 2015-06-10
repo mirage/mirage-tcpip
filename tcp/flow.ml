@@ -42,13 +42,15 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   ]
 
   let err_timeout daddr dport =
-    Log.f debug  "Failed to connect to %s:%d\n%!"
-      (Ipaddr.to_string (IP.to_uipaddr daddr)) dport;
+    Log.f debug (fun fmt ->
+        Log.pf fmt "Failed to connect to %a:%d\n%!"
+          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
     Lwt.return (`Error `Timeout)
 
   let err_refused daddr dport =
-    Log.f debug "Refused connection to %s:%d\n%!"
-      (Ipaddr.to_string (IP.to_uipaddr daddr)) dport;
+    Log.f debug (fun fmt ->
+        Log.pf fmt "Refused connection to %a:%d\n%!"
+          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
     Lwt.return (`Error `Refused)
 
   let ok x = Lwt.return (`Ok x)

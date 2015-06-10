@@ -41,8 +41,17 @@ val enabled: t -> bool
 val name: t -> string
 (** [name t] is the section name. *)
 
-val f: t -> ('a, Format.formatter, unit) format -> 'a
-(** Print some information on a logger. *)
+val f: t -> (Format.formatter -> unit) -> unit
+(** Print a formatted entry into a logger. *)
+
+val s: t -> string -> unit
+(** Print a string into a logger. *)
+
+val ps: Format.formatter -> string -> unit
+(** Same as {!format.pp_print_string}. *)
+
+val pf: Format.formatter -> ('a, Format.formatter, unit) format -> 'a
+(** Same as {!Format.fprintf}, to be used with {!f}. *)
 
 val pp_print_list:
   ?pp_sep:(Format.formatter -> unit -> unit) ->

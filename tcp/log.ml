@@ -25,14 +25,16 @@ type t = {
 
 let c = ref 0
 
-let f t fmt =
+let f t =
   if t.enabled && t.stats then
     let stats = Stats.create () in
-    Format.printf ("Tcp.%s%a: " ^^ fmt ^^ "\n%!") t.name Stats.pp stats
+    fun pp -> Format.printf ("Tcp.%s%a: %t\n%!") t.name Stats.pp stats pp
   else if t.enabled then
-    Format.printf ("Tcp.%s: " ^^ fmt ^^ "\n%!") t.name
+    fun pp -> Format.printf ("Tcp.%s: %t\n%!") t.name pp
   else
-    Format.ifprintf Format.std_formatter fmt
+    fun _pp -> ()
+
+let s t str = f t (fun fmt -> Format.pp_print_string fmt str)
 
 let create ?(enabled=false) ?(stats=true) name =
   incr c;
@@ -52,3 +54,7 @@ let rec pp_print_list ?(pp_sep = Format.pp_print_cut) pp_v ppf = function
     pp_v ppf v;
     pp_sep ppf ();
     pp_print_list ~pp_sep pp_v ppf vs
+
+
+let ps = Format.pp_print_string
+let pf = Format.fprintf
