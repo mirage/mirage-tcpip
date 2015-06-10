@@ -62,7 +62,7 @@ let beta = 0.25    (* see RFC 2988 *)
 
 (* To string for debugging *)
 let pp fmt t =
-  Format.fprintf fmt
+  Log.pf fmt
     "rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a"
     Sequence.pp t.rx_nxt
     Sequence.pp t.rx_nxt_inseq
@@ -173,7 +173,7 @@ module Make(Clock:V1.CLOCK) = struct
       if Sequence.gt r t.snd_una then
         t.snd_una <- r;
       if Sequence.geq r t.fast_rec_th then begin
-        Log.f debug "EXITING fast recovery";
+        Log.s debug "EXITING fast recovery";
         t.cwnd <- t.ssthresh;
         t.fast_recovery <- false;
       end else begin
@@ -227,9 +227,10 @@ let alert_fast_rexmit t _ =
     let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
     let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in
     let newcwnd = Int32.add newssthresh (Int32.of_int (t.tx_mss * 2)) in
-    Log.f debug
-      "ENTERING fast recovery inflight=%ld, ssthresh=%ld -> %ld, cwnd=%ld -> %ld"
-      inflight t.ssthresh newssthresh t.cwnd newcwnd;
+    Log.f debug (fun fmt ->
+        Log.pf fmt "ENTERING fast recovery inflight=%ld, ssthresh=%ld -> %ld, \
+                    cwnd=%ld -> %ld"
+          inflight t.ssthresh newssthresh t.cwnd newcwnd);
     t.fast_recovery <- true;
     t.fast_rec_th <- t.tx_nxt;
     t.ssthresh <- newssthresh;

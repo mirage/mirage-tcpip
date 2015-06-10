@@ -78,14 +78,16 @@ module Make (Ip:V1_LWT.IP) = struct
     let checksum = Ip.checksum frame (tcp_frame :: datav) in
     Tcp_wire.set_tcp_checksum tcp_frame checksum;
     (* PERF: uncommenting the next expression results in ~10% perf degradation
-    Log.f debug
-      "xmit checksum=%04x %a.%d->%a.%d rst=%b syn=%b fin=%b psh=%b\n\
-      \    seq=%lu ack=%lu options=%a datalen=%d datafrag=%d dataoff=%d olen=%d"
-      checksum
-      Ipaddr.pp_hum (Ip.to_uipaddr id.local_ip) id.local_port
-      Ipaddr.pp_hum (Ip.to_uipaddr id.dest_ip)  id.dest_port
-      rst syn fin psh sequence ack_number Options.pps options
-      (Cstruct.lenv datav) (List.length datav) data_off options_len; *)
+    Log.f debug (fun fmt ->
+        Log.pf fmt
+          "xmit checksum=%04x %a.%d->%a.%d rst=%b syn=%b fin=%b psh=%b \
+           seq=%lu ack=%lu options=%a datalen=%d datafrag=%d dataoff=%d olen=%d"
+          checksum
+          Ipaddr.pp_hum (Ip.to_uipaddr id.local_ip) id.local_port
+          Ipaddr.pp_hum (Ip.to_uipaddr id.dest_ip)  id.dest_port
+          rst syn fin psh sequence ack_number Options.pps options
+          (Cstruct.lenv datav) (List.length datav) data_off options_len); *)
     MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv datav);
     Ip.writev ip frame datav
+
 end
