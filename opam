@@ -13,13 +13,14 @@ authors: [
 tags: ["org:mirage"]
 
 build: [
-  ["./configure" "--prefix" prefix
-      "--%{mirage-flow+alcotest+mirage-vnetif+pcap-format:enable}%-tests"
-      "--%{mirage-xen:enable}%-xen"
-  ]
+  ["./configure" "--prefix" prefix "--%{mirage-xen:enable}%-xen"]
   [make]
 ]
-build-test: [make "test" "TESTFLAGS=-v"]
+build-test: [
+  ["./configure" "--enable-tests"]
+  [make "test" "TESTFLAGS=-v"]
+]
+
 install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
@@ -35,7 +36,8 @@ depends: [
   "mirage-flow" {test}
   "mirage-vnetif" {test}
   "alcotest" {test}
-  "pcap-format" {test} 
+  "pcap-format" {test}
+  "lwt" {>= "2.4.7"}
 ]
 depopts: [
   "mirage-xen"

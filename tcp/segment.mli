@@ -16,6 +16,9 @@
 
 (** TCP segments *)
 
+val info : Log.t
+val debug : Log.t
+
 (** The receive queue stores out-of-order segments, and can coalesece
     them on input and pass on an ordered list up the stack to the
     application.
@@ -28,7 +31,7 @@ module Rx (T:V1_LWT.TIME) : sig
   type segment
   (** Individual received TCP segment *)
 
-  val string_of_segment: segment -> string
+  val pp_segment: Format.formatter -> segment -> unit
 
   val segment:
     sequence:Sequence.t -> fin:bool -> syn:bool -> rst:bool -> ack:bool ->
@@ -38,7 +41,7 @@ module Rx (T:V1_LWT.TIME) : sig
   type t
   (** Queue of receive segments *)
 
-  val to_string: t -> string
+  val pp: Format.formatter -> t -> unit
 
   val create:
     rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->

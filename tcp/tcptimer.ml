@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
+
+let debug = Log.create "TCP.Tcptimer"
 
 type tr =
   | Stoptimer
@@ -22,7 +24,7 @@ type tr =
   | ContinueSetPeriod of (float * Sequence.t)
 
 type t = {
-  expire: (Sequence.t -> tr);
+  expire: (Sequence.t -> tr Lwt.t);
   mutable period: float;
   mutable running: bool;
 }
@@ -32,17 +34,26 @@ module Make(Time:V1_LWT.TIME) = struct
     let running = false in
     {period; expire; running}
 
-  let rec timerloop t s =
-    Time.sleep t.period >>= fun () ->
-    match t.expire s with
-    | Stoptimer ->
-      t.running <- false;
-      return_unit
-    | Continue d ->
-      timerloop t d
-    | ContinueSetPeriod (p, d) ->
-      t.period <- p;
-      timerloop t d
+  let timerloop t s =
+    Log.s debug "timerloop";
+    Stats.incr_timer ();
+    let rec aux t s =
+      Time.sleep t.period >>= fun () ->
+      t.expire s >>= function
+      | Stoptimer ->
+        Stats.decr_timer ();
+        t.running <- false;
+        Log.s debug "timerloop: stoptimer";
+        Lwt.return_unit
+      | Continue d ->
+        Log.s debug "timerloop: continuer";
+        aux t d
+      | ContinueSetPeriod (p, d) ->
+        Log.s debug "timerloop: coontinuesetperiod";
+        t.period <- p;
+        aux t d
+    in
+    aux t s
 
   let period t = t.period
 
@@ -50,8 +61,8 @@ module Make(Time:V1_LWT.TIME) = struct
     if not t.running then begin
       t.period <- p;
       t.running <- true;
-      let _ = timerloop t s in
-      return_unit
+      Lwt.async (fun () -> timerloop t s);
+      Lwt.return_unit
     end else
-      return_unit
+      Lwt.return_unit
 end

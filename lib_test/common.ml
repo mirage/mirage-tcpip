@@ -1,16 +1,21 @@
-open Lwt
-
-let cmp a b = String.compare a b = 0
+let (>>=) = Lwt.(>>=)
 
 let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
-
-let expect msg expected actual =
-  (if not (cmp expected actual) then
-     fail "Expected '%s', got '%s': %s" expected actual msg) ;
-  Lwt.return_unit
 
 let or_error name fn t =
   fn t >>= function
   | `Error e -> fail "or_error starting %s" name
-  | `Ok t -> return t
+  | `Ok t    -> Lwt.return t
 
+let assert_string msg a b =
+  let cmp a b = String.compare a b = 0 in
+  OUnit.assert_equal ~msg ~printer:(fun x -> x) ~cmp a b
+
+let assert_cstruct msg a b =
+  OUnit.assert_equal ~msg ~printer:Cstruct.to_string ~cmp:Cstruct.equal a b
+
+let assert_bool msg a b =
+  OUnit.assert_equal ~msg ~printer:string_of_bool a b
+
+let assert_int msg a b =
+  OUnit.assert_equal ~msg ~printer:string_of_int a b

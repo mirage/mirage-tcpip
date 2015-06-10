@@ -17,7 +17,7 @@
 let suite = [
   "channel", Test_channel.suite ;
   "connect", Test_connect.suite ;
-  "iperf", Test_iperf.suite ;
+  "iperf"  , Test_iperf.suite   ;
 ]
 
 let run test () =
@@ -25,7 +25,7 @@ let run test () =
 
 let () =
   let suite = List.map (fun (n, s) ->
-      n, List.map (fun (d, f) -> d, `Quick, run f) s
+      n, List.map (fun (d, s, f) -> d, s, run f) s
     ) suite
   in
-  Alcotest.run "irmin" suite
+  Alcotest.run "tcpip" suite

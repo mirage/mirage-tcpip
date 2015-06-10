@@ -158,15 +158,21 @@ let marshal buf ts =
     tlen+3
   | _ -> assert false
 
-let to_string = function
-  | Noop -> "Noop"
-  | MSS m -> Printf.sprintf "MSS=%d" m
-  | Window_size_shift b -> Printf.sprintf "Window>>%d" b
-  | SACK_ok -> "SACK_ok"
-  | SACK x -> Printf.(sprintf "SACK=(%s)" (String.concat ","
-                                            (List.map (fun (l,r) -> sprintf "%lu,%lu" l r) x)))
-  | Timestamp (a,b) -> Printf.sprintf "Timestamp(%lu,%lu)" a b
-  | Unknown (t,_) -> Printf.sprintf "%d?" t
+let pp_sack fmt x =
+  let pp_v fmt (l, r) = Log.pf fmt "[%lu,%lu]" l r in
+  Log.pp_print_list pp_v fmt x
 
-let prettyprint s =
-  Printf.sprintf "[ %s ]" (String.concat "; " (List.map to_string s))
+let pp fmt = function
+  | Noop                -> Log.ps fmt "Noop"
+  | MSS m               -> Log.pf fmt "MSS=%d" m
+  | Window_size_shift b -> Log.pf fmt "Window>> %d" b
+  | SACK_ok             -> Log.ps fmt "SACK_ok"
+  | SACK x              -> Log.pf fmt "SACK[%a]" pp_sack x
+  | Timestamp (a,b)     -> Log.pf fmt "Timestamp(%lu,%lu)" a b
+  | Unknown (t,_)       -> Log.pf fmt "%d?" t
+
+let pps fmt = function
+  | [] -> Log.ps fmt "[]"
+  | x  ->
+    let ppl fmt x = Log.pp_print_list pp fmt x in
+    Log.pf fmt "[ %a ]" ppl x

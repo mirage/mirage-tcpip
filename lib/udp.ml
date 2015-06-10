@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 module Make(Ip: V1_LWT.IP) = struct
 
@@ -44,15 +44,15 @@ module Make(Ip: V1_LWT.IP) = struct
         (Wire_structs.get_udp_length buf - Wire_structs.sizeof_udp)
     in
     match listeners ~dst_port with
-    | None -> return_unit
+    | None    -> Lwt.return_unit
     | Some fn ->
       let src_port = Wire_structs.get_udp_source_port buf in
       fn ~src ~dst ~src_port data
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
     begin match source_port with
-      | None -> fail (Failure "TODO; random source port")
-      | Some p -> return p
+      | None   -> Lwt.fail (Failure "TODO; random source port")
+      | Some p -> Lwt.return p
     end >>= fun source_port ->
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
     let frame = Cstruct.set_len frame (header_len + Wire_structs.sizeof_udp) in
@@ -68,8 +68,7 @@ module Make(Ip: V1_LWT.IP) = struct
   let write ?source_port ~dest_ip ~dest_port t buf =
     writev ?source_port ~dest_ip ~dest_port t [buf]
 
-  let connect ip =
-    return (`Ok { ip })
+  let connect ip = Lwt.return (`Ok { ip })
 
-  let disconnect _ = return_unit
+  let disconnect _ = Lwt.return_unit
 end
