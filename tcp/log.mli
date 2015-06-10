@@ -17,7 +17,7 @@
 (** Logging module for TCP *)
 
 type t
-(** The type for section values. *)
+(** The type for managing logging values. *)
 
 val create: ?enabled:bool -> string -> t
 (** Create a new section. By default, the section is disabled. *)
@@ -35,4 +35,4 @@ val name: t -> string
 (** [name t] is the section name. *)
 
 val f: t -> ('a, Format.formatter, unit) format -> 'a
-(** Log an entry. *)
+(** Print some information on a logger. *)

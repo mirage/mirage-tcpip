@@ -103,6 +103,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
           (function End_of_file -> return_none | e -> fail e)
       )
 
+  let zero = Cstruct.create 0
+
   (* Read until a character is found *)
   let read_until t ch =
     Lwt.catch
@@ -121,7 +123,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
            let hd = Cstruct.sub buf 0 off in
            t.ibuf <- Some (Cstruct.shift buf (off+1));
            return (true, hd))
-      (function End_of_file -> return (false, Cstruct.create 0) | e -> fail e)
+      (function End_of_file -> return (false, zero) | e -> fail e)
 
   (* This reads a line of input, which is terminated either by a CRLF
      sequence, or the end of the channel (which counts as a line).

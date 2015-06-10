@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+val debug: Log.t
+
 type action =
   | Passive_open
   | Recv_rst

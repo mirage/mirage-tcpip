@@ -24,6 +24,12 @@ type t = {
 
 let c = ref 0
 
+let f t fmt =
+  if t.enabled then
+    Format.printf ("Tcp.%s: " ^^ fmt ^^ "\n%!") t.name
+  else
+    Format.ifprintf Format.std_formatter fmt
+
 let create ?(enabled=false) name =
   incr c;
   { name; id = !c; enabled }
@@ -32,9 +38,3 @@ let enable  t = t.enabled <- true
 let disable t = t.enabled <- false
 let enabled t = t.enabled
 let name    t = t.name
-
-let f t =
-  if t.enabled then
-    fun fmt -> Format.printf ("%s: " ^^ fmt ^^ "\n%!") t.name
-  else
-    fun fmt -> Format.ifprintf Format.std_formatter fmt
