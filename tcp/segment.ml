@@ -17,6 +17,9 @@
 open Printf
 open Lwt
 
+let debug = Log.create "Segment"
+let info = Log.create ~enabled:true "Segment"
+
 let peek_opt_l seq =
   match Lwt_sequence.take_opt_l seq with
   | None -> None
@@ -115,6 +118,7 @@ module Rx(Time:V1_LWT.TIME) = struct
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
+    Log.f debug "input";
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
     if not (Window.valid q.wnd seg.sequence) then Lwt.return_unit
@@ -187,7 +191,7 @@ module Rx(Time:V1_LWT.TIME) = struct
            window as closed and tell the application *)
         (if fin ready then begin
             if S.cardinal waiting != 0 then
-              printf "TCP: warning, rx closed but waiting segs != 0\n%!";
+              Log.f info "warning, rx closed but waiting segs != 0";
             Lwt_mvar.put q.rx_data (None, Some 0)
           end else return_unit)
       in
@@ -273,13 +277,13 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           | true ->
             if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
-              printf "Max retransmits reached for connection - terminating\n%!";
+              Log.f info "Max retransmits reached for connection - terminating";
               StateTick.tick st State.Timeout;
               Tcptimer.Stoptimer
             ) else (
               let flags = rexmit_seg.flags in
               let options = [] in (* TODO: put the right options *)
-              printf "TCP retransmission on timer seq = %d\n%!"
+              Log.f info "TCP retransmission on timer seq = %d"
                 (Sequence.to_int rexmit_seg.seq);
               (* FIXME: suspicious ignore *)
               let _ = xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
@@ -304,13 +308,13 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           | true ->
             match Lwt_sequence.take_opt_l segs with
             | None ->
-              printf "TCP: Dubious ACK received\n%!";
+              Log.f info "Dubious ACK received";
               ack_remaining
             | Some s ->
               let seg_len = (Int32.of_int (len s)) in
               match ack_remaining < seg_len with
               | true ->
-                printf "TCP: Partial ACK received\n%!";
+                Log.f info "Partial ACK received";
                 (* return uncleared segment to the sequence *)
                 let _ = Lwt_sequence.add_l s segs in
                 ack_remaining

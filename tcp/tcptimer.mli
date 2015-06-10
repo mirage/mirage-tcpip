@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t 
+type t
 
 type tr =
   | Stoptimer
@@ -26,3 +26,5 @@ module Make(T:V1_LWT.TIME) : sig
 
   val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
 end
+
+val debug: Log.t
