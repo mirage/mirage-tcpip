@@ -15,7 +15,7 @@
  *
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
@@ -120,7 +120,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
         let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
         output t { op=`Reply; sha; tha; spa; tpa }
-      end else return_unit
+      end else Lwt.return_unit
     |2 -> (* Reply *)
       let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
       let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
@@ -128,10 +128,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
       notify t spa sha;
-      return_unit
+      Lwt.return_unit
     |n ->
       printf "ARP: Unknown message %d ignored\n%!" n;
-      return_unit
+      Lwt.return_unit
 
   and output t arp =
     (* Obtain a buffer to write into *)
@@ -193,12 +193,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let add_ip t ip =
     if not (List.mem ip t.bound_ips) then
       set_ips t (ip :: t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   let remove_ip t ip =
     if List.mem ip t.bound_ips then
       set_ips t (List.filter ((<>) ip) t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)

@@ -887,8 +887,7 @@ let add_routers ~now state ips =
 let get_routers state =
   RouterList.to_list state.router_list
 
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
+open Lwt.Infix
 
 module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   type ethif    = E.t

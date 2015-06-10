@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 let debug = Log.create "Segment"
 let info = Log.create ~enabled:true ~stats:false "Segment"
@@ -182,9 +182,10 @@ module Rx(Time:V1_LWT.TIME) = struct
             Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
           end else begin
             Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
-            return_unit
+            Lwt.return_unit
           end
-        end else return_unit in
+        end else Lwt.return_unit
+      in
       (* Inform the user application of new data *)
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
@@ -201,7 +202,7 @@ module Rx(Time:V1_LWT.TIME) = struct
             if S.cardinal waiting != 0 then
               Log.s info "warning, rx closed but waiting segs != 0";
             Lwt_mvar.put q.rx_data (None, Some 0)
-          end else return_unit)
+          end else Lwt.return_unit)
       in
       tx_ack <&> urx_inform
 
@@ -416,7 +417,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match seq_len > 0 with
-      | false -> return_unit
+      | false -> Lwt.return_unit
       | true ->
         lwt_sequence_add_r seg q.segs;
         let p = Window.rto q.wnd in

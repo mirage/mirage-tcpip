@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 (* General signature for all the ack modules *)
 module type M = sig
@@ -51,12 +51,12 @@ module Immediate : M = struct
 
   let receive t ack_number =
     match t.pushpending with
-    | true -> return_unit
+    | true  -> Lwt.return_unit
     | false -> pushack t ack_number
 
   let transmit t _ =
     t.pushpending <- false;
-    return_unit
+    Lwt.return_unit
 end
 
 
@@ -82,7 +82,7 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true  -> return_unit
+    | true  -> Lwt.return_unit
     | false ->
       r.pushpending <- true;
       transmitacknow r ack_number
@@ -131,6 +131,6 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
   let transmit t _ =
     t.r.delayed <- false;
     t.r.pushpending <- false;
-    return_unit
+    Lwt.return_unit
 
 end

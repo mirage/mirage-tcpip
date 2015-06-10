@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 
 let debug = Log.create "State"
@@ -94,30 +94,28 @@ module Make(Time:V1_LWT.TIME) = struct
 
   let rec finwait2timer t count timeout =
     Log.f debug (fun fmt -> Log.pf fmt "finwait2timer %.02f" timeout);
-    Time.sleep timeout
-    >>= fun () ->
+    Time.sleep timeout >>= fun () ->
     match t.state with
     | Fin_wait_2 i ->
       Log.s debug "finwait2timer: Fin_wait_2";
       if i = count then begin
         t.state <- Closed;
         t.on_close ();
-        return_unit
+        Lwt.return_unit
       end else begin
         finwait2timer t i timeout
       end
     | s ->
       Log.f debug (fun fmt -> Log.pf fmt "finwait2timer: %a" pp_tcpstate s);
-      return_unit
+      Lwt.return_unit
 
   let timewait t twomsl =
     Log.f debug (fun fmt -> Log.pf fmt "timewait %.02f" twomsl);
-    Time.sleep twomsl
-    >>= fun () ->
+    Time.sleep twomsl >>= fun () ->
     t.state <- Closed;
     Log.s debug "timewait on_close";
     t.on_close ();
-    return_unit
+    Lwt.return_unit
 
   let tick t (i:action) =
     let diffone x y = Sequence.incr y = x in

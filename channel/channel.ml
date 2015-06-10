@@ -16,7 +16,7 @@
 
 (** Buffered reading and writing over the Flow API *)
 
-open Lwt
+open Lwt.Infix
 
 module Make(Flow:V1_LWT.FLOW) = struct
 
@@ -53,20 +53,20 @@ module Make(Flow:V1_LWT.FLOW) = struct
          buffers, this will be violated causing Channel users to see Cstruct
          exceptions *)
       t.ibuf <- Some buf;
-      return_unit
+      Lwt.return_unit
     | `Error e ->
-      fail (Read_error e)
+      Lwt.fail (Read_error e)
     | `Eof ->
       (* close the flow before throwing exception; otherwise it will never be
          GC'd *)
       Flow.close t.flow >>= fun () ->
-      fail End_of_file
+      Lwt.fail End_of_file
 
   let rec get_ibuf t =
     match t.ibuf with
     | None -> ibuf_refill t >>= fun () -> get_ibuf t
     | Some buf when Cstruct.len buf = 0 -> ibuf_refill t >>= fun () -> get_ibuf t
-    | Some buf -> return buf
+    | Some buf -> Lwt.return buf
 
   (* Read one character from the input channel *)
   let read_char t =
@@ -75,7 +75,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let c = Cstruct.get_char buf 0 in
     t.ibuf <- Some (Cstruct.shift buf 1); (* advance read buffer, possibly to
                                              EOF *)
-    return c
+    Lwt.return c
 
   (* Read up to len characters from the input channel
      and at most a full view. If not specified, read all *)
@@ -88,10 +88,10 @@ module Make(Flow:V1_LWT.FLOW) = struct
       let hd,tl = Cstruct.split buf len in
       t.ibuf <- Some tl; (* leave some in the buffer; next time, we won't do a
                             blocking read *)
-      return hd
+      Lwt.return hd
     end else begin
       t.ibuf <- None;
-      return buf
+      Lwt.return buf
     end
 
   (* Read up to len characters from the input channel as a
@@ -99,8 +99,8 @@ module Make(Flow:V1_LWT.FLOW) = struct
   let read_stream ?len t =
     Lwt_stream.from (fun () ->
         Lwt.catch
-          (fun () -> read_some ?len t >>= fun v -> return (Some v))
-          (function End_of_file -> return_none | e -> fail e)
+          (fun () -> read_some ?len t >>= fun v -> Lwt.return (Some v))
+          (function End_of_file -> Lwt.return_none | e -> Lwt.fail e)
       )
 
   let zero = Cstruct.create 0
@@ -118,12 +118,12 @@ module Make(Flow:V1_LWT.FLOW) = struct
          match scan 0 with
          | None ->                (* not found, return what we have until EOF *)
            t.ibuf <- None;    (* basically guaranteeing that next read is EOF *)
-           return (false, buf)
+           Lwt.return (false, buf)
          | Some off ->                          (* found, so split the buffer *)
            let hd = Cstruct.sub buf 0 off in
            t.ibuf <- Some (Cstruct.shift buf (off+1));
-           return (true, hd))
-      (function End_of_file -> return (false, zero) | e -> fail e)
+           Lwt.return (true, hd))
+      (function End_of_file -> Lwt.return (false, zero) | e -> Lwt.fail e)
 
   (* This reads a line of input, which is terminated either by a CRLF
      sequence, or the end of the channel (which counts as a line).
@@ -132,7 +132,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let rec get acc =
       read_until t '\n' >>= function
       |(false, v) ->
-        if Cstruct.len v = 0 then return (v :: acc) else get (v :: acc)
+        if Cstruct.len v = 0 then Lwt.return (v :: acc) else get (v :: acc)
       |(true, v) -> begin
           (* chop the CR if present *)
           let vlen = Cstruct.len v in
@@ -140,7 +140,7 @@ module Make(Flow:V1_LWT.FLOW) = struct
             if vlen > 0 && (Cstruct.get_char v (vlen-1) = '\r') then
               Cstruct.sub v 0 (vlen-1) else v
           in
-          return (v :: acc)
+          Lwt.return (v :: acc)
         end
     in
     get [] >|= List.rev
@@ -210,9 +210,9 @@ module Make(Flow:V1_LWT.FLOW) = struct
     let l = List.rev t.obufq in
     t.obufq <- [];
     Flow.writev t.flow l >>= function
-    | `Ok () -> Lwt.return_unit
-    | `Error e -> fail (Write_error e)
-    | `Eof -> fail End_of_file
+    | `Ok ()   -> Lwt.return_unit
+    | `Error e -> Lwt.fail (Write_error e)
+    | `Eof     -> Lwt.fail End_of_file
 
   let close t =
     Lwt.finalize (fun () -> flush t) (fun () -> Flow.close t.flow)
