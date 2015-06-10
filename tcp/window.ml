@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Printf
+let debug = Log.create "Window"
 
 type t = {
   tx_mss: int;
@@ -61,12 +61,14 @@ let alpha = 0.125  (* see RFC 2988 *)
 let beta = 0.25    (* see RFC 2988 *)
 
 (* To string for debugging *)
-let to_string t =
-  sprintf "rx_nxt=%s rx_nxt_inseq=%s tx_nxt=%s rx_wnd=%lu tx_wnd=%lu snd_una=%s"
-    (Sequence.to_string t.rx_nxt)
-    (Sequence.to_string t.rx_nxt_inseq)
-    (Sequence.to_string t.tx_nxt)
-    t.rx_wnd t.tx_wnd (Sequence.to_string t.snd_una)
+let pp fmt t =
+  Format.fprintf fmt
+    "rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a"
+    Sequence.pp t.rx_nxt
+    Sequence.pp t.rx_nxt_inseq
+    Sequence.pp t.tx_nxt
+    t.rx_wnd t.tx_wnd
+    Sequence.pp t.snd_una
 
 (* Initialise the sequence space *)
 let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
@@ -111,8 +113,8 @@ let valid t seq =
   let redge = Sequence.(add t.rx_nxt (of_int32 t.rx_wnd)) in
   let ledge = Sequence.(sub t.rx_nxt (of_int32 t.max_rx_wnd)) in
   let r = Sequence.between seq ledge redge in
-  (* printf "TCP_window: valid check for seq=%s for range %s[%lu] res=%b\n%!"
-     (Sequence.to_string seq) (Sequence.to_string t.rx_nxt) t.rx_wnd r; *)
+  Log.f debug "valid: seq=%a range=%a[%lu] res=%b"
+    Sequence.pp seq Sequence.pp t.rx_nxt t.rx_wnd r;
   r
 
 (* Advance received packet sequence number *)
@@ -170,7 +172,7 @@ module Make(Clock:V1.CLOCK) = struct
       if Sequence.gt r t.snd_una then
         t.snd_una <- r;
       if Sequence.geq r t.fast_rec_th then begin
-        (* printf "EXITING fast recovery\n%!"; *)
+        Log.f debug "EXITING fast recovery";
         t.cwnd <- t.ssthresh;
         t.fast_recovery <- false;
       end else begin
@@ -224,14 +226,9 @@ let alert_fast_rexmit t _ =
     let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
     let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in
     let newcwnd = Int32.add newssthresh (Int32.of_int (t.tx_mss * 2)) in
-    (*
-      printf "ENTERING fast recovery inflight=%d, ssthresh=%d -> %d, cwnd=%d -> %d\n%!"
-      (Int32.to_int inflight)
-      (Int32.to_int t.ssthresh)
-      (Int32.to_int newssthresh)
-      (Int32.to_int t.cwnd)
-      (Int32.to_int newcwnd);
-     *)
+    Log.f debug
+      "ENTERING fast recovery inflight=%ld, ssthresh=%ld -> %ld, cwnd=%ld -> %ld"
+      inflight t.ssthresh newssthresh t.cwnd newcwnd;
     t.fast_recovery <- true;
     t.fast_rec_th <- t.tx_nxt;
     t.ssthresh <- newssthresh;

@@ -188,14 +188,11 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
   let rec clear_buffer t =
     let rec addon_more curr_data l =
       match Lwt_sequence.take_opt_l t.buffer with
-      | None ->
-        (* printf "out at 1\n%!";*)
-        List.rev curr_data
+      | None -> List.rev curr_data
       | Some s ->
         let s_len = len s in
         match s_len > l with
         | true ->
-          (*printf "out at 2 %lu %lu\n%!" s_len l;*)
           let _ = Lwt_sequence.add_l s t.buffer in
           List.rev curr_data
         | false ->

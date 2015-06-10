@@ -29,4 +29,5 @@ type t =
 
 val marshal: Cstruct.t -> t list -> int
 val unmarshal : Cstruct.t -> t list
-val prettyprint : t list -> string
+val pp : Format.formatter -> t -> unit
+val pps : Format.formatter -> t list -> unit
