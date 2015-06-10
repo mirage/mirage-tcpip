@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 let debug = Log.create "TCP.Tcptimer"
 
@@ -44,7 +44,7 @@ module Make(Time:V1_LWT.TIME) = struct
         Stats.decr_timer ();
         t.running <- false;
         Log.s debug "timerloop: stoptimer";
-        return_unit
+        Lwt.return_unit
       | Continue d ->
         Log.s debug "timerloop: continuer";
         aux t d
@@ -62,7 +62,7 @@ module Make(Time:V1_LWT.TIME) = struct
       t.period <- p;
       t.running <- true;
       Lwt.async (fun () -> timerloop t s);
-      return_unit
+      Lwt.return_unit
     end else
-      return_unit
+      Lwt.return_unit
 end

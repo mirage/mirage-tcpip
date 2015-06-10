@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 type error = [`Bad_state of State.tcpstate]
 
@@ -140,7 +140,7 @@ struct
       | _ ->
         Log.f debug (fun fmt ->
             Log.pf fmt "TX.close: skipping, state=%a" State.pp pcb.state);
-        return_unit
+        Lwt.return_unit
 
     (* Thread that transmits ACKs in response to received packets,
        thus telling the other side that more can be sent, and
@@ -195,7 +195,7 @@ struct
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
         begin match winadv with
-          | None -> return_unit
+          | None        -> Lwt.return_unit
           | Some winadv ->
             if (winadv > 0) then (
               Window.rx_advance wnd winadv;
@@ -213,10 +213,11 @@ struct
             rx_application_t ()
           | Some data ->
             let rec queue = function
+              | []     -> Lwt.return_unit
               | hd::tl ->
                 User_buffer.Rx.add_r urx (Some hd) >>= fun () ->
                 queue tl
-              | [] -> return_unit in
+            in
             queue data >>= fun _ ->
             rx_application_t ()
         end
@@ -350,7 +351,7 @@ struct
     let fnth = fun _ -> th_frees := !th_frees + 1 in
     Gc.finalise fnpcb pcb;
     Gc.finalise fnth th;
-    return (pcb, th, opts)
+    Lwt.return (pcb, th, opts)
 
   let new_server_connection t params id pushf =
     Log.f debug (with_stats "new-server-connection" t);
@@ -368,7 +369,7 @@ struct
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
-    return (pcb, th)
+    Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number =
     Log.f debug (with_stats "new-client-connection" t);
@@ -383,7 +384,7 @@ struct
     STATE.tick pcb.state (State.Recv_synack (Sequence.of_int32 ack_number));
     (* xmit ACK *)
     TXS.output pcb.txq [] >>= fun () ->
-    return (pcb, th)
+    Lwt.return (pcb, th)
 
   let process_reset t id =
     Log.f debug (with_stats "process-reset" t);
@@ -393,7 +394,7 @@ struct
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
       Lwt.wakeup wakener `Rst;
-      return_unit
+      Lwt.return_unit
     | None ->
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
@@ -401,10 +402,10 @@ struct
         Stats.decr_listen ();
         STATE.tick pcb.state State.Recv_rst;
         Lwt.cancel th;
-        return_unit
+        Lwt.return_unit
       | None ->
         (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
-        return_unit
+        Lwt.return_unit
 
   let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
     Log.f debug (with_stats "process-synack" t);
@@ -423,12 +424,12 @@ struct
           id ack_number
         >>= fun (pcb, th) ->
         Lwt.wakeup wakener (`Ok (pcb, th));
-        return_unit
+        Lwt.return_unit
       ) else
         (* Normally sending a RST reply to a random pkt would be in
            order but here we stay quiet since we are actively trying
            to connect this id *)
-        return_unit
+        Lwt.return_unit
     | None ->
       (* Incomming SYN-ACK with no pending connect and no matching pcb
          - send RST *)
@@ -447,7 +448,7 @@ struct
         { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
         id pushf
       >>= fun _ ->
-      return_unit
+      Lwt.return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
@@ -467,12 +468,12 @@ struct
         pushf (fst newconn)
       ) else
         (* No RST because we are trying to connect on this id *)
-        return_unit
+        Lwt.return_unit
     | None ->
       match hashtbl_find t.connects id with
       | Some _ ->
         (* No RST because we are trying to connect on this id *)
-        return_unit
+        Lwt.return_unit
       | None ->
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
@@ -496,12 +497,14 @@ struct
       | false, false ->
         (* What the hell is this packet? No SYN,ACK,RST *)
         Log.s debug "input-no-pcb: unknown packet";
-        return_unit
+        Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
     match verify_checksum src dst data with
-    | false -> Log.s debug "RX.input: checksum error"; return_unit
+    | false ->
+      Log.s debug "RX.input: checksum error";
+      Lwt.return_unit
     | true ->
       let source_port = Tcp_wire.get_tcp_src_port data in
       let dest_port = Tcp_wire.get_tcp_dst_port data in
@@ -591,21 +594,19 @@ struct
     in
     Time.sleep rxtime >>= fun () ->
     match hashtbl_find t.connects id with
+    | None                -> Lwt.return_unit
     | Some (wakener, isn) ->
       if isn = tx_isn then
         if count > 3 then (
           Hashtbl.remove t.connects id;
           Stats.decr_connect ();
           Lwt.wakeup wakener `Timeout;
-          return_unit
+          Lwt.return_unit
         ) else (
           Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
           connecttimer t id tx_isn options window (count + 1)
         )
-      else
-        return_unit
-    | None ->
-      return_unit
+      else Lwt.return_unit
 
   let connect t ~dest_ip ~dest_port =
     let id = getid t dest_ip dest_port in
