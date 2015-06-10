@@ -43,9 +43,10 @@ let sub a b = Int32.sub a b
 (* a++ *)
 let incr a = Int32.add a 1l
 
-let compare a b = Int32.compare a b 
+let compare a b = Int32.compare a b
 let of_int32 t = t
 let of_int t = Int32.of_int t
 let to_int32 t = t
 let to_int t = Int32.to_int t
-let to_string t = Printf.sprintf "%lu" t
+
+let pp fmt t = Format.fprintf fmt "%lu" t

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t 
+type t
 
 type tr =
   | Stoptimer
@@ -22,7 +22,9 @@ type tr =
   | ContinueSetPeriod of (float * Sequence.t)
 
 module Make(T:V1_LWT.TIME) : sig
-  val t : period: float -> expire: (Sequence.t -> tr) -> t
+  val t : period: float -> expire: (Sequence.t -> tr Lwt.t) -> t
 
   val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
 end
+
+val debug: Log.t

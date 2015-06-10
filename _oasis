@@ -71,7 +71,8 @@ Library tcp
   Findlibparent:      tcpip
   Findlibname:        tcp
   Modules:            Options,Wire,State,Tcptimer,Sequence,Ack,
-                      Window,Segment,User_buffer,Pcb,Flow
+                      Window,Segment,User_buffer,Pcb,Flow,
+                      Stats, Log
   BuildDepends:       io-page,
                       mirage-types,
                       ipaddr,
@@ -311,4 +312,4 @@ Executable test
 
 Test test
   Run$: flag(tests)
-  Command: $test
+  Command: $test -q
