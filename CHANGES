@@ -1,3 +1,15 @@
+2.5.0 (2015-06-10)
+* The test runs now produce `.pcap` files (#141, by @MagnusS)
+* Strip trailing bytes from network packets (#145, by @talex5)
+* Add tests for uniform packet loss (#147, by @MagnusS)
+* fixed bug where in case of out of order packets the ack and window were set
+  incorrectly (#140, #146)
+* Properly handle RST packets (#107, #148)
+* Add a `Log` module to control at runtime the debug statements which are
+  displayed (#142)
+* Writing in a PCB which does not have the right state now returns an error
+  instead of blocking (#150)
+
 2.4.3 (2015-05-05)
 * Fix infinite loop in `Channel.read_line` when the line does not contain a CRLF
   sequence (#131)

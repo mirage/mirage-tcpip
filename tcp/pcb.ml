@@ -89,7 +89,7 @@ struct
   }
 
   let pp_stats fmt t =
-    Log.pf fmt "[channels=%d  listens=%d connects=%d]"
+    Log.pf fmt "[channels=%d listens=%d connects=%d]"
       (Hashtbl.length t.channels)
       (Hashtbl.length t.listens)
       (Hashtbl.length t.connects)
