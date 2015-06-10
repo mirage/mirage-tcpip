@@ -17,6 +17,10 @@
 
 open Lwt
 
+let lwt_sequence_add_l s seq =
+  let (_:'a Lwt_sequence.node) = Lwt_sequence.add_l s seq in
+  ()
+
 (* A bounded queue to receive data segments and let readers block on
    receiving them. Also supports a monitor that is informed when the
    queue size changes *)
@@ -193,7 +197,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
         let s_len = len s in
         match s_len > l with
         | true ->
-          let _ = Lwt_sequence.add_l s t.buffer in
+          lwt_sequence_add_l s t.buffer;
           List.rev curr_data
         | false ->
           t.bufbytes <- Int32.sub t.bufbytes s_len;
@@ -207,12 +211,12 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       | true ->  begin
           match avail_len with
           |0l -> (* return pkt to buffer *)
-            let _ = Lwt_sequence.add_l s t.buffer in
+            lwt_sequence_add_l s t.buffer;
             None
           |_ -> (* split buffer into a partial write *)
             let to_send,remaining = Cstruct.split s (Int32.to_int avail_len) in
             (* queue remaining view *)
-            let _ = Lwt_sequence.add_l remaining t.buffer in
+            lwt_sequence_add_l remaining t.buffer;
             t.bufbytes <- Int32.sub t.bufbytes avail_len;
             Some [to_send]
         end
