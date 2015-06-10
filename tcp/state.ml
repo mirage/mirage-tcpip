@@ -142,7 +142,7 @@ module Make(Time:V1_LWT.TIME) = struct
       | Fin_wait_1 a, Recv_ack b ->
         if diffone b a then
           let count = 0 in
-          let _ = finwait2timer t count fin_wait_2_time in
+          Lwt.async (fun () -> finwait2timer t count fin_wait_2_time);
           Fin_wait_2 count
         else
           Fin_wait_1 a
@@ -150,8 +150,10 @@ module Make(Time:V1_LWT.TIME) = struct
       | Fin_wait_1 _, Timeout -> t.on_close (); Closed
       | Fin_wait_1 _, Recv_rst -> t.on_close (); Reset
       | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
-      | Fin_wait_2 _, Recv_fin -> let _ = timewait t time_wait_time in Time_wait
       | Fin_wait_2 _, Recv_rst -> t.on_close (); Reset
+      | Fin_wait_2 _, Recv_fin ->
+        Lwt.async (fun () -> timewait t time_wait_time);
+        Time_wait
       | Closing a, Recv_ack b -> if diffone b a then Time_wait else Closing a
       | Closing _, Timeout -> t.on_close (); Closed
       | Closing _, Recv_rst -> t.on_close (); Reset

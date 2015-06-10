@@ -82,25 +82,22 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true -> return_unit
-    | false -> r.pushpending <- true;
+    | true  -> return_unit
+    | false ->
+      r.pushpending <- true;
       transmitacknow r ack_number
-
 
   let ontimer r s  =
     match r.delayed with
-    | false ->
-      Tcptimer.Stoptimer
-    | true -> begin
-        match r.delayedack = s with
-        | false ->
-          Tcptimer.Continue r.delayedack
-        | true ->
-          r.delayed <- false;
-          let _ = transmitack r s in
-          Tcptimer.Stoptimer
-      end
-
+    | false -> Lwt.return Tcptimer.Stoptimer
+    | true  ->
+      match r.delayedack = s with
+      | false ->
+        Lwt.return (Tcptimer.Continue r.delayedack)
+      | true ->
+        r.delayed <- false;
+        transmitack r s >>= fun () ->
+        Lwt.return Tcptimer.Stoptimer
 
   let t ~send_ack ~last : t =
     let pushpending = false in

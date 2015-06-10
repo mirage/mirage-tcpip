@@ -622,12 +622,12 @@ struct
     Hashtbl.add t.connects id (wakener, tx_isn);
     Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
-    let _ = connecttimer t id tx_isn options window 0 in
+    Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
     th
 
   (* Construct the main TCP thread *)
   let create ip =
-    let _ = Random.self_init () in
+    Random.self_init ();
     let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in

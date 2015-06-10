@@ -24,7 +24,7 @@ type tr =
   | ContinueSetPeriod of (float * Sequence.t)
 
 type t = {
-  expire: (Sequence.t -> tr);
+  expire: (Sequence.t -> tr Lwt.t);
   mutable period: float;
   mutable running: bool;
 }
@@ -37,7 +37,7 @@ module Make(Time:V1_LWT.TIME) = struct
   let rec timerloop t s =
     Log.f debug "timerloop";
     Time.sleep t.period >>= fun () ->
-    match t.expire s with
+    t.expire s >>= function
     | Stoptimer ->
       Log.f debug "timerloop: stoptimer";
       t.running <- false;
@@ -56,7 +56,7 @@ module Make(Time:V1_LWT.TIME) = struct
     if not t.running then begin
       t.period <- p;
       t.running <- true;
-      let _ = timerloop t s in
+      Lwt.async (fun () ->timerloop t s);
       return_unit
     end else
       return_unit
