@@ -58,34 +58,37 @@ let t ~on_close =
 
 let state t = t.state
 
-let string_of_action = function
-  | Passive_open -> "Passive_open"
-  | Recv_rst -> "Recv_rst"
-  | Recv_synack x -> "Recv_synack " ^ (Sequence.to_string x)
-  | Recv_ack x -> "Recv_ack " ^ (Sequence.to_string x)
-  | Recv_fin -> "Recv_fin"
-  (* | Recv_finack x -> "Recv_finack " ^ (Sequence.to_string x) *)
-  | Send_syn x -> "Send_syn " ^ (Sequence.to_string x)
-  | Send_synack x -> "Send_synack " ^ (Sequence.to_string x)
-  | Send_rst -> "Send_rst"
-  | Send_fin x -> "Send_fin " ^ (Sequence.to_string x)
-  | Timeout -> "Timeout"
+let ps = Format.pp_print_string
+let pf = Format.fprintf
 
-let string_of_tcpstate = function
-  | Closed -> "Closed"
-  | Listen -> "Listen"
-  | Syn_rcvd x -> "Syn_rcvd " ^ (Sequence.to_string x)
-  | Syn_sent x -> "Syn_sent " ^ (Sequence.to_string x)
-  | Established -> "Established"
-  | Close_wait -> "Close_wait"
-  | Last_ack x -> "Last_ack " ^ (Sequence.to_string x)
-  | Fin_wait_1 x -> "Fin_wait_1 " ^ (Sequence.to_string x)
-  | Fin_wait_2 i -> "Fin_wait_2 " ^ (string_of_int i)
-  | Closing x -> "Closing " ^ (Sequence.to_string x)
-  | Time_wait -> "Time_wait"
+let pp_action fmt = function
+  | Passive_open  -> ps fmt "Passive_open"
+  | Recv_rst      -> ps fmt "Recv_rst"
+  | Recv_synack x -> pf fmt "Recv_synack(%a)" Sequence.pp x
+  | Recv_ack x    -> pf fmt "Recv_ack(%a)" Sequence.pp x
+  | Recv_fin      -> ps fmt "Recv_fin"
+  (*  | Recv_finack x -> pf fmt "Recv_finack(%a)" Sequence.pp x *)
+  | Send_syn x    -> pf fmt "Send_syn(%a)" Sequence.pp x
+  | Send_synack x -> pf fmt "Send_synack(%a)" Sequence.pp x
+  | Send_rst      -> ps fmt "Send_rst"
+  | Send_fin x    -> pf fmt "Send_fin(%a)" Sequence.pp x
+  | Timeout       -> ps fmt "Timeout"
 
-let to_string t =
-  sprintf "{ %s }" (string_of_tcpstate t.state)
+let pp_tcpstate fmt = function
+  | Closed       -> ps fmt "Closed"
+  | Listen       -> ps fmt "Listen"
+  | Syn_rcvd x   -> pf fmt "Syn_rcvd(%a)" Sequence.pp x
+  | Syn_sent x   -> pf fmt "Syn_sent(%a)" Sequence.pp x
+  | Established  -> ps fmt "Established"
+  | Close_wait   -> ps fmt "Close_wait"
+  | Last_ack x   -> pf fmt "Last_ack(%a)" Sequence.pp x
+  | Fin_wait_1 x -> pf fmt "Fin_wait_1(%a)" Sequence.pp x
+  | Fin_wait_2 i -> pf fmt "Fin_wait_2(%d)" i
+  | Closing x    -> pf fmt "Closing(%a)" Sequence.pp x
+  | Time_wait    -> ps fmt "Time_wait"
+  | Reset        -> ps fmt "Reset"
+
+let pp fmt t = Format.fprintf fmt "{ %a }" pp_tcpstate t.state
 
 module Make(Time:V1_LWT.TIME) = struct
 
@@ -107,7 +110,7 @@ module Make(Time:V1_LWT.TIME) = struct
         finwait2timer t i timeout
       end
     | s ->
-      Log.f debug "finwait2timer: %s" (string_of_tcpstate s);
+      Log.f debug "finwait2timer: %a" pp_tcpstate s;
       return_unit
 
   let timewait t twomsl =
@@ -163,10 +166,8 @@ module Make(Time:V1_LWT.TIME) = struct
     in
     let old_state = t.state in
     let new_state = tstr t.state i in
-    Log.f debug "%s  - %s -> %s"
-      (string_of_tcpstate old_state)
-      (string_of_action i)
-      (string_of_tcpstate new_state);
+    Log.f debug "%a  - %a -> %a"
+      pp_tcpstate old_state pp_action i pp_tcpstate new_state;
     t.state <- new_state;
 
 end

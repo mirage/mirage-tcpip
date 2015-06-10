@@ -16,7 +16,6 @@
  *)
 
 open Lwt
-open Printf
 
 type error = [`Bad_state of State.tcpstate]
 
@@ -89,9 +88,11 @@ struct
     connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
-  let stats t =
-    sprintf "[%d channels / %d listens / %d connects]"
-      (Hashtbl.length t.channels) (Hashtbl.length t.listens) (Hashtbl.length t.connects)
+  let pp_stats fmt t =
+    Format.fprintf fmt "[%d channels / %d listens / %d connects]"
+      (Hashtbl.length t.channels)
+      (Hashtbl.length t.listens)
+      (Hashtbl.length t.connects)
 
   let ip { ip; _ } = ip
 
@@ -135,7 +136,7 @@ struct
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
       | _ ->
-        Log.f debug "TX.close: skipping, state=%s" (State.to_string pcb.state);
+        Log.f debug "TX.close: skipping, state=%a" State.pp pcb.state;
         return_unit
 
     (* Thread that transmits ACKs in response to received packets,
@@ -248,7 +249,7 @@ struct
 
   let clearpcb t id tx_isn =
     (* TODO: add more info to log msgs *)
-    Log.f debug "removing pcb from tables: %s" (stats t);
+    Log.f debug "removing pcb from tables: %a" pp_stats t;
     match hashtbl_find t.channels id with
     | Some _ ->
       Log.f debug "removed from channels!!";
@@ -347,7 +348,7 @@ struct
     return (pcb, th, opts)
 
   let new_server_connection t params id pushf =
-    Log.f debug "new-server-connection %s" (stats t);
+    Log.f debug "new-server-connection %a" pp_stats t;
     new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
@@ -359,7 +360,7 @@ struct
     return (pcb, th)
 
   let new_client_connection t params id ack_number =
-    Log.f debug "new-client-connection %s" (stats t);
+    Log.f debug "new-client-connection %a" pp_stats t;
     let tx_isn = params.tx_isn in
     let params = { params with tx_isn = Sequence.incr tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
@@ -373,7 +374,7 @@ struct
     return (pcb, th)
 
   let process_reset t id =
-    Log.f debug "process-reset %s" (stats t);
+    Log.f debug "process-reset %a" pp_stats t;
     match hashtbl_find t.connects id with
     | Some (wakener, _) ->
       (* URG_TODO: check if RST ack num is valid before it is accepted *)
@@ -392,7 +393,7 @@ struct
         return_unit
 
   let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    Log.f debug "process-synack %s" (stats t);
+    Log.f debug "process-synack %a" pp_stats t;
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
@@ -419,7 +420,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    Log.f debug "process-syn %s" (stats t);
+    Log.f debug "process-syn %a" pp_stats t;
     match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
@@ -436,7 +437,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
-    Log.f debug "process-ack %s" (stats t);
+    Log.f debug "process-ack %a" pp_stats t;
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
@@ -477,7 +478,7 @@ struct
       | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
       | false, false ->
         (* What the hell is this packet? No SYN,ACK,RST *)
-        Log.f debug "input-no-pcb %s: unknown packet" (stats t);
+        Log.f debug "input-no-pcb %a: unknown packet" pp_stats t;
         return_unit
 
   (* Main input function for TCP packets *)

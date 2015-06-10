@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Printf
 open Lwt
 
 let debug = Log.create "Segment"
@@ -63,10 +62,11 @@ module Rx(Time:V1_LWT.TIME) = struct
     window: int;
   }
 
-  let string_of_segment seg =
-    sprintf "TCP: RX seg seq=%s fin=%b syn=%b ack=%b acknum=%s win=%d"
-      (Sequence.to_string seg.sequence) seg.fin seg.syn seg.ack
-      (Sequence.to_string seg.ack_number) seg.window
+  let pp_segment fmt seg =
+    Format.fprintf fmt
+      "RX seg seq=%a fin=%b syn=%b ack=%b acknum=%a win=%d"
+      Sequence.pp seg.sequence seg.fin seg.syn seg.ack
+      Sequence.pp seg.ack_number seg.window
 
   let segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data =
     { sequence; fin; syn; ack; rst; ack_number; window; data }
@@ -94,11 +94,11 @@ module Rx(Time:V1_LWT.TIME) = struct
     let segs = S.empty in
     { segs; rx_data; tx_ack; wnd; state }
 
-  let to_string t =
-    String.concat ", "
-      (List.map (fun seg ->
-           sprintf "%lu[%d]" (Sequence.to_int32 seg.sequence) (len seg)
-         ) (S.elements t.segs))
+  let pp fmt t =
+    let pp_v fmt seg =
+      Format.fprintf fmt "%a[%d]" Sequence.pp seg.sequence (len seg)
+    in
+    Format.pp_print_list pp_v fmt (S.elements t.segs)
 
   (* If there is a FIN flag at the end of this segment set.  TODO:
      should look for a FIN and chop off the rest of the set as they
@@ -244,8 +244,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
-(*  let string_of_seg seg =
-    sprintf "[%s%d]"
+  let pp_seg fmt seg =
+    Format.fprintf fmt "[%s%d]"
       (match seg.flags with
        | No_flags ->""
        | Syn ->"SYN "
@@ -253,7 +253,6 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
        | Rst -> "RST "
        | Psh -> "PSH ")
       (len seg)
-*)
 
   let ack_segment _ _ = ()
   (* Take any action to the user transmit queue due to this being
@@ -271,8 +270,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
         | Some rexmit_seg ->
           match rexmit_seg.seq = seq with
           | false ->
-            (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-               (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+            Log.f debug "PUSHING TIMER - new time=%f, new seq=%a"
+              (Window.rto wnd) Sequence.pp rexmit_seg.seq;
             Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
           | true ->
             if (Window.max_rexmits_done wnd) then (
@@ -288,8 +287,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
               (* FIXME: suspicious ignore *)
               let _ = xmit ~flags ~wnd ~options ~seq rexmit_seg.data in
               Window.backoff_rto wnd;
-              (* printf "PUSHING TIMER - new time = %f, new seq = %d\n%!"
-                 (Window.rto wnd) (Sequence.to_int rexmit_seg.seq); *)
+              Log.f debug "PUSHING TIMER - new time = %f, new seq = %ld"
+                (Window.rto wnd) (Sequence.to_int32 rexmit_seg.seq);
               Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
             )
       end
@@ -333,8 +332,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
             Window.alert_fast_rexmit q.wnd seq;
             (* retransmit the bottom of the unacked list of packets *)
             let rexmit_seg = peek_l q.segs in
-            (* printf "TCP fast retransmission seq = %d, dupack = %d\n%!"
-                             (Sequence.to_int rexmit_seg.seq) (Sequence.to_int seq); *)
+            Log.f debug "TCP fast retransmission seq=%a, dupack=%a"
+              Sequence.pp rexmit_seg.seq Sequence.pp seq;
             let { wnd; _ } = q in
             let flags=rexmit_seg.flags in
             let options=[] in (* TODO: put the right options *)
