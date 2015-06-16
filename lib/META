@@ -162,7 +162,7 @@ package "stack-direct" (
  version = "2.5.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "io-page mirage-types ipaddr cstruct lwt tcpip.ethif tcpip.udp tcpip.tcp tcpip.dhcpv4"
+ "io-page mirage-types ipaddr cstruct lwt tcpip.ethif tcpip.arpv4 tcpip.udp tcpip.tcp tcpip.dhcpv4"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
