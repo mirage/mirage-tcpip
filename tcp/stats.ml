@@ -38,15 +38,9 @@ module Gc = struct
 
 end
 
-type counter = {
-  incrs: int;
-  decrs: int;
-}
+type counter = MProf.Counter.t
 
-let zero = { incrs = 0; decrs = 0 }
-let value c = c.incrs - c.decrs
-let incrs c = c.incrs
-let decrs c = c.decrs
+let value = MProf.Counter.value
 
 let pp_counter fmt t = Format.fprintf fmt "%d" (value t)
 
@@ -65,34 +59,31 @@ let pp fmt t = Format.fprintf fmt "[%a|%a|%a|%a%a]"
     pp_counter t.tcp_connects
     Gc.pp ()
 
-let tcp_flows = ref zero
-let tcp_listens = ref zero
-let tcp_channels = ref zero
-let tcp_connects = ref zero
-let tcp_timers = ref zero
+let incr r = MProf.Counter.increase r 1
+let decr r = MProf.Counter.increase r (-1)
 
-let incr r = let c = !r in r := { c with incrs = c.incrs + 1 }
-let decr r = let c = !r in r := { c with decrs = c.decrs + 1 }
+let singleton = 
+  let make name = MProf.Counter.create ~name () in
+  {
+    tcp_flows = make "Tcp.flows";
+    tcp_listens = make "Tcp.listens";
+    tcp_channels = make "Tcp.channels";
+    tcp_connects = make "Tcp.connects";
+    tcp_timers = make "Tcp.timers";
+  }
 
-let incr_flow t = incr tcp_flows
-let decr_flow t = decr tcp_flows
+let incr_flow () = incr singleton.tcp_flows
+let decr_flow () = decr singleton.tcp_flows
 
-let incr_listen t = incr tcp_listens
-let decr_listen t = decr tcp_listens
+let incr_listen () = incr singleton.tcp_listens
+let decr_listen () = decr singleton.tcp_listens
 
-let incr_channel t = incr tcp_channels
-let decr_channel t = decr tcp_channels
+let incr_channel () = incr singleton.tcp_channels
+let decr_channel () = decr singleton.tcp_channels
 
-let incr_connect t = incr tcp_connects
-let decr_connect t = decr tcp_connects
+let incr_connect () = incr singleton.tcp_connects
+let decr_connect () = decr singleton.tcp_connects
 
-let incr_timer t = incr tcp_timers
-let decr_timer t = decr tcp_timers
+let incr_timer () = incr singleton.tcp_timers
+let decr_timer () = decr singleton.tcp_timers
 
-let create () = {
-  tcp_flows    = !tcp_flows;
-  tcp_listens  = !tcp_listens;
-  tcp_channels = !tcp_channels;
-  tcp_connects = !tcp_connects;
-  tcp_timers   = !tcp_timers;
-}
