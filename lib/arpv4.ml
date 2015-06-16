@@ -90,6 +90,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
+    let open Arpv4_wire in
     MProf.Trace.label "arpv4.input";
     match get_arp_op frame with
     |1 -> (* Request *)
@@ -119,6 +120,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Lwt.return_unit
 
   and output t arp =
+    let open Arpv4_wire in
     (* Obtain a buffer to write into *)
     let buf = Io_page.to_cstruct (Io_page.get 1) in
     (* Write the ARP packet *)
