@@ -87,7 +87,7 @@ module Make (Ip:V1_LWT.IP) = struct
           Ipaddr.pp_hum (Ip.to_uipaddr id.dest_ip)  id.dest_port
           rst syn fin psh sequence ack_number Options.pps options
           (Cstruct.lenv datav) (List.length datav) data_off options_len); *)
-    MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv datav);
+    MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv datav + (if syn then 1 else 0));
     Ip.writev ip frame datav
 
 end
