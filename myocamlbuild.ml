@@ -612,6 +612,7 @@ let package_default =
           ("tcpip", ["lib"], []);
           ("tcpip_xen", ["lib"], []);
           ("ethif", ["lib"], []);
+          ("arpv4", ["lib"], []);
           ("ipv4", ["lib"], []);
           ("ipv6", ["lib"], []);
           ("udp", ["lib"], []);
@@ -620,6 +621,7 @@ let package_default =
           ("dhcpv4", ["dhcp"], []);
           ("tcpip-stack-direct", ["lib"], []);
           ("ethif-unix", ["unix"], []);
+          ("arpv4-unix", ["unix"], []);
           ("ipv4-unix", ["unix"], []);
           ("ipv6-unix", ["unix"], []);
           ("udpv4-unix", ["unix"], []);
@@ -670,7 +672,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 674 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

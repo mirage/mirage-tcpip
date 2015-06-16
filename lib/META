@@ -257,5 +257,26 @@ package "channel" (
  archive(native, plugin) = "channel.cmxs"
  exists_if = "channel.cma"
 )
+
+package "arpv4-unix" (
+ version = "2.4.1"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
+ archive(byte) = "arpv4-unix.cma"
+ archive(byte, plugin) = "arpv4-unix.cma"
+ archive(native) = "arpv4-unix.cmxa"
+ archive(native, plugin) = "arpv4-unix.cmxs"
+ exists_if = "arpv4-unix.cma"
+)
+package "arpv4" (
+ version = "2.4.3"
+ description = "Ethernet, TCP/IPv4 and DHCPv4 library"
+ requires = "tcpip io-page mirage-types ipaddr cstruct lwt cstruct.syntax"
+ archive(byte) = "arpv4.cma"
+ archive(byte, plugin) = "arpv4.cma"
+ archive(native) = "arpv4.cmxa"
+ archive(native, plugin) = "arpv4.cmxs"
+ exists_if = "arpv4.cma"
+)
 # OASIS_STOP
 
