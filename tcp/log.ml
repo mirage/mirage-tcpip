@@ -32,8 +32,7 @@ let write pp =
 
 let f t =
   if t.enabled && t.stats then
-    let stats = Stats.create () in
-    fun pp -> Format.kfprintf write Format.str_formatter ("Tcp.%s%a: %t") t.name Stats.pp stats pp
+    fun pp -> Format.kfprintf write Format.str_formatter ("Tcp.%s%a: %t") t.name Stats.pp Stats.singleton pp
   else if t.enabled then
     fun pp -> Format.kfprintf write Format.str_formatter ("Tcp.%s: %t") t.name pp
   else
