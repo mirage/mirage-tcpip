@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make ( N:V1_LWT.ETHIF ) ( C:V1.CLOCK ) ( T:V1_LWT.TIME ) : sig
+module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
   include V1_LWT.IPV4 with type ethif = N.t
-  val connect : ethif -> [> `Ok of t | `Error of error ] Lwt.t
+  val connect : ethif -> A.t -> [> `Ok of t | `Error of error ] Lwt.t
 end
