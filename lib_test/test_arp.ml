@@ -335,23 +335,17 @@ let input_resolves_wait () =
      listening interface to ensure the test terminates.  
      Fail with a timeout message if the whole thing takes more than 5s. *)
   let listener = start_arp_listener listen () in
-  let timeout time = 
-    OS.Time.sleep time >>= fun () -> 
-    fail "receiving an arp reply didn't wake the thread waiting on an ARP response";
-    Lwt.return_unit
-  in
   let query_then_disconnect = 
     query_or_die listen.arp first_ip (V.mac speak.netif) >>= fun () ->
     V.disconnect listen.netif
   in
-  Lwt.pick [
+  timeout ~time:5.0 (
     Lwt.join [
       V.listen listen.netif listener;
       query_then_disconnect;
       OS.Time.sleep 0.1 >>= fun () -> E.write speak.ethif for_listener;
-    ];
-    timeout 5.0
-  ]
+    ]
+  )
 
 let unreachable_times_out () =
   get_arp () >>= fun speak ->
@@ -492,7 +486,7 @@ let nonsense_requests () =
   in
   Lwt.async (fun () -> 
       V.listen answerer.netif (start_arp_listener answerer ()));
-  timeout ~time:10.0 (
+  timeout ~time:5.0 (
     Lwt.join [
       V.listen inquirer.netif (fail_on_receipt inquirer.netif);
       make_requests >>= fun () ->
