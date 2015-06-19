@@ -4,6 +4,8 @@ let time_reduction_factor = 60.
 
 module Fast_clock = struct
 
+  let last_read = ref (Clock.time ())
+
   (* from mirage/types/V1.mli module type CLOCK *)
   type tm =
     { tm_sec: int;               (** Seconds 0..60 *)
@@ -17,9 +19,25 @@ module Fast_clock = struct
       tm_isdst: bool;            (** Daylight time savings in effect *)
     }
 
-  let gmtime = Clock.gmtime
+  let gmtime time = 
+    let tm = Clock.gmtime time in
+    { 
+      tm_sec = tm.Clock.tm_sec;
+      tm_min = tm.Clock.tm_min;
+      tm_hour = tm.Clock.tm_hour;
+      tm_mday = tm.Clock.tm_mday;
+      tm_mon = tm.Clock.tm_mon;
+      tm_year = tm.Clock.tm_year;
+      tm_wday = tm.Clock.tm_wday;
+      tm_yday = tm.Clock.tm_yday;
+      tm_isdst = tm.Clock.tm_isdst;
+    }
 
-  let time = Clock.time
+  let time () = 
+    let this_time = Clock.time () in
+    let clock_diff = ((this_time -. !last_read) *. time_reduction_factor) in
+    last_read := this_time;
+    this_time +. clock_diff
 
 end
 module Fast_time = struct
@@ -30,7 +48,7 @@ end
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Clock)(Fast_time)
+module A = Arpv4.Make(E)(Fast_clock)(Fast_time)
 
 type arp_stack = {
   backend : B.t;
@@ -365,11 +383,11 @@ let entries_expire () =
   let test =
     OS.Time.sleep 0.1 >>= fun () ->
     set_and_check listen.arp speak first_ip >>= fun () ->
-    OS.Time.sleep 61.0 >>= fun () ->
+    OS.Time.sleep 1.0 >>= fun () ->
     (* asking now should generate a query *)
     not_in_cache ~listen:speak.netif expected_arp_query listen.arp first_ip;
   in
-  timeout ~time:90.0 test
+  timeout ~time:5.0 test
 
 (* RFC isn't strict on how many times to try, so we'll just say any number
    greater than 1 is fine *)
@@ -498,5 +516,5 @@ let suite =
     "entries are replaced with new information", `Quick, input_replaces_old;
     "unreachable IPs time out", `Quick, unreachable_times_out;
     "queries are tried repeatedly before timing out", `Quick, query_retries;
-    "entries expire", `Slow, entries_expire;
+    "entries expire", `Quick, entries_expire;
   ]
