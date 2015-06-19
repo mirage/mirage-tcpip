@@ -1,9 +1,36 @@
 open Lwt.Infix
 
+let time_reduction_factor = 60.
+
+module Fast_clock = struct
+
+  (* from mirage/types/V1.mli module type CLOCK *)
+  type tm =
+    { tm_sec: int;               (** Seconds 0..60 *)
+      tm_min: int;               (** Minutes 0..59 *)
+      tm_hour: int;              (** Hours 0..23 *)
+      tm_mday: int;              (** Day of month 1..31 *)
+      tm_mon: int;               (** Month of year 0..11 *)
+      tm_year: int;              (** Year - 1900 *)
+      tm_wday: int;              (** Day of week (Sunday is 0) *)
+      tm_yday: int;              (** Day of year 0..365 *)
+      tm_isdst: bool;            (** Daylight time savings in effect *)
+    }
+
+  let gmtime = Clock.gmtime
+
+  let time = Clock.time
+
+end
+module Fast_time = struct
+  type 'a io = 'a Lwt.t
+  let sleep time = OS.Time.sleep (time /. time_reduction_factor)
+end
+
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Clock)(OS.Time)
+module A = Arpv4.Make(E)(Clock)(Fast_time)
 
 type arp_stack = {
   backend : B.t;
@@ -469,7 +496,7 @@ let suite =
     "unsolicited unicast replies are heard and cached", `Quick, input_single_unicast;
     "solicited unicast replies resolve pending threads", `Quick, input_resolves_wait;
     "entries are replaced with new information", `Quick, input_replaces_old;
-    "unreachable IPs time out", `Slow, unreachable_times_out;
+    "unreachable IPs time out", `Quick, unreachable_times_out;
+    "queries are tried repeatedly before timing out", `Quick, query_retries;
     "entries expire", `Slow, entries_expire;
-    "queries are tried repeatedly before timing out", `Slow, query_retries;
   ]
