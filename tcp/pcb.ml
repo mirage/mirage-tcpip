@@ -67,8 +67,6 @@ struct
     ack: ACK.t;               (* Ack state *)
     state: State.t;           (* Connection state *)
     urx: User_buffer.Rx.t;    (* App rx buffer *)
-    urx_close_t: unit Lwt.t;  (* App rx close thread *)
-    urx_close_u: unit Lwt.u;  (* App rx connection close wakener *)
     utx: UTX.t;               (* App tx buffer *)
   }
 
@@ -190,7 +188,7 @@ struct
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
     let thread (pcb:pcb) ~rx_data =
-      let { wnd; ack; urx; urx_close_u; _ } = pcb in
+      let { wnd; ack; urx; } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
@@ -208,7 +206,6 @@ struct
         begin match data with
           | None ->
             STATE.tick pcb.state State.Recv_fin;
-            Lwt.wakeup urx_close_u ();
             User_buffer.Rx.add_r urx None >>= fun () ->
             rx_application_t ()
           | Some data ->
@@ -322,7 +319,6 @@ struct
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
-    let urx_close_t, urx_close_u = MProf.Trace.named_task "urx_close" in
     (* The window handling thread *)
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
@@ -337,7 +333,7 @@ struct
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.incr rx_isn) in
     (* Construct basic PCB in Syn_received state *)
-    let pcb = { state; rxq; txq; wnd; id; ack; urx; urx_close_t; urx_close_u; utx } in
+    let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
     let th =
