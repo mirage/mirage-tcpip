@@ -22,12 +22,6 @@ type counter
 val value: counter -> int
 (** The counter value. [value t] is [{!incr} t] - [{!decrs} t].*)
 
-val incrs: counter -> int
-(** How many time the counter has been increased. *)
-
-val decrs: counter -> int
-(** How many time the counter has been decreased. *)
-
 type t = {
   tcp_flows   : counter;
   tcp_listens : counter;
@@ -53,7 +47,7 @@ val decr_connect: unit -> unit
 val incr_timer: unit -> unit
 val decr_timer: unit -> unit
 
-val create: unit -> t
+val singleton: t
 
 module Gc: sig
   (** Show GC stats *)
