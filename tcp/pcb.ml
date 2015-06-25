@@ -336,11 +336,21 @@ struct
     let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
-    let th = Lwt.pick  [
-        (Tx.thread t pcb ~send_ack ~rx_ack);
-        (Rx.thread pcb ~rx_data);
-        (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update) ]
+    let tx_thread = (Tx.thread t pcb ~send_ack ~rx_ack) in
+    let rx_thread = (Rx.thread pcb ~rx_data) in
+    let wnd_thread = (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update) in
+    let threads = [ tx_thread; rx_thread; wnd_thread ] in
+    let catch_and_cancel = function
+      | Lwt.Canceled -> ()
+      | ex ->
+        (* cancel the other threads *)
+        List.iter Lwt.cancel threads;
+        Log.s info "ERROR: thread failure; terminating threads and closing connection";
+        on_close ();
+        !Lwt.async_exception_hook ex
     in
+    List.iter (fun t -> Lwt.on_failure t catch_and_cancel) threads;
+    let th = Lwt.join threads in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
     let fnpcb = fun _ -> pcb_frees := !pcb_frees + 1 in
