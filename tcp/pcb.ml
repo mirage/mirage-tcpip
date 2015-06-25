@@ -207,7 +207,7 @@ struct
           | None ->
             STATE.tick pcb.state State.Recv_fin;
             User_buffer.Rx.add_r urx None >>= fun () ->
-            rx_application_t ()
+            Lwt.return_unit
           | Some data ->
             let rec queue = function
               | []     -> Lwt.return_unit
@@ -336,10 +336,10 @@ struct
     let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
-    let th =
-      (Tx.thread t pcb ~send_ack ~rx_ack) <?>
-      (Rx.thread pcb ~rx_data) <?>
-      (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update)
+    let th = Lwt.pick  [
+        (Tx.thread t pcb ~send_ack ~rx_ack);
+        (Rx.thread pcb ~rx_data);
+        (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update) ]
     in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
