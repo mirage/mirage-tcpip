@@ -67,8 +67,6 @@ struct
     ack: ACK.t;               (* Ack state *)
     state: State.t;           (* Connection state *)
     urx: User_buffer.Rx.t;    (* App rx buffer *)
-    urx_close_t: unit Lwt.t;  (* App rx close thread *)
-    urx_close_u: unit Lwt.u;  (* App rx connection close wakener *)
     utx: UTX.t;               (* App tx buffer *)
   }
 
@@ -190,7 +188,7 @@ struct
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
     let thread (pcb:pcb) ~rx_data =
-      let { wnd; ack; urx; urx_close_u; _ } = pcb in
+      let { wnd; ack; urx; } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
@@ -208,9 +206,8 @@ struct
         begin match data with
           | None ->
             STATE.tick pcb.state State.Recv_fin;
-            Lwt.wakeup urx_close_u ();
             User_buffer.Rx.add_r urx None >>= fun () ->
-            rx_application_t ()
+            Lwt.return_unit
           | Some data ->
             let rec queue = function
               | []     -> Lwt.return_unit
@@ -322,7 +319,6 @@ struct
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
-    let urx_close_t, urx_close_u = MProf.Trace.named_task "urx_close" in
     (* The window handling thread *)
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
@@ -337,14 +333,24 @@ struct
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.incr rx_isn) in
     (* Construct basic PCB in Syn_received state *)
-    let pcb = { state; rxq; txq; wnd; id; ack; urx; urx_close_t; urx_close_u; utx } in
+    let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
-    let th =
-      (Tx.thread t pcb ~send_ack ~rx_ack) <?>
-      (Rx.thread pcb ~rx_data) <?>
-      (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update)
+    let tx_thread = (Tx.thread t pcb ~send_ack ~rx_ack) in
+    let rx_thread = (Rx.thread pcb ~rx_data) in
+    let wnd_thread = (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update) in
+    let threads = [ tx_thread; rx_thread; wnd_thread ] in
+    let catch_and_cancel = function
+      | Lwt.Canceled -> ()
+      | ex ->
+        (* cancel the other threads *)
+        List.iter Lwt.cancel threads;
+        Log.s info "ERROR: thread failure; terminating threads and closing connection";
+        on_close ();
+        !Lwt.async_exception_hook ex
     in
+    List.iter (fun t -> Lwt.on_failure t catch_and_cancel) threads;
+    let th = Lwt.join threads in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
     let fnpcb = fun _ -> pcb_frees := !pcb_frees + 1 in
