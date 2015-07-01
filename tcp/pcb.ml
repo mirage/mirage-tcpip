@@ -357,6 +357,10 @@ struct
     let fnth = fun _ -> th_frees := !th_frees + 1 in
     Gc.finalise fnpcb pcb;
     Gc.finalise fnth th;
+    Lwt.on_failure th (function
+      | Lwt.Canceled -> ()
+      | ex -> !Lwt.async_exception_hook ex
+    );
     Lwt.return (pcb, th, opts)
 
   let new_server_connection t params id pushf =
