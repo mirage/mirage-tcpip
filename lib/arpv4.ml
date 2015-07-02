@@ -64,16 +64,17 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     Time.sleep arp_timeout >>= tick t
 
   (* Prettyprint cache contents *)
-  let prettyprint t =
-    printf "ARP info:\n";
-    Hashtbl.fold (fun ip entry existing -> existing ^
-        sprintf "%s -> %s\n%!"
-          (Ipaddr.V4.to_string ip)
-          (match entry with
-           | Pending _ -> "I"
-           | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
-          )
-      ) t.cache ""
+  let pp fmt t =
+    Format.fprintf fmt "@.ARP cache:@.";
+    Hashtbl.iter (fun ip entry  ->
+        Format.fprintf fmt "%s -> " (Ipaddr.V4.to_string ip);
+        (match entry with
+         | Pending _ -> Format.fprintf fmt "%s" "Pending\n%!" 
+         | Confirmed (time, mac) -> Format.fprintf fmt "Confirmed (%s) (expires %f)\n%!" 
+                                      (Macaddr.to_string mac) time
+        )
+      ) t.cache;
+    Lwt.return_unit
 
   let notify t ip mac =
     let now = Clock.time () in
