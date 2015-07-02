@@ -43,6 +43,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
+  type macaddr = Macaddr.t
   type ethif = Ethif.t
   type id = t
   type error
