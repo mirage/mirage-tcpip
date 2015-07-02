@@ -219,9 +219,10 @@ let three_arp () =
 let query_or_die ~arp ~ip ~expected_mac = 
   A.query arp ip >>= function
   | `Timeout ->
-    let table = A.prettyprint arp in
     let pp_ip = Ipaddr.V4.to_string ip in
-    fail (Printf.sprintf "Timeout querying %s. Table: %s\n%!" pp_ip table);
+    Format.printf "Timeout querying %s." pp_ip;
+    A.pp Format.std_formatter arp >>= fun () ->
+    fail "ARP query failed when success was mandatory";
     Lwt.return_unit
   | `Ok mac -> 
     equals ~printer:Macaddr.to_string expected_mac mac;
