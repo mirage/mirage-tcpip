@@ -298,7 +298,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
                   Log.pf fmt "TCP retransmission on timer seq = %d"
                     (Sequence.to_int rexmit_seg.seq));
               (* FIXME: suspicious ignore *)
-              xmit ~flags ~wnd ~options ~seq rexmit_seg.data >>= fun () ->
+              Lwt.async ( fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data );
               Window.backoff_rto wnd;
               Log.f debug (fun fmt ->
                   Log.pf fmt "PUSHING TIMER - new time = %f, new seq = %a"
@@ -354,7 +354,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
             let { wnd; _ } = q in
             let flags=rexmit_seg.flags in
             let options=[] in (* TODO: put the right options *)
-            q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data
+            Lwt.async ( fun () -> q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data );
+            Lwt.return_unit
           end else
             Lwt.return_unit
         | false ->
