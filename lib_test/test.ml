@@ -24,6 +24,12 @@ let run test () =
   Lwt_main.run (test ())
 
 let () =
+  (* Enable TCP debug output *)
+  let open Tcp in
+  [Segment.info; Segment.debug; Pcb.info; Pcb.debug] |> List.iter (fun log ->
+      Log.enable log;
+      Log.set_stats log false
+    );
   let suite = List.map (fun (n, s) ->
       n, List.map (fun (d, s, f) -> d, s, run f) s
     ) suite
