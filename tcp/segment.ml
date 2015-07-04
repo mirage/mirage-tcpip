@@ -296,8 +296,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
               Log.f info (fun fmt ->
                   Log.pf fmt "TCP retransmission on timer seq = %d"
                     (Sequence.to_int rexmit_seg.seq));
-              (* FIXME: suspicious ignore *)
-              Lwt.async ( fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data );
+              Lwt.async (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
               Window.backoff_rto wnd;
               Log.f debug (fun fmt ->
                   Log.pf fmt "PUSHING TIMER - new time = %f, new seq = %a"
