@@ -126,7 +126,6 @@ module Rx(Time:V1_LWT.TIME) = struct
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
-    Log.s debug "input";
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
     if not (Window.valid q.wnd seg.sequence) then Lwt.return_unit
