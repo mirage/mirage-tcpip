@@ -291,13 +291,13 @@ Library "tcpip-stack-socket"
                       io-page.unix
 
 Executable test
+  CompiledObject:     native
   Build$: flag(tests)
   Path: lib_test
-  Custom: true
   MainIs: test.ml
   ByteOpt: -g
-  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, channel,
-                mirage-flow, mirage-vnetif, mirage-console.unix, tcpip.ethif,
+  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, channel, mirage-profile,
+                mirage-flow, mirage-vnetif, mirage-console.unix, tcpip.ethif, 
                 tcpip.tcp, pcap-format
 
 Test test
