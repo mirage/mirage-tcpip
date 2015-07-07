@@ -15,7 +15,6 @@
  *)
 
 let suite = [
-  "channel", Test_channel.suite ;
   "connect", Test_connect.suite ;
   "iperf"  , Test_iperf.suite   ;
 ]

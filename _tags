@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: c29853b44d503443994beb236b619204)
+# DO NOT EDIT (digest: 6b9cf3043caf636197595a91784e90f6)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -153,32 +153,28 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: use_udpv4-socket
 <unix/*.ml{,i,y}>: use_udpv6-socket
 # Executable test
-"lib_test/test.native": oasis_executable_test_byte
-<lib_test/*.ml{,i,y}>: oasis_executable_test_byte
-"lib_test/test.native": pkg_alcotest
-"lib_test/test.native": pkg_bytes
-"lib_test/test.native": pkg_channel
-"lib_test/test.native": pkg_cstruct
-"lib_test/test.native": pkg_io-page
-"lib_test/test.native": pkg_io-page.unix
-"lib_test/test.native": pkg_ipaddr
-"lib_test/test.native": pkg_lwt
-"lib_test/test.native": pkg_lwt.unix
-"lib_test/test.native": pkg_mirage-console.unix
-"lib_test/test.native": pkg_mirage-flow
-"lib_test/test.native": pkg_mirage-profile
-"lib_test/test.native": pkg_mirage-types
-"lib_test/test.native": pkg_mirage-vnetif
-"lib_test/test.native": pkg_oUnit
-"lib_test/test.native": pkg_pcap-format
-"lib_test/test.native": use_ethif
-"lib_test/test.native": use_ipv4
-"lib_test/test.native": use_ipv6
-"lib_test/test.native": use_tcp
-"lib_test/test.native": use_tcpip
+<lib_test/test.{native,byte}>: pkg_alcotest
+<lib_test/test.{native,byte}>: pkg_bytes
+<lib_test/test.{native,byte}>: pkg_cstruct
+<lib_test/test.{native,byte}>: pkg_io-page
+<lib_test/test.{native,byte}>: pkg_io-page.unix
+<lib_test/test.{native,byte}>: pkg_ipaddr
+<lib_test/test.{native,byte}>: pkg_lwt
+<lib_test/test.{native,byte}>: pkg_lwt.unix
+<lib_test/test.{native,byte}>: pkg_mirage-console.unix
+<lib_test/test.{native,byte}>: pkg_mirage-flow
+<lib_test/test.{native,byte}>: pkg_mirage-profile
+<lib_test/test.{native,byte}>: pkg_mirage-types
+<lib_test/test.{native,byte}>: pkg_mirage-vnetif
+<lib_test/test.{native,byte}>: pkg_oUnit
+<lib_test/test.{native,byte}>: pkg_pcap-format
+<lib_test/test.{native,byte}>: use_ethif
+<lib_test/test.{native,byte}>: use_ipv4
+<lib_test/test.{native,byte}>: use_ipv6
+<lib_test/test.{native,byte}>: use_tcp
+<lib_test/test.{native,byte}>: use_tcpip
 <lib_test/*.ml{,i,y}>: pkg_alcotest
 <lib_test/*.ml{,i,y}>: pkg_bytes
-<lib_test/*.ml{,i,y}>: pkg_channel
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
