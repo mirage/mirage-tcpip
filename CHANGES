@@ -1,16 +1,16 @@
 2.5.1 (2015-07-07)
 
 * Fix regression introduced in 2.5.0 where packet loss could lead to the
-  connection to become very slow (#157, thx to @MagnusS, @talex5 and @yomimono)
+  connection to become very slow (#157, MagnusS, @talex5, @yomimono and
+  @balrajsingh)
 * Improve the tests: more logging, more tracing and compile to native code when
   available, etc (@MagnusS and @talex5)
 * Do not raise `Invalid_argument("Lwt.wakeup_result")` everytime a connection
   is closed. Also now pass the raised exceptions to `Lwt.async_exception_hook`
   instead of ignoring them transparently, so the user can decide to shutdown
-  its application if something wrong happens (#153, #156 thx to @yomomino and
-  @talex5)
+  its application if something wrong happens (#153, #156, @yomomino and @talex5)
 * The `channel` library now lives in a separate repository and is released
-  separately (#159)
+  separately (#159, @samoht)
 
 2.5.0 (2015-06-10)
 * The test runs now produce `.pcap` files (#141, by @MagnusS)
