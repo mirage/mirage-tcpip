@@ -9,6 +9,8 @@
   instead of ignoring them transparently, so the user can decide to shutdown
   its application if something wrong happens (#153, #156 thx to @yomomino and
   @talex5)
+* The `channel` library now lives in a separate repository and is released
+  separately (#159)
 
 2.5.0 (2015-06-10)
 * The test runs now produce `.pcap` files (#141, by @MagnusS)
