@@ -1,9 +1,9 @@
 2.5.1 (2015-07-07)
 
 * Fix regression introduced in 2.5.0 where packet loss could lead to the
-  connection to become very slow (#157, thx to @MagnusM, @talex5 and @yomimono)
+  connection to become very slow (#157, thx to @MagnusS, @talex5 and @yomimono)
 * Improve the tests: more logging, more tracing and compile to native code when
-  available, etc (@MagnusM and @talex5)
+  available, etc (@MagnusS and @talex5)
 * Do not raise `Invalid_argument("Lwt.wakeup_result")` everytime a connection
   is closed. Also now pass the raised exceptions to `Lwt.async_exception_hook`
   instead of ignoring them transparently, so the user can decide to shutdown
