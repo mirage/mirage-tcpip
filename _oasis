@@ -297,7 +297,7 @@ Executable test
   install:            false
   Path:               lib_test/
   MainIs:             test.ml
-  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix, channel,
+  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
                       mirage-profile, mirage-flow, mirage-vnetif,
                       mirage-console.unix, tcpip.ethif, tcpip.tcp, pcap-format
 
