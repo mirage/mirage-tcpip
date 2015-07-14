@@ -1,9 +1,10 @@
 OASISFormat: 0.4
 Name:        tcpip
-Version:     2.5.0
+Version:     2.5.1
 Synopsis:    Ethernet, TCP/IPv4 and DHCPv4 library
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier,
-             Nicolas Ojeda Bar, Thomas Gazagnaire
+             Nicolas Ojeda Bar, Thomas Gazagnaire, Vincent Bernardoff,
+             Magnus Skjegstad, Mindy Preston, Thomas Leonard
 License:     ISC
 Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
@@ -88,19 +89,8 @@ Library tcp
                       lwt,
                       tcpip,
                       tcpip.ipv4,
-                      tcpip.ipv6
-
-Library channel
-  CompiledObject:     best
-  Path:               channel
-  Findlibparent:      tcpip
-  Findlibname:        channel
-  Modules:            Channel
-  BuildDepends:       io-page,
-                      mirage-types,
-                      ipaddr,
-                      cstruct,
-                      lwt
+                      tcpip.ipv6,
+                      mirage-profile
 
 Library dhcpv4
   CompiledObject:     best
@@ -238,7 +228,7 @@ Library "tcpv4-unix"
   Modules:            Tcpv4_unix
   BuildDepends:       tcpip.tcp,
                       tcpip.ipv4-unix,
-                      tcpip.channel,
+                      channel,
                       lwt,
                       lwt.unix,
                       mirage-unix,
@@ -255,7 +245,7 @@ Library "tcpv6-unix"
   Modules:            Tcpv6_unix
   BuildDepends:       tcpip.tcp,
                       tcpip.ipv6-unix,
-                      tcpip.channel,
+                      channel,
                       lwt,
                       lwt.unix,
                       mirage-unix,
@@ -322,14 +312,16 @@ Library "tcpip-stack-socket"
                       io-page.unix
 
 Executable test
-  Build$: flag(tests)
-  Path: lib_test
-  Custom: true
-  MainIs: test.ml
-  ByteOpt: -g
-  BuildDepends: alcotest, oUnit, lwt, lwt.unix, io-page.unix, tcpip.channel,
-                mirage-flow, mirage-vnetif, mirage-clock-unix, mirage-console.unix, tcpip.ethif, tcpip.tcp, pcap-format
+  CompiledObject:     best
+  Build$:             flag(tests)
+  install:            false
+  Path:               lib_test/
+  MainIs:             test.ml
+  Custom:             true
+  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
+                      mirage-profile, mirage-flow, mirage-vnetif,
+                      mirage-console.unix, mirage-clock-unix, tcpip.ethif, tcpip.tcp, pcap-format
 
 Test test
-  Run$: flag(tests)
-  Command: $test -q
+  Run$:               flag(tests)
+  Command:            $test -q

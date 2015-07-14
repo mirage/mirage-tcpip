@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 61df3d40dde0b8421b31227a2b710b23) *)
+(* DO NOT EDIT (digest: 3fb3a3f141467c256c322c0db896bbb4) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -617,7 +617,6 @@ let package_default =
           ("ipv6", ["lib"], []);
           ("udp", ["lib"], []);
           ("tcp", ["tcp"], []);
-          ("channel", ["channel"], []);
           ("dhcpv4", ["dhcp"], []);
           ("tcpip-stack-direct", ["lib"], []);
           ("ethif-unix", ["unix"], []);
@@ -649,19 +648,13 @@ let package_default =
             [
                (OASISExpr.EBool true,
                  S [A "-ccopt"; A "-O2"; A "-ccopt"; A "${XEN_CFLAGS}"])
-            ]);
-          (["oasis_executable_test_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])]);
-          (["oasis_executable_test_byte"; "ocaml"; "ocamldep"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])]);
-          (["oasis_executable_test_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])])
+            ])
        ];
      includes =
        [
-          ("unix", ["channel"; "lib"; "tcp"]);
+          ("unix", ["lib"; "tcp"]);
           ("tcp", ["lib"]);
-          ("lib_test", ["channel"; "lib"; "tcp"]);
+          ("lib_test", ["lib"; "tcp"]);
           ("lib", ["dhcp"; "tcp"]);
           ("dhcp", ["lib"])
        ]
@@ -672,7 +665,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 676 "myocamlbuild.ml"
+# 669 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)
