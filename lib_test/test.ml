@@ -16,7 +16,6 @@
 
 let suite = [
   "arp"    , Test_arp.suite     ;
-  "channel", Test_channel.suite ;
   "connect", Test_connect.suite ;
   "iperf"  , Test_iperf.suite   ;
 ]
@@ -25,6 +24,16 @@ let run test () =
   Lwt_main.run (test ())
 
 let () =
+  (* Enable TCP debug output *)
+  let open Tcp in
+  [Segment.info; Segment.debug; Pcb.info; Pcb.debug] |> List.iter (fun log ->
+      Log.enable log;
+      Log.set_stats log false
+    );
+  (* Uncomment to enable tracing *)
+  (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
+  let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in
+  MProf.Trace.Control.start trace_config;*)
   let suite = List.map (fun (n, s) ->
       n, List.map (fun (d, s, f) -> d, s, run f) s
     ) suite
