@@ -45,6 +45,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   type ipaddr = Ipaddr.V4.t
   type macaddr = Macaddr.t
   type ethif = Ethif.t
+  type repr = string
   type id = t
   type error
 
@@ -63,18 +64,18 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     List.iter (Hashtbl.remove t.cache) expired;
     Time.sleep arp_timeout >>= tick t
 
-  (* Prettyprint cache contents *)
-  let pp fmt t =
-    Format.fprintf fmt "@.ARP cache:@.";
-    Hashtbl.iter (fun ip entry  ->
-        Format.fprintf fmt "%s -> " (Ipaddr.V4.to_string ip);
-        (match entry with
-         | Pending _ -> Format.fprintf fmt "%s" "Pending\n%!" 
-         | Confirmed (time, mac) -> Format.fprintf fmt "Confirmed (%s) (expires %f)\n%!" 
-                                      (Macaddr.to_string mac) time
-        )
-      ) t.cache;
-    Lwt.return_unit
+  let to_repr t =
+    let print ip entry acc =
+      let key = Ipaddr.V4.to_string ip in
+      match entry with
+       | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending" 
+       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %f)\n%!" 
+                                    acc key (Macaddr.to_string mac) time
+    in
+    Lwt.return (Hashtbl.fold print t.cache "")
+
+  let pp fmt repr =
+    Format.fprintf fmt "%s" repr
 
   let notify t ip mac =
     let now = Clock.time () in
