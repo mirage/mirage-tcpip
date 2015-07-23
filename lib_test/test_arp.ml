@@ -221,7 +221,8 @@ let query_or_die ~arp ~ip ~expected_mac =
   | `Timeout ->
     let pp_ip = Ipaddr.V4.to_string ip in
     Format.printf "Timeout querying %s." pp_ip;
-    A.pp Format.std_formatter arp >>= fun () ->
+    A.to_repr arp >>= fun repr ->
+    A.pp Format.std_formatter repr;
     fail "ARP query failed when success was mandatory";
     Lwt.return_unit
   | `Ok mac -> 
