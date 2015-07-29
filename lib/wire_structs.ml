@@ -11,8 +11,8 @@ cenum ethertype {
   } as uint16_t
 
 let parse_ethernet_frame frame =
-  if Cstruct.len frame >= 60 then
-    (* minimum payload is 46 + source + destination + type *)
+  if Cstruct.len frame >= 14 then
+    (* source + destination + type = 14 *)
     let payload = Cstruct.shift frame sizeof_ethernet
     and typ = get_ethernet_ethertype frame
     and dst = Macaddr.of_bytes_exn (copy_ethernet_dst frame)
