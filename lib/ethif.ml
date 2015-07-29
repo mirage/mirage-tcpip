@@ -21,7 +21,6 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ipv4addr = Ipaddr.V4.t
   type macaddr = Macaddr.t
   type netif = Netif.t
 
@@ -40,25 +39,19 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     MProf.Trace.label "ethif.input";
-    let frame_mac = Macaddr.of_bytes (Wire_structs.copy_ethernet_dst frame) in
-    match frame_mac with
-    | None           -> Lwt.return_unit
-    | Some frame_mac ->
-      if Macaddr.compare frame_mac (mac t) = 0
-         || not (Macaddr.is_unicast frame_mac)
-      then match Wire_structs.get_ethernet_ethertype frame with
-        | 0x0806 -> arpv4 frame (* ARP *)
-        | 0x0800 -> (* IPv4 *)
-          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          ipv4 payload
-        | 0x86dd ->
-          let payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          ipv6 payload
-        | _etype ->
-          let _payload = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-          (* TODO default etype payload *)
-          Lwt.return_unit
-      else Lwt.return_unit
+    let of_interest dest =
+      Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
+    in
+    match Wire_structs.parse_ethernet_frame frame with
+    | Some (typ, destination, payload) when of_interest destination ->
+      begin
+        match typ with
+        | Some Wire_structs.ARP -> arpv4 frame
+        | Some Wire_structs.IPv4 -> ipv4 payload
+        | Some Wire_structs.IPv6 -> ipv6 payload
+        | None -> Lwt.return_unit (* TODO: default ethertype payload handler *)
+      end
+    | _ -> Lwt.return_unit
 
   let write t frame =
     MProf.Trace.label "ethif.write";
