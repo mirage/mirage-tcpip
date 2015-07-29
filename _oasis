@@ -41,12 +41,20 @@ Library ethif
   Modules:            Ethif
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
+Library arpv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        arpv4
+  Modules:            Arpv4, Arpv4_wire
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt,cstruct.syntax
+
 Library ipv4
   CompiledObject:     best
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4, Arpv4
+  Modules:            Ipv4
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
 Library ipv6
@@ -109,6 +117,7 @@ Library "tcpip-stack-direct"
                       cstruct,
                       lwt,
                       tcpip.ethif,
+                      tcpip.arpv4,
                       tcpip.udp,
                       tcpip.tcp,
                       tcpip.dhcpv4
@@ -119,6 +128,17 @@ Library "ethif-unix"
   Findlibparent:      tcpip
   Findlibname:        ethif-unix
   Modules:            Ethif_unix
+  BuildDepends:       tcpip.ethif,
+                      mirage-net-unix,
+                      lwt,
+                      lwt.unix
+
+Library "arpv4-unix"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        arpv4-unix
+  Modules:            Arpv4_unix
   BuildDepends:       tcpip.ethif,
                       mirage-net-unix,
                       lwt,
@@ -297,9 +317,10 @@ Executable test
   install:            false
   Path:               lib_test/
   MainIs:             test.ml
+  Custom:             true
   BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
                       mirage-profile, mirage-flow, mirage-vnetif,
-                      mirage-console.unix, tcpip.ethif, tcpip.tcp, pcap-format
+                      mirage-console.unix, mirage-clock-unix, tcpip.ethif, tcpip.tcp, pcap-format
 
 Test test
   Run$:               flag(tests)
