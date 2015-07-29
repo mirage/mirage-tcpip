@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6b9cf3043caf636197595a91784e90f6)
+# DO NOT EDIT (digest: b9afd8f7c25862ce87cac4dd55d2c26b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -32,6 +32,8 @@ true: annot, bin_annot
 <lib/tcpip_xen.{cma,cmxa}>: use_libtcpip_xen_stubs
 # Library ethif
 "lib/ethif.cmxs": use_ethif
+# Library arpv4
+"lib/arpv4.cmxs": use_arpv4
 # Library ipv4
 "lib/ipv4.cmxs": use_ipv4
 # Library ipv6
@@ -78,11 +80,13 @@ true: annot, bin_annot
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i,y}>: pkg_bytes
 <lib/*.ml{,i,y}>: pkg_cstruct
+<lib/*.ml{,i,y}>: pkg_cstruct.syntax
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: use_arpv4
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
 <lib/*.ml{,i,y}>: use_ipv4
@@ -92,6 +96,8 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: use_udp
 # Library ethif-unix
 "unix/ethif-unix.cmxs": use_ethif-unix
+# Library arpv4-unix
+"unix/arpv4-unix.cmxs": use_arpv4-unix
 # Library ipv4-unix
 "unix/ipv4-unix.cmxs": use_ipv4-unix
 # Library ipv6-unix
@@ -115,11 +121,13 @@ true: annot, bin_annot
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
 <unix/*.ml{,i,y}>: pkg_channel
+<unix/*.ml{,i,y}>: pkg_cstruct.syntax
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
 <unix/*.ml{,i,y}>: pkg_mirage-console.unix
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
 <unix/*.ml{,i,y}>: pkg_mirage-types.lwt
 <unix/*.ml{,i,y}>: pkg_mirage-unix
+<unix/*.ml{,i,y}>: use_arpv4
 <unix/*.ml{,i,y}>: use_dhcpv4
 <unix/*.ml{,i,y}>: use_ethif
 <unix/*.ml{,i,y}>: use_ethif-unix
@@ -161,6 +169,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_ipaddr
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.unix
+<lib_test/test.{native,byte}>: pkg_mirage-clock-unix
 <lib_test/test.{native,byte}>: pkg_mirage-console.unix
 <lib_test/test.{native,byte}>: pkg_mirage-flow
 <lib_test/test.{native,byte}>: pkg_mirage-profile
@@ -181,6 +190,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
+<lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-console.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
@@ -193,6 +203,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
+<lib_test/test.{native,byte}>: custom
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
 <tcp/pcb.ml>: pkg_cstruct.syntax
