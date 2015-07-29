@@ -1,3 +1,12 @@
+2.6.0 (2015-07-29)
+
+* ARP now handles ARP frames, not Ethernet frames with ARP payload
+  (#164, by @hannesm)
+* Check length of received ethernet frame to avoid cstruct exceptions
+  (#117, by @hannesm)
+* Pull arpv4 module out of ipv4. Also add unit-tests for the newly created
+  ARP library  (#155, by @yomimono)
+
 2.5.1 (2015-07-07)
 
 * Fix regression introduced in 2.5.0 where packet loss could lead to the
