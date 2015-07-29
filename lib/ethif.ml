@@ -46,7 +46,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     | Some (typ, destination, payload) when of_interest destination ->
       begin
         match typ with
-        | Some Wire_structs.ARP -> arpv4 frame
+        | Some Wire_structs.ARP -> arpv4 payload
         | Some Wire_structs.IPv4 -> ipv4 payload
         | Some Wire_structs.IPv6 -> ipv6 payload
         | None -> Lwt.return_unit (* TODO: default ethertype payload handler *)

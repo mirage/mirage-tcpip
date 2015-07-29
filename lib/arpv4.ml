@@ -137,20 +137,21 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       |`Reply -> 2
       |`Unknown n -> n
     in
-    set_arp_dst dmac 0 buf;
-    set_arp_src smac 0 buf;
-    set_arp_ethertype buf 0x0806; (* ARP *)
-    set_arp_htype buf 1;
-    set_arp_ptype buf 0x0800; (* IPv4 *)
-    set_arp_hlen buf 6; (* ethernet mac size *)
-    set_arp_plen buf 4; (* ipv4 size *)
-    set_arp_op buf op;
-    set_arp_sha smac 0 buf;
-    set_arp_spa buf spa;
-    set_arp_tha dmac 0 buf;
-    set_arp_tpa buf tpa;
+    Wire_structs.set_ethernet_dst dmac 0 buf;
+    Wire_structs.set_ethernet_src smac 0 buf;
+    Wire_structs.set_ethernet_ethertype buf 0x0806; (* ARP *)
+    let arpbuf = Cstruct.shift buf 14 in
+    set_arp_htype arpbuf 1;
+    set_arp_ptype arpbuf 0x0800; (* IPv4 *)
+    set_arp_hlen arpbuf 6; (* ethernet mac size *)
+    set_arp_plen arpbuf 4; (* ipv4 size *)
+    set_arp_op arpbuf op;
+    set_arp_sha smac 0 arpbuf;
+    set_arp_spa arpbuf spa;
+    set_arp_tha dmac 0 arpbuf;
+    set_arp_tpa arpbuf tpa;
     (* Resize buffer to sizeof arp packet *)
-    let buf = Cstruct.sub buf 0 sizeof_arp in
+    let buf = Cstruct.sub buf 0 (sizeof_arp + Wire_structs.sizeof_ethernet) in
     Ethif.write t.ethif buf
 
   (* Send a gratuitous ARP for our IP addresses *)
