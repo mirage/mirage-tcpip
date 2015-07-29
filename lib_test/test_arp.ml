@@ -79,7 +79,7 @@ module Parse = struct
     (* Obtain a buffer to write into *)
     (* note that sizeof_arp includes sizeof_ethernet by what's currently in
          arpv4_wire.ml *)
-    let buf = Cstruct.create (Arpv4_wire.sizeof_arp) in
+    let buf = Cstruct.create (Arpv4_wire.sizeof_arp + Wire_structs.sizeof_ethernet) in
 
     (* Write the ARP packet *)
     let dmac = Macaddr.to_bytes arp.tha in
@@ -92,22 +92,24 @@ module Parse = struct
       |`Reply -> 2
       |`Unknown n -> n
     in
-    set_arp_dst dmac 0 buf;
-    set_arp_src smac 0 buf;
-    set_arp_ethertype buf 0x0806; (* ARP *)
-    set_arp_htype buf 1;
-    set_arp_ptype buf 0x0800; (* IPv4 *)
-    set_arp_hlen buf 6; (* ethernet mac size *)
-    set_arp_plen buf 4; (* ipv4 size *)
-    set_arp_op buf op;
-    set_arp_sha smac 0 buf;
-    set_arp_spa buf spa;
-    set_arp_tha dmac 0 buf;
-    set_arp_tpa buf tpa;
+    Wire_structs.set_ethernet_dst dmac 0 buf;
+    Wire_structs.set_ethernet_src smac 0 buf;
+    Wire_structs.set_ethernet_ethertype buf 0x0806; (* ARP *)
+    let arpbuf = Cstruct.shift buf 14 in
+    set_arp_htype arpbuf 1;
+    set_arp_ptype arpbuf 0x0800; (* IPv4 *)
+    set_arp_hlen arpbuf 6; (* ethernet mac size *)
+    set_arp_plen arpbuf 4; (* ipv4 size *)
+    set_arp_op arpbuf op;
+    set_arp_sha smac 0 arpbuf;
+    set_arp_spa arpbuf spa;
+    set_arp_tha dmac 0 arpbuf;
+    set_arp_tpa arpbuf tpa;
     buf
 
   let arp_of_cstruct buf = 
     let open Arpv4_wire in
+    let buf = Cstruct.shift buf 14 in
     let unusable buf =
       (* we only know how to deal with ethernet <-> IPv4 *)
       get_arp_htype buf <> 1 || get_arp_ptype buf <> 0x0800 
@@ -295,7 +297,8 @@ let input_single_garp () =
   (* set the IP on speak_arp, which should cause a GARP to be emitted which
      listen_arp will hear and cache. *)
   let one_and_done buf =
-    A.input listen.arp buf >>= fun () ->
+    let arpbuf = Cstruct.shift buf 14 in
+    A.input listen.arp arpbuf >>= fun () ->
     V.disconnect listen.netif 
   in
   timeout ~time:0.5 (
