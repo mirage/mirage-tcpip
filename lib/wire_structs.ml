@@ -4,6 +4,24 @@ cstruct ethernet {
     uint16_t       ethertype
   } as big_endian
 
+cenum ethertype {
+    ARP  = 0x0806;
+    IPv4 = 0x0800;
+    IPv6 = 0x86dd;
+  } as uint16_t
+
+let parse_ethernet_frame frame =
+  if Cstruct.len frame >= 14 then
+    (* source + destination + type = 14 *)
+    let payload = Cstruct.shift frame sizeof_ethernet
+    and typ = get_ethernet_ethertype frame
+    and dst = Macaddr.of_bytes_exn (copy_ethernet_dst frame)
+    in
+    Some (int_to_ethertype typ, dst, payload)
+  else
+    None
+
+
 cstruct udp {
     uint16_t source_port;
     uint16_t dest_port;
