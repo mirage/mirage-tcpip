@@ -79,7 +79,7 @@ module Parse = struct
     (* Obtain a buffer to write into *)
     (* note that sizeof_arp includes sizeof_ethernet by what's currently in
          arpv4_wire.ml *)
-    let buf = Cstruct.create (Arpv4_wire.sizeof_arp) in
+    let buf = Cstruct.create (Arpv4_wire.sizeof_arp + Wire_structs.sizeof_ethernet) in
 
     (* Write the ARP packet *)
     let dmac = Macaddr.to_bytes arp.tha in
