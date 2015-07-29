@@ -297,7 +297,8 @@ let input_single_garp () =
   (* set the IP on speak_arp, which should cause a GARP to be emitted which
      listen_arp will hear and cache. *)
   let one_and_done buf =
-    A.input listen.arp buf >>= fun () ->
+    let arpbuf = Cstruct.shift buf 14 in
+    A.input listen.arp arpbuf >>= fun () ->
     V.disconnect listen.netif 
   in
   timeout ~time:0.5 (
