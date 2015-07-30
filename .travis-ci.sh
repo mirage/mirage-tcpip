@@ -10,7 +10,7 @@ eval `opam config env`
 
 opam repo add mirage-dev https://github.com/mirage/mirage-dev.git
 
-git clone git://github.com/samoht/mirage-www
+git clone git://github.com/mirage/mirage-www
 cd mirage-www
 
 opam install mirage
