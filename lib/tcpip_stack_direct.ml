@@ -63,8 +63,8 @@ struct
     ipv4  : Ipv4.t;
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
-    udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
-    tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
+    udpv4_listeners: (Cstruct.uint8, Udpv4.callback) Hashtbl.t;
+    tcpv4_listeners: (Cstruct.uint8, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
   }
 
   type error = [
@@ -77,10 +77,10 @@ struct
   let ipv4 { ipv4; _ } = ipv4
 
   let listen_udpv4 t ~port callback =
-    Hashtbl.replace t.udpv4_listeners port callback
+    Hashtbl.replace t.udpv4_listeners (port mod 65536) callback
 
   let listen_tcpv4 t ~port callback =
-    Hashtbl.replace t.tcpv4_listeners port callback
+    Hashtbl.replace t.tcpv4_listeners (port mod 65536) callback
 
   let configure_dhcp t info =
     Ipv4.set_ip t.ipv4 info.Dhcp.ip_addr
