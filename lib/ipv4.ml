@@ -196,10 +196,10 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       | None       -> default ~proto ~src ~dst data
     end else Lwt.return_unit
 
-  let connect ethif arp =
-    let ip = Ipaddr.V4.any in
-    let netmask = Ipaddr.V4.any in
-    let gateways = [] in
+  let connect
+      ?(ip=Ipaddr.V4.any)
+      ?(netmask=Ipaddr.V4.any)
+      ?(gateways=[]) ethif arp =
     let t = { ethif; arp; ip; netmask; gateways } in
     Lwt.return (`Ok t)
 
