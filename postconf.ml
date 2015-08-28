@@ -28,7 +28,8 @@ let () =
 
   let xen_cflags =
     if !xen then
-      check_output "env PKG_CONFIG_PATH=`opam config var prefix`/lib/pkgconfig pkg-config --static mirage-xen --cflags"
+      try check_output "pkg-config --static mirage-xen --cflags"
+      with _ -> check_output "env PKG_CONFIG_PATH=`opam config var prefix`/lib/pkgconfig pkg-config --static mirage-xen --cflags"
     else "xen_not_enabled" in
 
   Buffer.add_string b (Printf.sprintf "XEN_CFLAGS=%S\n" xen_cflags);
