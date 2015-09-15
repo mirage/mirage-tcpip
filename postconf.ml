@@ -29,7 +29,7 @@ let () =
     let xen_cflags =
       if !xen then
         try check_output "pkg-config --static mirage-xen --cflags"
-        with Assert_failure _ ->
+        with Assert_failure _ | End_of_file ->
           check_output
             "env PKG_CONFIG_PATH=`opam config var prefix`/lib/pkgconfig \
              pkg-config --static mirage-xen --cflags"
