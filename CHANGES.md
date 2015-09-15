@@ -1,3 +1,8 @@
+### 2.6.1 (2015-09-15)
+
+* Add optional arguments for settings in ip v6 and v4 connects (#170, by @Drup)
+* Expose `Ipv4.Routing.No_route_to_destination_address` (#166, by @yomimono)
+
 ### 2.6.0 (2015-07-29)
 
 * ARP now handles ARP frames, not Ethernet frames with ARP payload
