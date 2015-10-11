@@ -77,10 +77,10 @@ struct
   let ipv4 { ipv4; _ } = ipv4
 
   let listen_udpv4 t ~port callback =
-    Hashtbl.replace t.udpv4_listeners (port mod 65536) callback
+    Hashtbl.replace t.udpv4_listeners port callback
 
   let listen_tcpv4 t ~port callback =
-    Hashtbl.replace t.tcpv4_listeners (port mod 65536) callback
+    Hashtbl.replace t.tcpv4_listeners port callback
 
   let configure_dhcp t info =
     Ipv4.set_ip t.ipv4 info.Dhcp.ip_addr
