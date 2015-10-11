@@ -76,11 +76,18 @@ struct
   let udpv4 { udpv4; _ } = udpv4
   let ipv4 { ipv4; _ } = ipv4
 
+  let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
+
   let listen_udpv4 t ~port callback =
-    Hashtbl.replace t.udpv4_listeners port callback
+    if port < 0 || port > 65535
+    then raise (Invalid_argument (err_invalid_port port))
+    else Hashtbl.replace t.udpv4_listeners port callback
+
 
   let listen_tcpv4 t ~port callback =
-    Hashtbl.replace t.tcpv4_listeners port callback
+    if port < 0 || port > 65535
+    then raise (Invalid_argument (err_invalid_port port))
+    else Hashtbl.replace t.tcpv4_listeners port callback
 
   let configure_dhcp t info =
     Ipv4.set_ip t.ipv4 info.Dhcp.ip_addr
