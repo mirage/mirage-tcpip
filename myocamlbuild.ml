@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 4f73136167cbc6b589c94b765b108e48) *)
+(* DO NOT EDIT (digest: 3fb3a3f141467c256c322c0db896bbb4) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -612,14 +612,15 @@ let package_default =
           ("tcpip", ["lib"], []);
           ("tcpip_xen", ["lib"], []);
           ("ethif", ["lib"], []);
+          ("arpv4", ["lib"], []);
           ("ipv4", ["lib"], []);
           ("ipv6", ["lib"], []);
           ("udp", ["lib"], []);
           ("tcp", ["tcp"], []);
-          ("channel", ["channel"], []);
           ("dhcpv4", ["dhcp"], []);
           ("tcpip-stack-direct", ["lib"], []);
           ("ethif-unix", ["unix"], []);
+          ("arpv4-unix", ["unix"], []);
           ("ipv4-unix", ["unix"], []);
           ("ipv6-unix", ["unix"], []);
           ("udpv4-unix", ["unix"], []);
@@ -647,19 +648,13 @@ let package_default =
             [
                (OASISExpr.EBool true,
                  S [A "-ccopt"; A "-O2"; A "-ccopt"; A "${XEN_CFLAGS}"])
-            ]);
-          (["oasis_executable_test_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])]);
-          (["oasis_executable_test_byte"; "ocaml"; "ocamldep"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])]);
-          (["oasis_executable_test_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-g"])])
+            ])
        ];
      includes =
        [
-          ("unix", ["channel"; "lib"; "tcp"]);
+          ("unix", ["lib"; "tcp"]);
           ("tcp", ["lib"]);
-          ("lib_test", ["channel"; "lib"; "tcp"]);
+          ("lib_test", ["lib"; "tcp"]);
           ("lib", ["dhcp"; "tcp"]);
           ("dhcp", ["lib"])
        ]
@@ -670,6 +665,11 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 674 "myocamlbuild.ml"
+# 669 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
+(* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)
+let () =
+  flag ["ocaml"; "doc"] (A"-colorize-code");
+  flag ["ocaml"; "doc"] (A"-short-functors");
+  flag ["ocaml"; "doc"] (A"-short-paths")

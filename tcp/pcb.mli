@@ -14,11 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type error = [`Bad_state of State.tcpstate]
+
+type 'a result = [`Ok of 'a | `Error of error]
+
+val info : Log.t
+val debug: Log.t
+
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
 
   (** Overall state of the TCP stack *)
   type t
-
   type pcb
 
   (** State for an individual connection *)
@@ -47,13 +53,13 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
   val write_wait_for : pcb -> int -> unit Lwt.t
 
   (* write - blocks if the write buffer is full *)
-  val write: pcb -> Cstruct.t -> unit Lwt.t
-  val writev: pcb -> Cstruct.t list -> unit Lwt.t
+  val write: pcb -> Cstruct.t -> unit result Lwt.t
+  val writev: pcb -> Cstruct.t list -> unit result Lwt.t
 
   (* version of write with Nagle disabled - will block if write
      buffer is full *)
-  val write_nodelay: pcb -> Cstruct.t -> unit Lwt.t
-  val writev_nodelay: pcb -> Cstruct.t list -> unit Lwt.t
+  val write_nodelay: pcb -> Cstruct.t -> unit result Lwt.t
+  val writev_nodelay: pcb -> Cstruct.t list -> unit result Lwt.t
 
   val create: Ip.t -> t
   (* val tcpstats: t -> unit *)

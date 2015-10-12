@@ -15,7 +15,7 @@
  *
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 
 module Make (Console : V1_LWT.CONSOLE)
@@ -182,9 +182,9 @@ module Make (Console : V1_LWT.CONSOLE)
           end
         |_ -> Console.log_s t.c "DHCP: ack not for us"
       end
-    | Shutting_down -> return_unit
-    | Lease_held _ -> Console.log_s t.c "DHCP input: lease already held"
-    | Disabled -> Console.log_s t.c "DHCP input: disabled"
+    | Shutting_down -> Lwt.return_unit
+    | Lease_held _  -> Console.log_s t.c "DHCP input: lease already held"
+    | Disabled      -> Console.log_s t.c "DHCP input: disabled"
 
   (* Start a DHCP discovery off on an interface *)
   let start_discovery t =
@@ -201,7 +201,7 @@ module Make (Console : V1_LWT.CONSOLE)
     >>= fun () ->
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>= fun () ->
-    return_unit
+    Lwt.return_unit
 
   (* DHCP state thred *)
   let rec dhcp_thread t =
@@ -234,7 +234,7 @@ module Make (Console : V1_LWT.CONSOLE)
                          (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
       >>= fun () ->
       offer_push (Some info);
-      return_unit
+      Lwt.return_unit
     in
     let t = { c; mac; udp; state; new_offer } in
     (* TODO cancellation *)

@@ -14,10 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+val debug: Log.t
 
 type t
 
-val to_string: t -> string
+val pp: Format.formatter -> t -> unit
 
 val t : rx_wnd_scale:int -> tx_wnd_scale:int -> rx_wnd:int ->
   tx_wnd:int -> rx_isn:Sequence.t -> tx_mss:int option -> tx_isn:Sequence.t -> t
@@ -44,8 +45,7 @@ val ack_seq : t -> Sequence.t
 val ack_win : t -> int
 
 val set_ack_serviced : t -> bool -> unit
-val set_ack_seq : t -> Sequence.t -> unit
-val set_ack_win : t -> int -> unit
+val set_ack_seq_win : t -> Sequence.t -> int -> unit
 
 (* rx_wnd: number of bytes we are willing to accept *)
 val rx_wnd : t -> int32

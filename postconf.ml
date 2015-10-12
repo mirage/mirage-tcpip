@@ -24,14 +24,19 @@ let () =
       )
     done
   with End_of_file ->
-  close_in ch;
+    close_in ch;
 
-  let xen_cflags =
-    if !xen then
-      check_output "env PKG_CONFIG_PATH=`opam config var prefix`/lib/pkgconfig pkg-config --static mirage-xen --cflags"
-    else "xen_not_enabled" in
+    let xen_cflags =
+      if !xen then
+        try check_output "pkg-config --static mirage-xen --cflags"
+        with Assert_failure _ | End_of_file ->
+          check_output
+            "env PKG_CONFIG_PATH=`opam config var prefix`/lib/pkgconfig \
+             pkg-config --static mirage-xen --cflags"
+      else "xen_not_enabled"
+    in
 
-  Buffer.add_string b (Printf.sprintf "XEN_CFLAGS=%S\n" xen_cflags);
-  let ch = open_out "setup.data" in
-  Buffer.output_buffer ch b;
-  close_out ch
+    Buffer.add_string b (Printf.sprintf "XEN_CFLAGS=%S\n" xen_cflags);
+    let ch = open_out "setup.data" in
+    Buffer.output_buffer ch b;
+    close_out ch

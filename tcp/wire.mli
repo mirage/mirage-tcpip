@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+val debug: Log.t
 val get_options : Cstruct.t -> Options.t list
 val set_options : Cstruct.t -> Options.t list -> int
 val get_payload : Cstruct.t -> Cstruct.t
