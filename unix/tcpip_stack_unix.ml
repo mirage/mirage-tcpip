@@ -14,12 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* module Arpv4_unix = Arpv4.Make(Ethif_unix)(Clock)(OS.Time) *)
+
 include Tcpip_stack_direct.Make
     (Console_unix)
     (OS.Time)
     (Random)
     (Netif)
     (Ethif_unix)
+    (Arpv4_unix)
     (Ipv4_unix)
     (Udpv4_unix)
     (Tcpv4_unix.Flow)

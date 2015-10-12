@@ -15,8 +15,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-open Printf
+open Lwt.Infix
+
+type error = [`Bad_state of State.tcpstate]
+
+type 'a result = [`Ok of 'a | `Error of error]
+let ok x = Lwt.return (`Ok x)
+let error s = Lwt.return (`Error (`Bad_state s))
+
+let (>+=) x f =
+  x >>= function
+  | `Ok x -> f x
+  | `Error _ as e -> Lwt.return e
+
+let iter_s f l =
+  let rec aux = function
+    | []   -> ok ()
+    | h::t -> f h >+= fun () -> aux t
+  in
+  aux l
+
+
+let debug = Log.create "PCB"
+let info  = Log.create ~enabled:true ~stats:false "PCB"
 
 module Tcp_wire = Wire_structs.Tcp_wire
 
@@ -46,8 +67,6 @@ struct
     ack: ACK.t;               (* Ack state *)
     state: State.t;           (* Connection state *)
     urx: User_buffer.Rx.t;    (* App rx buffer *)
-    urx_close_t: unit Lwt.t;  (* App rx close thread *)
-    urx_close_u: unit Lwt.u;  (* App rx connection close wakener *)
     utx: UTX.t;               (* App tx buffer *)
   }
 
@@ -66,6 +85,14 @@ struct
     (* clients in the process of connecting *)
     connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
+
+  let pp_stats fmt t =
+    Log.pf fmt "[channels=%d listens=%d connects=%d]"
+      (Hashtbl.length t.channels)
+      (Hashtbl.length t.listens)
+      (Hashtbl.length t.connects)
+
+  let with_stats name t fmt = Log.pf fmt "%s: %a" name pp_stats t
 
   let ip { ip; _ } = ip
 
@@ -100,6 +127,7 @@ struct
 
     (* Queue up an immediate close segment *)
     let close pcb =
+      Log.s debug "TX.close";
       match State.state pcb.state with
       | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
@@ -107,7 +135,10 @@ struct
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
-      | _ -> return_unit
+      | _ ->
+        Log.f debug (fun fmt ->
+            Log.pf fmt "TX.close: skipping, state=%a" State.pp pcb.state);
+        Lwt.return_unit
 
     (* Thread that transmits ACKs in response to received packets,
        thus telling the other side that more can be sent, and
@@ -137,7 +168,6 @@ struct
 
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t pkt (pcb,_) =
-      (* URG_TODO: Deal correctly with incomming RST segment *)
       let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
       let ack_number =
         Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
@@ -145,10 +175,11 @@ struct
       let fin = Tcp_wire.get_fin pkt in
       let syn = Tcp_wire.get_syn pkt in
       let ack = Tcp_wire.get_ack pkt in
+      let rst = Tcp_wire.get_rst pkt in
       let window = Tcp_wire.get_tcp_window pkt in
       let data = Wire.get_payload pkt in
       let seg =
-        RXS.segment ~sequence ~fin ~syn ~ack ~ack_number ~window ~data
+        RXS.segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data
       in
       let { rxq; _ } = pcb in
       (* Coalesce any outstanding segments and retrieve ready segments *)
@@ -157,12 +188,12 @@ struct
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
     let thread (pcb:pcb) ~rx_data =
-      let { wnd; ack; urx; urx_close_u; _ } = pcb in
+      let { wnd; ack; urx; } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
         begin match winadv with
-          | None -> return_unit
+          | None        -> Lwt.return_unit
           | Some winadv ->
             if (winadv > 0) then (
               Window.rx_advance wnd winadv;
@@ -175,15 +206,15 @@ struct
         begin match data with
           | None ->
             STATE.tick pcb.state State.Recv_fin;
-            Lwt.wakeup urx_close_u ();
             User_buffer.Rx.add_r urx None >>= fun () ->
-            rx_application_t ()
+            Lwt.return_unit
           | Some data ->
             let rec queue = function
+              | []     -> Lwt.return_unit
               | hd::tl ->
                 User_buffer.Rx.add_r urx (Some hd) >>= fun () ->
                 queue tl
-              | [] -> return_unit in
+            in
             queue data >>= fun _ ->
             rx_application_t ()
         end
@@ -193,13 +224,16 @@ struct
 
   module Wnd = struct
 
-    let thread ~urx:_ ~utx ~wnd:_ ~tx_wnd_update =
+    let thread ~urx:_ ~utx ~wnd:_ ~state ~tx_wnd_update =
       (* Monitor our transmit window when updates are received
          remotely, and tell the application that new space is
          available when it is blocked *)
       let rec tx_window_t () =
         Lwt_mvar.take tx_wnd_update >>= fun tx_wnd ->
-        UTX.free utx tx_wnd >>= fun () ->
+        begin match State.state state with
+          | State.Reset -> UTX.reset utx
+          | _ -> UTX.free utx tx_wnd
+        end >>= fun () ->
         tx_window_t ()
       in
       tx_window_t ()
@@ -216,19 +250,22 @@ struct
 
   let clearpcb t id tx_isn =
     (* TODO: add more info to log msgs *)
+    Log.f debug (with_stats "removing pcb from tables" t);
     match hashtbl_find t.channels id with
     | Some _ ->
-      (* printf "TCP: removing pcb from tables\n%!";*)
-      Hashtbl.remove t.channels id
+      Log.s debug "removed from channels!!";
+      Hashtbl.remove t.channels id;
+      Stats.decr_channel ();
     | None ->
       match hashtbl_find t.listens id with
       | Some (isn, _) ->
         if isn = tx_isn then (
-          printf "TCP: removing incomplete listen pcb\n%!";
-          Hashtbl.remove t.listens id
+          Log.s debug "removing incomplete listen pcb";
+          Hashtbl.remove t.listens id;
+          Stats.decr_listen ();
         )
       | None ->
-        printf "TCP: error in removing pcb - no such connection\n%!"
+        Log.s debug "error in removing pcb - no such connection"
 
   let pcb_allocs = ref 0
   let th_allocs = ref 0
@@ -282,7 +319,6 @@ struct
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
-    let urx_close_t, urx_close_u = MProf.Trace.named_task "urx_close" in
     (* The window handling thread *)
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
@@ -297,34 +333,52 @@ struct
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.incr rx_isn) in
     (* Construct basic PCB in Syn_received state *)
-    let pcb = { state; rxq; txq; wnd; id; ack; urx; urx_close_t; urx_close_u; utx } in
+    let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
-    let th =
-      (Tx.thread t pcb ~send_ack ~rx_ack) <?>
-      (Rx.thread pcb ~rx_data) <?>
-      (Wnd.thread ~utx ~urx ~wnd ~tx_wnd_update)
+    let tx_thread = (Tx.thread t pcb ~send_ack ~rx_ack) in
+    let rx_thread = (Rx.thread pcb ~rx_data) in
+    let wnd_thread = (Wnd.thread ~utx ~urx ~wnd ~state ~tx_wnd_update) in
+    let threads = [ tx_thread; rx_thread; wnd_thread ] in
+    let catch_and_cancel = function
+      | Lwt.Canceled -> ()
+      | ex ->
+        (* cancel the other threads *)
+        List.iter Lwt.cancel threads;
+        Log.s info "ERROR: thread failure; terminating threads and closing connection";
+        on_close ();
+        !Lwt.async_exception_hook ex
     in
+    List.iter (fun t -> Lwt.on_failure t catch_and_cancel) threads;
+    let th = Lwt.join threads in
     pcb_allocs := !pcb_allocs + 1;
     th_allocs := !th_allocs + 1;
     let fnpcb = fun _ -> pcb_frees := !pcb_frees + 1 in
     let fnth = fun _ -> th_frees := !th_frees + 1 in
     Gc.finalise fnpcb pcb;
     Gc.finalise fnth th;
-    return (pcb, th, opts)
+    Lwt.return (pcb, th, opts)
 
   let new_server_connection t params id pushf =
+    Log.f debug (with_stats "new-server-connection" t);
     new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
-    Hashtbl.replace t.listens id (params.tx_isn, (pushf, (pcb, th)));
+    if Hashtbl.mem t.listens id then (
+      Log.s info "WARNING: connection already being attempted";
+      Hashtbl.remove t.listens id;
+      Stats.decr_listen ();
+    );
+    Hashtbl.add t.listens id (params.tx_isn, (pushf, (pcb, th)));
+    Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
-    return (pcb, th)
+    Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number =
+    Log.f debug (with_stats "new-client-connection" t);
     let tx_isn = params.tx_isn in
     let params = { params with tx_isn = Sequence.incr tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
@@ -332,34 +386,40 @@ struct
     STATE.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
     Hashtbl.add t.channels id (pcb, th);
+    Stats.incr_channel ();
     STATE.tick pcb.state (State.Recv_synack (Sequence.of_int32 ack_number));
     (* xmit ACK *)
     TXS.output pcb.txq [] >>= fun () ->
-    return (pcb, th)
+    Lwt.return (pcb, th)
 
   let process_reset t id =
+    Log.f debug (with_stats "process-reset" t);
     match hashtbl_find t.connects id with
     | Some (wakener, _) ->
       (* URG_TODO: check if RST ack num is valid before it is accepted *)
       Hashtbl.remove t.connects id;
+      Stats.decr_connect ();
       Lwt.wakeup wakener `Rst;
-      return_unit
+      Lwt.return_unit
     | None ->
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
+        Stats.decr_listen ();
         STATE.tick pcb.state State.Recv_rst;
         Lwt.cancel th;
-        return_unit
+        Lwt.return_unit
       | None ->
         (* Incoming RST possibly to listen port - ignore per RFC793 pg65 *)
-        return_unit
+        Lwt.return_unit
 
   let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+    Log.f debug (with_stats "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         Hashtbl.remove t.connects id;
+        Stats.decr_connect ();
         let tx_wnd = Tcp_wire.get_tcp_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
@@ -370,18 +430,19 @@ struct
           id ack_number
         >>= fun (pcb, th) ->
         Lwt.wakeup wakener (`Ok (pcb, th));
-        return_unit
+        Lwt.return_unit
       ) else
         (* Normally sending a RST reply to a random pkt would be in
            order but here we stay quiet since we are actively trying
            to connect this id *)
-        return_unit
+        Lwt.return_unit
     | None ->
       (* Incomming SYN-ACK with no pending connect and no matching pcb
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+    Log.f debug (with_stats "process-syn" t);
     match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
@@ -393,29 +454,32 @@ struct
         { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
         id pushf
       >>= fun _ ->
-      return_unit
+      Lwt.return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
+    Log.f debug (with_stats "process-ack" t);
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         (* Established connection - promote to active channels *)
         Hashtbl.remove t.listens id;
+        Stats.decr_listen ();
         Hashtbl.add t.channels id newconn;
+        Stats.incr_channel ();
         (* Finish processing ACK, so pcb.state is correct *)
         Rx.input t pkt newconn >>= fun () ->
         (* send new connection up to listener *)
         pushf (fst newconn)
       ) else
         (* No RST because we are trying to connect on this id *)
-        return_unit
+        Lwt.return_unit
     | None ->
       match hashtbl_find t.connects id with
       | Some _ ->
         (* No RST because we are trying to connect on this id *)
-        return_unit
+        Lwt.return_unit
       | None ->
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
@@ -438,12 +502,15 @@ struct
       | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
       | false, false ->
         (* What the hell is this packet? No SYN,ACK,RST *)
-        return_unit
+        Log.s debug "input-no-pcb: unknown packet";
+        Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
     match verify_checksum src dst data with
-    | false -> printf "RX.input: checksum error\n%!"; return_unit
+    | false ->
+      Log.s debug "RX.input: checksum error";
+      Lwt.return_unit
     | true ->
       let source_port = Tcp_wire.get_tcp_src_port data in
       let dest_port = Tcp_wire.get_tcp_dst_port data in
@@ -470,7 +537,6 @@ struct
     min 4000 (min (Window.tx_mss pcb.wnd)
                 (Int32.to_int (UTX.available pcb.utx)))
 
-  (* URG_TODO: raise exception if not in Established or Close_wait state *)
   (* Wait for more write space *)
   let write_wait_for pcb sz =
     UTX.wait_for pcb.utx (Int32.of_int sz)
@@ -484,26 +550,23 @@ struct
     | av_len when av_len < len ->
       let first_bit = Cstruct.sub data 0 av_len in
       let remaing_bit = Cstruct.sub data av_len (len - av_len) in
-      writefn pcb wfn first_bit  >>= fun () ->
+      writefn pcb wfn first_bit >+= fun () ->
       writefn pcb wfn remaing_bit
-    | _ -> wfn [data]
+    | _ ->
+      match State.state pcb.state with
+      | State.Established | State.Close_wait -> wfn [data] >>= ok
+      | e -> error e
 
-  (* URG_TODO: raise exception when trying to write to closed connection
-               instead of quietly returning *)
   (* Blocking write on a PCB *)
   let write pcb data = writefn pcb (UTX.write pcb.utx) data
-  let writev pcb data = Lwt_list.iter_s (fun d -> write pcb d) data
-
+  let writev pcb data = iter_s (write pcb) data
   let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data
-  let writev_nodelay pcb data =
-    Lwt_list.iter_s (fun d -> write_nodelay pcb d) data
+  let writev_nodelay pcb data = iter_s (write_nodelay pcb) data
 
   (* Close - no more will be written *)
-  let close pcb =
-    Tx.close pcb
+  let close pcb = Tx.close pcb
 
-  let get_dest pcb =
-    pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
+  let get_dest pcb = pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -537,20 +600,19 @@ struct
     in
     Time.sleep rxtime >>= fun () ->
     match hashtbl_find t.connects id with
+    | None                -> Lwt.return_unit
     | Some (wakener, isn) ->
       if isn = tx_isn then
         if count > 3 then (
           Hashtbl.remove t.connects id;
+          Stats.decr_connect ();
           Lwt.wakeup wakener `Timeout;
-          return_unit
+          Lwt.return_unit
         ) else (
           Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
           connecttimer t id tx_isn options window (count + 1)
         )
-      else
-        return_unit
-    | None ->
-      return_unit
+      else Lwt.return_unit
 
   let connect t ~dest_ip ~dest_port =
     let id = getid t dest_ip dest_port in
@@ -562,16 +624,20 @@ struct
     in
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
-    if Hashtbl.mem t.connects id then
-      printf "WARNING: connection already being attempted\n%!";
-    Hashtbl.replace t.connects id (wakener, tx_isn);
+    if Hashtbl.mem t.connects id then (
+      Log.s info "WARNING: connection already being attempted";
+      Hashtbl.remove t.connects id;
+      Stats.decr_connect ();
+    );
+    Hashtbl.add t.connects id (wakener, tx_isn);
+    Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
-    let _ = connecttimer t id tx_isn options window 0 in
+    Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
     th
 
   (* Construct the main TCP thread *)
   let create ip =
-    let _ = Random.self_init () in
+    Random.self_init ();
     let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in

@@ -14,12 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 
-module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
-
-  module Arpv4 = Arpv4.Make (Ethif) (Clock) (Time)
+module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   (** IO operation errors *)
   type error = [
@@ -36,7 +34,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
   type macaddr = Ethif.macaddr
 
   type t = {
-    ethif: Ethif.t;
+    ethif : Ethif.t;
     arp : Arpv4.t;
     mutable ip: Ipaddr.V4.t;
     mutable netmask: Ipaddr.V4.t;
@@ -71,14 +69,14 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let destination_mac t =
       function
       |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
-        return Macaddr.broadcast
+        Lwt.return Macaddr.broadcast
       |ip when is_local t ip -> (* Local *)
         Arpv4.query t.arp ip >>= begin function
           | `Ok mac -> Lwt.return mac
           | `Timeout -> Lwt.fail (No_route_to_destination_address ip)
         end
       |ip when Ipaddr.V4.is_multicast ip ->
-        return (mac_of_multicast ip)
+        Lwt.return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
           match t.gateways with
           |hd::_ ->
@@ -86,11 +84,11 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
                 printf "IP.output: arp timeout to gw %s\n%!" (Ipaddr.V4.to_string ip);
-                fail (No_route_to_destination_address ip)
+                Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
             printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
-            fail (No_route_to_destination_address ip)
+            Lwt.fail (No_route_to_destination_address ip)
         end
   end
 
@@ -155,13 +153,14 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
       | 15 -> "Precedence cutoff in effect"
       | code -> Printf.sprintf "Unknown code: %d" code in
     printf "ICMP Destination Unreachable: %s\n%!" descr;
-    return ()
+    Lwt.return_unit
 
   let icmp_input t src _hdr buf =
     MProf.Trace.label "icmp_input";
     match Wire_structs.Ipv4_wire.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
-      return (printf "ICMP: discarding echo reply\n%!")
+      printf "ICMP: discarding echo reply\n%!";
+      Lwt.return_unit
     |3 -> icmp_dst_unreachable buf
     |8 -> (* echo request *)
       (* convert the echo request into an echo reply *)
@@ -177,7 +176,7 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
       write t frame buf
     |ty ->
       printf "ICMP unknown ty %d\n" ty;
-      return_unit
+      Lwt.return_unit
 
   let input t ~tcp ~udp ~default buf =
     (* buf pointers to start of IPv4 header here *)
@@ -187,23 +186,24 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
     let payload_len = Wire_structs.Ipv4_wire.get_ipv4_len buf - ihl in
     let hdr, data = Cstruct.split buf ihl in
     if Cstruct.len data >= payload_len then begin
+      (* Strip trailing bytes. See: https://github.com/mirage/mirage-net-xen/issues/24 *)
+      let data = Cstruct.sub data 0 payload_len in
       let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
       match Wire_structs.Ipv4_wire.int_to_protocol proto with
       | Some `ICMP -> icmp_input t src hdr data
       | Some `TCP  -> tcp ~src ~dst data
       | Some `UDP  -> udp ~src ~dst data
       | None       -> default ~proto ~src ~dst data
-    end else return_unit
+    end else Lwt.return_unit
 
-  let connect ethif =
-    let ip = Ipaddr.V4.any in
-    let netmask = Ipaddr.V4.any in
-    let gateways = [] in
-    let arp = Arpv4.create ethif in
+  let connect
+      ?(ip=Ipaddr.V4.any)
+      ?(netmask=Ipaddr.V4.any)
+      ?(gateways=[]) ethif arp =
     let t = { ethif; arp; ip; netmask; gateways } in
-    return (`Ok t)
+    Lwt.return (`Ok t)
 
-  let disconnect _ = return_unit
+  let disconnect _ = Lwt.return_unit
 
   let set_ip t ip =
     t.ip <- ip;
@@ -214,13 +214,13 @@ module Make(Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = stru
 
   let set_ip_netmask t netmask =
     t.netmask <- netmask;
-    return_unit
+    Lwt.return_unit
 
   let get_ip_netmasks t = [t.netmask]
 
   let set_ip_gateways t gateways =
     t.gateways <- gateways;
-    return_unit
+    Lwt.return_unit
 
   let get_ip_gateways { gateways; _ } = gateways
 

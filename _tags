@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ff3f3aaffeb9a8ae52f69f7e1b8a25ee)
+# DO NOT EDIT (digest: b9afd8f7c25862ce87cac4dd55d2c26b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -32,6 +32,8 @@ true: annot, bin_annot
 <lib/tcpip_xen.{cma,cmxa}>: use_libtcpip_xen_stubs
 # Library ethif
 "lib/ethif.cmxs": use_ethif
+# Library arpv4
+"lib/arpv4.cmxs": use_arpv4
 # Library ipv4
 "lib/ipv4.cmxs": use_ipv4
 # Library ipv6
@@ -51,6 +53,8 @@ true: annot, bin_annot
 "tcp/user_buffer.cmx": for-pack(Tcp)
 "tcp/pcb.cmx": for-pack(Tcp)
 "tcp/flow.cmx": for-pack(Tcp)
+"tcp/stats.cmx": for-pack(Tcp)
+"tcp/log.cmx": for-pack(Tcp)
 <tcp/*.ml{,i,y}>: pkg_bytes
 <tcp/*.ml{,i,y}>: pkg_cstruct
 <tcp/*.ml{,i,y}>: pkg_io-page
@@ -61,13 +65,6 @@ true: annot, bin_annot
 <tcp/*.ml{,i,y}>: use_ipv4
 <tcp/*.ml{,i,y}>: use_ipv6
 <tcp/*.ml{,i,y}>: use_tcpip
-# Library channel
-"channel/channel.cmxs": use_channel
-<channel/*.ml{,i,y}>: pkg_cstruct
-<channel/*.ml{,i,y}>: pkg_io-page
-<channel/*.ml{,i,y}>: pkg_ipaddr
-<channel/*.ml{,i,y}>: pkg_lwt
-<channel/*.ml{,i,y}>: pkg_mirage-types
 # Library dhcpv4
 "dhcp/dhcpv4.cmxs": use_dhcpv4
 <dhcp/*.ml{,i,y}>: pkg_bytes
@@ -83,11 +80,13 @@ true: annot, bin_annot
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i,y}>: pkg_bytes
 <lib/*.ml{,i,y}>: pkg_cstruct
+<lib/*.ml{,i,y}>: pkg_cstruct.syntax
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: use_arpv4
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_ethif
 <lib/*.ml{,i,y}>: use_ipv4
@@ -97,6 +96,8 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: use_udp
 # Library ethif-unix
 "unix/ethif-unix.cmxs": use_ethif-unix
+# Library arpv4-unix
+"unix/arpv4-unix.cmxs": use_arpv4-unix
 # Library ipv4-unix
 "unix/ipv4-unix.cmxs": use_ipv4-unix
 # Library ipv6-unix
@@ -119,12 +120,14 @@ true: annot, bin_annot
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
 # Library tcpip-stack-unix
 "unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
+<unix/*.ml{,i,y}>: pkg_channel
+<unix/*.ml{,i,y}>: pkg_cstruct.syntax
 <unix/*.ml{,i,y}>: pkg_mirage-clock-unix
 <unix/*.ml{,i,y}>: pkg_mirage-console.unix
 <unix/*.ml{,i,y}>: pkg_mirage-net-unix
 <unix/*.ml{,i,y}>: pkg_mirage-types.lwt
 <unix/*.ml{,i,y}>: pkg_mirage-unix
-<unix/*.ml{,i,y}>: use_channel
+<unix/*.ml{,i,y}>: use_arpv4
 <unix/*.ml{,i,y}>: use_dhcpv4
 <unix/*.ml{,i,y}>: use_ethif
 <unix/*.ml{,i,y}>: use_ethif-unix
@@ -158,28 +161,27 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: use_udpv4-socket
 <unix/*.ml{,i,y}>: use_udpv6-socket
 # Executable test
-"lib_test/test.byte": oasis_executable_test_byte
-<lib_test/*.ml{,i,y}>: oasis_executable_test_byte
-"lib_test/test.byte": pkg_alcotest
-"lib_test/test.byte": pkg_bytes
-"lib_test/test.byte": pkg_cstruct
-"lib_test/test.byte": pkg_io-page
-"lib_test/test.byte": pkg_io-page.unix
-"lib_test/test.byte": pkg_ipaddr
-"lib_test/test.byte": pkg_lwt
-"lib_test/test.byte": pkg_lwt.unix
-"lib_test/test.byte": pkg_mirage-console.unix
-"lib_test/test.byte": pkg_mirage-flow
-"lib_test/test.byte": pkg_mirage-profile
-"lib_test/test.byte": pkg_mirage-types
-"lib_test/test.byte": pkg_mirage-vnetif
-"lib_test/test.byte": pkg_oUnit
-"lib_test/test.byte": use_channel
-"lib_test/test.byte": use_ethif
-"lib_test/test.byte": use_ipv4
-"lib_test/test.byte": use_ipv6
-"lib_test/test.byte": use_tcp
-"lib_test/test.byte": use_tcpip
+<lib_test/test.{native,byte}>: pkg_alcotest
+<lib_test/test.{native,byte}>: pkg_bytes
+<lib_test/test.{native,byte}>: pkg_cstruct
+<lib_test/test.{native,byte}>: pkg_io-page
+<lib_test/test.{native,byte}>: pkg_io-page.unix
+<lib_test/test.{native,byte}>: pkg_ipaddr
+<lib_test/test.{native,byte}>: pkg_lwt
+<lib_test/test.{native,byte}>: pkg_lwt.unix
+<lib_test/test.{native,byte}>: pkg_mirage-clock-unix
+<lib_test/test.{native,byte}>: pkg_mirage-console.unix
+<lib_test/test.{native,byte}>: pkg_mirage-flow
+<lib_test/test.{native,byte}>: pkg_mirage-profile
+<lib_test/test.{native,byte}>: pkg_mirage-types
+<lib_test/test.{native,byte}>: pkg_mirage-vnetif
+<lib_test/test.{native,byte}>: pkg_oUnit
+<lib_test/test.{native,byte}>: pkg_pcap-format
+<lib_test/test.{native,byte}>: use_ethif
+<lib_test/test.{native,byte}>: use_ipv4
+<lib_test/test.{native,byte}>: use_ipv6
+<lib_test/test.{native,byte}>: use_tcp
+<lib_test/test.{native,byte}>: use_tcpip
 <lib_test/*.ml{,i,y}>: pkg_alcotest
 <lib_test/*.ml{,i,y}>: pkg_bytes
 <lib_test/*.ml{,i,y}>: pkg_cstruct
@@ -188,19 +190,20 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
+<lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-console.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
 <lib_test/*.ml{,i,y}>: pkg_mirage-vnetif
 <lib_test/*.ml{,i,y}>: pkg_oUnit
-<lib_test/*.ml{,i,y}>: use_channel
+<lib_test/*.ml{,i,y}>: pkg_pcap-format
 <lib_test/*.ml{,i,y}>: use_ethif
 <lib_test/*.ml{,i,y}>: use_ipv4
 <lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
-"lib_test/test.byte": custom
+<lib_test/test.{native,byte}>: custom
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug
 <tcp/pcb.ml>: pkg_cstruct.syntax

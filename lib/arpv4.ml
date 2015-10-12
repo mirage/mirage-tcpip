@@ -15,7 +15,7 @@
  *
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
@@ -27,8 +27,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     tha: Macaddr.t;
     tpa: Ipaddr.V4.t;
   }
-
-  (* TODO implement the full ARP state machine (pending, failed, timer thread, etc) *)
 
   type result = [ `Ok of Macaddr.t | `Timeout ]
 
@@ -42,25 +40,14 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
-  cstruct arp {
-    uint8_t dst[6];
-    uint8_t src[6];
-    uint16_t ethertype;
-    uint16_t htype;
-    uint16_t ptype;
-    uint8_t hlen;
-    uint8_t plen;
-    uint16_t op;
-    uint8_t sha[6];
-    uint32_t spa;
-    uint8_t tha[6];
-    uint32_t tpa
-  } as big_endian
-
-  cenum op {
-    Op_request = 1;
-    Op_reply
-  } as uint16_t
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipaddr = Ipaddr.V4.t
+  type macaddr = Macaddr.t
+  type ethif = Ethif.t
+  type repr = string
+  type id = t
+  type error
 
   let arp_timeout = 60. (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
@@ -77,17 +64,18 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     List.iter (Hashtbl.remove t.cache) expired;
     Time.sleep arp_timeout >>= tick t
 
-  (* Prettyprint cache contents *)
-  let prettyprint t =
-    printf "ARP info:\n";
-    Hashtbl.iter (fun ip entry ->
-        printf "%s -> %s\n%!"
-          (Ipaddr.V4.to_string ip)
-          (match entry with
-           | Pending _ -> "I"
-           | Confirmed (_, mac) -> sprintf "V(%s)" (Macaddr.to_string mac)
-          )
-      ) t.cache
+  let to_repr t =
+    let print ip entry acc =
+      let key = Ipaddr.V4.to_string ip in
+      match entry with
+       | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending" 
+       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %f)\n%!" 
+                                    acc key (Macaddr.to_string mac) time
+    in
+    Lwt.return (Hashtbl.fold print t.cache "")
+
+  let pp fmt repr =
+    Format.fprintf fmt "%s" repr
 
   let notify t ip mac =
     let now = Clock.time () in
@@ -105,6 +93,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet, registered through attach() *)
   let rec input t frame =
+    let open Arpv4_wire in
     MProf.Trace.label "arpv4.input";
     match get_arp_op frame with
     |1 -> (* Request *)
@@ -120,7 +109,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
         let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
         output t { op=`Reply; sha; tha; spa; tpa }
-      end else return_unit
+      end else Lwt.return_unit
     |2 -> (* Reply *)
       let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
       let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
@@ -128,12 +117,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
       (* If we have pending entry, notify the waiters that answer is ready *)
       notify t spa sha;
-      return_unit
+      Lwt.return_unit
     |n ->
       printf "ARP: Unknown message %d ignored\n%!" n;
-      return_unit
+      Lwt.return_unit
 
   and output t arp =
+    let open Arpv4_wire in
     (* Obtain a buffer to write into *)
     let buf = Io_page.to_cstruct (Io_page.get 1) in
     (* Write the ARP packet *)
@@ -147,20 +137,21 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       |`Reply -> 2
       |`Unknown n -> n
     in
-    set_arp_dst dmac 0 buf;
-    set_arp_src smac 0 buf;
-    set_arp_ethertype buf 0x0806; (* ARP *)
-    set_arp_htype buf 1;
-    set_arp_ptype buf 0x0800; (* IPv4 *)
-    set_arp_hlen buf 6; (* ethernet mac size *)
-    set_arp_plen buf 4; (* ipv4 size *)
-    set_arp_op buf op;
-    set_arp_sha smac 0 buf;
-    set_arp_spa buf spa;
-    set_arp_tha dmac 0 buf;
-    set_arp_tpa buf tpa;
+    Wire_structs.set_ethernet_dst dmac 0 buf;
+    Wire_structs.set_ethernet_src smac 0 buf;
+    Wire_structs.set_ethernet_ethertype buf 0x0806; (* ARP *)
+    let arpbuf = Cstruct.shift buf 14 in
+    set_arp_htype arpbuf 1;
+    set_arp_ptype arpbuf 0x0800; (* IPv4 *)
+    set_arp_hlen arpbuf 6; (* ethernet mac size *)
+    set_arp_plen arpbuf 4; (* ipv4 size *)
+    set_arp_op arpbuf op;
+    set_arp_sha smac 0 arpbuf;
+    set_arp_spa arpbuf spa;
+    set_arp_tha dmac 0 arpbuf;
+    set_arp_tpa arpbuf tpa;
     (* Resize buffer to sizeof arp packet *)
-    let buf = Cstruct.sub buf 0 sizeof_arp in
+    let buf = Cstruct.sub buf 0 (sizeof_arp + Wire_structs.sizeof_ethernet) in
     Ethif.write t.ethif buf
 
   (* Send a gratuitous ARP for our IP addresses *)
@@ -193,12 +184,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let add_ip t ip =
     if not (List.mem ip t.bound_ips) then
       set_ips t (ip :: t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   let remove_ip t ip =
     if List.mem ip t.bound_ips then
       set_ips t (List.filter ((<>) ip) t.bound_ips)
-    else return_unit
+    else Lwt.return_unit
 
   (* Query the cache for an ARP entry, which may result in the sender sleeping
      waiting for a response *)
@@ -233,10 +224,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Lwt.async (retry 0);
       response
 
-  let create ethif =
+  let connect ethif =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
     let t = { ethif; cache; bound_ips } in
     Lwt.async (tick t);
-    t
+    Lwt.return (`Ok t)
+
+  let disconnect t = Lwt.return_unit (* TODO: should kill tick *)
 end

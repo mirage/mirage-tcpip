@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 (* General signature for all the ack modules *)
 module type M = sig
@@ -51,12 +51,12 @@ module Immediate : M = struct
 
   let receive t ack_number =
     match t.pushpending with
-    | true -> return_unit
+    | true  -> Lwt.return_unit
     | false -> pushack t ack_number
 
   let transmit t _ =
     t.pushpending <- false;
-    return_unit
+    Lwt.return_unit
 end
 
 
@@ -82,25 +82,22 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true -> return_unit
-    | false -> r.pushpending <- true;
+    | true  -> Lwt.return_unit
+    | false ->
+      r.pushpending <- true;
       transmitacknow r ack_number
-
 
   let ontimer r s  =
     match r.delayed with
-    | false ->
-      Tcptimer.Stoptimer
-    | true -> begin
-        match r.delayedack = s with
-        | false ->
-          Tcptimer.Continue r.delayedack
-        | true ->
-          r.delayed <- false;
-          let _ = transmitack r s in
-          Tcptimer.Stoptimer
-      end
-
+    | false -> Lwt.return Tcptimer.Stoptimer
+    | true  ->
+      match r.delayedack = s with
+      | false ->
+        Lwt.return (Tcptimer.Continue r.delayedack)
+      | true ->
+        r.delayed <- false;
+        transmitack r s >>= fun () ->
+        Lwt.return Tcptimer.Stoptimer
 
   let t ~send_ack ~last : t =
     let pushpending = false in
@@ -134,6 +131,6 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
   let transmit t _ =
     t.r.delayed <- false;
     t.r.pushpending <- false;
-    return_unit
+    Lwt.return_unit
 
 end

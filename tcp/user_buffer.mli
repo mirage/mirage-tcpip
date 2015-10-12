@@ -43,4 +43,5 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
   val write: t -> Cstruct.t list -> unit Lwt.t
   val write_nodelay: t -> Cstruct.t list -> unit Lwt.t
   val free: t -> int -> unit Lwt.t
+  val reset: t -> unit Lwt.t
 end

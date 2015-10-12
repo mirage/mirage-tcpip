@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a1d3c8591e91c674b25051803a310a2d)
+# DO NOT EDIT (digest: 195c2067e8367d1d5113b00734c29168)
 Options
 Wire
 State
@@ -11,4 +11,6 @@ Segment
 User_buffer
 Pcb
 Flow
+Stats
+Log
 # OASIS_STOP

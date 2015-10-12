@@ -887,8 +887,7 @@ let add_routers ~now state ips =
 let get_routers state =
   RouterList.to_list state.router_list
 
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
+open Lwt.Infix
 
 module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   type ethif    = E.t
@@ -947,13 +946,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     | `Udp (src, dst, pkt)            -> udp ~src ~dst pkt
     | `Default (proto, src, dst, pkt) -> default ~proto ~src ~dst pkt
 
-  let connect ethif =
-    Printf.printf "IP6: Starting\n%!";
-    let now = C.time () in
-    let state, acts = create ~now (E.mac ethif) in
-    let t = {state; ethif} in
-    run t acts >>= fun () ->
-    Lwt.return (`Ok t)
 
   let disconnect _ = (* TODO *)
     Lwt.return_unit
@@ -993,5 +985,20 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   type uipaddr = I.t
   let to_uipaddr ip = I.V6 ip
   let of_uipaddr ip = Some (I.to_v6 ip)
+
+  let (>>=?) (x,f) g = match x with
+    | Some x -> f x >>= g
+    | None -> g ()
+
+  let connect ?ip ?netmask ?gateways ethif =
+    Printf.printf "IP6: Starting\n%!";
+    let now = C.time () in
+    let state, acts = create ~now (E.mac ethif) in
+    let t = {state; ethif} in
+    run t acts >>= fun () ->
+    (ip, set_ip t) >>=? fun () ->
+    (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
+    (gateways, set_ip_gateways t) >>=? fun () ->
+    Lwt.return (`Ok t)
 
 end
