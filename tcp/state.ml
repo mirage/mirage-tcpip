@@ -53,7 +53,7 @@ type t = {
   mutable state: tcpstate;
 }
 
-let t ~on_close =
+let start ~on_close =
   { on_close; state=Closed }
 
 let state t = t.state

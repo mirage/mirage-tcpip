@@ -323,7 +323,7 @@ struct
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
-    let state = State.t ~on_close in
+    let state = State.start ~on_close in
     let txq, _tx_t =
       TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in

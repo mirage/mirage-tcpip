@@ -49,21 +49,27 @@ val pp_tcpstate : Format.formatter -> tcpstate -> unit
 
 type close_cb = unit -> unit
 
-(* FIXME: abstract type *)
-type t = {
-  on_close: close_cb;
-  mutable state: tcpstate;
-}
+type t
 
 val state : t -> tcpstate
-val t : on_close:close_cb -> t
+val start : on_close:close_cb -> t
 
 val pp: Format.formatter -> t -> unit
 
 module Make(Time : V1_LWT.TIME) : sig
   val fin_wait_2_time : float
+  (* when in state fin_wait_2, use this as a timeout parameter  *)
   val time_wait_time : float
+    (* when in state Time_wait, wait this long before transitioning to Closed *)
   val finwait2timer : t -> int -> float -> unit Lwt.t
+(* [finwait2timer t count timeout]
+    (the actual
+       logic is that we wait this long, then check the state; if it's
+       Fin_wait_2 n, and n == the number of times we've received an ack when
+       we've been in Fin_wait_2, close?
+       Otherwise, call finwait2 again? *)
   val timewait : t -> float -> unit Lwt.t
+(* [timewait t time] waits for time, then sets the state to closed and calls
+   on_close *)
   val tick : t -> action -> unit
 end
