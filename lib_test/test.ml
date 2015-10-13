@@ -15,9 +15,10 @@
  *)
 
 let suite = [
-  "arp"    , Test_arp.suite     ;
-  "connect", Test_connect.suite ;
-  "iperf"  , Test_iperf.suite   ;
+  "arp"            , Test_arp.suite         ;
+  "connect"        , Test_connect.suite     ;
+  "iperf"          , Test_iperf.suite       ;
+  "tcp_options"    , Test_tcp_options.suite ;
 ]
 
 let run test () =
