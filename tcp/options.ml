@@ -131,10 +131,11 @@ let write_iter buf =
     Cstruct.BE.set_uint32 buf 2 tsval;
     Cstruct.BE.set_uint32 buf 6 tsecr;
     10
-  | Unknown (kind,contents) ->
-    let tlen = String.length contents in
+  | Unknown (kind, contents) ->
+    let content_len = String.length contents in
+    let tlen = content_len + 2 in
     set_tlen kind tlen;
-    Cstruct.blit_from_string contents 0 buf 0 tlen;
+    Cstruct.blit_from_string contents 0 buf 2 content_len;
     tlen
 
 let marshal buf ts =
