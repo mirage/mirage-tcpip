@@ -47,17 +47,23 @@ let unmarshal buf =
          | 0 -> None   (* EOF *)
          | 1 -> Some 1 (* NOP *)
          | n ->
-           try Some (Cstruct.get_uint8 buf 1)
-           with Invalid_argument _ -> report_error n
+           match Cstruct.len buf with
+           | 0 | 1 -> report_error n
+           | buffer_size ->
+             let option_size = Cstruct.get_uint8 buf 1 in
+             if option_size <= buffer_size && option_size >= 2 then
+               Some option_size
+             else report_error n
       )
       (fun buf ->
-         let option_number = Cstruct.get_uint8 buf 0 in
-         match option_number with
+         match Cstruct.get_uint8 buf 0 with
          | 0 -> assert false
          | 1 -> Noop
-         | _ ->
+         | option_number ->
            let option_length = Cstruct.get_uint8 buf 1 in
-           try
+           if Cstruct.len buf < option_length then
+             report_error option_number
+           else begin
              match option_number, option_length with
              (* error out for lengths that are always nonsensible when option
               * number >1 *)
@@ -83,8 +89,9 @@ let unmarshal buf =
              | 2, _ | 3, _ | 4, _ | 8, _ -> report_error option_number
              (* Parse apparently well-formed but unrecognized
                 options *)
-             | n, _ -> Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2))
-           with Invalid_argument _ -> report_error option_number
+             | n, _ ->
+               Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2))
+           end
       ) buf in
   Cstruct.fold (fun a b -> b :: a) i []
 
