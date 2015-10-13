@@ -80,17 +80,11 @@ let test_unmarshal_ok_options () =
   Cstruct.memset buf 0;
   let opts = [ Tcp.Options.MSS 536; Tcp.Options.SACK_ok; Tcp.Options.Noop;
                Tcp.Options.Noop ] in
-  let printer l =
-    let buf = Buffer.create 10 in
-    Buffer.clear buf;
-    Tcp.Options.pps (Format.formatter_of_buffer buf) l;
-    Buffer.to_bytes buf
-  in
   let marshalled = Tcp.Options.marshal buf opts in
   check marshalled 8;
   (* order is reversed by the unmarshaller, which is fine but we need to
      account for that when making equality assertions *)
-  OUnit.assert_equal ~printer (List.rev (Tcp.Options.unmarshal buf)) opts;
+  OUnit.assert_equal (List.rev (Tcp.Options.unmarshal buf)) opts;
   Lwt.return_unit
 
 let test_unmarshal_random_data () =
