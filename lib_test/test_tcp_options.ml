@@ -1,3 +1,5 @@
+let check = OUnit.assert_equal ~printer:string_of_int
+
 let test_unmarshal_bad_mss () =
   let odd_sized_mss = Cstruct.create 3 in
   Cstruct.set_uint8 odd_sized_mss 0 2;
@@ -85,7 +87,7 @@ let test_unmarshal_ok_options () =
     Buffer.to_bytes buf
   in
   let marshalled = Tcp.Options.marshal buf opts in
-  OUnit.assert_equal ~printer:string_of_int marshalled 8;
+  check marshalled 8;
   (* order is reversed by the unmarshaller, which is fine but we need to
      account for that when making equality assertions *)
   OUnit.assert_equal ~printer (List.rev (Tcp.Options.unmarshal buf)) opts;
@@ -116,6 +118,38 @@ let test_unmarshal_random_data () =
   in
   check iterations
 
+let test_marshal_unknown () =
+  let buf = Cstruct.create 10 in
+  Cstruct.memset buf 255;
+  let unknown = [ Tcp.Options.Unknown (64, "  ") ] in (* overall, length 4 *)
+  check 4 (Tcp.Options.marshal buf unknown); (* should have written 4 bytes *)
+  Cstruct.hexdump buf;
+  check ~msg:"option kind" 64 (Cstruct.get_uint8 buf 0); (* option-kind *)
+  check ~msg:"option length" 4 (Cstruct.get_uint8 buf 1); (* option-length *)
+  check ~msg:"data 1" 0x20 (Cstruct.get_uint8 buf 2); (* data *)
+  check ~msg:"data 2" 0x20 (Cstruct.get_uint8 buf 3); (* moar data *)
+  check ~msg:"canary" 255 (Cstruct.get_uint8 buf 4); (* unwritten region *)
+  Lwt.return_unit
+
+let test_marshal_padding () =
+  let buf = Cstruct.create 8 in
+  Cstruct.memset buf 255;
+  let extract = Cstruct.get_uint8 buf in
+  let needs_padding = [ Tcp.Options.SACK_ok ] in
+  check 4 (Tcp.Options.marshal buf needs_padding);
+  check 4 (extract 0);
+  check 2 (extract 1);
+  check 0 (extract 2); (* should pad out the rest of the buffer with 0 *)
+  check 0 (extract 3);
+  check 255 (extract 4); (* but not keep padding into random memory *)
+  Lwt.return_unit
+
+let test_marshal_empty () =
+  let buf = Cstruct.create 4 in
+  Cstruct.memset buf 255;
+  check 0 (Tcp.Options.marshal buf []);
+  check 255 (Cstruct.get_uint8 buf 0);
+  Lwt.return_unit
 
 let suite = [
   "unmarshal broken mss", `Quick, test_unmarshal_bad_mss;
@@ -125,4 +159,7 @@ let suite = [
   "unmarshal stops at eof", `Quick, test_unmarshal_stops_at_eof;
   "unmarshal non-broken tcp options", `Quick, test_unmarshal_ok_options;
   "unmarshalling random data returns", `Quick, test_unmarshal_random_data;
+  "test marshalling an unknown value", `Quick, test_marshal_unknown;
+  "test marshalling when padding is needed", `Quick, test_marshal_padding;
+  "test marshalling the empty list", `Quick, test_marshal_empty;
 ]
