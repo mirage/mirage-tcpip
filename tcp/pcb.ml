@@ -394,25 +394,30 @@ struct
 
   let process_reset ?(ack_number = None) t id =
     Log.f debug (with_stats "process-reset" t);
-    match hashtbl_find t.connects id with
-    | Some (wakener, _) ->
-      (* URG_TODO: check if RST ack num is valid before it is accepted *)
-      (* (indeed, SEQ number for other sorts of connections -- we should
-         probably run it through the state machine first, see whether a change
-         has occurred, and only proceed if so) *)
-      Hashtbl.remove t.connects id;
-      Stats.decr_connect ();
-      Lwt.wakeup wakener `Rst;
+    (* presence in connects means we are trying to start an outgoing connection *)
+    match hashtbl_find t.connects id, ack_number with
+    | Some (wakener, seq), Some ack_number ->
+      if (Sequence.incr seq) = ack_number then begin
+        Hashtbl.remove t.connects id;
+        Stats.decr_connect ();
+        Lwt.wakeup wakener `Rst;
+        Lwt.return_unit
+      end else
+        (* ignore out-of-sequence ACK numbers *)
+        Lwt.return_unit
+    | Some (wakener, seq), None ->
+      (* we're trying to establish a connection, but we can't verify that an
+         incoming RST matches the entity we were trying to establish it with,
+         so do nothing with this packet *)
       Lwt.return_unit
-    | None ->
+    | None, _ -> (* if we're not trying to make a new connection, we only care
+                    about the RST's sequence number, which has already been
+                    validated by `Segment.input` (we hope) *)
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
         Stats.decr_listen ();
-        (match ack_number with
-        | None -> STATE.tick pcb.state State.Recv_rst
-        | Some ack -> STATE.tick pcb.state (State.Recv_rstack ack)
-        ) ;
+        STATE.tick pcb.state State.Recv_rst;
         Lwt.cancel th;
         Lwt.return_unit
       | None ->
