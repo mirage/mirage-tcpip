@@ -40,7 +40,7 @@ type tcpstate =
   | Close_wait
   | Last_ack of Sequence.t
   | Fin_wait_1 of Sequence.t
-  | Fin_wait_2 of int
+  | Fin_wait_2
   | Closing of Sequence.t
   | Time_wait
   | Reset
@@ -61,13 +61,11 @@ module Make(Time : V1_LWT.TIME) : sig
   (* when in state fin_wait_2, use this as a timeout parameter  *)
   val time_wait_time : float
     (* when in state Time_wait, wait this long before transitioning to Closed *)
-  val finwait2timer : t -> int -> float -> unit Lwt.t
-(* [finwait2timer t count timeout]
-    (the actual
-       logic is that we wait this long, then check the state; if it's
-       Fin_wait_2 n, and n == the number of times we've received an ack when
-       we've been in Fin_wait_2, close?
-       Otherwise, call finwait2 again? *)
+  val finwait2timer : t -> float -> unit Lwt.t
+(* [finwait2timer t timeout] waits for the given amount of time, then if the
+   state is still Fin_wait_2, sets the state to closed and calls on_close.  If
+   the state is other than Fin_wait_2, it is assumed that whatever set the state
+   to something else has handled the closure and the state is not changed. *)
   val timewait : t -> float -> unit Lwt.t
 (* [timewait t time] waits for time, then sets the state to closed and calls
    on_close *)
