@@ -71,52 +71,60 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     | [] -> return_unit
     | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
 
+  let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
+
   let listen_udpv4 t ~port callback =
-    let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
-    let buf = Cstruct.create 4096 in
-    let rec loop () =
-      let continue () =
-        (* TODO cancellation *)
-        if true then loop () else return_unit in
-      Lwt_cstruct.recvfrom fd buf []
-      >>= fun (len, sa) ->
-      let buf = Cstruct.sub buf 0 len in
-      begin match sa with
-        | Lwt_unix.ADDR_INET (addr, src_port) ->
-          let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
-          let dst = Ipaddr.V4.any in (* TODO *)
-          callback ~src ~dst ~src_port buf
-        | _ -> return_unit
-      end >>= fun () ->
-      continue ()
-    in
-    (* FIXME: we should not ignore the result *)
-    ignore_result (loop ())
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (err_invalid_port port))
+    else
+      let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
+      let buf = Cstruct.create 4096 in
+      let rec loop () =
+        let continue () =
+          (* TODO cancellation *)
+          if true then loop () else return_unit in
+        Lwt_cstruct.recvfrom fd buf []
+        >>= fun (len, sa) ->
+        let buf = Cstruct.sub buf 0 len in
+        begin match sa with
+              | Lwt_unix.ADDR_INET (addr, src_port) ->
+                 let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
+                 let dst = Ipaddr.V4.any in (* TODO *)
+                 callback ~src ~dst ~src_port buf
+              | _ -> return_unit
+        end >>= fun () ->
+        continue ()
+      in
+      (* FIXME: we should not ignore the result *)
+      ignore_result (loop ())
 
   let listen_tcpv4 _t ~port callback =
-    let open Lwt_unix in
-    let fd = socket PF_INET SOCK_STREAM 0 in
-    setsockopt fd SO_REUSEADDR true;
-    let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
-    bind fd (ADDR_INET (interface, port));
-    listen fd 10;
-    let rec loop () =
-      let continue () =
-        (* TODO cancellation *)
-        if true then loop () else return_unit in
-      Lwt_unix.accept fd
-      >>= fun (afd, _) ->
-      Lwt.async (fun () ->
-        Lwt.catch
-          (fun () -> callback afd)
-          (fun _ -> return_unit)
-        );
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (err_invalid_port port))
+    else
+      let open Lwt_unix in
+      let fd = socket PF_INET SOCK_STREAM 0 in
+      setsockopt fd SO_REUSEADDR true;
+      let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
+      bind fd (ADDR_INET (interface, port));
+      listen fd 10;
+      let rec loop () =
+        let continue () =
+          (* TODO cancellation *)
+          if true then loop () else return_unit in
+        Lwt_unix.accept fd
+        >>= fun (afd, _) ->
+        Lwt.async (fun () ->
+                   Lwt.catch
+                     (fun () -> callback afd)
+                     (fun _ -> return_unit)
+                  );
         return_unit
-      >>= fun () ->
-      continue ();
-    in
-    (* FIXME: we should not ignore the result *)
-    ignore_result (loop ())
+        >>= fun () ->
+        continue ();
+      in
+      (* FIXME: we should not ignore the result *)
+      ignore_result (loop ())
 
   let listen _t =
     let t, _ = Lwt.task () in
