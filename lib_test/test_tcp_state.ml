@@ -37,6 +37,7 @@ let valid left right =
   match left, right with
   | Closed, Syn_sent _ -> true
   | Closed, Listen -> true
+  | Listen, Syn_rcvd _ -> true
   | Syn_sent _, Closed -> true
   | Syn_sent _, Syn_rcvd _-> true
   | Syn_sent _, Established -> true
@@ -54,6 +55,7 @@ let valid left right =
   | Close_wait, Last_ack _ -> true
   | Last_ack _, Closed -> true
   | left, right when left = right -> true (* maintaining state is always valid *)
+  | _, Closed -> true (* any connection can be timed out or RST'd *)
   | _, _ -> false
 
 (* given a sequence number, generate a list of possible actions (with that
@@ -61,6 +63,7 @@ let valid left right =
 let actions s = [
   Passive_open
 ; Recv_rst
+; Recv_rstack s
 ; Recv_synack s
 ; Recv_ack s
 ; Recv_fin
@@ -329,6 +332,34 @@ let out_of_sequence_rstack () =
   state_is t (Syn_sent (seq 4));
   Lwt.return_unit
 
+let random_transition () =
+  let how_many = 100 in
+  Random.self_init ();
+  let rec try_state = function
+    | n when n <= 0 -> Lwt.return_unit
+    | n ->
+      let s = Random.int32 Int32.max_int in
+      let sa = Int32.add s (Int32.one) in
+      let initial_state = random_item (states (Tcp.Sequence.of_int32 s)) in
+      let t = get_to initial_state in
+      let action = random_item (actions (Tcp.Sequence.of_int32 sa)) in
+      let () = Timeless_state.tick t action in
+      let later_state = state t in
+      match valid initial_state later_state with
+      | true -> try_state (n - 1)
+      | false ->
+        let output = Format.str_formatter in
+        Format.pp_print_string output "initial state: ";
+        pp_tcpstate output initial_state;
+        Format.pp_print_string output "subsequent state: ";
+        pp_tcpstate output later_state;
+        Format.pp_print_string output "via action: ";
+        pp_action output action;
+        OUnit.assert_failure (Format.flush_str_formatter ());
+        Lwt.return_unit
+  in
+  try_state how_many
+
 let suite = List.append [
   "states are reachable as expected", `Quick, get_to_states;
   "initial state is Closed", `Quick, initial_listen;
@@ -338,4 +369,5 @@ let suite = List.append [
   "connections in fin_wait_2 resolve even with multiple ACKs", `Quick, finwait2_resolves_multiple_acks;
   "out-of-sequence ACKs don't complete 3-way handshake", `Quick, out_of_sequence_ack;
   "out-of-sequence RST/ACKs are ignored", `Quick, out_of_sequence_rstack;
+  "a random set of attempted transitions only results in valid states", `Quick, random_transition;
 ] rst_teardown
