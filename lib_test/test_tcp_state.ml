@@ -85,16 +85,16 @@ let states s = [
   ; Time_wait
 ]
 
+let state_diff formatter (expected, actual) =
+  Format.pp_print_string formatter "expected state:";
+  pp_tcpstate formatter expected;
+  Format.print_newline ();
+  Format.pp_print_string formatter "actual state:";
+  pp_tcpstate formatter actual
+
 let state_is t s =
-  let pp_diff formatter (expected, actual) =
-    Format.pp_print_string formatter "expected state:";
-    pp_tcpstate formatter expected;
-    Format.print_newline ();
-    Format.pp_print_string formatter "actual state:";
-    pp_tcpstate formatter actual
-  in
   let actual_state = state t in
-  OUnit.assert_equal ~pp_diff s actual_state
+  OUnit.assert_equal ~pp_diff:state_diff s actual_state
 
 let rec get_to = function
   | Closed -> get_closed ()
@@ -224,21 +224,21 @@ let rst_closes t =
 
 let rst_listen () =
   let t = get_to Listen in
-  Timeless_state.tick t (Recv_rst);
+  Timeless_state.tick t Recv_rst;
   state_is t Listen;
   Lwt.return_unit
 
 let rst_syn_rcvd () =
   let t = get_to (Syn_rcvd (seq 2)) in
-  Timeless_state.tick t (Recv_rst);
+  Timeless_state.tick t Recv_rst;
   state_is t Listen;
   Lwt.return_unit
 
-let rst_syn_sent () =
+let rstack_syn_sent () =
   let t = get_to (Syn_sent (seq 1)) in
-  rst_closes t;
+  Timeless_state.tick t (Recv_rstack (seq 2));
+  state_is t Closed;
   Lwt.return_unit
-
 
 let rst_established () =
   let t = get_to Established in
@@ -260,11 +260,25 @@ let rst_fin_wait_2 () =
   Lwt.return_unit
 
 let rst_rcvd_fin () =
-  let t = get_to Established  in
+  let t = get_to Established in
   (* other side closes *)
   Timeless_state.tick t Recv_fin;
   (* normally we wouldn't close until we get action Send_fin *)
   rst_closes t;
+  Lwt.return_unit
+
+let rstack_other_states () =
+  let get_to_not_syn_sent = function
+    | Syn_sent _ -> get_to Closed
+    | x -> get_to x
+  in
+  let eq t s = OUnit.assert_equal ~pp_diff:state_diff (state t) (state s) in
+  let rst_ack t = Timeless_state.tick t (Recv_rstack (seq 0xabad1deb)) in
+  let states = (states (seq 0xabad1dea)) in
+  let connections = List.map get_to_not_syn_sent states in
+  List.iter rst_ack connections;
+  let fresh_connections = List.map get_to_not_syn_sent states in
+  List.iter2 eq fresh_connections connections;
   Lwt.return_unit
 
 let rst_teardown =
@@ -289,7 +303,8 @@ let rst_teardown =
   (* Clearly we can't do the right thing because we don't support
      reflecting the sequence number of the RST in the types currently. *)
   [ "RSTs do not tear down connections in LISTEN", `Quick, rst_listen;
-    "RSTs tear down connections in SYN_SENT", `Quick, rst_syn_sent;
+    "RSTACKs tear down connections in SYN_SENT", `Quick, rstack_syn_sent;
+    "RSTACKs do not tear down connections in non-SYN_SENT states", `Quick, rstack_other_states;
     "RSTs send connections in SYN_RCVD to LISTEN", `Quick, rst_syn_rcvd;
     "RSTs tear down connections in ESTABLISHED", `Quick, rst_established;
     "RSTs tear down connections when a FIN has been sent", `Quick, rst_sent_fin;
@@ -308,6 +323,12 @@ let out_of_sequence_ack () =
   state_is t Established;
   Lwt.return_unit
 
+let out_of_sequence_rstack () =
+  let t = get_to (Syn_sent (seq 4)) in
+  Timeless_state.tick t (Recv_rstack (seq 0xabad1dea));
+  state_is t (Syn_sent (seq 4));
+  Lwt.return_unit
+
 let suite = List.append [
   "states are reachable as expected", `Quick, get_to_states;
   "initial state is Closed", `Quick, initial_listen;
@@ -316,4 +337,5 @@ let suite = List.append [
   "connections in fin_wait_2 resolve with one ACK", `Quick, finwait2_resolves_normally;
   "connections in fin_wait_2 resolve even with multiple ACKs", `Quick, finwait2_resolves_multiple_acks;
   "out-of-sequence ACKs don't complete 3-way handshake", `Quick, out_of_sequence_ack;
+  "out-of-sequence RST/ACKs are ignored", `Quick, out_of_sequence_rstack;
 ] rst_teardown

@@ -129,7 +129,8 @@ module Rx(Time:V1_LWT.TIME) = struct
     (* Check that the segment fits into the valid receive window *)
     let force_ack = ref false in
     if not (Window.valid q.wnd seg.sequence) then Lwt.return_unit
-    else if seg.rst then (
+    (* for RSTs, require the seq # to be exactly the next expected segment (RFC 5961 *)
+    else if seg.rst && (0 = Sequence.compare (Window.rx_nxt q.wnd) seg.sequence) then (
       StateTick.tick q.state State.Recv_rst;
       (* Dump all the received but out of order frames *)
       q.segs <- S.empty;
@@ -367,7 +368,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
       let seq = Window.ack_seq q.wnd in
       let win = Window.ack_win q.wnd in
       begin match State.state q.state with
-        | State.Reset ->
+        | State.Closed ->
           (* Note: This is not stricly necessary, as the PCB will be
              GCed later on.  However, it helps removing pressure on
              the GC. *)

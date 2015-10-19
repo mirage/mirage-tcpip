@@ -19,6 +19,7 @@ val debug: Log.t
 type action =
   | Passive_open
   | Recv_rst
+  | Recv_rstack of Sequence.t (* ACK number *)
   | Recv_synack of Sequence.t
   | Recv_ack of Sequence.t
   | Recv_fin
@@ -43,7 +44,6 @@ type tcpstate =
   | Fin_wait_2
   | Closing of Sequence.t
   | Time_wait
-  | Reset
 
 val pp_tcpstate : Format.formatter -> tcpstate -> unit
 

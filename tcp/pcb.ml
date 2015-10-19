@@ -231,7 +231,7 @@ struct
       let rec tx_window_t () =
         Lwt_mvar.take tx_wnd_update >>= fun tx_wnd ->
         begin match State.state state with
-          | State.Reset -> UTX.reset utx
+          | State.Closed -> UTX.reset utx
           | _ -> UTX.free utx tx_wnd
         end >>= fun () ->
         tx_window_t ()
@@ -392,11 +392,14 @@ struct
     TXS.output pcb.txq [] >>= fun () ->
     Lwt.return (pcb, th)
 
-  let process_reset t id =
+  let process_reset ?(ack_number = None) t id =
     Log.f debug (with_stats "process-reset" t);
     match hashtbl_find t.connects id with
     | Some (wakener, _) ->
       (* URG_TODO: check if RST ack num is valid before it is accepted *)
+      (* (indeed, SEQ number for other sorts of connections -- we should
+         probably run it through the state machine first, see whether a change
+         has occurred, and only proceed if so) *)
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
       Lwt.wakeup wakener `Rst;
@@ -406,7 +409,10 @@ struct
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
         Stats.decr_listen ();
-        STATE.tick pcb.state State.Recv_rst;
+        (match ack_number with
+        | None -> STATE.tick pcb.state State.Recv_rst
+        | Some ack -> STATE.tick pcb.state (State.Recv_rstack ack)
+        ) ;
         Lwt.cancel th;
         Lwt.return_unit
       | None ->
@@ -485,14 +491,16 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners pkt id =
-    match Tcp_wire.get_rst pkt with
-    | true -> process_reset t id
-    | false ->
-      let sequence = Tcp_wire.get_tcp_sequence pkt in
-      let options = Wire.get_options pkt in
+    match Tcp_wire.get_rst pkt, Tcp_wire.get_ack pkt with
+    | true, false -> process_reset t id
+    | true, true  -> 
       let ack_number = Tcp_wire.get_tcp_ack_number pkt in
+      process_reset t id ~ack_number:(Some (Sequence.of_int32 ack_number))
+    | false, ack ->
+      let sequence = Tcp_wire.get_tcp_sequence pkt in
+      let ack_number = Tcp_wire.get_tcp_ack_number pkt in
+      let options = Wire.get_options pkt in
       let syn = Tcp_wire.get_syn pkt in
-      let ack = Tcp_wire.get_ack pkt in
       let fin = Tcp_wire.get_fin pkt in
       match syn, ack with
       | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
@@ -501,7 +509,7 @@ struct
                           ~options ~syn ~fin
       | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
       | false, false ->
-        (* What the hell is this packet? No SYN,ACK,RST *)
+        (* Only non-ACK-bearing flags we accept are SYN and RST ; drop it *)
         Log.s debug "input-no-pcb: unknown packet";
         Lwt.return_unit
 
