@@ -69,6 +69,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
   let configure t addrs =
     match addrs with
     | [] -> return_unit
+    | [any] when Ipaddr.V4.(compare any) any = 0 -> return_unit
     | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
 
   let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
