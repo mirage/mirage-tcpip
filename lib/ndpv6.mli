@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2014 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
+ * Copyright (c) 2015 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,103 +14,49 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Address List management.
+(*
+- Transmission of IPv6 packets over Ethernet networks
+ http://tools.ietf.org/html/rfc2464
 
-    An address can be in one of three states: {em tentative}, {em preferred},
-    and {em deprecated}. *)
+- IPv6 Stateless Address Autoconfiguration
+ https://tools.ietf.org/html/rfc2462
 
-module AddressList : sig
+- Neighbor Discovery for IP Version 6 (IPv6)
+ https://tools.ietf.org/html/rfc2461
 
-  (** {1 Address List} *)
+- Internet Control Message Protocol (ICMPv6) for the Internet Protocol Version 6 (IPv6) Specification
+ http://tools.ietf.org/html/rfc2463
 
-  type t
-  (** The type for an address list. *)
+- IPv6 Node Requirements
+ http://tools.ietf.org/html/rfc6434
 
-  val empty: t
-  (** An empty address list. *)
+- Multicast Listener Discovery Version 2 (MLDv2) for IPv6
+ http://tools.ietf.org/html/rfc3810
+*)
 
-  val to_list: t -> Ipaddr.V6.t list
-  (** Return the list of bound addresses.  This does not include tentative
-      addresses. *)
+type buffer = Cstruct.t
+type ipaddr = Ipaddr.V6.t
+type prefix = Ipaddr.V6.Prefix.t
 
-  val select_source: t -> dst:Ipaddr.V6.t -> Ipaddr.V6.t
-  (** Source Selection *)
+val ipaddr_of_cstruct : buffer -> ipaddr
+val checksum : buffer -> buffer list -> int
 
-  val tick: t -> now:float -> retrans_timer:float ->
-    t * [> `Sleep of float | `SendNS of [> `Unspecified ] * Ipaddr.V6.t * Ipaddr.V6.t ] list
-  (** [tick al now rt] performs the periodic upkeep of the address list.  This
-      means: 1) deprecating (resp. expiring) addresses whose preferred (resp. valid)
-      lifetimes have elapsed; 2) sending repeated NS to verify that a TENTATIVE
-      address is not in use by another host. *)
+type event =
+  [ `Tcp of ipaddr * ipaddr * buffer
+  | `Udp of ipaddr * ipaddr * buffer
+  | `Default of int * ipaddr * ipaddr * buffer ]
 
-  val expired: t -> now:float -> bool
-  (** [expired al now] is [true] if there is some address in the list whose
-      valid lifetime has elapsed and [false] otherwise. *)
+type context
 
-  val is_my_addr: t -> Ipaddr.V6.t -> bool
-  (** [is_my_addr al ip] is [true] if [ip] is an address assigned to this list.
-      In particular this means that it is not TENTATIVE. *)
-
-  val add: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Ipaddr.V6.t ->
-    t * [> `Sleep of float | `SendNS of [> `Unspecified ] * Ipaddr.V6.t * Ipaddr.V6.t ] list
-  (** [add al now rt lft ip] marks the address [ip] as TENTATIVE and beings
-      Duplicate Address Detection (DAD) by sending Neighbor Solicitation
-      messages to [ip] to try to determine if this address is already assigned
-      to another node in the local network. [lft] is the lifetime of [ip].  Here
-      [lft] is [None] if the lifetime is infinite, [Some (plft, None)] if the
-      preferred lifetime is [plft] and the valid lifetime is infinite and [Some
-      (plft, Some vlft)] if the valid lifetime is finite as well.
-
-      If the address is already bound or in the process of being bound, nothing
-      happens. *)
-
-  val configure: t -> now:float -> retrans_timer:float -> lft:(float * float option) option -> Macaddr.t -> Ipaddr.V6.Prefix.t ->
-    t * [> `Sleep of float | `SendNS of [> `Unspecified ] * Ipaddr.V6.t * Ipaddr.V6.t ] list
-  (** [configure t now rt lft mac pfx] begins the process of assigning a
-      globally unique address with prefix [pfx]. *)
-
-  val handle_na: t -> Ipaddr.V6.t -> t
-  (** [handle_na al ip] handles a Neighbor Advertisement which has arrived from
-      [ip].  If [ip] is a TENTATIVE address in [al] then it means that DAD has
-      failed and [ip] should not be bound. *)
-end
-
-module PrefixList : sig
-  type t
-  val link_local: t
-  val to_list: t -> Ipaddr.V6.Prefix.t list
-  val expired: t -> now:float -> bool
-  val tick: t -> now:float -> t
-  val is_local: t -> Ipaddr.V6.t -> bool
-  val add: t -> now:float -> Ipaddr.V6.Prefix.t -> vlft:float option -> t
-  val handle_ra: t -> now:float -> vlft:float option -> Ipaddr.V6.Prefix.t ->
-    t * [> `Sleep of float ] list
-end
-
-module NeighborCache : sig
-  type t
-  val empty: t
-  val tick: t -> now:float -> retrans_timer:float ->
-    t * [> `Sleep of float | `SendNS of [> `Specified ] * Ipaddr.V6.t * Ipaddr.V6.t | `CancelQueued of Ipaddr.V6.t ] list
-  val handle_ns: t -> src:Ipaddr.V6.t -> Macaddr.t ->
-    t * [> `SendQueued of Ipaddr.V6.t * Macaddr.t ] list
-  val handle_ra: t -> src:Ipaddr.V6.t -> Macaddr.t ->
-    t * [> `SendQueued of Ipaddr.V6.t * Macaddr.t ] list
-  val handle_na: t -> now:float -> reachable_time:float -> rtr:bool -> sol:bool -> ovr:bool -> tgt:Ipaddr.V6.t -> lladdr:Macaddr.t option ->
-    t * [> `Sleep of float | `SendQueued of Ipaddr.V6.t * Macaddr.t ] list
-  val query: t -> now:float -> reachable_time:float -> Ipaddr.V6.t ->
-    t * Macaddr.t option * [> `Sleep of float | `SendNS of [> `Specified ] * Ipaddr.V6.t * Ipaddr.V6.t ] list
-  val reachable: t -> Ipaddr.V6.t -> bool
-end
-
-module RouterList : sig
-  type t
-  val empty: t
-  val to_list: t -> Ipaddr.V6.t list
-  val add: t -> now:float -> ?lifetime:float -> Ipaddr.V6.t -> t
-  val tick: t -> now:float -> t
-  val handle_ra: t -> now:float -> src:Ipaddr.V6.t -> lft:float ->
-    t * [> `Sleep of float ] list
-  val add: t -> now:float -> Ipaddr.V6.t -> t
-  val select: t -> (Ipaddr.V6.t -> bool) -> Ipaddr.V6.t -> Ipaddr.V6.t * t
-end
+val local : now:float -> Macaddr.t -> context * buffer list list
+val add_ip : now:float -> context -> ipaddr -> context * buffer list list
+val get_ip : context -> ipaddr list
+val allocate_frame : context -> ipaddr -> [`ICMP | `TCP | `UDP] -> buffer * int
+val select_source : context -> ipaddr -> ipaddr
+val handle : now:float -> context -> buffer -> context * buffer list list * event list
+val send : now:float -> context -> ipaddr -> buffer -> buffer list -> context * buffer list list
+val tick : now:float -> context -> context * buffer list list
+val add_prefix : now:float -> context -> prefix -> context
+val get_prefix : context -> prefix list
+val add_routers : now:float -> context -> ipaddr list -> context
+val get_routers : context -> ipaddr list
