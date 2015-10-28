@@ -38,6 +38,10 @@ References:
 
 module Ipaddr = Ipaddr.V6
 
+type buffer = Cstruct.t
+type ipaddr = Ipaddr.t
+type prefix = Ipaddr.Prefix.t
+
 module BoundedMap (K : Map.OrderedType) : sig
   type 'a t
   val empty: int -> 'a t
@@ -304,9 +308,11 @@ type na =
     na_tlla : Macaddr.t option }
 
 type action =
-  [ `SendNS of [`Unspecified | `Specified ] * Ipaddr.t * Ipaddr.t
-  | `SendQueued of Ipaddr.t * Macaddr.t
-  | `CancelQueued of Ipaddr.t ]
+  | SendNS of [`Unspecified | `Specified ] * ipaddr * ipaddr
+  | SendNA of ipaddr * ipaddr * ipaddr * [`Solicited | `Unsolicited]
+  | SendRS
+  | SendQueued of ipaddr * Macaddr.t
+  | CancelQueued of ipaddr
 
 module AddressList = struct
 
@@ -350,7 +356,7 @@ module AddressList = struct
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
-        [`SendNS (`Unspecified, dst, ip)]
+        [SendNS (`Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
       Printf.printf "SLAAC: %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
       let valid_timeout = match valid_lifetime with
@@ -365,36 +371,35 @@ module AddressList = struct
       Some addr, []
 
   let tick al ~now ~retrans_timer =
-    List.fold_right begin fun ip (ips, acts) ->
-      let addr, acts' = tick_one ~now ~retrans_timer ip in
-      let acts = acts' @ acts in
-      let ips = match addr with Some ip -> ip :: ips | None -> ips in
-      ips, acts
-    end al ([], [])
+    List.fold_right (fun ip (ips, acts) ->
+        let addr, acts' = tick_one ~now ~retrans_timer ip in
+        let acts = acts' @ acts in
+        let ips = match addr with Some ip -> ip :: ips | None -> ips in
+        ips, acts
+      ) al ([], [])
 
   let expired al ~now =
-    List.exists begin function
-      | _, TENTATIVE (_, _, t)
-      | _, PREFERRED (Some (t, _))
-      | _, DEPRECATED (Some t) -> t <= now
-      | _ -> false
-    end al
+    List.exists (function
+        | _, TENTATIVE (_, _, t)
+        | _, PREFERRED (Some (t, _))
+        | _, DEPRECATED (Some t) -> t <= now
+        | _ -> false
+      ) al
 
   let add al ~now ~retrans_timer ~lft ip =
     if not (List.mem_assoc ip al) then
       let al = (ip, TENTATIVE (lft, 0, now +. retrans_timer)) :: al in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      al, [`SendNS (`Unspecified, dst, ip)]
+      al, [SendNS (`Unspecified, dst, ip)]
     else
       (* TODO log warning *)
       al, []
 
   let is_my_addr al ip =
-    List.exists
-      (function
+    List.exists (function
         | _, TENTATIVE _ -> false
-        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0)
-      al
+        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0
+      ) al
 
   let find_prefix al pfx =
     let rec loop = function
@@ -552,11 +557,11 @@ module NeighborCache = struct
         Printf.printf "NUD: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         IpMap.add ip {nb with state = INCOMPLETE (now +. retrans_timer, tn+1)} nc,
-        [`SendNS (`Specified, dst, ip)]
+        [SendNS (`Specified, dst, ip)]
       end else begin
         Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
         (* TODO Generate ICMP error: Destination Unreachable *)
-        IpMap.remove ip nc, [`CancelQueued ip]
+        IpMap.remove ip nc, [CancelQueued ip]
       end
     | REACHABLE (t, mac) when t <= now ->
       Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string ip);
@@ -564,12 +569,12 @@ module NeighborCache = struct
     | DELAY (t, dmac) when t <= now ->
       Printf.printf "NUD: %s --> PROBE\n%!" (Ipaddr.to_string ip);
       IpMap.add ip {nb with state = PROBE (now +. retrans_timer, 0, dmac)} nc,
-      [`SendNS (`Specified, ip, ip)]
+      [SendNS (`Specified, ip, ip)]
     | PROBE (t, tn, dmac) when t <= now ->
       if tn < Defaults.max_unicast_solicit then begin
         Printf.printf "NUD: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
         IpMap.add ip {nb with state = PROBE (now +. retrans_timer, tn+1, dmac)} nc,
-        [`SendNS (`Specified, ip, ip)]
+        [SendNS (`Specified, ip, ip)]
       end else begin
         Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
         IpMap.remove ip nc, []
@@ -594,7 +599,7 @@ module NeighborCache = struct
       match nb.state with
       | INCOMPLETE _ ->
         let nb = {nb with state = STALE new_mac} in
-        nb, [`SendQueued (src, new_mac)]
+        nb, [SendQueued (src, new_mac)]
       | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
         let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
         nb, []
@@ -614,7 +619,7 @@ module NeighborCache = struct
     match nb.state with
     | INCOMPLETE _ ->
       let nb = {nb with state = STALE new_mac} in
-      IpMap.add src nb nc, [`SendQueued (src, new_mac)]
+      IpMap.add src nb nc, [SendQueued (src, new_mac)]
     | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
       let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
       IpMap.add src nb nc, []
@@ -627,11 +632,11 @@ module NeighborCache = struct
       | INCOMPLETE _, Some new_mac, false, _ ->
         Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = STALE new_mac} in
-        IpMap.add tgt nb nc, [`SendQueued (tgt, new_mac)]
+        IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, Some new_mac, true, _ ->
         Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
-        IpMap.add tgt nb nc, [`SendQueued (tgt, new_mac)]
+        IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, None, _, _ ->
         let nc =
           if nb.is_router != rtr then
@@ -696,7 +701,7 @@ module NeighborCache = struct
       let nb  = {state = INCOMPLETE (now +. reachable_time, 0); is_router = false} in
       let nc  = IpMap.add ip nb nc in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      nc, None, [`SendNS (`Specified, dst, ip)]
+      nc, None, [SendNS (`Specified, dst, ip)]
 
   let reachable nc ip =
     try
@@ -1065,10 +1070,6 @@ module Parser = struct
       parse_extension ~src ~dst buf true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 end
 
-type buffer = Cstruct.t
-type ipaddr = Ipaddr.t
-type prefix = Ipaddr.Prefix.t
-
 type event =
   [ `Tcp of ipaddr * ipaddr * buffer
   | `Udp of ipaddr * ipaddr * buffer
@@ -1099,7 +1100,7 @@ let next_hop ctx ip =
 
 let rec process_actions ~now ctx actions =
   let aux ctx = function
-    | `SendNS (unspec, dst, tgt) ->
+    | SendNS (unspec, dst, tgt) ->
       let src = match unspec with
         | `Unspecified -> Ipaddr.unspecified
         | `Specified -> AddressList.select_source ctx.address_list ~dst
@@ -1108,24 +1109,24 @@ let rec process_actions ~now ctx actions =
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt);
       let frame = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
       send ~now ctx dst frame []
-    | `SendNA (src, dst, tgt, sol) ->
+    | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
       Printf.printf "ND6: Sending NA: src=%s dst=%s tgt=%s sol=%B\n%!"
         (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt) sol;
       let frame = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
       send ~now ctx dst frame []
-    | `SendRS ->
+    | SendRS ->
       Printf.printf "ND6: Sending RS\n%!";
       let frame = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
       let dst = Ipaddr.link_routers in
       send ~now ctx dst frame []
-    | `SendQueued (ip, dmac) ->
+    | SendQueued (ip, dmac) ->
       Printf.printf "IP6: Releasing queued packets: dst=%s mac=%s\n%!" (Ipaddr.to_string ip) (Macaddr.to_string dmac);
       let pkts, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let bufs = List.map (fun datav -> datav dmac) pkts in
       let ctx = {ctx with packet_queue} in
       ctx, bufs
-    | `CancelQueued ip ->
+    | CancelQueued ip ->
       Printf.printf "IP6: Cancelling packets: dst = %s\n%!" (Ipaddr.to_string ip);
       let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
@@ -1180,7 +1181,7 @@ let local ~now mac =
   let address_list, actions =
     AddressList.add ctx.address_list ~now ~retrans_timer:ctx.retrans_timer ~lft:None ip
   in
-  let ctx, actions = {ctx with address_list}, `SendRS :: actions in
+  let ctx, actions = {ctx with address_list}, SendRS :: actions in
   process_actions ~now ctx actions
 
 let add_ip ~now ctx ip =
@@ -1274,7 +1275,7 @@ let handle_ns ~now:_ ctx ~src ~dst ns =
     let src = ns.ns_target and dst = src in
 (*     (\* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *\) *)
 (*       (\* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *\) *)
-    ctx, `SendNA (src, dst, ns.ns_target, `Solicited) :: actions
+    ctx, SendNA (src, dst, ns.ns_target, `Solicited) :: actions
   else
     ctx, actions
 
