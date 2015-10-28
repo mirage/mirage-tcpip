@@ -38,11 +38,15 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let id { ethif } = ethif
 
-  let tick t =
-    let now = C.time () in
-    let ctx, bufs = Ndpv6.tick ~now t.ctx in
-    t.ctx <- ctx;
-    Lwt_list.iter_s (E.writev t.ethif) bufs
+  let start_ticking t =
+    let rec loop () =
+      let now = C.time () in
+      let ctx, bufs = Ndpv6.tick ~now t.ctx in
+      t.ctx <- ctx;
+      Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
+      T.sleep 1.0 >>= loop
+    in
+    loop ()
 
   let allocate_frame t ~dst ~proto =
     Ndpv6.allocate_frame t.ctx dst proto
@@ -121,6 +125,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     (ip, set_ip t) >>=? fun () ->
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
     (gateways, set_ip_gateways t) >>=? fun () ->
+    Lwt.async (fun () -> start_ticking t);
     Lwt.return (`Ok t)
 
 end
