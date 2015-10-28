@@ -14,26 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(*
-- Transmission of IPv6 packets over Ethernet networks
- http://tools.ietf.org/html/rfc2464
-
-- IPv6 Stateless Address Autoconfiguration
- https://tools.ietf.org/html/rfc2462
-
-- Neighbor Discovery for IP Version 6 (IPv6)
- https://tools.ietf.org/html/rfc2461
-
-- Internet Control Message Protocol (ICMPv6) for the Internet Protocol Version 6 (IPv6) Specification
- http://tools.ietf.org/html/rfc2463
-
-- IPv6 Node Requirements
- http://tools.ietf.org/html/rfc6434
-
-- Multicast Listener Discovery Version 2 (MLDv2) for IPv6
- http://tools.ietf.org/html/rfc3810
-*)
-
 type buffer = Cstruct.t
 type ipaddr = Ipaddr.V6.t
 type prefix = Ipaddr.V6.Prefix.t
@@ -49,14 +29,51 @@ type event =
 type context
 
 val local : now:float -> Macaddr.t -> context * buffer list list
+(** [local ~now mac] is a pair [ctx, bufs] where [ctx] is a local IPv6 context
+    associated to the hardware address [mac].  [bufs] is a list of ethif packets
+    to be sent. *)
+
 val add_ip : now:float -> context -> ipaddr -> context * buffer list list
+(** [add_ip ~now ctx ip] is [ctx', bufs] where [ctx'] is [ctx] updated with a
+    new local ip and [bufs] is a list of ethif packets to be sent. *)
+
 val get_ip : context -> ipaddr list
+(** [get_ip ctx] returns the list of local ips. *)
+
 val allocate_frame : context -> ipaddr -> [`ICMP | `TCP | `UDP] -> buffer * int
+(** [allocate_frame ctx ip proto] returns a pair [buf, len] where [buf] is a new
+    ethernet frame containing an ipv6 header of length [len]. *)
+
 val select_source : context -> ipaddr -> ipaddr
+(** [select_source ctx ip] returns the ip that should be put in the source field
+    of a packet destined to [ip]. *)
+
 val handle : now:float -> context -> buffer -> context * buffer list list * event list
+(** [handle ~now ctx buf] handles an incoming ipv6 packet.  It returns [ctx',
+    bufs, evs] where [ctx'] is the updated context, [bufs] is a list of packets to
+    be sent and [evs] is a list of packets to be passed to the higher layers (udp,
+    tcp, etc) for further processing. *)
+
 val send : now:float -> context -> ipaddr -> buffer -> buffer list -> context * buffer list list
+(** [send ~now ctx ip frame bufs] starts route resolution and assembles an ipv6
+    packet for sending with header [frame] and body [bufs].  It returns a pair
+    [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
+    packets to be sent. *)
+
 val tick : now:float -> context -> context * buffer list list
+(** [tick ~now ctx] should be called periodically (every 1s is good).  It
+    returns [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
+    packets to be sent. *)
+
 val add_prefix : now:float -> context -> prefix -> context
+(** [add_prefix ~now ctx pfx] adds a local prefix to [ctx]. *)
+
 val get_prefix : context -> prefix list
+(** [get_prefix ctx] returns the list of local prefixes known to [ctx]. *)
+
 val add_routers : now:float -> context -> ipaddr list -> context
+(** [add_routers ~now ctx ips] adds a list of gateways to [ctx] to be used for
+    routing. *)
+
 val get_routers : context -> ipaddr list
+(** [get_routers ctx] returns the list of gateways known to [ctx]. *)
