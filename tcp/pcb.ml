@@ -192,23 +192,23 @@ struct
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
-        begin match winadv with
+        let signal_ack = function
           | None        -> Lwt.return_unit
-          | Some winadv ->
-            if (winadv > 0) then (
+          | Some winadv when winadv > 0 ->
               Window.rx_advance wnd winadv;
               ACK.receive ack (Window.rx_nxt wnd)
-            ) else (
+          | Some winadv ->
               Window.rx_advance wnd winadv;
               ACK.pushack ack (Window.rx_nxt wnd)
-            )
-        end >>= fun _ ->
+        in
         begin match data with
           | None ->
+            (* don't send an ACK in this case; this already happened *)
             STATE.tick pcb.state State.Recv_fin;
             User_buffer.Rx.add_r urx None >>= fun () ->
             Lwt.return_unit
           | Some data ->
+            signal_ack winadv >>= fun () ->
             let rec queue = function
               | []     -> Lwt.return_unit
               | hd::tl ->
