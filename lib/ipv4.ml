@@ -224,16 +224,9 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   let get_ip_gateways { gateways; _ } = gateways
 
-  let checksum =
-    let pbuf = Io_page.to_cstruct (Io_page.get 1) in
-    let pbuf = Cstruct.set_len pbuf 4 in
-    Cstruct.set_uint8 pbuf 0 0;
-    fun frame bufs ->
-      let frame = Cstruct.shift frame Wire_structs.sizeof_ethernet in
-      Cstruct.set_uint8 pbuf 1 (Wire_structs.Ipv4_wire.get_ipv4_proto frame);
-      Cstruct.BE.set_uint16 pbuf 2 (Cstruct.lenv bufs);
-      let src_dst = Cstruct.sub frame 12 (2 * 4) in
-      Tcpip_checksum.ones_complement_list (src_dst :: pbuf :: bufs)
+  let checksum frame =
+    let packet = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+    Wire_structs.Ipv4_wire.checksum packet
 
   let get_source t ~dst:_ =
     t.ip
