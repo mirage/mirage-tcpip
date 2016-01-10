@@ -19,6 +19,7 @@ let suite = [
   "connect"        , Test_connect.suite     ;
   "iperf"          , Test_iperf.suite       ;
   "tcp_options"    , Test_tcp_options.suite ;
+  "tcp_state"      , Test_tcp_state.suite   ;
 ]
 
 let run test () =

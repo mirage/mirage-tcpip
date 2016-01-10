@@ -19,6 +19,7 @@ val debug: Log.t
 type action =
   | Passive_open
   | Recv_rst
+  | Recv_rstack of Sequence.t (* ACK number *)
   | Recv_synack of Sequence.t
   | Recv_ack of Sequence.t
   | Recv_fin
@@ -40,30 +41,33 @@ type tcpstate =
   | Close_wait
   | Last_ack of Sequence.t
   | Fin_wait_1 of Sequence.t
-  | Fin_wait_2 of int
+  | Fin_wait_2
   | Closing of Sequence.t
   | Time_wait
-  | Reset
 
 val pp_tcpstate : Format.formatter -> tcpstate -> unit
 
 type close_cb = unit -> unit
 
-(* FIXME: abstract type *)
-type t = {
-  on_close: close_cb;
-  mutable state: tcpstate;
-}
+type t
 
 val state : t -> tcpstate
-val t : on_close:close_cb -> t
+val start : on_close:close_cb -> t
 
 val pp: Format.formatter -> t -> unit
 
 module Make(Time : V1_LWT.TIME) : sig
   val fin_wait_2_time : float
+  (* when in state fin_wait_2, use this as a timeout parameter  *)
   val time_wait_time : float
-  val finwait2timer : t -> int -> float -> unit Lwt.t
+    (* when in state Time_wait, wait this long before transitioning to Closed *)
+  val finwait2timer : t -> float -> unit Lwt.t
+(* [finwait2timer t timeout] waits for the given amount of time, then if the
+   state is still Fin_wait_2, sets the state to closed and calls on_close.  If
+   the state is other than Fin_wait_2, it is assumed that whatever set the state
+   to something else has handled the closure and the state is not changed. *)
   val timewait : t -> float -> unit Lwt.t
+(* [timewait t time] waits for time, then sets the state to closed and calls
+   on_close *)
   val tick : t -> action -> unit
 end

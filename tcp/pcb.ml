@@ -231,7 +231,7 @@ struct
       let rec tx_window_t () =
         Lwt_mvar.take tx_wnd_update >>= fun tx_wnd ->
         begin match State.state state with
-          | State.Reset -> UTX.reset utx
+          | State.Closed -> UTX.reset utx
           | _ -> UTX.free utx tx_wnd
         end >>= fun () ->
         tx_window_t ()
@@ -323,7 +323,7 @@ struct
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
-    let state = State.t ~on_close in
+    let state = State.start ~on_close in
     let txq, _tx_t =
       TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
@@ -392,16 +392,27 @@ struct
     TXS.output pcb.txq [] >>= fun () ->
     Lwt.return (pcb, th)
 
-  let process_reset t id =
+  let process_reset ?(ack_number = None) t id =
     Log.f debug (with_stats "process-reset" t);
-    match hashtbl_find t.connects id with
-    | Some (wakener, _) ->
-      (* URG_TODO: check if RST ack num is valid before it is accepted *)
-      Hashtbl.remove t.connects id;
-      Stats.decr_connect ();
-      Lwt.wakeup wakener `Rst;
+    (* presence in connects means we are trying to start an outgoing connection *)
+    match hashtbl_find t.connects id, ack_number with
+    | Some (wakener, seq), Some ack_number ->
+      if (Sequence.incr seq) = ack_number then begin
+        Hashtbl.remove t.connects id;
+        Stats.decr_connect ();
+        Lwt.wakeup wakener `Rst;
+        Lwt.return_unit
+      end else
+        (* ignore out-of-sequence ACK numbers *)
+        Lwt.return_unit
+    | Some (wakener, seq), None ->
+      (* we're trying to establish a connection, but we can't verify that an
+         incoming RST matches the entity we were trying to establish it with,
+         so do nothing with this packet *)
       Lwt.return_unit
-    | None ->
+    | None, _ -> (* if we're not trying to make a new connection, we only care
+                    about the RST's sequence number, which has already been
+                    validated by `Segment.input` (we hope) *)
       match hashtbl_find t.listens id with
       | Some (_, (_, (pcb, th))) ->
         Hashtbl.remove t.listens id;
@@ -485,14 +496,16 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners pkt id =
-    match Tcp_wire.get_rst pkt with
-    | true -> process_reset t id
-    | false ->
-      let sequence = Tcp_wire.get_tcp_sequence pkt in
-      let options = Wire.get_options pkt in
+    match Tcp_wire.get_rst pkt, Tcp_wire.get_ack pkt with
+    | true, false -> process_reset t id
+    | true, true  -> 
       let ack_number = Tcp_wire.get_tcp_ack_number pkt in
+      process_reset t id ~ack_number:(Some (Sequence.of_int32 ack_number))
+    | false, ack ->
+      let sequence = Tcp_wire.get_tcp_sequence pkt in
+      let ack_number = Tcp_wire.get_tcp_ack_number pkt in
+      let options = Wire.get_options pkt in
       let syn = Tcp_wire.get_syn pkt in
-      let ack = Tcp_wire.get_ack pkt in
       let fin = Tcp_wire.get_fin pkt in
       match syn, ack with
       | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
@@ -501,7 +514,7 @@ struct
                           ~options ~syn ~fin
       | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
       | false, false ->
-        (* What the hell is this packet? No SYN,ACK,RST *)
+        (* Only non-ACK-bearing flags we accept are SYN and RST ; drop it *)
         Log.s debug "input-no-pcb: unknown packet";
         Lwt.return_unit
 

@@ -83,10 +83,39 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
 
     Lwt.return_unit
 
+  let test_tcp_connect_to_closed_port () =
+    or_error "console" Console.connect "console" >>= fun c ->
+    let timeout = 15.0 in
+    Lwt.pick [
+      (Lwt_unix.sleep timeout >>= fun () ->
+       fail "connect test timed out after %f seconds" timeout) ;
+
+      (V.create_stack c backend server_ip netmask [gw] >>= fun s1 ->
+       (* register no listeners *)
+       V.Stackv4.listen s1);
+
+      (Lwt_unix.sleep 0.1 >>= fun () ->
+       V.create_stack c backend client_ip netmask [gw] >>= fun s2 ->
+       V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) (server_ip, 80) >>= function
+       | `Ok _ -> fail "create_connection claimed success connecting to a stack with no listeners"
+       | `Error e -> match e with
+         | `Refused -> Lwt.return_unit (* yay! *)
+         | `Timeout -> fail "create_connection got timeout when it should've gotten rst"
+         | `Unknown s -> fail "wrong kind of error in create_connection"
+      )
+    ] >>= fun () ->
+    Lwt.return_unit
+
   let record_pcap =
     V.record_pcap backend
 
 end
+
+let test_tcp_connect_to_closed_port_basic () =
+  let module Test = Test_connect(Vnetif_backends.Basic) in
+  Test.record_pcap
+    "tests/pcap/tcp_connect_to_closed_port_basic.pcap"
+    Test.test_tcp_connect_to_closed_port
 
 let test_tcp_connect_two_stacks_basic () =
   let module Test = Test_connect(Vnetif_backends.Basic) in
@@ -101,6 +130,9 @@ let test_tcp_connect_two_stacks_trailing_bytes () =
     Test.test_tcp_connect_two_stacks
 
 let suite = [
+
+  "attempt to connect to a closed port, basic test", `Quick,
+  test_tcp_connect_to_closed_port_basic;
 
   "connect two stacks, basic test", `Quick,
   test_tcp_connect_two_stacks_basic;
