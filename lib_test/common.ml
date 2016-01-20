@@ -7,6 +7,11 @@ let or_error name fn t =
   | `Error e -> fail "or_error starting %s" name
   | `Ok t    -> Lwt.return t
 
+let expect_error error name fn t =
+  fn t >>= function
+  | `Error error -> Lwt.return t
+  | _    -> fail "expected error on %s" name
+
 let assert_string msg a b =
   let cmp a b = String.compare a b = 0 in
   OUnit.assert_equal ~msg ~printer:(fun x -> x) ~cmp a b
