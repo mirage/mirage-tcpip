@@ -9,7 +9,8 @@ let or_error name fn t =
 
 let expect_error error name fn t =
   fn t >>= function
-  | `Error error -> Lwt.return t
+  | `Error error2 when error2 = error ->
+          Lwt.return t
   | _    -> fail "expected error on %s" name
 
 let assert_string msg a b =
