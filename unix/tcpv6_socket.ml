@@ -88,11 +88,16 @@ let read fd =
     (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))
 
 let rec write fd buf =
-  Lwt_cstruct.write fd buf
-  >>= function
-  | n when n = Cstruct.len buf -> return (`Ok ())
-  | 0 -> return `Eof
-  | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
+  Lwt.catch
+    (fun () ->
+      Lwt_cstruct.write fd buf
+      >>= function
+      | n when n = Cstruct.len buf -> return (`Ok ())
+      | 0 -> return `Eof
+      | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
+    ) (function
+      | Unix.Unix_error(Unix.EPIPE, _, _) -> return `Eof
+      | e -> Lwt.fail e)
 
 let writev fd bufs =
   Lwt_list.fold_left_s
