@@ -162,7 +162,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     |0 -> (* echo reply *)
       printf "ICMP: discarding echo reply from %s\n%!" (Ipaddr.V4.to_string src);
       Lwt.return_unit
-    |3 -> printf "icmp_dst_unreachable buf"; Lwt.return_unit
+    |3 -> printf "%s\n%!" (icmp_dst_unreachable buf); Lwt.return_unit
     |8 -> (* echo request *)
       (* convert the echo request into an echo reply *)
       let csum =
