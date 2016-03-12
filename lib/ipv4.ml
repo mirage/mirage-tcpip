@@ -176,7 +176,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       let frame = Cstruct.set_len frame header_len in
       write t frame buf
     |ty ->
-      printf "ICMP unknown ty %d\n" ty;
+      printf "ICMP unknown ty %d from %s\n" ty (Ipaddr.V4.to_string src);
       Lwt.return_unit
 
   let input t ~tcp ~udp ~default buf =
