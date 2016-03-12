@@ -78,16 +78,19 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       |ip when Ipaddr.V4.is_multicast ip ->
         Lwt.return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
+          let out = Ipaddr.V4.to_string in
           match t.gateways with
           |hd::_ ->
             Arpv4.query t.arp hd >>= begin function
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
-                printf "IP.output: arp timeout to gw %s\n%!" (Ipaddr.V4.to_string ip);
+                printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
+                  (out ip) (out hd) ;
                 Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
-            printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
+            printf "IP.output: no route to %s (no default gateway is configured)\n%!"
+              (out ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
   end
