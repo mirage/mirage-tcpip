@@ -33,6 +33,7 @@ type t = {
   mutable rx_nxt: Sequence.t;
   mutable rx_nxt_inseq: Sequence.t;
   mutable fast_rec_th: Sequence.t;
+  mutable max_tx_wnd : int32;      (* Max seen TX window after scaling *)
   mutable tx_wnd: int32;           (* TX Window size after scaling *)
   mutable rx_wnd: int32;           (* RX Window size after scaling *)
   mutable ssthresh: int32;         (* threshold to switch from exponential
@@ -85,6 +86,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rx_wnd = Int32.(shift_left (of_int rx_wnd) rx_wnd_scale) in
   let max_rx_wnd = rx_wnd in
   let tx_wnd = Int32.(shift_left (of_int tx_wnd) tx_wnd_scale) in
+  let max_tx_wnd = tx_wnd in
   (* ssthresh is initialized per RFC 2581 to a large value so slow-start
      can be used all the way till first loss *)
   let ssthresh = tx_wnd in
@@ -98,7 +100,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rttvar = 0.0 in
   let rto = 3.0 in
   let backoff_count = 0 in
-  { tx_isn; rx_isn; max_rx_wnd;
+  { tx_isn; rx_isn; max_rx_wnd; max_tx_wnd;
     ack_serviced; ack_seq; ack_win;
     snd_una; tx_nxt; tx_wnd; rx_nxt; rx_nxt_inseq;
     fast_rec_th; rx_wnd; tx_wnd_scale; rx_wnd_scale;
@@ -150,7 +152,9 @@ let set_rx_wnd t sz =
 (* Take an unscaled value and scale it up *)
 let set_tx_wnd t sz =
   let wnd = Int32.(shift_left (of_int sz) t.tx_wnd_scale) in
-  t.tx_wnd <- wnd
+  t.tx_wnd <- wnd;
+  if wnd > t.max_tx_wnd then
+      t.max_tx_wnd <- wnd
 
 (* transmit MSS of current connection *)
 let tx_mss t =
@@ -208,6 +212,7 @@ end
 let tx_nxt t = t.tx_nxt
 let tx_wnd t = t.tx_wnd
 let tx_wnd_unscaled t = Int32.shift_right t.tx_wnd t.tx_wnd_scale
+let max_tx_wnd t = t.max_tx_wnd
 let tx_una t = t.snd_una
 let fast_rec t = t.fast_recovery
 let tx_available t =

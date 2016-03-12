@@ -46,7 +46,7 @@ sig
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
 
-module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
+module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type backend = B.t) = struct
   type backend = B.t
   type buffer = B.buffer
   type 'a io = 'a B.io
