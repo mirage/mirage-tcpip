@@ -78,16 +78,19 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       |ip when Ipaddr.V4.is_multicast ip ->
         Lwt.return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
+          let out = Ipaddr.V4.to_string in
           match t.gateways with
           |hd::_ ->
             Arpv4.query t.arp hd >>= begin function
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
-                printf "IP.output: arp timeout to gw %s\n%!" (Ipaddr.V4.to_string ip);
+                printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
+                  (out ip) (out hd) ;
                 Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
-            printf "IP.output: no route to %s\n%!" (Ipaddr.V4.to_string ip);
+            printf "IP.output: no route to %s (no default gateway is configured)\n%!"
+              (out ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
   end
@@ -133,35 +136,33 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     writev t frame [buf]
 
   let icmp_dst_unreachable buf =
-    let descr =
-      match Wire_structs.Ipv4_wire.get_icmpv4_code buf with
-      | 0  -> "Destination network unreachable"
-      | 1  -> "Destination host unreachable"
-      | 2  -> "Destination protocol unreachable"
-      | 3  -> "Destination port unreachable"
-      | 4  -> "Fragmentation required, and DF flag set"
-      | 5  -> "Source route failed"
-      | 6  -> "Destination network unknown"
-      | 7  -> "Destination host unknown"
-      | 8  -> "Source host isolated"
-      | 9  -> "Network administratively prohibited"
-      | 10 -> "Host administratively prohibited"
-      | 11 -> "Network unreachable for TOS"
-      | 12 -> "Host unreachable for TOS"
-      | 13 -> "Communication administratively prohibited"
-      | 14 -> "Host Precedence Violation"
-      | 15 -> "Precedence cutoff in effect"
-      | code -> Printf.sprintf "Unknown code: %d" code in
-    printf "ICMP Destination Unreachable: %s\n%!" descr;
-    Lwt.return_unit
+    sprintf "ICMP Destination Unreachable: %s\n%!" @@
+    match Wire_structs.Ipv4_wire.get_icmpv4_code buf with
+    | 0  -> "Destination network unreachable"
+    | 1  -> "Destination host unreachable"
+    | 2  -> "Destination protocol unreachable"
+    | 3  -> "Destination port unreachable"
+    | 4  -> "Fragmentation required, and DF flag set"
+    | 5  -> "Source route failed"
+    | 6  -> "Destination network unknown"
+    | 7  -> "Destination host unknown"
+    | 8  -> "Source host isolated"
+    | 9  -> "Network administratively prohibited"
+    | 10 -> "Host administratively prohibited"
+    | 11 -> "Network unreachable for TOS"
+    | 12 -> "Host unreachable for TOS"
+    | 13 -> "Communication administratively prohibited"
+    | 14 -> "Host Precedence Violation"
+    | 15 -> "Precedence cutoff in effect"
+    | code -> Printf.sprintf "Unknown ICMP code: %d" code
 
   let icmp_input t src _hdr buf =
     MProf.Trace.label "icmp_input";
     match Wire_structs.Ipv4_wire.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
-      printf "ICMP: discarding echo reply\n%!";
+      printf "ICMP: discarding echo reply from %s\n%!" (Ipaddr.V4.to_string src);
       Lwt.return_unit
-    |3 -> icmp_dst_unreachable buf
+    |3 -> printf "%s\n%!" (icmp_dst_unreachable buf); Lwt.return_unit
     |8 -> (* echo request *)
       (* convert the echo request into an echo reply *)
       let csum =
@@ -175,7 +176,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       let frame = Cstruct.set_len frame header_len in
       write t frame buf
     |ty ->
-      printf "ICMP unknown ty %d\n" ty;
+      printf "ICMP unknown ty %d from %s\n" ty (Ipaddr.V4.to_string src);
       Lwt.return_unit
 
   let input t ~tcp ~udp ~default buf =
