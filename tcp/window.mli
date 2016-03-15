@@ -61,6 +61,7 @@ val tx_available : t -> int32
 (* tx_inflight: is there any data in flight *)
 val tx_inflight : t -> bool
 val set_tx_wnd : t -> int -> unit
+val max_tx_wnd : t -> int32
 
 val alert_fast_rexmit : t -> Sequence.t -> unit
 

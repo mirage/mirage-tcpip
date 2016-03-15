@@ -122,90 +122,117 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let is_empty q = S.is_empty q.segs
 
+  let check_valid_segment q seg =
+      if seg.rst then
+        if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
+          `Reset
+        else if Window.valid q.wnd seg.sequence then
+           `ChallengeAck
+        else
+            `Drop
+      else if seg.syn then
+          `ChallengeAck
+      else if Window.valid q.wnd seg.sequence then
+          let min = Sequence.(sub (Window.tx_una q.wnd) (of_int32 (Window.max_tx_wnd q.wnd))) in
+          if Sequence.between seg.ack_number min (Window.tx_nxt q.wnd) then
+              `Ok
+          else
+              (* rfc5961 5.2 *)
+              `ChallengeAck
+      else
+          `Drop
+
+  let send_challenge_ack q =
+    (* TODO:  rfc5961 ACK Throttling *)
+    (* Is this the correct way trigger an ack? *)
+    Lwt_mvar.put q.rx_data (Some [], Some 0)
+
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
-    (* Check that the segment fits into the valid receive window *)
-    let force_ack = ref false in
-    if not (Window.valid q.wnd seg.sequence) then Lwt.return_unit
-    else if seg.rst then (
-      StateTick.tick q.state State.Recv_rst;
-      (* Dump all the received but out of order frames *)
-      q.segs <- S.empty;
-      (* Signal TX side *)
-      let txalert ack_svcd =
-        if not ack_svcd then Lwt.return_unit
-        else Lwt_mvar.put q.tx_ack (Window.ack_seq q.wnd, Window.ack_win q.wnd)
-      in
-      txalert (Window.ack_serviced q.wnd) >>= fun () ->
-      (* Use the fin path to inform the application of end of stream *)
-      Lwt_mvar.put q.rx_data (None, Some 0)
-    ) else
-      (* Insert the latest segment *)
-      let segs = S.add seg q.segs in
-      (* Walk through the set and get a list of contiguous segments *)
-      let ready, waiting = S.fold (fun seg acc ->
-          match Sequence.compare seg.sequence (Window.rx_nxt_inseq q.wnd) with
-          | (-1) ->
-            (* Sequence number is in the past, probably an overlapping
-               segment. Drop it for now, but TODO segment
-               coalescing *)
-            force_ack := true;
-            acc
-          | 0 ->
-            (* This is the next segment, so put it into the ready set
-               and update the receive ack number *)
-            let (ready,waiting) = acc in
-            Window.rx_advance_inseq q.wnd (len seg);
-            (S.add seg ready), waiting
-          | 1 ->
-            (* Sequence is in the future, so can't use it yet *)
-            force_ack := true;
-            let (ready,waiting) = acc in
-            ready, (S.add seg waiting)
-          | _ -> assert false
-        ) segs (S.empty, S.empty) in
-      q.segs <- waiting;
-      (* If the segment has an ACK, tell the transmit side *)
-      let tx_ack =
-        if seg.ack && (Sequence.geq seg.ack_number (Window.ack_seq q.wnd)) then begin
-          StateTick.tick q.state (State.Recv_ack seg.ack_number);
-          let data_in_flight = Window.tx_inflight q.wnd in
-          let ack_has_advanced = (Window.ack_seq q.wnd) <> seg.ack_number in
-          let win_has_changed = (Window.ack_win q.wnd) <> seg.window in
-          if ((data_in_flight && (Window.ack_serviced q.wnd || not ack_has_advanced)) ||
-              (not data_in_flight && win_has_changed)) then begin
-            Window.set_ack_serviced q.wnd false;
-            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
-            Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
-          end else begin
-            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
-            Lwt.return_unit
-          end
-        end else Lwt.return_unit
-      in
-      (* Inform the user application of new data *)
-      let urx_inform =
-        (* TODO: deal with overlapping fragments *)
-        let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-            (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l), ((len seg) + acc_w)
-          )ready ([], 0) in
-        let elems = List.rev elems_r in
-
-        let w = if !force_ack || winadv > 0 then Some winadv else None in
-        Lwt_mvar.put q.rx_data (Some elems, w) >>= fun () ->
-        (* If the last ready segment has a FIN, then mark the receive
-           window as closed and tell the application *)
-        (if fin ready then begin
-            if S.cardinal waiting != 0 then
-              Log.s info "warning, rx closed but waiting segs != 0";
-            Lwt_mvar.put q.rx_data (None, Some 0)
-          end else Lwt.return_unit)
-      in
-      tx_ack <&> urx_inform
-
+    match check_valid_segment q seg with
+        | `Ok ->
+          let force_ack = ref false in
+          (* Insert the latest segment *)
+          let segs = S.add seg q.segs in
+          (* Walk through the set and get a list of contiguous segments *)
+          let ready, waiting = S.fold (fun seg acc ->
+              match Sequence.compare seg.sequence (Window.rx_nxt_inseq q.wnd) with
+              | (-1) ->
+                (* Sequence number is in the past, probably an overlapping
+                   segment. Drop it for now, but TODO segment
+                   coalescing *)
+                force_ack := true;
+                acc
+              | 0 ->
+                (* This is the next segment, so put it into the ready set
+                   and update the receive ack number *)
+                let (ready,waiting) = acc in
+                Window.rx_advance_inseq q.wnd (len seg);
+                (S.add seg ready), waiting
+              | 1 ->
+                (* Sequence is in the future, so can't use it yet *)
+                force_ack := true;
+                let (ready,waiting) = acc in
+                ready, (S.add seg waiting)
+              | _ -> assert false
+            ) segs (S.empty, S.empty) in
+          q.segs <- waiting;
+          (* If the segment has an ACK, tell the transmit side *)
+          let tx_ack =
+            if seg.ack && (Sequence.geq seg.ack_number (Window.ack_seq q.wnd)) then begin
+              StateTick.tick q.state (State.Recv_ack seg.ack_number);
+              let data_in_flight = Window.tx_inflight q.wnd in
+              let ack_has_advanced = (Window.ack_seq q.wnd) <> seg.ack_number in
+              let win_has_changed = (Window.ack_win q.wnd) <> seg.window in
+              if ((data_in_flight && (Window.ack_serviced q.wnd || not ack_has_advanced)) ||
+                  (not data_in_flight && win_has_changed)) then begin
+                Window.set_ack_serviced q.wnd false;
+                Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
+                Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
+              end else begin
+                Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
+                Lwt.return_unit
+              end
+            end else Lwt.return_unit
+          in
+          (* Inform the user application of new data *)
+          let urx_inform =
+            (* TODO: deal with overlapping fragments *)
+            let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
+                (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l), ((len seg) + acc_w)
+              )ready ([], 0) in
+            let elems = List.rev elems_r in
+            let w = if !force_ack || winadv > 0 then Some winadv else None in
+            Lwt_mvar.put q.rx_data (Some elems, w) >>= fun () ->
+            (* If the last ready segment has a FIN, then mark the receive
+               window as closed and tell the application *)
+            (if fin ready then begin
+                if S.cardinal waiting != 0 then
+                  Log.s info "warning, rx closed but waiting segs != 0";
+                Lwt_mvar.put q.rx_data (None, Some 0)
+              end else Lwt.return_unit)
+          in
+          tx_ack <&> urx_inform
+        | `ChallengeAck ->
+                send_challenge_ack q
+        | `Drop ->
+                Lwt.return_unit
+        | `Reset ->
+              StateTick.tick q.state State.Recv_rst;
+              (* Dump all the received but out of order frames *)
+              q.segs <- S.empty;
+              (* Signal TX side *)
+              let txalert ack_svcd =
+                if not ack_svcd then Lwt.return_unit
+                else Lwt_mvar.put q.tx_ack (Window.ack_seq q.wnd, Window.ack_win q.wnd)
+              in
+              txalert (Window.ack_serviced q.wnd) >>= fun () ->
+              (* Use the fin path to inform the application of end of stream *)
+              Lwt_mvar.put q.rx_data (None, Some 0)
 end
+
 
 (* Transmitted segments are sent in-order, and may also be marked
    with control flags (such as urgent, or fin to mark the end).
