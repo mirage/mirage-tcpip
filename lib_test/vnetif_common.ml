@@ -46,7 +46,7 @@ sig
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
 
-module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
+module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type backend = B.t) = struct
   type backend = B.t
   type buffer = B.buffer
   type 'a io = 'a B.io
@@ -107,7 +107,8 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
       (try
           Lwt_io.write channel ((Cstruct.to_string pcap_buf) ^ (Cstruct.to_string buffer))
       with
-          Lwt_io.Channel_closed msg -> Printf.printf "Warning: Pcap output channel already closed: %s.\n" msg; Lwt.return_unit)
+        Lwt_io.Channel_closed msg -> Printf.printf "Warning: Pcap output channel already closed: %s.\n" msg; Lwt.return_unit
+      )
       >>= fun () ->
       Lwt.return_unit
     in
@@ -115,10 +116,18 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : VNETIF_STACK = struct
     Lwt.return recorder_id
 
   let record_pcap backend pcap_file fn =
-    Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
+    Lwt.catch(fun _ ->
+        Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
         create_pcap_recorder backend oc >>= fun recorder_id ->
         fn () >>= fun () ->
         disable_backend_listener backend recorder_id;
         Lwt.return_unit
+        )
+      )
+      (function
+        | Unix.Unix_error _ ->
+          Printf.printf "Could not create pcap file %s - something along the way doesn't exist.\n" pcap_file;
+          Lwt.return_unit
+        | e -> Lwt.fail e
       )
 end
