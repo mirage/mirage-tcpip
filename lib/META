@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3f12cfe87c7d547b44dcc966f9839ab9)
-version = "2.6.1"
+# DO NOT EDIT (digest: 9604ecb97a6c8d86e0802859887fec5e)
+version = "2.7.0"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires =
 "io-page mirage-types ipaddr cstruct cstruct.ppx mirage-profile bytes"
@@ -11,7 +11,7 @@ archive(native, plugin) = "tcpip.cmxs"
 xen_linkopts = "-ltcpip_xen_stubs"
 exists_if = "tcpip.cma"
 package "xen" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  archive(byte) = "tcpip_xen.cma"
  archive(byte, plugin) = "tcpip_xen.cma"
@@ -21,7 +21,7 @@ package "xen" (
 )
 
 package "udpv6-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udp tcpip.ipv6-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
@@ -33,7 +33,7 @@ package "udpv6-unix" (
 )
 
 package "udpv6-socket" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.udp lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv6-socket.cma"
@@ -44,7 +44,7 @@ package "udpv6-socket" (
 )
 
 package "udpv4-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udp tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
@@ -56,7 +56,7 @@ package "udpv4-unix" (
 )
 
 package "udpv4-socket" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.udp lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "udpv4-socket.cma"
@@ -67,7 +67,7 @@ package "udpv4-socket" (
 )
 
 package "udp" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "udp.cma"
@@ -78,7 +78,7 @@ package "udp" (
 )
 
 package "tcpv6-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.tcp tcpip.ipv6-unix channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
@@ -90,7 +90,7 @@ package "tcpv6-unix" (
 )
 
 package "tcpv6-socket" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv6-socket.cma"
@@ -101,7 +101,7 @@ package "tcpv6-socket" (
 )
 
 package "tcpv4-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.tcp tcpip.ipv4-unix channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
@@ -113,7 +113,7 @@ package "tcpv4-unix" (
 )
 
 package "tcpv4-socket" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
  archive(byte) = "tcpv4-socket.cma"
@@ -124,7 +124,7 @@ package "tcpv4-socket" (
 )
 
 package "tcp" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ipv4 tcpip.ipv6 mirage-profile"
@@ -136,7 +136,7 @@ package "tcp" (
 )
 
 package "stack-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.udpv6-unix tcpip.tcpv6-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console.unix mirage-types.lwt io-page.unix"
@@ -148,7 +148,7 @@ package "stack-unix" (
 )
 
 package "stack-socket" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "tcpip.udpv4-socket tcpip.udpv6-socket tcpip.tcpv4-socket tcpip.tcpv6-socket lwt lwt.unix ipaddr.unix io-page.unix"
@@ -160,7 +160,7 @@ package "stack-socket" (
 )
 
 package "stack-direct" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page mirage-types ipaddr cstruct lwt tcpip.ethif tcpip.arpv4 tcpip.udp tcpip.tcp tcpip.dhcpv4"
@@ -172,7 +172,7 @@ package "stack-direct" (
 )
 
 package "ipv6-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif-unix tcpip.ipv6 lwt lwt.unix"
  archive(byte) = "ipv6-unix.cma"
@@ -183,7 +183,7 @@ package "ipv6-unix" (
 )
 
 package "ipv6" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "ipv6.cma"
@@ -194,7 +194,7 @@ package "ipv6" (
 )
 
 package "ipv4-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif-unix tcpip.ipv4 lwt lwt.unix"
  archive(byte) = "ipv4-unix.cma"
@@ -205,7 +205,7 @@ package "ipv4-unix" (
 )
 
 package "ipv4" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
  archive(byte) = "ipv4.cma"
@@ -216,7 +216,7 @@ package "ipv4" (
 )
 
 package "ethif-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
  archive(byte) = "ethif-unix.cma"
@@ -227,7 +227,7 @@ package "ethif-unix" (
 )
 
 package "ethif" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip io-page mirage-types ipaddr cstruct lwt"
  archive(byte) = "ethif.cma"
@@ -238,7 +238,7 @@ package "ethif" (
 )
 
 package "dhcpv4" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
  "io-page bytes mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.udp"
@@ -250,7 +250,7 @@ package "dhcpv4" (
 )
 
 package "arpv4-unix" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
  archive(byte) = "arpv4-unix.cma"
@@ -261,7 +261,7 @@ package "arpv4-unix" (
 )
 
 package "arpv4" (
- version = "2.6.1"
+ version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires = "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt"
  archive(byte) = "arpv4.cma"

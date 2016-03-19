@@ -1,5 +1,22 @@
 language: c
-script: bash -ex .travis-ci.sh
+sudo: false
+services:
+  - docker
+install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-docker.sh
+script: bash ./.travis-docker.sh
 env:
-  - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix
-  - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=xen
+ global:
+   - PACKAGE="tcpip"
+   - POST_INSTALL_HOOK="sh ./.travis-opam.sh"
+
+ matrix:
+   - DISTRO=debian-stable OCAML_VERSION=4.02.3
+   - DISTRO=debian-testing OCAML_VERSION=4.02.3
+   - DISTRO=debian-unstable OCAML_VERSION=4.02.3
+   - DISTRO=ubuntu-12.04 OCAML_VERSION=4.01.0
+   - DISTRO=ubuntu-15.10 OCAML_VERSION=4.02.3
+   - DISTRO=ubuntu-16.04 OCAML_VERSION=4.02.3
+   - DISTRO=centos-6 OCAML_VERSION=4.01.0
+   - DISTRO=centos-7 OCAML_VERSION=4.02.3
+   - DISTRO=fedora-23 OCAML_VERSION=4.02.3
+   - DISTRO=alpine-3.3 OCAML_VERSION=4.02.3

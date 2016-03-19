@@ -1,3 +1,14 @@
+### 2.7.0
+
+* Use PPX for cstruct instead of camlp4 (#188)
+* Tcp_socket: transform EPIPE into Eof (#183)
+* Remove unused and bitrotted tests directory; we now have lib_test (#186)
+* Improve some error strings in ipv4 and icmp.
+* raise `Invalid_argument` exception if given an invalid port number
+  in `listen_udpv4` or `listen_tcpv4`.
+* Rules according to RFC5961 to mitigate blind attacks (#182). 
+* Use multidistro Travis Docker tests.
+
 ### 2.6.1 (2015-09-15)
 
 * Add optional arguments for settings in ip v6 and v4 connects (#170, by @Drup)

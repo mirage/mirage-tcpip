@@ -1,16 +1,12 @@
 # default tests
 
-wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-bash -ex .travis-opam.sh
-
-# try building mirage-www in Unix and Xen modes
-
-export OPAMYES=1
-eval `opam config env`
-
+opam install -y mirage
 git clone git://github.com/mirage/mirage-www
 cd mirage-www
 
-opam install mirage
-make MODE=$MIRAGE_MODE configure
-make MODE=$MIRAGE_MODE build
+for mode in unix xen; do
+  export OPAMYES=1
+  eval `opam config env`
+  make MODE=$MIRAGE_MODE configure
+  make MODE=$MIRAGE_MODE build
+done
