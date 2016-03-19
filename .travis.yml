@@ -7,7 +7,7 @@ script: bash ./.travis-docker.sh
 env:
  global:
    - PACKAGE="tcpip"
-   - POST_INSTALL_HOOK="sh ./.travis-opam.sh"
+   - POST_INSTALL_HOOK="sh ./.travis-ci.sh"
 
  matrix:
    - DISTRO=debian-stable OCAML_VERSION=4.02.3
