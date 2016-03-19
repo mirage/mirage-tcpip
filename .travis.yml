@@ -2,4 +2,4 @@ language: c
 script: bash -ex .travis-ci.sh
 env:
   - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix
-  - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.01 PACKAGE=tcpip MIRAGE_MODE=xen
+  - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=xen
