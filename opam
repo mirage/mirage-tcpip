@@ -13,7 +13,18 @@ authors: [
   "Magnus Skjegstad"
   "Mindy Preston"
   "Thomas Leonard"
+  "David Scott"
+  "Gabor Pali"
+  "Hannes Mehnert"
+  "Haris Rotsos"
+  "Kia"
+  "Luke Dunstan"
+  "Pablo Polvorin"
+  "Tim Cuthbertson"
+  "lnmx"
+  "pqwy"
 ]
+license: "ISC"
 tags: ["org:mirage"]
 
 build: [
