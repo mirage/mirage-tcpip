@@ -1,14 +1,18 @@
-cstruct ethernet {
-    uint8_t        dst[6];
-    uint8_t        src[6];
-    uint16_t       ethertype
-  } as big_endian
+[%%cstruct
+type ethernet = {
+    dst: uint8_t        [@len 6];
+    src: uint8_t        [@len 6];
+    ethertype: uint16_t;
+  } [@@big_endian]
+]
 
-cenum ethertype {
-    ARP  = 0x0806;
-    IPv4 = 0x0800;
-    IPv6 = 0x86dd;
-  } as uint16_t
+[%%cenum
+type ethertype =
+  | ARP  [@id 0x0806]
+  | IPv4 [@id 0x0800]
+  | IPv6 [@id 0x86dd]
+  [@@uint16_t]
+]
 
 let parse_ethernet_frame frame =
   if Cstruct.len frame >= 14 then
@@ -22,35 +26,39 @@ let parse_ethernet_frame frame =
     None
 
 
-cstruct udp {
-    uint16_t source_port;
-    uint16_t dest_port;
-    uint16_t length;
-    uint16_t checksum
-  } as big_endian
+[%%cstruct
+type udp = {
+    source_port: uint16_t;
+    dest_port: uint16_t;
+    length: uint16_t;
+    checksum: uint16_t;
+  } [@@big_endian]
+]
 
 module Ipv4_wire = struct
-  cstruct ipv4 {
-      uint8_t        hlen_version;
-      uint8_t        tos;
-      uint16_t       len;
-      uint16_t       id;
-      uint16_t       off;
-      uint8_t        ttl;
-      uint8_t        proto;
-      uint16_t       csum;
-      uint32_t       src;
-      uint32_t       dst
-    } as big_endian
-
-  cstruct icmpv4 {
-      uint8_t ty;
-      uint8_t code;
-      uint16_t csum;
-      uint16_t id;
-      uint16_t seq
-    } as big_endian
-
+  [%%cstruct
+  type ipv4 = {
+      hlen_version: uint8_t;
+      tos:          uint8_t;
+      len:          uint16_t;
+      id:           uint16_t;
+      off:          uint16_t;
+      ttl:          uint8_t;
+      proto:        uint8_t;
+      csum:         uint16_t;
+      src:          uint32_t;
+      dst:          uint32_t;
+    } [@@big_endian]
+  ]
+  [%%cstruct
+  type icmpv4 = {
+      ty:   uint8_t;
+      code: uint8_t;
+      csum: uint16_t;
+      id:   uint16_t;
+      seq:  uint16_t;
+    } [@@big_endian]
+  ]
   let int_to_protocol = function
     | 1  -> Some `ICMP
     | 6  -> Some `TCP
@@ -77,25 +85,29 @@ module Ipv4_wire = struct
 end
 
 module Tcp_wire = struct
-  cstruct tcp {
-      uint16_t src_port;
-      uint16_t dst_port;
-      uint32_t sequence;
-      uint32_t ack_number;
-      uint8_t  dataoff;
-      uint8_t  flags;
-      uint16_t window;
-      uint16_t checksum;
-      uint16_t urg_ptr
-    } as big_endian
+  [%%cstruct
+  type tcp = {
+      src_port:   uint16_t;
+      dst_port:   uint16_t;
+      sequence:   uint32_t;
+      ack_number: uint32_t;
+      dataoff:    uint8_t;
+      flags:      uint8_t;
+      window:     uint16_t;
+      checksum:   uint16_t;
+      urg_ptr:    uint16_t;
+    } [@@big_endian]
+  ]
 
-  cstruct tcpv4_pseudo_header {
-      uint32_t src;
-      uint32_t dst;
-      uint8_t res;
-      uint8_t proto;
-      uint16_t len
-    } as big_endian
+  [%%cstruct
+  type tcpv4_pseudo_header = {
+      src:   uint32_t;
+      dst:   uint32_t;
+      res:   uint8_t;
+      proto: uint8_t;
+      len:   uint16_t;
+    } [@@big_endian]
+  ]
 
   (* XXX note that we overwrite the lower half of dataoff
    * with 0, so be careful when implemented CWE flag which
@@ -131,14 +143,16 @@ module Tcp_wire = struct
 end
 
 module Ipv6_wire = struct
-  cstruct ipv6 {
-      uint32_t       version_flow;
-      uint16_t       len;  (* payload length (includes extensions) *)
-      uint8_t        nhdr; (* next header *)
-      uint8_t        hlim; (* hop limit *)
-      uint8_t        src[16];
-      uint8_t        dst[16]
-    } as big_endian
+  [%%cstruct
+  type ipv6 = {
+      version_flow: uint32_t;
+      len:          uint16_t;  (* payload length (includes extensions) *)
+      nhdr:         uint8_t; (* next header *)
+      hlim:         uint8_t; (* hop limit *)
+      src:          uint8_t [@len 16];
+      dst:          uint8_t [@len 16];
+    } [@@big_endian]
+  ]
 
   let int_to_protocol = function
     | 58  -> Some `ICMP
@@ -151,37 +165,42 @@ module Ipv6_wire = struct
     | `TCP    -> 6
     | `UDP    -> 17
 
-  cstruct icmpv6 {
-      uint8_t        ty;
-      uint8_t        code;
-      uint16_t       csum;
-      uint32_t       reserved
-    } as big_endian
+  [%%cstruct
+  type icmpv6 = {
+      ty:       uint8_t;
+      code:     uint8_t;
+      csum:     uint16_t;
+      reserved: uint32_t;
+    } [@@big_endian]
+  ]
 
-  cstruct pingv6 {
-      uint8_t       ty;
-      uint8_t       code;
-      uint16_t      csum;
-      uint16_t      id;
-      uint16_t      seq
-    } as big_endian
-
-  cstruct ns {
-      uint8_t  ty;
-      uint8_t  code;
-      uint16_t csum;
-      uint32_t reserved;
-      uint8_t  target[16]
-    } as big_endian
-
-  cstruct na {
-      uint8_t  ty;
-      uint8_t  code;
-      uint16_t csum;
-      uint32_t reserved;
-      uint8_t  target[16]
-    } as big_endian
-
+  [%%cstruct
+  type pingv6 = {
+      ty:   uint8_t;
+      code: uint8_t;
+      csum: uint16_t;
+      id:   uint16_t;
+      seq:  uint16_t;
+    } [@@big_endian]
+  ]
+  [%%cstruct
+  type ns = {
+      ty:       uint8_t;
+      code:     uint8_t;
+      csum:     uint16_t;
+      reserved: uint32_t;
+      target:   uint8_t  [@len 16];
+    } [@@big_endian]
+  ]
+  [%%cstruct
+  type na = {
+      ty: uint8_t;
+      code: uint8_t;
+      csum: uint16_t;
+      reserved: uint32_t;
+      target: uint8_t [@len 16];
+    } [@@big_endian]
+  ]
   let get_na_router buf =
     (Cstruct.get_uint8 buf 4 land 0x80) <> 0
 
@@ -191,51 +210,57 @@ module Ipv6_wire = struct
   let get_na_override buf =
     (Cstruct.get_uint8 buf 4 land 0x20) <> 0
 
-  cstruct rs {
-      uint8_t  ty;
-      uint8_t  code;
-      uint16_t csum;
-      uint32_t reserved
-    } as big_endian
-
-  cstruct opt_prefix {
-      uint8_t    ty;
-      uint8_t    len;
-      uint8_t    prefix_len;
-      uint8_t    reserved1;
-      uint32_t   valid_lifetime;
-      uint32_t   preferred_lifetime;
-      uint32_t   reserved2;
-      uint8_t    prefix[16]
-    } as big_endian
-
+  [%%cstruct
+  type rs = {
+      ty:       uint8_t;
+      code:     uint8_t;
+      csum:     uint16_t;
+      reserved: uint32_t;
+    } [@@big_endian]
+  ]
+  [%%cstruct
+  type opt_prefix = {
+      ty:                 uint8_t;
+      len:                uint8_t;
+      prefix_len:         uint8_t;
+      reserved1:          uint8_t;
+      valid_lifetime:     uint32_t;
+      preferred_lifetime: uint32_t;
+      reserved2:          uint32_t;
+      prefix:             uint8_t [@len 16];
+    } [@@big_endian]
+  ]
   let get_opt_prefix_on_link buf =
     get_opt_prefix_reserved1 buf land 0x80 <> 0
 
   let get_opt_prefix_autonomous buf =
     get_opt_prefix_reserved1 buf land 0x40 <> 0
 
-  cstruct opt {
-      uint8_t  ty;
-      uint8_t  len
-    } as big_endian
+  [%%cstruct
+  type opt = {
+      ty:  uint8_t;
+      len: uint8_t;
+    } [@@big_endian]
+  ]
+  [%%cstruct
+  type llopt = {
+      ty:   uint8_t;
+      len:  uint8_t;
+      addr: uint8_t [@len 6];
+    } [@@big_endian]
+  ]
 
-  cstruct llopt {
-      uint8_t ty;
-      uint8_t len;
-      uint8_t addr[6]
-    } as big_endian
-
-  cstruct ra {
-      uint8_t   ty;
-      uint8_t   code;
-      uint16_t  csum;
-      uint8_t   cur_hop_limit;
-      uint8_t   reserved;
-      uint16_t  router_lifetime;
-      uint32_t  reachable_time;
-      uint32_t  retrans_timer
-    } as big_endian
-
+  [%%cstruct
+  type ra = {
+      ty:              uint8_t;
+      code:            uint8_t;
+      csum:            uint16_t;
+      cur_hop_limit:   uint8_t;
+      reserved:        uint8_t;
+      router_lifetime: uint16_t;
+      reachable_time:  uint32_t;
+      retrans_timer:   uint32_t;
+    } [@@big_endian]
+  ]
   let sizeof_ipv6_pseudo_header = 16 + 16 + 4 + 4
 end

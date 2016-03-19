@@ -1,16 +1,20 @@
-cstruct arp {
-  uint16_t htype;
-  uint16_t ptype;
-  uint8_t hlen;
-  uint8_t plen;
-  uint16_t op;
-  uint8_t sha[6];
-  uint32_t spa;
-  uint8_t tha[6];
-  uint32_t tpa
-} as big_endian
+[%%cstruct
+type arp = {
+  htype: uint16_t;
+  ptype: uint16_t;
+  hlen: uint8_t;
+  plen: uint8_t;
+  op: uint16_t;
+  sha: uint8_t [@len 6];
+  spa: uint32_t;
+  tha: uint8_t [@len 6];
+  tpa: uint32_t;
+} [@@big_endian]
+]
 
-cenum op {
-  Op_request = 1;
-  Op_reply
-} as uint16_t
+[@@cenum
+type op =
+  | Op_request [@id 1]
+  | Op_reply
+  [@@uint16_t]
+]
