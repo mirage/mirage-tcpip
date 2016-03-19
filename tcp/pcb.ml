@@ -41,14 +41,15 @@ let info  = Log.create ~enabled:true ~stats:false "PCB"
 
 module Tcp_wire = Wire_structs.Tcp_wire
 
-cstruct pseudo_header {
-    uint32_t src;
-    uint32_t dst;
-    uint8_t res;
-    uint8_t proto;
-    uint16_t len
-  } as big_endian
-
+[%%cstruct
+type pseudo_header = {
+    src:   uint32_t;
+    dst:   uint32_t;
+    res:   uint8_t;
+    proto: uint8_t;
+    len:   uint16_t;
+  } [@@big_endian]
+]
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 

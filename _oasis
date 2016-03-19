@@ -21,7 +21,7 @@ Library tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,mirage-profile,bytes
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct (>= 1.9.0),cstruct.ppx,mirage-profile,bytes
   XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
 
 Library tcpip_xen
@@ -47,7 +47,7 @@ Library arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt,cstruct.syntax
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt
 
 Library ipv4
   CompiledObject:     best
@@ -86,6 +86,7 @@ Library tcp
                       mirage-types,
                       ipaddr,
                       cstruct,
+                      cstruct.ppx,
                       lwt,
                       tcpip,
                       tcpip.ipv4,
@@ -102,6 +103,7 @@ Library dhcpv4
                       mirage-types,
                       ipaddr,
                       cstruct,
+                      cstruct.ppx,
                       lwt,
                       tcpip.udp
 

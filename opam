@@ -29,7 +29,8 @@ install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
   "ocamlfind" {build}
-  "cstruct" {>= "1.6.0"}
+  "cstruct" {>= "1.9.0"}
+  "ppx_tools"
   "channel"
   "mirage-types" {>= "2.6.0"}
   "mirage-unix" {>= "1.1.0"}
