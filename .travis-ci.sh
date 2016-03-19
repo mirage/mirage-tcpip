@@ -7,6 +7,6 @@ cd mirage-www
 for mode in unix xen; do
   export OPAMYES=1
   eval `opam config env`
-  make MODE=$MIRAGE_MODE configure
-  make MODE=$MIRAGE_MODE build
+  make MODE=$mode configure
+  make MODE=$mode build
 done
