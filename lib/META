@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: 06d8e8b17cbfae174a9767c2a28f3f58)
+# DO NOT EDIT (digest: 3f12cfe87c7d547b44dcc966f9839ab9)
 version = "2.6.1"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
-requires = "io-page mirage-types ipaddr cstruct mirage-profile bytes"
+requires =
+"io-page mirage-types ipaddr cstruct cstruct.ppx mirage-profile bytes"
 archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
 archive(native) = "tcpip.cmxa"
@@ -126,7 +127,7 @@ package "tcp" (
  version = "2.6.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
  requires =
- "io-page mirage-types ipaddr cstruct lwt tcpip tcpip.ipv4 tcpip.ipv6 mirage-profile"
+ "io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ipv4 tcpip.ipv6 mirage-profile"
  archive(byte) = "tcp.cma"
  archive(byte, plugin) = "tcp.cma"
  archive(native) = "tcp.cmxa"
@@ -239,7 +240,8 @@ package "ethif" (
 package "dhcpv4" (
  version = "2.6.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page bytes mirage-types ipaddr cstruct lwt tcpip.udp"
+ requires =
+ "io-page bytes mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.udp"
  archive(byte) = "dhcpv4.cma"
  archive(byte, plugin) = "dhcpv4.cma"
  archive(native) = "dhcpv4.cmxa"
@@ -261,7 +263,7 @@ package "arpv4-unix" (
 package "arpv4" (
  version = "2.6.1"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "tcpip io-page mirage-types ipaddr cstruct lwt cstruct.syntax"
+ requires = "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"
