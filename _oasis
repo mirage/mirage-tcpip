@@ -14,6 +14,10 @@ Flag xen
   Description:        Build Xen support
   Default:            false
 
+Flag unix
+  Description:        Build Unix support
+  Default:            true
+
 Library tcpip
   CompiledObject:     best
   Path:               lib
@@ -125,6 +129,7 @@ Library "tcpip-stack-direct"
                       tcpip.dhcpv4
 
 Library "ethif-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -136,6 +141,7 @@ Library "ethif-unix"
                       lwt.unix
 
 Library "arpv4-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -147,6 +153,7 @@ Library "arpv4-unix"
                       lwt.unix
 
 Library "ipv4-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -158,6 +165,7 @@ Library "ipv4-unix"
                       lwt.unix
 
 Library "ipv6-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -169,6 +177,7 @@ Library "ipv6-unix"
                       lwt.unix
 
 Library "udpv4-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -183,6 +192,7 @@ Library "udpv4-unix"
                       io-page.unix
 
 Library "udpv6-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -223,6 +233,7 @@ Library "udpv6-socket"
                       io-page.unix
 
 Library "tcpv4-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -240,6 +251,7 @@ Library "tcpv4-unix"
                       io-page.unix
 
 Library "tcpv6-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
@@ -281,6 +293,7 @@ Library "tcpv6-socket"
                       io-page.unix
 
 Library "tcpip-stack-unix"
+  Build$:             flag(unix)
   CompiledObject:     best
   Path:               unix
   Findlibparent:      tcpip
