@@ -7,6 +7,7 @@
 * raise `Invalid_argument` exception if given an invalid port number
   in `listen_udpv4` or `listen_tcpv4`.
 * Rules according to RFC5961 to mitigate blind attacks (#182). 
+* Make `unix` subpackages optional (#191).
 * Use multidistro Travis Docker tests.
 
 ### 2.6.1 (2015-09-15)
