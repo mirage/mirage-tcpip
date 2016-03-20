@@ -1,3 +1,17 @@
+### 2.7.0 (2016-03-20)
+* Raise Invalid_argument if given an invalid port number in listen_{tcp,udp}v4
+  (#173 by @matildah and #175 by @hannesm)
+* Improve TCP options marshalling/unmarshalling (#174 by @yomimono)
+* Add state tests and fixes for closure conditions (#177 #176 by @yomimono)
+* Remove bogus warning (#178 by @talex5)
+* Clean up IPv6 stack (#179 by @nojb)
+* RST checking from RFC5961 (#182 by @ppolv)
+* Transform EPIPE exceptions into `Eof (#183 by @djs55)
+* Improve error strings in IPv4 (#184 by @yomimono)
+* Replace use of cstruct.syntax with cstruct.ppx (#188 by @djs55)
+* Make the Unix subpackages optional, so the core builds on Win32
+  (#191 by @djs55)
+
 ### 2.6.1 (2015-09-15)
 
 * Add optional arguments for settings in ip v6 and v4 connects (#170, by @Drup)
