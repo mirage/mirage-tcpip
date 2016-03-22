@@ -69,6 +69,14 @@ Library ipv6
   Modules:            Ipv6, Ndpv6
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
 
+Library icmpv4
+  CompiledObject:     best
+  Path:               lib
+  Findlibparent:      tcpip
+  Findlibname:        icmpv4
+  Modules:            Icmpv4
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result
+
 Library udp
   CompiledObject:     best
   Path:               lib
