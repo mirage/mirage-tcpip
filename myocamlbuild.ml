@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3fb3a3f141467c256c322c0db896bbb4) *)
+(* DO NOT EDIT (digest: 410cd40775816f152f455efcfb77ae5a) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -615,6 +615,7 @@ let package_default =
           ("arpv4", ["lib"], []);
           ("ipv4", ["lib"], []);
           ("ipv6", ["lib"], []);
+          ("icmpv4", ["lib"], []);
           ("udp", ["lib"], []);
           ("tcp", ["tcp"], []);
           ("dhcpv4", ["dhcp"], []);
@@ -665,7 +666,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 669 "myocamlbuild.ml"
+# 670 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

@@ -191,10 +191,9 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       let data = Cstruct.sub data 0 payload_len in
       let proto = Wire_structs.Ipv4_wire.get_ipv4_proto buf in
       match Wire_structs.Ipv4_wire.int_to_protocol proto with
-      | Some `ICMP -> icmp_input t src hdr data
-      | Some `TCP  -> tcp ~src ~dst data
-      | Some `UDP  -> udp ~src ~dst data
-      | None       -> default ~proto ~src ~dst data
+      | Some `TCP         -> tcp ~src ~dst data
+      | Some `UDP         -> udp ~src ~dst data
+      | Some `ICMP | None -> default ~proto ~src ~dst data
     end else Lwt.return_unit
 
   let connect
