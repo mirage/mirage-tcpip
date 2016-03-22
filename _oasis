@@ -240,6 +240,21 @@ Library "udpv6-socket"
                       cstruct.lwt,
                       io-page.unix
 
+Library "icmpv4-unix"
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        icmpv4-unix
+  Modules:            Icmpv4_unix
+  BuildDepends:       tcpip.ipv4-unix,
+                      lwt,
+                      lwt.unix,
+                      mirage-unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
 Library "tcpv4-unix"
   Build$:             flag(unix)
   CompiledObject:     best
@@ -309,6 +324,7 @@ Library "tcpip-stack-unix"
   Modules:            Tcpip_stack_unix
   BuildDepends:       tcpip.udpv4-unix,
                       tcpip.tcpv4-unix,
+                      tcpip.icmpv4-unix,
                       tcpip.udpv6-unix,
                       tcpip.tcpv6-unix,
                       tcpip.stack-direct,
