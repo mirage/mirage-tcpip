@@ -114,7 +114,7 @@ let mac_of_stack stack = E.mac stack.ethif
 
 let short_read () =
   let too_short = Cstruct.create 4 in
-  match Icmp.Parse.input too_short with
+  match Icmpv4.Parse.input too_short with
   | Ok icmp -> Alcotest.fail "processed something too short to be real"
   | Error str -> Printf.printf "short packet rejected successfully! msg: %s\n" str;
     Lwt.return_unit
@@ -126,14 +126,15 @@ let echo_request () =
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
-  let echo_request = Icmp.Print.echo_request id_no seq_no in
+  let echo_request = Icmpv4.Print.echo_request id_no seq_no in
   let check buf =
+    let open Icmpv4.Parse in
     Printf.printf "Incoming ICMP message: ";
     Cstruct.hexdump buf;
-    match Icmp.Parse.input buf with
+    match input buf with
     | Error s -> Alcotest.fail ("echo request got an unparseable reply: " ^ s)
     | Ok reply ->
-      let (Icmp.Parse.Id_and_seq (id, seq)) = reply.subheader in
+      let (Icmpv4.Parse.Id_and_seq (id, seq)) = reply.subheader in
       Alcotest.(check int) "icmp response type" 0x00 reply.ty; (* expect an icmp echo reply *)
       Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
       Alcotest.(check int) "icmp echo-reply id" id_no id;
@@ -152,9 +153,10 @@ let echo_request () =
 let echo_silent () =
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
-  let echo_request = Icmp.Print.echo_request 0xff 0x4341 in
+  let echo_request = Icmpv4.Print.echo_request 0xff 0x4341 in
   let check buf =
-    match Icmp.Parse.input buf with
+    let open Icmpv4.Parse in
+    match input buf with
     | Error str -> Alcotest.fail ("received a strange ICMP message: " ^ str)
     | Ok message ->
       match message.ty with
