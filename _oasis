@@ -132,6 +132,7 @@ Library "tcpip-stack-direct"
                       lwt,
                       tcpip.ethif,
                       tcpip.arpv4,
+                      tcpip.icmpv4,
                       tcpip.udp,
                       tcpip.tcp,
                       tcpip.dhcpv4
