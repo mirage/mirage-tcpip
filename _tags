@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f0999bd3842423ae903f7ad7cc3298fe)
+# DO NOT EDIT (digest: e9d0f836c5371a5de1181f8d1cab407f)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -40,7 +40,17 @@ true: annot, bin_annot
 # Library ipv6
 "lib/ipv6.cmxs": use_ipv6
 # Library icmpv4
-"lib/icmpv4.cmxs": use_icmpv4
+"lib/icmp/icmpv4.cmxs": use_icmpv4
+<lib/icmp/*.ml{,i,y}>: pkg_bytes
+<lib/icmp/*.ml{,i,y}>: pkg_cstruct
+<lib/icmp/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/icmp/*.ml{,i,y}>: pkg_io-page
+<lib/icmp/*.ml{,i,y}>: pkg_ipaddr
+<lib/icmp/*.ml{,i,y}>: pkg_lwt
+<lib/icmp/*.ml{,i,y}>: pkg_mirage-profile
+<lib/icmp/*.ml{,i,y}>: pkg_mirage-types
+<lib/icmp/*.ml{,i,y}>: pkg_result
+<lib/icmp/*.ml{,i,y}>: use_tcpip
 # Library udp
 "lib/udp.cmxs": use_udp
 # Library tcp
@@ -190,7 +200,10 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mirage-vnetif
 <lib_test/test.{native,byte}>: pkg_oUnit
 <lib_test/test.{native,byte}>: pkg_pcap-format
+<lib_test/test.{native,byte}>: pkg_result
+<lib_test/test.{native,byte}>: use_arpv4
 <lib_test/test.{native,byte}>: use_ethif
+<lib_test/test.{native,byte}>: use_icmpv4
 <lib_test/test.{native,byte}>: use_ipv4
 <lib_test/test.{native,byte}>: use_ipv6
 <lib_test/test.{native,byte}>: use_tcp
@@ -212,7 +225,10 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mirage-vnetif
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: pkg_pcap-format
+<lib_test/*.ml{,i,y}>: pkg_result
+<lib_test/*.ml{,i,y}>: use_arpv4
 <lib_test/*.ml{,i,y}>: use_ethif
+<lib_test/*.ml{,i,y}>: use_icmpv4
 <lib_test/*.ml{,i,y}>: use_ipv4
 <lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
