@@ -124,6 +124,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   and output t arp =
     let open Arpv4_wire in
+    let open Ethif_wire in
     (* Obtain a buffer to write into *)
     let buf = Io_page.to_cstruct (Io_page.get 1) in
     (* Write the ARP packet *)
@@ -137,9 +138,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       |`Reply -> 2
       |`Unknown n -> n
     in
-    Wire_structs.set_ethernet_dst dmac 0 buf;
-    Wire_structs.set_ethernet_src smac 0 buf;
-    Wire_structs.set_ethernet_ethertype buf 0x0806; (* ARP *)
+    set_ethernet_dst dmac 0 buf;
+    set_ethernet_src smac 0 buf;
+    set_ethernet_ethertype buf 0x0806; (* ARP *)
     let arpbuf = Cstruct.shift buf 14 in
     set_arp_htype arpbuf 1;
     set_arp_ptype arpbuf 0x0800; (* IPv4 *)
@@ -151,7 +152,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     set_arp_tha dmac 0 arpbuf;
     set_arp_tpa arpbuf tpa;
     (* Resize buffer to sizeof arp packet *)
-    let buf = Cstruct.sub buf 0 (sizeof_arp + Wire_structs.sizeof_ethernet) in
+    let buf = Cstruct.sub buf 0 (sizeof_arp + sizeof_ethernet) in
     Ethif.write t.ethif buf
 
   (* Send a gratuitous ARP for our IP addresses *)

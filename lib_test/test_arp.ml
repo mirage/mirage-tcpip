@@ -79,7 +79,7 @@ module Parse = struct
     (* Obtain a buffer to write into *)
     (* note that sizeof_arp includes sizeof_ethernet by what's currently in
          arpv4_wire.ml *)
-    let buf = Cstruct.create (Arpv4_wire.sizeof_arp + Wire_structs.sizeof_ethernet) in
+    let buf = Cstruct.create (Arpv4_wire.sizeof_arp + Ethif_wire.sizeof_ethernet) in
 
     (* Write the ARP packet *)
     let dmac = Macaddr.to_bytes arp.tha in
@@ -92,9 +92,9 @@ module Parse = struct
       |`Reply -> 2
       |`Unknown n -> n
     in
-    Wire_structs.set_ethernet_dst dmac 0 buf;
-    Wire_structs.set_ethernet_src smac 0 buf;
-    Wire_structs.set_ethernet_ethertype buf 0x0806; (* ARP *)
+    Ethif_wire.set_ethernet_dst dmac 0 buf;
+    Ethif_wire.set_ethernet_src smac 0 buf;
+    Ethif_wire.set_ethernet_ethertype buf 0x0806; (* ARP *)
     let arpbuf = Cstruct.shift buf 14 in
     set_arp_htype arpbuf 1;
     set_arp_ptype arpbuf 0x0800; (* IPv4 *)
