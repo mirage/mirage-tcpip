@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4d8aecb1c4db63d8811f32632a1ce139)
+# DO NOT EDIT (digest: e604c5a047f6c40625b94eed0ec3e5c6)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -52,6 +52,7 @@ true: annot, bin_annot
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-types
+<lib/arpv4/*.ml{,i,y}>: use_ethif
 <lib/arpv4/*.ml{,i,y}>: use_tcpip
 # Library ipv4
 "lib/ipv4/ipv4.cmxs": use_ipv4
@@ -63,6 +64,7 @@ true: annot, bin_annot
 <lib/ipv4/*.ml{,i,y}>: pkg_lwt
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv4/*.ml{,i,y}>: use_ethif
 <lib/ipv4/*.ml{,i,y}>: use_tcpip
 # Library ipv6
 "lib/ipv6/ipv6.cmxs": use_ipv6
@@ -74,6 +76,7 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_lwt
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv6/*.ml{,i,y}>: use_ethif
 <lib/ipv6/*.ml{,i,y}>: use_tcpip
 # Library udp
 "lib/udp/udp.cmxs": use_udp
@@ -109,6 +112,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
+<lib/tcp/*.ml{,i,y}>: use_ethif
 <lib/tcp/*.ml{,i,y}>: use_ipv4
 <lib/tcp/*.ml{,i,y}>: use_ipv6
 <lib/tcp/*.ml{,i,y}>: use_tcpip

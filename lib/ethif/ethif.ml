@@ -38,17 +38,19 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let mac t = Netif.mac t.netif
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
+    let open Ethif_parse in
     MProf.Trace.label "ethif.input";
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match Wire_structs.parse_ethernet_frame frame with
+    match parse_ethernet_frame frame with
     | Some (typ, destination, payload) when of_interest destination ->
       begin
+        let open Ethif_wire in
         match typ with
-        | Some Wire_structs.ARP -> arpv4 payload
-        | Some Wire_structs.IPv4 -> ipv4 payload
-        | Some Wire_structs.IPv6 -> ipv6 payload
+        | Some ARP -> arpv4 payload
+        | Some IPv4 -> ipv4 payload
+        | Some IPv6 -> ipv6 payload
         | None -> Lwt.return_unit (* TODO: default ethertype payload handler *)
       end
     | _ -> Lwt.return_unit

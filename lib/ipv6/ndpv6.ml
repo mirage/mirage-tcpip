@@ -106,8 +106,6 @@ module Defaults = struct
   let retrans_timer              = 1.0
 end
 
-module Ipv6_wire = Wire_structs.Ipv6_wire
-
 let ipaddr_of_cstruct cs =
   let hihi = Cstruct.BE.get_uint32 cs 0 in
   let hilo = Cstruct.BE.get_uint32 cs 4 in
@@ -183,22 +181,22 @@ let checksum' ~proto frame bufs =
   Tcpip_checksum.ones_complement_list (src_dst :: cksum_buf :: bufs)
 
 let checksum frame bufs =
-  let frame = Cstruct.shift frame Wire_structs.sizeof_ethernet in
+  let frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
   let proto = Ipv6_wire.get_ipv6_nhdr frame in
   checksum' ~proto frame bufs
 
 module Allocate = struct
   let frame ~mac ~hlim ~src ~dst ~proto =
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-    let ipbuf = Cstruct.shift ethernet_frame Wire_structs.sizeof_ethernet in
-    macaddr_to_cstruct_raw mac (Wire_structs.get_ethernet_src ethernet_frame) 0;
-    Wire_structs.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
+    let ipbuf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
+    macaddr_to_cstruct_raw mac (Ethif_wire.get_ethernet_src ethernet_frame) 0;
+    Ethif_wire.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
     Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
     ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
     ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
     Ipv6_wire.set_ipv6_hlim ipbuf hlim;
     Ipv6_wire.set_ipv6_nhdr ipbuf proto;
-    let header_len = Wire_structs.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
+    let header_len = Ethif_wire.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
     (ethernet_frame, header_len)
 
   let error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
@@ -1139,9 +1137,9 @@ let rec process_actions ~now ctx actions =
 
 and send ~now ctx dst frame datav =
   let datav dmac =
-    Ipv6_wire.set_ipv6_len (Cstruct.shift frame Wire_structs.sizeof_ethernet)
-      (Cstruct.lenv datav + Cstruct.len frame - Wire_structs.sizeof_ethernet - Ipv6_wire.sizeof_ipv6);
-    macaddr_to_cstruct_raw dmac (Wire_structs.get_ethernet_dst frame) 0;
+    Ipv6_wire.set_ipv6_len (Cstruct.shift frame Ethif_wire.sizeof_ethernet)
+      (Cstruct.lenv datav + Cstruct.len frame - Ethif_wire.sizeof_ethernet - Ipv6_wire.sizeof_ipv6);
+    macaddr_to_cstruct_raw dmac (Ethif_wire.get_ethernet_dst frame) 0;
     frame :: datav
   in
   match Ipaddr.is_multicast dst with

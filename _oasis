@@ -42,7 +42,7 @@ Library ethif
   Path:               lib/ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif
+  Modules:            Ethif, Ethif_wire, Ethif_parse
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
 Library arpv4
@@ -51,23 +51,26 @@ Library arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
+                      tcpip.ethif
 
 Library ipv4
   CompiledObject:     best
   Path:               lib/ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
+  Modules:            Ipv4, Ipv4_wire
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,
+                      tcpip.ethif
 
 Library ipv6
   CompiledObject:     best
   Path:               lib/ipv6
   Findlibparent:      tcpip
   Findlibname:        ipv6
-  Modules:            Ipv6, Ndpv6
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
+  Modules:            Ipv6, Ndpv6, Ipv6_wire
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,
+                      tcpip.ethif
 
 Library udp
   CompiledObject:     best

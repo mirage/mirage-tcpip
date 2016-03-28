@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Ipv6_wire = Wire_structs.Ipv6_wire
-
 module I = Ipaddr
 
 open Lwt.Infix
@@ -55,7 +53,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     let now = C.time () in
     let dst =
       Ndpv6.ipaddr_of_cstruct
-        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Wire_structs.sizeof_ethernet))
+        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethif_wire.sizeof_ethernet))
     in
     let ctx, bufs = Ndpv6.send ~now t.ctx dst frame bufs in
     t.ctx <- ctx;
