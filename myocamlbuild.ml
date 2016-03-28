@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3fb3a3f141467c256c322c0db896bbb4) *)
+(* DO NOT EDIT (digest: 8105a5a0bb269f0ee5458af81dab1233) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -611,13 +611,13 @@ let package_default =
        [
           ("tcpip", ["lib"], []);
           ("tcpip_xen", ["lib"], []);
-          ("ethif", ["lib"], []);
-          ("arpv4", ["lib"], []);
-          ("ipv4", ["lib"], []);
-          ("ipv6", ["lib"], []);
-          ("udp", ["lib"], []);
-          ("tcp", ["tcp"], []);
-          ("dhcpv4", ["dhcp"], []);
+          ("ethif", ["lib/ethif"], []);
+          ("arpv4", ["lib/arpv4"], []);
+          ("ipv4", ["lib/ipv4"], []);
+          ("ipv6", ["lib/ipv6"], []);
+          ("udp", ["lib/udp"], []);
+          ("tcp", ["lib/tcp"], []);
+          ("dhcpv4", ["lib/dhcp"], []);
           ("tcpip-stack-direct", ["lib"], []);
           ("ethif-unix", ["unix"], []);
           ("arpv4-unix", ["unix"], []);
@@ -652,11 +652,27 @@ let package_default =
        ];
      includes =
        [
-          ("unix", ["lib"; "tcp"]);
-          ("tcp", ["lib"]);
-          ("lib_test", ["lib"; "tcp"]);
-          ("lib", ["dhcp"; "tcp"]);
-          ("dhcp", ["lib"])
+          ("unix",
+            ["lib"; "lib/ethif"; "lib/ipv4"; "lib/ipv6"; "lib/tcp"; "lib/udp"
+            ]);
+          ("lib_test",
+            [
+               "lib";
+               "lib/arpv4";
+               "lib/ethif";
+               "lib/ipv4";
+               "lib/tcp";
+               "lib/udp"
+            ]);
+          ("lib/udp", ["lib"]);
+          ("lib/tcp", ["lib"; "lib/ipv4"; "lib/ipv6"]);
+          ("lib/ipv6", ["lib"]);
+          ("lib/ipv4", ["lib"]);
+          ("lib/ethif", ["lib"]);
+          ("lib/dhcp", ["lib/udp"]);
+          ("lib/arpv4", ["lib"]);
+          ("lib",
+            ["lib/arpv4"; "lib/dhcp"; "lib/ethif"; "lib/tcp"; "lib/udp"])
        ]
   }
   ;;
@@ -665,7 +681,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 669 "myocamlbuild.ml"
+# 685 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

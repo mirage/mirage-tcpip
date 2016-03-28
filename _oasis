@@ -39,7 +39,7 @@ Library tcpip_xen
 
 Library ethif
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif
@@ -47,7 +47,7 @@ Library ethif
 
 Library arpv4
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire
@@ -55,7 +55,7 @@ Library arpv4
 
 Library ipv4
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Ipv4
@@ -63,7 +63,7 @@ Library ipv4
 
 Library ipv6
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/ipv6
   Findlibparent:      tcpip
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6
@@ -71,7 +71,7 @@ Library ipv6
 
 Library udp
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/udp
   Findlibparent:      tcpip
   Findlibname:        udp
   Modules:            Udp
@@ -80,7 +80,7 @@ Library udp
 Library tcp
   CompiledObject:     best
   Pack:               true
-  Path:               tcp
+  Path:               lib/tcp
   Findlibparent:      tcpip
   Findlibname:        tcp
   Modules:            Options,Wire,State,Tcptimer,Sequence,Ack,
@@ -99,7 +99,7 @@ Library tcp
 
 Library dhcpv4
   CompiledObject:     best
-  Path:               dhcp
+  Path:               lib/dhcp
   Findlibparent:      tcpip
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
@@ -335,7 +335,9 @@ Executable test
   Custom:             true
   BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
                       mirage-profile, mirage-flow, mirage-vnetif,
-                      mirage-console.unix, mirage-clock-unix, tcpip.ethif, tcpip.tcp, pcap-format
+                      mirage-console.unix, mirage-clock-unix, pcap-format,
+                      tcpip.ethif, tcpip.arpv4, tcpip.ipv4, tcpip.tcp, tcpip.udp,
+                      tcpip.stack-direct
 
 Test test
   Run$:               flag(tests)
