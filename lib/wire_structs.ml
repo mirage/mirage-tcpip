@@ -50,15 +50,6 @@ module Ipv4_wire = struct
       dst:          uint32_t;
     } [@@big_endian]
   ]
-  [%%cstruct
-  type icmpv4 = {
-      ty:   uint8_t;
-      code: uint8_t;
-      csum: uint16_t;
-      id:   uint16_t;
-      seq:  uint16_t;
-    } [@@big_endian]
-  ]
   let int_to_protocol = function
     | 1  -> Some `ICMP
     | 6  -> Some `TCP

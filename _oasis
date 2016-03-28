@@ -71,10 +71,10 @@ Library ipv6
 
 Library icmpv4
   CompiledObject:     best
-  Path:               lib
+  Path:               lib/icmp
   Findlibparent:      tcpip
   Findlibname:        icmpv4
-  Modules:            Icmpv4
+  Modules:            Icmpv4, Icmpv4_parse, Icmpv4_print, Icmpv4_wire
   BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result
 
 Library udp
@@ -360,7 +360,8 @@ Executable test
   Custom:             true
   BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
                       mirage-profile, mirage-flow, mirage-vnetif,
-                      mirage-console.unix, mirage-clock-unix, tcpip.ethif, tcpip.tcp, pcap-format
+                      mirage-console.unix, mirage-clock-unix,
+                      tcpip.ethif, tcpip.icmpv4, tcpip.arpv4, tcpip.tcp, pcap-format
 
 Test test
   Run$:               flag(tests)
