@@ -29,12 +29,8 @@ module I = Ipv4.Make(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
 module Console = Vnetif_common.Console
-module Tcp_wire = Wire_structs.Tcp_wire
+module Tcp_wire = Tcp.Tcp_wire
 module Sequence = Tcp.Sequence
-
-
-
-
 
 let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
 let gw = Ipaddr.V4.of_string_exn "10.0.0.1"

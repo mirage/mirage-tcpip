@@ -39,8 +39,6 @@ let iter_s f l =
 let debug = Log.create "PCB"
 let info  = Log.create ~enabled:true ~stats:false "PCB"
 
-module Tcp_wire = Wire_structs.Tcp_wire
-
 [%%cstruct
 type pseudo_header = {
     src:   uint32_t;
