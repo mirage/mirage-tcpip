@@ -18,8 +18,6 @@ open Lwt.Infix
 
 let debug = Log.create "Wire"
 
-module Tcp_wire = Wire_structs.Tcp_wire
-
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
 let get_options buf =
