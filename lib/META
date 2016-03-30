@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 50de63090d32e896c60b097484548afa)
+# DO NOT EDIT (digest: 9d85d2de4178403fdd238f5f399a9c56)
 version = "2.7.0"
 description = "Ethernet, TCP/IPv4 and DHCPv4 library"
 requires =
@@ -69,7 +69,8 @@ package "udpv4-socket" (
 package "udp" (
  version = "2.7.0"
  description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
+ requires =
+ "io-page mirage-types ipaddr cstruct lwt tcpip result rresult tcpip"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
