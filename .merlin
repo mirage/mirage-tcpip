@@ -3,6 +3,7 @@ PKG mirage-vnetif pcap-format mirage-console.unix
 
 B _build/**
 S lib/
+S lib_test/
 S tcp/
 S unix/
 S dhcp/

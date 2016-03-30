@@ -137,53 +137,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let write t frame buf =
     writev t frame [buf]
 
-  let pseudoheader t ~dst ~proto len =
-    Ipv4_print.pseudoheader ~src:t.ip ~dst ~proto len
-
-  let icmp_dst_unreachable buf =
-    sprintf "ICMP Destination Unreachable: %s\n%!" @@
-    match Ipv4_wire.get_icmpv4_code buf with
-    | 0  -> "Destination network unreachable"
-    | 1  -> "Destination host unreachable"
-    | 2  -> "Destination protocol unreachable"
-    | 3  -> "Destination port unreachable"
-    | 4  -> "Fragmentation required, and DF flag set"
-    | 5  -> "Source route failed"
-    | 6  -> "Destination network unknown"
-    | 7  -> "Destination host unknown"
-    | 8  -> "Source host isolated"
-    | 9  -> "Network administratively prohibited"
-    | 10 -> "Host administratively prohibited"
-    | 11 -> "Network unreachable for TOS"
-    | 12 -> "Host unreachable for TOS"
-    | 13 -> "Communication administratively prohibited"
-    | 14 -> "Host Precedence Violation"
-    | 15 -> "Precedence cutoff in effect"
-    | code -> Printf.sprintf "Unknown ICMP code: %d" code
-
-  let icmp_input t src _hdr buf =
-    MProf.Trace.label "icmp_input";
-    match Ipv4_wire.get_icmpv4_ty buf with
-    |0 -> (* echo reply *)
-      printf "ICMP: discarding echo reply from %s\n%!" (Ipaddr.V4.to_string src);
-      Lwt.return_unit
-    |3 -> printf "%s\n%!" (icmp_dst_unreachable buf); Lwt.return_unit
-    |8 -> (* echo request *)
-      (* convert the echo request into an echo reply *)
-      let csum =
-        let orig_csum = Ipv4_wire.get_icmpv4_csum buf in
-        let shift = if orig_csum > 0xffff -0x0800 then 0x0801 else 0x0800 in
-        (orig_csum + shift) land 0xffff in
-      Ipv4_wire.set_icmpv4_ty buf 0;
-      Ipv4_wire.set_icmpv4_csum buf csum;
-      (* stick an IPv4 header on the front and transmit *)
-      let frame, header_len = allocate_frame t ~dst:src ~proto:`ICMP in
-      let frame = Cstruct.set_len frame header_len in
-      write t frame buf
-    |ty ->
-      printf "ICMP unknown ty %d from %s\n" ty (Ipaddr.V4.to_string src);
-      Lwt.return_unit
-
   let input t ~tcp ~udp ~default buf =
     (* buf pointers to start of IPv4 header here *)
     let ihl = (Ipv4_wire.get_ipv4_hlen_version buf land 0xf) * 4 in
@@ -196,10 +149,9 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       let data = Cstruct.sub data 0 payload_len in
       let proto = Ipv4_wire.get_ipv4_proto buf in
       match Ipv4_parse.int_to_protocol proto with
-      | Some `ICMP -> icmp_input t src hdr data
-      | Some `TCP  -> tcp ~src ~dst data
-      | Some `UDP  -> udp ~src ~dst data
-      | None       -> default ~proto ~src ~dst data
+      | Some `TCP         -> tcp ~src ~dst data
+      | Some `UDP         -> udp ~src ~dst data
+      | Some `ICMP | None -> default ~proto ~src ~dst data
     end else Lwt.return_unit
 
   let connect
@@ -229,6 +181,9 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     Lwt.return_unit
 
   let get_ip_gateways { gateways; _ } = gateways
+
+  let pseudoheader t ~dst ~proto len =
+    Ipv4_print.pseudoheader ~src:t.ip ~dst ~proto len
 
   let checksum frame bufs =
     let packet = Cstruct.shift frame Ethif_wire.sizeof_ethernet in

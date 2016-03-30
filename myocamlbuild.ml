@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 66e1d78b87341d9e2b4e5fbf793f3aad) *)
+(* DO NOT EDIT (digest: 8f2cf2c1254f999edcb7df1944d192a0) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -615,6 +615,7 @@ let package_default =
           ("arpv4", ["lib/arpv4"], []);
           ("ipv4", ["lib/ipv4"], []);
           ("ipv6", ["lib/ipv6"], []);
+          ("icmpv4", ["lib/icmp"], []);
           ("udp", ["lib/udp"], []);
           ("tcp", ["lib/tcp"], []);
           ("dhcpv4", ["lib/dhcp"], []);
@@ -627,6 +628,7 @@ let package_default =
           ("udpv6-unix", ["unix"], []);
           ("udpv4-socket", ["unix"], []);
           ("udpv6-socket", ["unix"], []);
+          ("icmpv4-unix", ["unix"], []);
           ("tcpv4-unix", ["unix"], []);
           ("tcpv6-unix", ["unix"], []);
           ("tcpv4-socket", ["unix"], []);
@@ -668,11 +670,19 @@ let package_default =
           ("lib/tcp", ["lib"; "lib/ipv4"; "lib/ipv6"]);
           ("lib/ipv6", ["lib"; "lib/ethif"]);
           ("lib/ipv4", ["lib"; "lib/ethif"]);
+          ("lib/icmp", ["lib"]);
           ("lib/ethif", ["lib"]);
           ("lib/dhcp", ["lib/udp"]);
           ("lib/arpv4", ["lib"; "lib/ethif"]);
           ("lib",
-            ["lib/arpv4"; "lib/dhcp"; "lib/ethif"; "lib/tcp"; "lib/udp"])
+            [
+               "lib/arpv4";
+               "lib/dhcp";
+               "lib/ethif";
+               "lib/icmp";
+               "lib/tcp";
+               "lib/udp"
+            ])
        ]
   }
   ;;
@@ -681,7 +691,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 685 "myocamlbuild.ml"
+# 695 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)
