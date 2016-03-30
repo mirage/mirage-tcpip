@@ -1,5 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 066afb317745b53041e1d27cd81090c8)
+# DO NOT EDIT (digest: 7fd12b3121c56757f9bd0cee1f86d5ab)
 Udp
 Udp_wire
+Udp_parse
+Udp_print
 # OASIS_STOP
