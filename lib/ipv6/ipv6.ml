@@ -106,6 +106,18 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     t.ctx <- ctx;
     Lwt.return_unit
 
+  let pseudoheader t ~dst ~proto len =
+    let ph = Cstruct.create (16 + 16 + 8) in
+    let src = get_source t ~dst in
+    Ndpv6.ipaddr_to_cstruct_raw src ph 0;
+    Ndpv6.ipaddr_to_cstruct_raw dst ph 16;
+    Cstruct.BE.set_uint32 ph 32 (Int32.of_int len);
+    Cstruct.set_uint8 ph 36 0;
+    Cstruct.set_uint8 ph 37 0;
+    Cstruct.set_uint8 ph 38 0;
+    Cstruct.set_uint8 ph 39 (match proto with | `UDP -> 17 | `TCP -> 6);
+    ph
+
   type uipaddr = I.t
   let to_uipaddr ip = I.V6 ip
   let of_uipaddr ip = Some (I.to_v6 ip)
