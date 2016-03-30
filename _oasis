@@ -77,8 +77,9 @@ Library udp
   Path:               lib/udp
   Findlibparent:      tcpip
   Findlibname:        udp
-  Modules:            Udp, Udp_wire
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip
+  Modules:            Udp, Udp_wire, Udp_parse, Udp_print
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult,
+                      tcpip
 
 Library tcp
   CompiledObject:     best
