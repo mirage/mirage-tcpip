@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 module Make(Ip: V1_LWT.IP) = struct
 
@@ -36,18 +37,15 @@ module Make(Ip: V1_LWT.IP) = struct
 
   let id {ip} = ip
 
-  (* FIXME: [t] is not taken into account at all? *)
-  let input ~listeners _t ~src ~dst buf =
-    let dst_port = Udp_wire.get_udp_dest_port buf in
-    let data =
-      Cstruct.sub buf Udp_wire.sizeof_udp
-        (Udp_wire.get_udp_length buf - Udp_wire.sizeof_udp)
-    in
-    match listeners ~dst_port with
-    | None    -> Lwt.return_unit
-    | Some fn ->
-      let src_port = Udp_wire.get_udp_source_port buf in
-      fn ~src ~dst ~src_port data
+  let input ~listeners t ~src ~dst buf =
+    let open Udp_parse in
+    match parse_udp_header buf with
+    | Error s -> (* TODO: log message if log level is high *) Lwt.return_unit
+    | Ok { src_port; dst_port; payload } -> 
+      match listeners ~dst_port with
+      | None    -> Lwt.return_unit
+      | Some fn ->
+        fn ~src ~dst ~src_port payload
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
     begin match source_port with
@@ -57,13 +55,12 @@ module Make(Ip: V1_LWT.IP) = struct
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
     let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
-    Udp_wire.set_udp_source_port udp_buf source_port;
-    Udp_wire.set_udp_dest_port udp_buf dest_port;
-    Udp_wire.set_udp_length udp_buf (Udp_wire.sizeof_udp + Cstruct.lenv bufs);
-    (* Udp_wire.set_udp_checksum udp_buf 0; *)
-    let csum = Ip.checksum frame (udp_buf :: bufs) in
-    Udp_wire.set_udp_checksum udp_buf csum;
-    Ip.writev t.ip frame bufs
+    let ph = Ip.pseudoheader t.ip ~dst:dest_ip ~proto:`UDP (Cstruct.lenv bufs) in
+    match Udp_print.print_udp_header ~udp_buf ~src_port:source_port
+            ~dst_port:dest_port ~pseudoheader:ph ~payload:bufs with
+    | Ok () -> 
+      Ip.writev t.ip frame bufs
+    | Error _ -> (* TODO: log error *) Lwt.return_unit
 
   let write ?source_port ~dest_ip ~dest_port t buf =
     writev ?source_port ~dest_ip ~dest_port t [buf]
