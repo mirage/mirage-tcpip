@@ -57,9 +57,13 @@ end = struct
 
   let input t buffer =
     (* disregard responses, but reply to queries *)
+    try
     match Arpv4_wire.get_arp_op buffer with
     | 1 -> A.input t.base buffer
     | 2 | _ -> Lwt.return_unit
+    with
+    | Invalid_argument s -> Printf.printf "Arpv4_wire failed on buffer: %s" s;
+      Lwt.return_unit
 
   let add_entry t ip mac =
     Hashtbl.add t.table ip mac
