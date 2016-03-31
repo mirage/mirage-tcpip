@@ -15,7 +15,7 @@
  *)
 
 open Lwt.Infix
-open Printf
+open Result
 
 module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
@@ -84,12 +84,12 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
             Arpv4.query t.arp hd >>= begin function
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
-                printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
+                Printf.printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
                   (out ip) (out hd) ;
                 Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
-            printf "IP.output: no route to %s (no default gateway is configured)\n%!"
+            Printf.printf "IP.output: no route to %s (no default gateway is configured)\n%!"
               (out ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
@@ -139,20 +139,21 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   let input t ~tcp ~udp ~default buf =
     (* buf pointers to start of IPv4 header here *)
-    let ihl = (Ipv4_wire.get_ipv4_hlen_version buf land 0xf) * 4 in
-    let src = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_src buf) in
-    let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst buf) in
-    let payload_len = Ipv4_wire.get_ipv4_len buf - ihl in
-    let hdr, data = Cstruct.split buf ihl in
-    if Cstruct.len data >= payload_len then begin
-      (* Strip trailing bytes. See: https://github.com/mirage/mirage-net-xen/issues/24 *)
-      let data = Cstruct.sub data 0 payload_len in
-      let proto = Ipv4_wire.get_ipv4_proto buf in
-      match Ipv4_parse.int_to_protocol proto with
-      | Some `TCP         -> tcp ~src ~dst data
-      | Some `UDP         -> udp ~src ~dst data
-      | Some `ICMP | None -> default ~proto ~src ~dst data
-    end else Lwt.return_unit
+    let open Ipv4_parse in
+    match parse_ipv4_header buf with
+    | Error _ -> (* TODO: log an error on high debug level *) Lwt.return_unit
+    | Ok packet ->
+      match int_to_protocol packet.proto, packet.payload with
+      (* Don't pass on empty buffers as payloads to known protocols
+         -- they have no relevant headers *)
+      | Some _, None -> Lwt.return_unit
+      | Some `TCP, Some payload -> tcp ~src:packet.src ~dst:packet.dst payload
+      | Some `UDP, Some payload -> udp ~src:packet.src ~dst:packet.dst payload
+      | Some `ICMP, Some payload | None, Some payload ->
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
+      | None, None -> (* we don't know anything about the handler -- it may know
+                         what to do with an empty payload *)
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst (Cstruct.create 0)
 
   let connect
       ?(ip=Ipaddr.V4.any)
