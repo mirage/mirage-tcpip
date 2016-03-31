@@ -14,9 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* TCP options parsing *)
+open Result
 
-exception Bad_option of string
+(* TCP options parsing *)
 
 type t =
   | Noop
@@ -29,16 +29,16 @@ type t =
 
 let report_error n =
   let error = Printf.sprintf "Invalid option %d presented" n in
-  raise (Bad_option error)
+  Error error
 
 let check_mss buf =
   let min_mss_size = 88 in
   let mss_size = Cstruct.BE.get_uint16 buf 2 in
   if mss_size < min_mss_size then
     let err = (Printf.sprintf "Invalid MSS %d received" mss_size) in
-    raise (Bad_option err)
+    Error err
   else
-    MSS mss_size
+    Ok (MSS mss_size)
 
 let unmarshal buf =
   let i = Cstruct.iter
@@ -48,17 +48,18 @@ let unmarshal buf =
          | 1 -> Some 1 (* NOP *)
          | n ->
            match Cstruct.len buf with
-           | 0 | 1 -> report_error n
+           | 0 | 1 -> None
            | buffer_size ->
              let option_size = Cstruct.get_uint8 buf 1 in
              if option_size <= buffer_size && option_size >= 2 then
                Some option_size
-             else report_error n
+             else None (* Nothing after this can be trusted, but previous
+                          options might be all right *)
       )
       (fun buf ->
          match Cstruct.get_uint8 buf 0 with
          | 0 -> assert false
-         | 1 -> Noop
+         | 1 -> Ok Noop
          | option_number ->
            let option_length = Cstruct.get_uint8 buf 1 in
            if Cstruct.len buf < option_length then
@@ -69,8 +70,8 @@ let unmarshal buf =
               * number >1 *)
              | _, 0 | _, 1 -> report_error option_number
              | 2, 4 -> check_mss buf
-             | 3, 3 -> Window_size_shift (Cstruct.get_uint8 buf 2)
-             | 4, 2 -> SACK_ok
+             | 3, 3 -> Ok (Window_size_shift (Cstruct.get_uint8 buf 2))
+             | 4, 2 -> Ok SACK_ok
              | 5, _ ->
                let num = (option_length - 2) / 8 in
                let rec to_int32_list off acc = function
@@ -81,19 +82,22 @@ let unmarshal buf =
                      Cstruct.BE.get_uint32 buf (off+4)
                    in
                    to_int32_list (off+8) (x::acc) (n-1)
-               in SACK (to_int32_list 2 [] num)
-             | 8, 10 -> Timestamp (Cstruct.BE.get_uint32 buf 2,
-                                   Cstruct.BE.get_uint32 buf 6)
+               in Ok (SACK (to_int32_list 2 [] num))
+             | 8, 10 -> Ok  (Timestamp (Cstruct.BE.get_uint32 buf 2,
+                                        Cstruct.BE.get_uint32 buf 6))
              (* error out for lengths that don't match the spec's
                 fixed length for a given, recognized option number *)
              | 2, _ | 3, _ | 4, _ | 8, _ -> report_error option_number
              (* Parse apparently well-formed but unrecognized
                 options *)
              | n, _ ->
-               Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2))
+               Ok (Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2)))
            end
       ) buf in
-  Cstruct.fold (fun a b -> b :: a) i []
+  Cstruct.fold (fun a -> function
+      | Ok item -> item :: a
+      | Error _ -> a
+    ) i []
 
 let write_iter buf =
   let set_tlen t l =
