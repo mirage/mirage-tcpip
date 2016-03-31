@@ -138,7 +138,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     writev t frame [buf]
 
   let input t ~tcp ~udp ~default buf =
-    (* buf pointers to start of IPv4 header here *)
     let open Ipv4_parse in
     match parse_ipv4_header buf with
     | Error _ -> (* TODO: log an error on high debug level *) Lwt.return_unit
