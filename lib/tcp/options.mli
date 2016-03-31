@@ -16,8 +16,6 @@
 
 (** TCP options parsing *)
 
-exception Bad_option of string
-
 type t =
   | Noop
   | MSS of int                      (** RFC793 *)

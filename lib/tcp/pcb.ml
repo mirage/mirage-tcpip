@@ -167,22 +167,19 @@ struct
 
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t pkt (pcb,_) =
-      let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence pkt) in
-      let ack_number =
-        Sequence.of_int32 (Tcp_wire.get_tcp_ack_number pkt)
-      in
-      let fin = Tcp_wire.get_fin pkt in
-      let syn = Tcp_wire.get_syn pkt in
-      let ack = Tcp_wire.get_ack pkt in
-      let rst = Tcp_wire.get_rst pkt in
-      let window = Tcp_wire.get_tcp_window pkt in
-      let data = Wire.get_payload pkt in
-      let seg =
-        RXS.segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data
-      in
-      let { rxq; _ } = pcb in
-      (* Coalesce any outstanding segments and retrieve ready segments *)
-      RXS.input rxq seg
+      match Tcp_parse.parse_tcp_header pkt with
+      | Result.Error s -> Log.s debug ("Tcp_parse.parse_tcp_header: " ^ s);
+        Lwt.return_unit
+      | Result.Ok parsed ->
+        let sequence = Sequence.of_int32 parsed.sequence in
+        let ack_number = Sequence.of_int32 parsed.ack_number in 
+        let seg =
+          RXS.segment ~sequence ~fin:parsed.fin ~syn:parsed.syn ~rst:parsed.rst
+            ~ack:parsed.ack ~ack_number ~window:parsed.window ~data:parsed.data
+        in
+        let { rxq; _ } = pcb in
+        (* Coalesce any outstanding segments and retrieve ready segments *)
+        RXS.input rxq seg
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
@@ -419,14 +416,13 @@ struct
         (* rst without ack, drop it *)
         Lwt.return_unit
 
-  let process_synack t id ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+  let process_synack t id ~pkt ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Log.f debug (with_stats "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
       if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
         Hashtbl.remove t.connects id;
         Stats.decr_connect ();
-        let tx_wnd = Tcp_wire.get_tcp_window pkt in
         let rx_wnd = 65535 in
         (* TODO: fix hardcoded value - it assumes that this value was
            sent in the SYN *)
@@ -447,12 +443,11 @@ struct
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let process_syn t id ~listeners ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+  let process_syn t id ~listeners ~tx_wnd ~pkt ~ack_number ~sequence ~options ~syn ~fin =
     Log.f debug (with_stats "process-syn" t);
     match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
-      let tx_wnd = Tcp_wire.get_tcp_window pkt in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -491,25 +486,27 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners pkt id =
-    let ack = Tcp_wire.get_ack pkt in
-    let ack_number = Tcp_wire.get_tcp_ack_number pkt in
-    match Tcp_wire.get_rst pkt with
-    | true -> process_reset t id ~ack ~ack_number
-    | false ->
-      let sequence = Tcp_wire.get_tcp_sequence pkt in
-      let options = Wire.get_options pkt in
-      let syn = Tcp_wire.get_syn pkt in
-      let fin = Tcp_wire.get_fin pkt in
-      match syn, ack with
-      | true , true  -> process_synack t id ~pkt ~ack_number ~sequence
-                          ~options ~syn ~fin
-      | true , false -> process_syn t id ~listeners ~pkt ~ack_number ~sequence
-                          ~options ~syn ~fin
-      | false, true  -> process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin
-      | false, false ->
-        (* What the hell is this packet? No SYN,ACK,RST *)
-        Log.s debug "input-no-pcb: unknown packet";
-        Lwt.return_unit
+    match Tcp_parse.parse_tcp_header pkt with
+    | Result.Error s -> Log.s debug ("Tcp_parse.parse_header: " ^ s);
+      Lwt.return_unit
+    | Result.Ok parsed ->
+      match parsed.rst with
+      | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
+      | false ->
+        match parsed.syn, parsed.ack with
+        | true , true  -> process_synack t id ~pkt ~ack_number:parsed.ack_number
+                            ~sequence:parsed.sequence ~tx_wnd:parsed.window
+                            ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
+        | true , false -> process_syn t id ~listeners ~pkt ~tx_wnd:parsed.window
+                            ~ack_number:parsed.ack_number ~sequence:parsed.sequence
+                            ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
+        | false, true  -> process_ack t id ~pkt ~ack_number:parsed.ack_number
+                            ~sequence:parsed.sequence ~syn:parsed.syn
+                            ~fin:parsed.fin
+        | false, false ->
+          (* No SYN, ACK, or RST, so just drop it *)
+          Log.s debug "input-no-pcb: unknown packet";
+          Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
@@ -518,20 +515,25 @@ struct
       Log.s debug "RX.input: checksum error";
       Lwt.return_unit
     | true ->
-      let source_port = Tcp_wire.get_tcp_src_port data in
-      let dest_port = Tcp_wire.get_tcp_dst_port data in
-      let id =
-        { WIRE.local_port = dest_port;
-          dest_ip         = src;
-          local_ip        = dst;
-          dest_port       = source_port }
-      in
-      (* Lookup connection from the active PCB hash *)
-      with_hashtbl t.channels id
-        (* PCB exists, so continue the connection state machine in tcp_input *)
-        (Rx.input t data)
-        (* No existing PCB, so check if it is a SYN for a listening function *)
-        (input_no_pcb t listeners data)
+      try
+        let source_port = Tcp_wire.get_tcp_src_port data in
+        let dest_port = Tcp_wire.get_tcp_dst_port data in
+        let id =
+          { WIRE.local_port = dest_port;
+            dest_ip         = src;
+            local_ip        = dst;
+            dest_port       = source_port }
+        in
+        (* Lookup connection from the active PCB hash *)
+        with_hashtbl t.channels id
+          (* PCB exists, so continue the connection state machine in tcp_input *)
+          (Rx.input t data)
+          (* No existing PCB, so check if it is a SYN for a listening function *)
+          (input_no_pcb t listeners data)
+      with
+      | Invalid_argument s ->
+        Log.s debug ("RX.input: couldn't read ports: " ^ s);
+        Lwt.return_unit
 
   (* Blocking read on a PCB *)
   let read pcb =

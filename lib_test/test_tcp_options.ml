@@ -5,8 +5,7 @@ let test_unmarshal_bad_mss () =
   Cstruct.set_uint8 odd_sized_mss 0 2;
   Cstruct.set_uint8 odd_sized_mss 1 3;
   Cstruct.set_uint8 odd_sized_mss 2 255;
-  OUnit.assert_raises (Tcp.Options.Bad_option "Invalid option 2 presented")
-    (fun () -> Tcp.Options.unmarshal odd_sized_mss);
+  OUnit.assert_equal [] (Tcp.Options.unmarshal odd_sized_mss);
   Lwt.return_unit
 
 let test_unmarshal_bogus_length () =
@@ -14,8 +13,7 @@ let test_unmarshal_bogus_length () =
   Cstruct.memset bogus 0;
   Cstruct.blit_from_string "\x6e\x73\x73\x68\x2e\x63\x6f\x6d" 0 bogus 0 8;
   (* some unknown option (0x6e) with claimed length 0x73, longer than the buffer *)
-  OUnit.assert_raises (Tcp.Options.Bad_option "Invalid option 110 presented")
-    (fun () -> Tcp.Options.unmarshal bogus);
+  OUnit.assert_equal [] (Tcp.Options.unmarshal bogus);
   Lwt.return_unit
 
 let test_unmarshal_zero_length () =
@@ -23,8 +21,7 @@ let test_unmarshal_zero_length () =
   Cstruct.memset bogus 1; (* noops *)
   Cstruct.set_uint8 bogus 0 64; (* arbitrary unknown option-kind *)
   Cstruct.set_uint8 bogus 1 0;
-  OUnit.assert_raises (Tcp.Options.Bad_option "Invalid option 64 presented")
-    (fun () -> Tcp.Options.unmarshal bogus);
+  OUnit.assert_equal [] (Tcp.Options.unmarshal bogus);
   Lwt.return_unit
 
 let test_unmarshal_simple_options () =
@@ -101,14 +98,11 @@ let test_unmarshal_random_data () =
       List.iter set_random [0;4;8;12;16;20;24;28;32;36;40;44;48;52;56;60];
       Cstruct.hexdump random;
       (* acceptable outcomes: some list of options or the expected exception *)
-      try
-        let l = Tcp.Options.unmarshal random in
-        Tcp.Options.pps Format.std_formatter l;
-        (* a really basic truth: the longest list we can have is 64 noops *)
-        OUnit.assert_equal true (List.length l < 65);
-        check (n - 1)
-      with
-      | Tcp.Options.Bad_option _ -> check (n - 1)
+      let l = Tcp.Options.unmarshal random in
+      Tcp.Options.pps Format.std_formatter l;
+      (* a really basic truth: the longest list we can have is 64 noops *)
+      OUnit.assert_equal true (List.length l < 65);
+      check (n - 1)
   in
   check iterations
 
