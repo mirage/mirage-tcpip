@@ -23,8 +23,7 @@ let parse_ipv4_header buf =
     | Invalid_argument s -> Result.Error s
   in
   let check_header_len buf options_end =
-    if options_end < 20 then Result.Error "Header claimed to be too short"
-    else if Cstruct.len buf < options_end then Result.Error "Header shorter than claimed"
+    if options_end < 20 then Result.Error "IPv4 header claimed to have size < 20"
     else Result.Ok (options_end - sizeof_ipv4)
   in
   let parse buf options_len =
