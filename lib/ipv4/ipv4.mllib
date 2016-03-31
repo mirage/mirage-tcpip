@@ -1,5 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: edde9ac391a3402930985f54a4c2bde8)
+# DO NOT EDIT (digest: b885ef8764b7c8411752d9b4288c5524)
 Ipv4
 Ipv4_wire
+Ipv4_parse
+Ipv4_print
 # OASIS_STOP
