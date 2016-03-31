@@ -152,7 +152,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     set_arp_tha dmac 0 arpbuf;
     set_arp_tpa arpbuf tpa;
     (* Resize buffer to sizeof arp packet *)
-    let buf = Cstruct.sub buf 0 (sizeof_arp + sizeof_ethernet) in
+    let buf = Cstruct.set_len buf (sizeof_arp + sizeof_ethernet) in
     Ethif.write t.ethif buf
 
   (* Send a gratuitous ARP for our IP addresses *)
