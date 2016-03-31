@@ -24,10 +24,11 @@ let subheader_of_cstruct ty buf =
   | _ -> Unused
 
 let input buf =
-  if Cstruct.len buf < Icmpv4_wire.sizeof_icmpv4 then
+  let open Icmpv4_wire in
+  if Cstruct.len buf < sizeof_icmpv4 then
     Result.Error "packet too short for ICMPv4 header"
   else begin
-    let open Icmpv4_wire in
+    try
     let ty = get_icmpv4_ty buf in
     let code = get_icmpv4_code buf in
     let csum = get_icmpv4_csum buf in
@@ -38,4 +39,6 @@ let input buf =
       else None
     in
     Result.Ok { code; ty; csum; subheader; payload }
+    with
+    | Invalid_argument s -> Result.Error s
   end
