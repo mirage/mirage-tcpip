@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d4012c7118b4e046a8415ff14f2a8fe3)
+# DO NOT EDIT (digest: 544a33d56ce3d7ae7af021750c5c8160)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -64,6 +64,7 @@ true: annot, bin_annot
 <lib/ipv4/*.ml{,i,y}>: pkg_lwt
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv4/*.ml{,i,y}>: pkg_rresult
 <lib/ipv4/*.ml{,i,y}>: use_ethif
 <lib/ipv4/*.ml{,i,y}>: use_tcpip
 # Library ipv6
@@ -127,6 +128,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
+<lib/tcp/*.ml{,i,y}>: pkg_rresult
 <lib/tcp/*.ml{,i,y}>: use_ethif
 <lib/tcp/*.ml{,i,y}>: use_ipv4
 <lib/tcp/*.ml{,i,y}>: use_ipv6
