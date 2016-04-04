@@ -55,10 +55,12 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
   module A = Arpv4.Make(E)(Clock)(Time)
-  module I = Ipv4.Make(E)(A)
-  module U = Udp.Make(I)
-  module T = Tcp.Flow.Make(I)(Time)(Clock)(Random)
-  module Stackv4 = Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(A)(I)(U)(T)
+  module Ip = Ipv4.Make(E)(A)
+  module Icmp = Icmpv4.Make(Ip)
+  module U = Udp.Make(Ip)
+  module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Random)
+  module Stackv4 =
+    Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(A)(Ip)(Icmp)(U)(T)
 
   let create_backend () =
     B.create ()
@@ -67,7 +69,8 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     or_error "backend" V.connect backend >>= fun netif ->
     or_error "ethif" E.connect netif >>= fun ethif ->
     or_error "arpv4" A.connect ethif >>= fun arpv4 ->
-    or_error "ipv4" (I.connect ethif) arpv4 >>= fun ipv4 ->
+    or_error "ipv4" (Ip.connect ethif) arpv4 >>= fun ipv4 ->
+    or_error "icmpv4" Icmp.connect ipv4 >>= fun icmpv4 ->
     or_error "udpv4" U.connect ipv4 >>= fun udpv4 ->
     or_error "tcpv4" T.connect ipv4 >>= fun tcpv4 ->
     let config = {
@@ -76,7 +79,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
       interface = netif;
       mode = `IPv4 (ip, netmask, gw);
     } in
-    or_error "stack" (Stackv4.connect config ethif arpv4 ipv4 udpv4) tcpv4
+    or_error "stack" (Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4) tcpv4
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
