@@ -24,5 +24,6 @@ include Tcpip_stack_direct.Make
     (Ethif_unix)
     (Arpv4_unix)
     (Ipv4_unix)
+    (Icmpv4_unix)
     (Udpv4_unix)
     (Tcpv4_unix.Flow)

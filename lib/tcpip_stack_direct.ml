@@ -31,6 +31,7 @@ module Make
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Arpv4   : V1_LWT.ARP)
     (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
+    (Icmpv4  : V1_LWT.ICMPV4)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) =
 struct
@@ -61,6 +62,7 @@ struct
     ethif : Ethif.t;
     arpv4 : Arpv4.t;
     ipv4  : Ipv4.t;
+    icmpv4: Icmpv4.t;
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
     udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
@@ -145,18 +147,21 @@ struct
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> Lwt.return_unit)
+            ~default:(fun ~proto ~src ~dst buf -> 
+                match proto with
+                | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
+                | _ -> Lwt.return_unit)
             t.ipv4)
         ~ipv6:(fun _ -> Lwt.return_unit)
         t.ethif)
 
-  let connect id ethif arpv4 ipv4 udpv4 tcpv4 =
+  let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let { V1_LWT.console = c; interface = netif; mode; _ } = id in
     Console.log_s c "Manager: connect"
     >>= fun () ->
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; c; mode; netif; ethif; arpv4; ipv4; tcpv4; udpv4;
+    let t = { id; c; mode; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
     Console.log_s t.c "Manager: configuring"
     >>= fun () ->
