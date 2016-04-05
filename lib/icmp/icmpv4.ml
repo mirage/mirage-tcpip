@@ -73,7 +73,7 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   let disconnect _ = Lwt.return_unit
 
-  let pp_of_error formatter = function
+  let pp_error formatter = function
     | `Routing -> Format.fprintf formatter "%s" "routing"
     | `Unknown -> Format.fprintf formatter "%s" "unknown!"
 
