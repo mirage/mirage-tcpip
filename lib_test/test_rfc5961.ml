@@ -30,6 +30,7 @@ module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
 module Console = Vnetif_common.Console
 module Tcp_wire = Tcp.Tcp_wire
+module Tcp_parse = Tcp.Tcp_parse
 module Sequence = Tcp.Sequence
 
 let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
@@ -131,10 +132,13 @@ let reply_id_from ~src ~dst data =
      local_ip = dst}
 
 let ack_for data =
-    let data_len = (Cstruct.len (Wire.get_payload data)) +
-                   (if Tcp_wire.get_fin data then 1 else 0) +
-                   (if Tcp_wire.get_syn data then 1 else 0) in
-    let sequence = Sequence.of_int32 (Tcp_wire.get_tcp_sequence data) in
+  match Tcp_parse.parse_tcp_header data with
+  | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
+  | Ok packet ->
+    let data_len = (Cstruct.len packet.data) +
+                   (if packet.fin then 1 else 0) +
+                   (if packet.syn then 1 else 0) in
+    let sequence = Sequence.of_int32 packet.sequence in
     let ack_n = Sequence.(add sequence (of_int data_len)) in
     ack_n
 

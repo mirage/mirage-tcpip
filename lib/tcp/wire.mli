@@ -15,9 +15,6 @@
  *)
 
 val debug: Log.t
-val get_options : Cstruct.t -> Options.t list
-val set_options : Cstruct.t -> Options.t list -> int
-val get_payload : Cstruct.t -> Cstruct.t
 
 module Make(Ip:V1_LWT.IP) : sig
   type id = {

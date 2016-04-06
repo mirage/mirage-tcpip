@@ -16,6 +16,7 @@
  *)
 
 open Lwt.Infix
+open Tcp_parse
 
 type error = [`Bad_state of State.tcpstate]
 

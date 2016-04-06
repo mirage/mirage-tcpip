@@ -95,9 +95,10 @@ Library tcp
   Path:               lib/tcp
   Findlibparent:      tcpip
   Findlibname:        tcp
-  Modules:            Options,Wire,State,Tcptimer,Sequence,Ack,
+  Modules:            Options,State,Tcptimer,Sequence,Ack,
                       Window,Segment,User_buffer,Pcb,Flow,
-                      Stats, Log, Tcp_wire, Tcp_parse
+                      Stats, Log, Wire,
+                      Tcp_wire, Tcp_parse, Tcp_print
   BuildDepends:       io-page,
                       mirage-types,
                       ipaddr,
