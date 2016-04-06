@@ -1,3 +1,9 @@
+### 2.8.0 (2016-04-04)
+
+* Provide an implementation for the ICMPV4 module type defined in mirage-types 2.8.0.  Remove default ICMP handling from the IPv4 module, but preserve it in tcpip-stack-direct. (#195 by @yomimono)
+* Explicitly require the use of an OCaml compiler >= 4.02.3 . (#195 by @yomimono)
+* Explicitly depend on `result`. (#195 by @yomimono)
+
 ### 2.7.0 (2016-03-20)
 * Raise Invalid_argument if given an invalid port number in listen_{tcp,udp}v4
   (#173 by @matildah and #175 by @hannesm)
