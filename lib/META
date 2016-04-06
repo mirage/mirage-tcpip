@@ -1,14 +1,8 @@
 # OASIS_START
-<<<<<<< HEAD
-# DO NOT EDIT (digest: c222d1efb189e880c217174adec1d07d)
-version = "2.7.0"
-description = "Ethernet, TCP/IPv4 and DHCPv4 library"
-=======
-# DO NOT EDIT (digest: 71f162b768346818e543ecd443a3a10b)
+# DO NOT EDIT (digest: dd2b920a1839ef8eb9ed6540e9cfe180)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
->>>>>>> 1617953b4674c9c832786c1ab3236b91d00f5c25
 requires =
 "io-page mirage-types ipaddr cstruct cstruct.ppx mirage-profile bytes"
 archive(byte) = "tcpip.cma"
@@ -79,17 +73,11 @@ package "udpv4-socket" (
 )
 
 package "udp" (
-<<<<<<< HEAD
- version = "2.7.0"
- description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "io-page mirage-types ipaddr cstruct lwt tcpip result rresult tcpip"
-=======
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
->>>>>>> 1617953b4674c9c832786c1ab3236b91d00f5c25
+ requires =
+ "io-page mirage-types ipaddr cstruct lwt tcpip result rresult tcpip"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
@@ -212,16 +200,10 @@ package "ipv6-unix" (
 )
 
 package "ipv6" (
-<<<<<<< HEAD
- version = "2.7.0"
- description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip tcpip.ethif"
-=======
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
->>>>>>> 1617953b4674c9c832786c1ab3236b91d00f5c25
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip tcpip.ethif"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
@@ -242,17 +224,11 @@ package "ipv4-unix" (
 )
 
 package "ipv4" (
-<<<<<<< HEAD
- version = "2.7.0"
- description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "io-page mirage-types ipaddr cstruct lwt tcpip rresult tcpip.ethif"
-=======
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
->>>>>>> 1617953b4674c9c832786c1ab3236b91d00f5c25
+ requires =
+ "io-page mirage-types ipaddr cstruct lwt tcpip rresult tcpip.ethif"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
@@ -335,17 +311,11 @@ package "arpv4-unix" (
 )
 
 package "arpv4" (
-<<<<<<< HEAD
- version = "2.7.0"
- description = "Ethernet, TCP/IPv4 and DHCPv4 library"
- requires =
- "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.ethif"
-=======
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt"
->>>>>>> 1617953b4674c9c832786c1ab3236b91d00f5c25
+ requires =
+ "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.ethif"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"
