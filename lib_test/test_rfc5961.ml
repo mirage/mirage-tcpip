@@ -135,11 +135,11 @@ let ack_for data =
   match Tcp_parse.parse_tcp_header data with
   | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
   | Ok packet ->
-    let data_len = (Cstruct.len packet.data) +
+    let data_len = Sequence.of_int ((Cstruct.len packet.data) +
                    (if packet.fin then 1 else 0) +
-                   (if packet.syn then 1 else 0) in
-    let sequence = Sequence.of_int32 packet.sequence in
-    let ack_n = Sequence.(add sequence (of_int data_len)) in
+                   (if packet.syn then 1 else 0)) in
+    let sequence = packet.sequence in
+    let ack_n = Sequence.(add sequence data_len) in
     ack_n
 
 let ack data =
