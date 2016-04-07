@@ -17,6 +17,7 @@
 open Lwt.Infix
 
 let debug = Log.create "Wire"
+let info = Log.create ~enabled:true ~stats:false "WIRE"
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
@@ -42,9 +43,9 @@ module Make (Ip:V1_LWT.IP) = struct
       ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
       ~psh ~window ~payload with
     | Error s ->
-      Log.f debug (fun fmt -> Log.pf fmt "Error transmitting TCP packet: %s" s);
+      Log.f info (fun fmt -> Log.pf fmt "Error transmitting TCP packet: %s" s);
       Lwt.return_unit
-    | Ok len -> 
+    | Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv payload + (if syn then 1 else 0));
       Ip.writev ip frame payload
