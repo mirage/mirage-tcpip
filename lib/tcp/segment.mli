@@ -44,7 +44,7 @@ module Rx (T:V1_LWT.TIME) : sig
   val pp: Format.formatter -> t -> unit
 
   val create:
-    rx_data:(Cstruct.t list option * int option) Lwt_mvar.t ->
+    rx_data:(Cstruct.t list option * Sequence.t option) Lwt_mvar.t ->
     wnd:Window.t ->
     state:State.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->

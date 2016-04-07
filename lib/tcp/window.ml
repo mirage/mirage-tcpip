@@ -122,11 +122,11 @@ let valid t seq =
 
 (* Advance received packet sequence number *)
 let rx_advance t b =
-  t.rx_nxt <- Sequence.add t.rx_nxt (Sequence.of_int b)
+  t.rx_nxt <- Sequence.add t.rx_nxt b
 
 (* Early advance received packet sequence number for packet ordering *)
 let rx_advance_inseq t b =
-  t.rx_nxt_inseq <- Sequence.add t.rx_nxt_inseq (Sequence.of_int b)
+  t.rx_nxt_inseq <- Sequence.add t.rx_nxt_inseq b
 
 (* Next expected receive sequence number *)
 let rx_nxt t = t.rx_nxt
@@ -168,7 +168,7 @@ module Make(Clock:V1.CLOCK) = struct
       t.rtt_timer_seq <- t.tx_nxt;
       t.rtt_timer_starttime <- Clock.time ();
     end;
-    t.tx_nxt <- Sequence.add t.tx_nxt (Sequence.of_int b)
+    t.tx_nxt <- Sequence.add t.tx_nxt b
 
   (* An ACK was received - use it to adjust cwnd *)
   let tx_ack t r win =

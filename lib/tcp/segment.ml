@@ -80,9 +80,9 @@ module Rx(Time:V1_LWT.TIME) = struct
     { sequence; fin; syn; ack; rst; ack_number; window; data }
 
   let len seg =
-    (Cstruct.len seg.data) +
+    Sequence.of_int ((Cstruct.len seg.data) +
     (if seg.fin then 1 else 0) +
-    (if seg.syn then 1 else 0)
+    (if seg.syn then 1 else 0))
 
   (* Set of segments, ordered by sequence number *)
   module S = Set.Make(struct
@@ -92,7 +92,7 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   type t = {
     mutable segs: S.t;
-    rx_data: (Cstruct.t list option * int option) Lwt_mvar.t; (* User receive channel *)
+    rx_data: (Cstruct.t list option * Sequence.t option) Lwt_mvar.t; (* User receive channel *)
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
     wnd: Window.t;
     state: State.t;
@@ -104,7 +104,7 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let pp fmt t =
     let pp_v fmt seg =
-      Log.pf fmt "%a[%d]" Sequence.pp seg.sequence (len seg)
+      Log.pf fmt "%a[%a]" Sequence.pp seg.sequence Sequence.pp (len seg)
     in
     Log.pp_print_list pp_v fmt (S.elements t.segs)
 
@@ -145,7 +145,7 @@ module Rx(Time:V1_LWT.TIME) = struct
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
     (* Is this the correct way trigger an ack? *)
-    Lwt_mvar.put q.rx_data (Some [], Some 0)
+    Lwt_mvar.put q.rx_data (Some [], Some Sequence.zero)
 
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the
@@ -201,17 +201,19 @@ module Rx(Time:V1_LWT.TIME) = struct
           let urx_inform =
             (* TODO: deal with overlapping fragments *)
             let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-                (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l), ((len seg) + acc_w)
-              )ready ([], 0) in
+                (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l),
+                (Sequence.add (len seg) acc_w)
+              )ready ([], Sequence.zero) in
             let elems = List.rev elems_r in
-            let w = if !force_ack || winadv > 0 then Some winadv else None in
+            let w = if !force_ack || Sequence.(gt winadv zero)
+              then Some winadv else None in
             Lwt_mvar.put q.rx_data (Some elems, w) >>= fun () ->
             (* If the last ready segment has a FIN, then mark the receive
                window as closed and tell the application *)
             (if fin ready then begin
                 if S.cardinal waiting != 0 then
                   Log.s info "warning, rx closed but waiting segs != 0";
-                Lwt_mvar.put q.rx_data (None, Some 0)
+                Lwt_mvar.put q.rx_data (None, Some Sequence.zero)
               end else Lwt.return_unit)
           in
           tx_ack <&> urx_inform
@@ -230,7 +232,7 @@ module Rx(Time:V1_LWT.TIME) = struct
               in
               txalert (Window.ack_serviced q.wnd) >>= fun () ->
               (* Use the fin path to inform the application of end of stream *)
-              Lwt_mvar.put q.rx_data (None, Some 0)
+              Lwt_mvar.put q.rx_data (None, Some Sequence.zero)
 end
 
 
@@ -262,10 +264,11 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
 
   (* Sequence length of the segment *)
   let len seg =
-    (match seg.flags with
+    Sequence.of_int
+    ((match seg.flags with
      | No_flags | Psh | Rst -> 0
      | Syn | Fin -> 1) +
-    (Cstruct.lenv seg.data)
+    (Cstruct.lenv seg.data))
 
   (* Queue of pre-transmission segments *)
   type t = {
@@ -280,14 +283,14 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
   }
 
   let pp_seg fmt seg =
-    Log.pf fmt "[%s%d]"
+    Log.pf fmt "[%s%a]"
       (match seg.flags with
        | No_flags ->""
        | Syn ->"SYN "
        | Fin ->"FIN "
        | Rst -> "RST "
        | Psh -> "PSH ")
-      (len seg)
+      Sequence.pp (len seg)
 
   let ack_segment _ _ = ()
   (* Take any action to the user transmit queue due to this being
@@ -338,8 +341,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     | _ -> Lwt.return Tcptimer.Stoptimer
 
   let rec clearsegs q ack_remaining segs =
-    match ack_remaining > 0l with
-    | false -> 0l (* here we return 0l instead of ack_remaining in case
+    match Sequence.(gt ack_remaining zero) with
+    | false -> Sequence.zero (* here we return 0l instead of ack_remaining in case
                      the ack was an old packet in the network *)
     | true ->
       match Lwt_sequence.take_opt_l segs with
@@ -347,8 +350,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
         Log.s info "Dubious ACK received";
         ack_remaining
       | Some s ->
-        let seg_len = (Int32.of_int (len s)) in
-        match ack_remaining < seg_len with
+        let seg_len = (len s) in
+        match Sequence.lt ack_remaining seg_len with
         | true ->
           Log.s info "Partial ACK received";
           (* return uncleared segment to the sequence *)
@@ -356,15 +359,15 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           ack_remaining
         | false ->
           ack_segment q s;
-          clearsegs q (Int32.sub ack_remaining seg_len) segs
+          clearsegs q (Sequence.sub ack_remaining seg_len) segs
 
   let rto_t q tx_ack =
     (* Listen for incoming TX acks from the receive queue and ACK
        segments in our retransmission queue *)
     let rec tx_ack_t () =
       let serviceack dupack ack_len seq win =
-        let partleft = clearsegs q (Sequence.to_int32 ack_len) q.segs in
-        TX.tx_ack q.wnd (Sequence.sub seq (Sequence.of_int32 partleft)) win;
+        let partleft = clearsegs q ack_len q.segs in
+        TX.tx_ack q.wnd (Sequence.sub seq partleft) win;
         match dupack || Window.fast_rec q.wnd with
         | true ->
           q.dup_acks <- q.dup_acks + 1;
@@ -444,7 +447,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     TX.tx_advance q.wnd seq_len;
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
-      match seq_len > 0 with
+      match Sequence.(gt seq_len zero) with
       | false -> Lwt.return_unit
       | true ->
         lwt_sequence_add_r seg q.segs;

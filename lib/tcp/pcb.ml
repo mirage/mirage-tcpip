@@ -117,8 +117,8 @@ struct
       let datalen = Int32.add (if syn then 1l else 0l) (if fin then 1l else 0l) in
       let window = 0 in
       let options = [] in
-      let seq = Sequence.of_int32 ack_number in
-      let rx_ack = Some (Sequence.of_int32 (Int32.add sequence datalen)) in
+      let seq = ack_number in
+      let rx_ack = Some Sequence.(add sequence (of_int32 datalen)) in
       WIRE.xmit ~ip ~id ~rst:true ~rx_ack ~seq ~window ~options []
 
     (* Output a SYN packet *)
@@ -172,11 +172,9 @@ struct
       | Result.Error s -> Log.s debug ("Tcp_parse.parse_tcp_header: " ^ s);
         Lwt.return_unit
       | Result.Ok parsed ->
-        let sequence = Sequence.of_int32 parsed.sequence in
-        let ack_number = Sequence.of_int32 parsed.ack_number in 
         let seg =
-          RXS.segment ~sequence ~fin:parsed.fin ~syn:parsed.syn ~rst:parsed.rst
-            ~ack:parsed.ack ~ack_number ~window:parsed.window ~data:parsed.data
+          RXS.segment ~sequence:parsed.sequence ~fin:parsed.fin ~syn:parsed.syn ~rst:parsed.rst
+            ~ack:parsed.ack ~ack_number:parsed.ack_number ~window:parsed.window ~data:parsed.data
         in
         let { rxq; _ } = pcb in
         (* Coalesce any outstanding segments and retrieve ready segments *)
@@ -191,7 +189,7 @@ struct
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
         let signal_ack = function
           | None        -> Lwt.return_unit
-          | Some winadv when winadv > 0 ->
+          | Some winadv when Sequence.(gt winadv zero) ->
               Window.rx_advance wnd winadv;
               ACK.receive ack (Window.rx_nxt wnd)
           | Some winadv ->
@@ -281,7 +279,7 @@ struct
 
   type pcb_params =
     { tx_wnd: int;
-      sequence: int32;
+      sequence: Sequence.t;
       options: Options.t list;
       tx_isn: Sequence.t;
       rx_wnd: int;
@@ -299,7 +297,7 @@ struct
       resolve_wnd_scaling options rx_wnd_scaleoffer
     in
     (* Set up the windowing variables *)
-    let rx_isn = Sequence.of_int32 sequence in
+    let rx_isn = sequence in
     (* Initialise the window handler *)
     let wnd =
       Window.t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss
@@ -384,7 +382,7 @@ struct
     (* Add the PCB to our connection table *)
     Hashtbl.add t.channels id (pcb, th);
     Stats.incr_channel ();
-    STATE.tick pcb.state (State.Recv_synack (Sequence.of_int32 ack_number));
+    STATE.tick pcb.state (State.Recv_synack ack_number);
     (* xmit ACK *)
     TXS.output pcb.txq [] >>= fun () ->
     Lwt.return (pcb, th)
@@ -395,7 +393,7 @@ struct
         match hashtbl_find t.connects id with
         | Some (wakener, tx_isn) ->
           (* We don't send data in the syn request, so the expected ack is tx_isn + 1 *)
-          if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+          if Sequence.(compare (incr tx_isn) ack_number = 0) then (
             Hashtbl.remove t.connects id;
             Stats.decr_connect ();
             Lwt.wakeup wakener `Rst;
@@ -421,7 +419,7 @@ struct
     Log.f debug (with_stats "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
-      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+      if Sequence.(compare (incr tx_isn) ack_number = 0) then (
         Hashtbl.remove t.connects id;
         Stats.decr_connect ();
         let rx_wnd = 65535 in
@@ -464,7 +462,7 @@ struct
     Log.f debug (with_stats "process-ack" t);
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
-      if Sequence.(to_int32 (incr tx_isn)) = ack_number then (
+      if Sequence.(compare (incr tx_isn) ack_number = 0) then (
         (* Established connection - promote to active channels *)
         Hashtbl.remove t.listens id;
         Stats.decr_listen ();

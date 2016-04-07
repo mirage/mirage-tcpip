@@ -25,13 +25,13 @@ val t : rx_wnd_scale:int -> tx_wnd_scale:int -> rx_wnd:int ->
 
 val valid : t -> Sequence.t -> bool
 
-val rx_advance : t -> int -> unit
-val rx_advance_inseq : t -> int -> unit
+val rx_advance : t -> Sequence.t -> unit
+val rx_advance_inseq : t -> Sequence.t -> unit
 val rx_nxt : t -> Sequence.t
 val rx_nxt_inseq : t -> Sequence.t
 
 module Make(C:V1.CLOCK) : sig
-  val tx_advance : t -> int -> unit
+  val tx_advance : t -> Sequence.t -> unit
   val tx_ack: t -> Sequence.t -> int -> unit
 end
 
