@@ -1,7 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 314afb37911f24f79e3d807ce7d5bf18)
+# DO NOT EDIT (digest: fb01154df80fb083ad29e3814c5752db)
 Options
-Wire
 State
 Tcptimer
 Sequence
@@ -13,6 +12,8 @@ Pcb
 Flow
 Stats
 Log
+Wire
 Tcp_wire
 Tcp_parse
+Tcp_print
 # OASIS_STOP
