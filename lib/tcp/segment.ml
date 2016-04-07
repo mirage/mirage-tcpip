@@ -123,24 +123,24 @@ module Rx(Time:V1_LWT.TIME) = struct
   let is_empty q = S.is_empty q.segs
 
   let check_valid_segment q seg =
-      if seg.rst then
-        if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
-          `Reset
-        else if Window.valid q.wnd seg.sequence then
-           `ChallengeAck
-        else
-            `Drop
-      else if seg.syn then
-          `ChallengeAck
+    if seg.rst then
+      if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
+        `Reset
       else if Window.valid q.wnd seg.sequence then
-          let min = Sequence.(sub (Window.tx_una q.wnd) (of_int32 (Window.max_tx_wnd q.wnd))) in
-          if Sequence.between seg.ack_number min (Window.tx_nxt q.wnd) then
-              `Ok
-          else
-              (* rfc5961 5.2 *)
-              `ChallengeAck
+        `ChallengeAck
       else
-          `Drop
+        `Drop
+    else if seg.syn then
+      `ChallengeAck
+    else if Window.valid q.wnd seg.sequence then
+      let min = Sequence.(sub (Window.tx_una q.wnd) (of_int32 (Window.max_tx_wnd q.wnd))) in
+      if Sequence.between seg.ack_number min (Window.tx_nxt q.wnd) then
+        `Ok
+      else
+        (* rfc5961 5.2 *)
+        `ChallengeAck
+    else
+      `Drop
 
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
