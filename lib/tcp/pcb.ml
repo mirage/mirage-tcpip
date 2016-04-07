@@ -172,13 +172,9 @@ struct
       | Result.Error s -> Log.s debug ("Tcp_parse.parse_tcp_header: " ^ s);
         Lwt.return_unit
       | Result.Ok parsed ->
-        let seg =
-          RXS.segment ~sequence:parsed.sequence ~fin:parsed.fin ~syn:parsed.syn ~rst:parsed.rst
-            ~ack:parsed.ack ~ack_number:parsed.ack_number ~window:parsed.window ~data:parsed.data
-        in
         let { rxq; _ } = pcb in
         (* Coalesce any outstanding segments and retrieve ready segments *)
-        RXS.input rxq seg
+        RXS.input rxq parsed
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
