@@ -26,6 +26,6 @@ type t =
   | Unknown of int * string         (** RFC793 *)
 
 val marshal: Cstruct.t -> t list -> int
-val unmarshal : Cstruct.t -> t list
+val unmarshal : Cstruct.t -> (t list, string) Result.result
 val pp : Format.formatter -> t -> unit
 val pps : Format.formatter -> t list -> unit

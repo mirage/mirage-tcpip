@@ -94,10 +94,11 @@ let unmarshal buf =
                Ok (Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2)))
            end
       ) buf in
-  Cstruct.fold (fun a -> function
-      | Ok item -> item :: a
-      | Error _ -> a
-    ) i []
+  Cstruct.fold (fun a b ->
+      match a, b with
+      | Ok items, Ok item -> Ok (item :: items)
+      | _, Error s | Error s, _ -> Error s
+    ) i (Ok [])
 
 let write_iter buf =
   let set_tlen t l =
