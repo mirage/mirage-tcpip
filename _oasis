@@ -50,9 +50,9 @@ Library arpv4
   Path:               lib/arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
-  Modules:            Arpv4, Arpv4_wire
+  Modules:            Arpv4, Arpv4_wire, Arpv4_parse, Arpv4_print
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip.ethif
+                      tcpip.ethif,result,rresult
 
 Library ipv4
   CompiledObject:     best

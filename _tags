@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 620e3f7ea3751f95dc10f55e38bc9e32)
+# DO NOT EDIT (digest: ca4d91f86d185d6cdce33a4abf5e48f1)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -52,6 +52,8 @@ true: annot, bin_annot
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-types
+<lib/arpv4/*.ml{,i,y}>: pkg_result
+<lib/arpv4/*.ml{,i,y}>: pkg_rresult
 <lib/arpv4/*.ml{,i,y}>: use_ethif
 <lib/arpv4/*.ml{,i,y}>: use_tcpip
 # Library ipv4

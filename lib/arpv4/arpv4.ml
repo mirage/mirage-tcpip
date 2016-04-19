@@ -20,14 +20,6 @@ open Printf
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
-  type arp = {
-    op: [ `Request |`Reply |`Unknown of int ];
-    sha: Macaddr.t;
-    spa: Ipaddr.V4.t;
-    tha: Macaddr.t;
-    tpa: Ipaddr.V4.t;
-  }
-
   type result = [ `Ok of Macaddr.t | `Timeout ]
 
   type entry =
@@ -91,69 +83,49 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     | Not_found ->
       Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
-  (* Input handler for an ARP packet, registered through attach() *)
-  let rec input t frame =
-    let open Arpv4_wire in
-    MProf.Trace.label "arpv4.input";
-    match get_arp_op frame with
-    |1 -> (* Request *)
-      (* Received ARP request, check if we can satisfy it from
-         our own IPv4 list *)
-      let req_ipv4 = Ipaddr.V4.of_int32 (get_arp_tpa frame) in
-      (* printf "ARP: who-has %s?\n%!" (Ipaddr.V4.to_string req_ipv4); *)
-      if List.mem req_ipv4 t.bound_ips then begin
-        printf "ARP responding to: who-has %s?\n%!" (Ipaddr.V4.to_string req_ipv4);
-        (* We own this IP, so reply with our MAC *)
-        let sha = Ethif.mac t.ethif in
-        let tha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
-        let spa = Ipaddr.V4.of_int32 (get_arp_tpa frame) in (* the requested address *)
-        let tpa = Ipaddr.V4.of_int32 (get_arp_spa frame) in (* the requesting host IPv4 *)
-        output t { op=`Reply; sha; tha; spa; tpa }
-      end else Lwt.return_unit
-    |2 -> (* Reply *)
-      let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
-      let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
-      printf "ARP: updating %s -> %s\n%!"
-        (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
-      (* If we have pending entry, notify the waiters that answer is ready *)
-      notify t spa sha;
-      Lwt.return_unit
-    |n ->
-      printf "ARP: Unknown message %d ignored\n%!" n;
-      Lwt.return_unit
-
-  and output t arp =
-    let open Arpv4_wire in
+  let output t arp =
+    let open Arpv4_parse in
     let open Ethif_wire in
     (* Obtain a buffer to write into *)
-    let buf = Io_page.to_cstruct (Io_page.get 1) in
+    let buf = Io_page.(get 1 |> to_cstruct) in
     (* Write the ARP packet *)
-    let dmac = Macaddr.to_bytes arp.tha in
-    let smac = Macaddr.to_bytes arp.sha in
-    let spa = Ipaddr.V4.to_int32 arp.spa in
-    let tpa = Ipaddr.V4.to_int32 arp.tpa in
-    let op =
+    match Arpv4_print.print_arpv4_header ~buf:(Cstruct.shift buf sizeof_ethernet)
+      ~src_ip:arp.spa ~dst_ip:arp.tpa ~src_mac:arp.sha ~dst_mac:arp.tha
+      ~op:arp.op with
+    | Result.Error s -> (* TODO: log an error *) Lwt.return_unit
+    | Result.Ok () ->
+      set_ethernet_dst (Macaddr.to_bytes arp.tha) 0 buf;
+      set_ethernet_src (Macaddr.to_bytes arp.sha) 0 buf;
+      set_ethernet_ethertype buf (ethertype_to_int ARP);
+      (* Resize buffer to sizeof arp packet *)
+      let buf = Cstruct.set_len buf (Arpv4_wire.sizeof_arp + sizeof_ethernet) in
+      Ethif.write t.ethif buf
+
+  (* Input handler for an ARP packet *)
+  let input t frame =
+    let open Arpv4_wire in
+    MProf.Trace.label "arpv4.input";
+    match Arpv4_parse.parse_arpv4_header frame with
+    | Result.Error _ -> (* TODO: log an error *) Lwt.return_unit
+    | Result.Ok arp ->
       match arp.op with
-      |`Request -> 1
-      |`Reply -> 2
-      |`Unknown n -> n
-    in
-    set_ethernet_dst dmac 0 buf;
-    set_ethernet_src smac 0 buf;
-    set_ethernet_ethertype buf 0x0806; (* ARP *)
-    let arpbuf = Cstruct.shift buf 14 in
-    set_arp_htype arpbuf 1;
-    set_arp_ptype arpbuf 0x0800; (* IPv4 *)
-    set_arp_hlen arpbuf 6; (* ethernet mac size *)
-    set_arp_plen arpbuf 4; (* ipv4 size *)
-    set_arp_op arpbuf op;
-    set_arp_sha smac 0 arpbuf;
-    set_arp_spa arpbuf spa;
-    set_arp_tha dmac 0 arpbuf;
-    set_arp_tpa arpbuf tpa;
-    (* Resize buffer to sizeof arp packet *)
-    let buf = Cstruct.set_len buf (sizeof_arp + sizeof_ethernet) in
-    Ethif.write t.ethif buf
+      | Reply -> (* Reply *)
+        (* If we have pending entry, notify the waiters that answer is ready *)
+        notify t arp.spa arp.sha;
+        Lwt.return_unit
+      | Request ->
+        (* Received ARP request, check if we can satisfy it from
+           our own IPv4 list *)
+        match List.mem arp.tpa t.bound_ips with
+        | true ->
+          let open Arpv4_parse in
+          (* We own this IP, so reply with our MAC *)
+          let sha = Ethif.mac t.ethif in
+          let tha = arp.sha in
+          let spa = arp.tpa in (* the requested address *)
+          let tpa = arp.spa in (* the requesting host IPv4 *)
+          output t (Arpv4_wire.{ op=Reply; sha; tha; spa; tpa })
+        | false -> Lwt.return_unit
 
   (* Send a gratuitous ARP for our IP addresses *)
   let output_garp t =
@@ -161,8 +133,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let sha = Ethif.mac t.ethif in
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
-        printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
-        output t { op=`Reply; tha; sha; tpa; spa }
+        output t Arpv4_wire.({ op=Reply; tha; sha; tpa; spa })
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
@@ -171,9 +142,11 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
+    (* that's garbage! pick the one most likely to be on the same subnet as the
+       tpa *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
-    output t { op=`Request; tha; sha; tpa; spa }
+    output t Arpv4_wire.({ op=Request; tha; sha; tpa; spa })
 
   let get_ips t = t.bound_ips
 
