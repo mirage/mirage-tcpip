@@ -12,9 +12,9 @@ type arp = {
 } [@@big_endian]
 ]
 
-[@@cenum
+[%%cenum
 type op =
-  | Op_request [@id 1]
-  | Op_reply
+  | Request [@id 1]
+  | Reply
   [@@uint16_t]
 ]

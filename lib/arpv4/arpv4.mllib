@@ -1,5 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 5194760ef3cd01243f8b4b4dc5e5d3b9)
+# DO NOT EDIT (digest: f1efa9ee56fa4bbefa1a135f1a0dd45b)
 Arpv4
 Arpv4_wire
+Arpv4_parse
+Arpv4_print
 # OASIS_STOP
