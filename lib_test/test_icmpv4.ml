@@ -139,7 +139,7 @@ let echo_request () =
     | Error s -> Alcotest.fail ("echo request got an unparseable reply: " ^ s)
     | Ok reply ->
       let (Icmpv4_parse.Id_and_seq (id, seq)) = reply.subheader in
-      Alcotest.(check int) "icmp response type" 0x00 reply.ty; (* expect an icmp echo reply *)
+      Alcotest.(check int) "icmp response type" 0x00 (Icmpv4_wire.ty_to_int reply.ty); (* expect an icmp echo reply *)
       Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
       Alcotest.(check int) "icmp echo-reply id" id_no id;
       Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
@@ -163,7 +163,7 @@ let echo_silent () =
     match input buf with
     | Error str -> Alcotest.fail ("received a strange ICMP message: " ^ str)
     | Ok message ->
-      match message.ty with
+      match (Icmpv4_wire.ty_to_int message.ty) with
       | 0 -> Alcotest.fail "received an ICMP echo reply even though we shouldn't have"
       | 8 -> Printf.printf "received an ICMP echo request; ignoring it";
         Lwt.return_unit
