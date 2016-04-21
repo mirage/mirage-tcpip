@@ -78,7 +78,7 @@ Library icmpv4
   Findlibparent:      tcpip
   Findlibname:        icmpv4
   Modules:            Icmpv4, Icmpv4_parse, Icmpv4_print, Icmpv4_wire
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult
 
 Library udp
   CompiledObject:     best
