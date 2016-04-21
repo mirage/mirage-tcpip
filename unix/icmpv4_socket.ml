@@ -23,10 +23,29 @@ let pp_sockaddr fmt sa =
   | ADDR_UNIX s -> Format.fprintf fmt "%s" s
   | ADDR_INET (ip, port) -> Format.fprintf fmt "%s, %d" (Unix.string_of_inet_addr ip) port
 
+let write t ~dst buf =
+  let open Lwt_unix in
+  let flags = [] in
+  let ipproto_icmp = 1 in (* according to BSD /etc/protocols *)
+  let port = 0 in (* port isn't meaningful in this context *)
+  let fd = socket PF_INET SOCK_DGRAM ipproto_icmp in
+  let in_addr = Unix.inet_addr_of_string (Ipaddr.V4.to_string dst) in
+  let sockaddr = ADDR_INET (in_addr, port) in
+  Lwt_cstruct.sendto fd buf flags sockaddr >>= fun _sent ->
+  (* TODO: log short reads? *)
+  Lwt_unix.close fd
+
 let input t ~src ~dst buf =
-  (* TODO: obviously, not great *)
-  raise (Failure "unimplemented, sorry :(");
-  Lwt.return_unit
+  (* some default logic -- respond to echo requests with echo replies *)
+  let open Icmpv4_wire in
+  match Icmpv4_parse.input buf with
+  | Error _ -> (* TODO: log error *) Lwt.return_unit
+  | Result.Ok icmp ->
+    match icmp.ty, icmp.subheader with
+    | Echo_request, Id_and_seq (id, seq) ->
+      let response = Icmpv4_print.echo_request ?payload:icmp.payload id seq in
+      write t ~dst:src response
+    | _, _ -> Lwt.return_unit
 
 let listen t addr fn =
   let open Lwt_unix in
@@ -41,16 +60,4 @@ let listen t addr fn =
     fn receive_buffer
   in
   aux fn >>= fun () -> close fd
-
-let write t ~dst buf =
-  let open Lwt_unix in
-  let flags = [] in
-  let ipproto_icmp = 1 in (* according to BSD /etc/protocols *)
-  let port = 0 in (* port isn't meaningful in this context *)
-  let fd = socket PF_INET SOCK_DGRAM ipproto_icmp in
-  let in_addr = Unix.inet_addr_of_string (Ipaddr.V4.to_string dst) in
-  let sockaddr = ADDR_INET (in_addr, port) in
-  Lwt_cstruct.sendto fd buf flags sockaddr >>= fun _sent ->
-  (* TODO: log short reads? *)
-  Lwt_unix.close fd
 
