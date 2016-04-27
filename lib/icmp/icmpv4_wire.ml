@@ -23,3 +23,24 @@ type ty =
   | Information_reply
   [@@uint8_t]
 ]
+
+[%%cenum
+type unreachable_reason =
+  | Network_unreachable [@id 0]
+  | Host_unreachable
+  | Protocol_unreachable
+  | Port_unreachable
+  | Would_fragment
+  | Source_route_failed
+  | Destination_network_unknown
+  | Destination_host_unknown
+  | Source_host_isolated
+  | Destination_net_prohibited
+  | Destination_host_prohibited
+  | TOS_network_unreachable
+  | TOS_host_unreachable
+  | Communication_prohibited
+  | Host_precedence_violation
+  | Precedence_insufficient [@id 15]
+  [@@uint8_t]
+]
