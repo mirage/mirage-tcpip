@@ -77,6 +77,7 @@ module Rx(Time:V1_LWT.TIME) = struct
       Sequence.pp seg.ack_number seg.window
 
   let segment_of_parse (parsed_packet : Tcp_parse.t) : segment =
+    let open Tcp_parse in
     {
       sequence = parsed_packet.sequence;
       data = parsed_packet.data;
@@ -134,7 +135,8 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let is_empty q = S.is_empty q.segs
 
-  let check_valid_segment q (seg : Tcp_parse.t) =
+  let check_valid_segment q seg =
+    let open Tcp_parse in
     if seg.rst then
       if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
         `Reset
@@ -163,7 +165,8 @@ module Rx(Time:V1_LWT.TIME) = struct
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
-    match check_valid_segment q (seg : Tcp_parse.t) with
+    let open Tcp_parse in
+    match check_valid_segment q seg with
     | `Ok ->
       let force_ack = ref false in
       (* Insert the latest segment *)
