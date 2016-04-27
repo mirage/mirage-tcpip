@@ -103,17 +103,17 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet *)
   let input t frame =
-    let open Arpv4_wire in
+    let open Arpv4_parse in
     MProf.Trace.label "arpv4.input";
-    match Arpv4_parse.parse_arpv4_header frame with
+    match parse_arpv4_header frame with
     | Result.Error _ -> (* TODO: log an error *) Lwt.return_unit
     | Result.Ok arp ->
       match arp.op with
-      | Reply -> (* Reply *)
+      | Arpv4_wire.Reply -> (* Reply *)
         (* If we have pending entry, notify the waiters that answer is ready *)
         notify t arp.spa arp.sha;
         Lwt.return_unit
-      | Request ->
+      | Arpv4_wire.Request ->
         (* Received ARP request, check if we can satisfy it from
            our own IPv4 list *)
         match List.mem arp.tpa t.bound_ips with
@@ -133,7 +133,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let sha = Ethif.mac t.ethif in
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
-        output t Arpv4_wire.({ op=Reply; tha; sha; tpa; spa })
+        output t Arpv4_parse.({ op=Arpv4_wire.Reply; tha; sha; tpa; spa })
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
@@ -146,7 +146,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
        tpa *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
-    output t Arpv4_wire.({ op=Request; tha; sha; tpa; spa })
+    output t Arpv4_parse.({ op=Arpv4_wire.Request; tha; sha; tpa; spa })
 
   let get_ips t = t.bound_ips
 
