@@ -42,7 +42,7 @@ Library ethif
   Path:               lib/ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Ethif_wire, Ethif_parse
+  Modules:            Ethif, Ethif_wire, Ethif_parse, Ethif_print
   BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
 
 Library arpv4
