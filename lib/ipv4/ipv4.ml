@@ -109,21 +109,17 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let allocate_frame t ~dst ~proto =
     let open Ipv4_wire in
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-    let smac = Macaddr.to_bytes (Ethif.mac t.ethif) in
-    Ethif_wire.set_ethernet_src smac 0 ethernet_frame;
-    Ethif_wire.set_ethernet_ethertype ethernet_frame 0x0800;
-    let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
-    (* Write the constant IPv4 header fields *)
-    set_ipv4_hlen_version buf ((4 lsl 4) + (5)); (* TODO options *)
-    set_ipv4_tos buf 0;
-    set_ipv4_off buf 0; (* TODO fragmentation *)
-    set_ipv4_ttl buf 38; (* TODO *)
-    let proto = Ipv4_print.protocol_to_int proto in
-    set_ipv4_proto buf proto;
-    set_ipv4_src buf (Ipaddr.V4.to_int32 t.ip);
-    set_ipv4_dst buf (Ipaddr.V4.to_int32 dst);
-    let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
-    (ethernet_frame, len)
+    match Ethif_print.print_ethif_header ~buf:ethernet_frame
+      ~ethertype:Ethif_wire.IPv4 ~src_mac:(Ethif.mac t.ethif)
+      ~dst_mac:(Macaddr.broadcast) with
+    | Error s -> failwith s (* TODO: better error reporting *)
+    | Ok () ->
+      let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
+      match Ipv4_print.print_ipv4_header ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
+      | Error s -> failwith s (* TODO: very little we can do about this *)
+      | Ok () ->
+        let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
+        (ethernet_frame, len)
 
   let writev t frame bufs =
     let v4_frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in

@@ -85,21 +85,20 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   let output t arp =
     let open Arpv4_parse in
-    let open Ethif_wire in
     (* Obtain a buffer to write into *)
-    let buf = Io_page.(get 1 |> to_cstruct) in
+    let buf = Cstruct.create (Ethif_wire.sizeof_ethernet + Arpv4_wire.sizeof_arp) in
     (* Write the ARP packet *)
-    match Arpv4_print.print_arpv4_header ~buf:(Cstruct.shift buf sizeof_ethernet)
+    match Arpv4_print.print_arpv4_header
+      ~buf:(Cstruct.shift buf Ethif_wire.sizeof_ethernet)
       ~src_ip:arp.spa ~dst_ip:arp.tpa ~src_mac:arp.sha ~dst_mac:arp.tha
       ~op:arp.op with
-    | Result.Error s -> (* TODO: log an error *) Lwt.return_unit
-    | Result.Ok () ->
-      set_ethernet_dst (Macaddr.to_bytes arp.tha) 0 buf;
-      set_ethernet_src (Macaddr.to_bytes arp.sha) 0 buf;
-      set_ethernet_ethertype buf (ethertype_to_int ARP);
-      (* Resize buffer to sizeof arp packet *)
-      let buf = Cstruct.set_len buf (Arpv4_wire.sizeof_arp + sizeof_ethernet) in
-      Ethif.write t.ethif buf
+    | Error s -> (* TODO: log an error *) Lwt.return_unit
+    | Ok () ->
+      let ethertype = Ethif_wire.ARP in
+      match Ethif_print.print_ethif_header ~buf ~ethertype ~src_mac:arp.sha ~dst_mac:arp.tha with
+      | Error s -> (* TODO: log an error *) Lwt.return_unit
+      | Ok () ->
+        Ethif.write t.ethif buf
 
   (* Input handler for an ARP packet *)
   let input t frame =
@@ -109,7 +108,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     | Result.Error _ -> (* TODO: log an error *) Lwt.return_unit
     | Result.Ok arp ->
       match arp.op with
-      | Arpv4_wire.Reply -> (* Reply *)
+      | Arpv4_wire.Reply ->
         (* If we have pending entry, notify the waiters that answer is ready *)
         notify t arp.spa arp.sha;
         Lwt.return_unit
@@ -117,6 +116,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         (* Received ARP request, check if we can satisfy it from
            our own IPv4 list *)
         match List.mem arp.tpa t.bound_ips with
+        | false -> Lwt.return_unit
         | true ->
           let open Arpv4_parse in
           (* We own this IP, so reply with our MAC *)
@@ -125,7 +125,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
           let spa = arp.tpa in (* the requested address *)
           let tpa = arp.spa in (* the requesting host IPv4 *)
           output t (Arpv4_wire.{ op=Reply; sha; tha; spa; tpa })
-        | false -> Lwt.return_unit
 
   (* Send a gratuitous ARP for our IP addresses *)
   let output_garp t =
@@ -142,8 +141,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
-    (* that's garbage! pick the one most likely to be on the same subnet as the
-       tpa *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
     output t Arpv4_parse.({ op=Arpv4_wire.Request; tha; sha; tpa; spa })
@@ -169,14 +166,11 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
      waiting for a response *)
   let query t ip =
     try match Hashtbl.find t.cache ip with
-      | Pending (t, _) ->
-        t
-      | Confirmed (_, mac) ->
-        Lwt.return (`Ok mac)
+      | Pending (t, _) -> t
+      | Confirmed (_, mac) -> Lwt.return (`Ok mac)
     with
     | Not_found ->
       let response, waker = MProf.Trace.named_wait "ARP response" in
-      (* printf "ARP query: %s -> [probe]\n%!" (Ipaddr.V4.to_string ip); *)
       Hashtbl.add t.cache ip (Pending (response, waker));
       let rec retry n () =
         (* First request, so send a query packet *)
