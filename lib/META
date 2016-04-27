@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 21332f733b7f33054af3969de5d8005b)
+# DO NOT EDIT (digest: 4aa61e24db5c47ec70fcfb619484744e)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -277,7 +277,7 @@ package "ethif" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "tcpip io-page mirage-types ipaddr cstruct lwt"
+ requires = "tcpip io-page mirage-types ipaddr cstruct lwt rresult"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"

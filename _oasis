@@ -43,7 +43,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_parse, Ethif_print
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt
+  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt,rresult
 
 Library arpv4
   CompiledObject:     best

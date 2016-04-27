@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 19ed304ad54ab1587f62dea17c156df3)
+# DO NOT EDIT (digest: e0d1c8cb572d3de4f7153f0a6aa58699)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -41,6 +41,7 @@ true: annot, bin_annot
 <lib/ethif/*.ml{,i,y}>: pkg_lwt
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-types
+<lib/ethif/*.ml{,i,y}>: pkg_rresult
 <lib/ethif/*.ml{,i,y}>: use_tcpip
 # Library arpv4
 "lib/arpv4/arpv4.cmxs": use_arpv4
@@ -79,6 +80,7 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_lwt
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv6/*.ml{,i,y}>: pkg_rresult
 <lib/ipv6/*.ml{,i,y}>: use_ethif
 <lib/ipv6/*.ml{,i,y}>: use_tcpip
 # Library icmpv4
