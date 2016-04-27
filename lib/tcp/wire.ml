@@ -42,10 +42,10 @@ module Make (Ip:V1_LWT.IP) = struct
     match Tcp_print.print_tcp_header ~tcp_buf ~src_port:id.local_port
       ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
       ~psh ~window ~payload with
-    | Error s ->
+    | Result.Error s ->
       Log.f info (fun fmt -> Log.pf fmt "Error transmitting TCP packet: %s" s);
       Lwt.return_unit
-    | Ok len ->
+    | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv payload + (if syn then 1 else 0));
       Ip.writev ip frame payload
