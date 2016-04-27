@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 open Lwt
+open Result
 open Common
 
 (*
@@ -132,7 +133,8 @@ let reply_id_from ~src ~dst data =
    local_ip = dst}
 
 let ack_for data =
-  match Tcp_parse.parse_tcp_header data with
+  let open Tcp_parse in
+  match parse_tcp_header data with
   | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
   | Ok packet ->
     let data_len = Sequence.of_int ((Cstruct.len packet.data) +
