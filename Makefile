@@ -39,16 +39,3 @@ configure:
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 # OASIS_STOP
-
-VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
-NAME    = $(shell grep 'Name:' _oasis    | sed 's/Name: *//')
-ARCHIVE = https://github.com/mirage/mirage-tcpip/archive/v$(VERSION).tar.gz
-
-release:
-	git tag -a v$(VERSION) -m "Version $(VERSION)."
-	git push upstream v$(VERSION)
-	$(MAKE) pr
-
-pr:
-	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
-	OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
