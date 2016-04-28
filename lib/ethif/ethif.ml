@@ -43,15 +43,13 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match parse_ethernet_frame frame with
-    | Some (typ, destination, payload) when of_interest destination ->
+    match parse_ethernet_header frame with
+    | Ok header when of_interest header.destination ->
       begin
-        let open Ethif_wire in
-        match typ with
-        | Some ARP -> arpv4 payload
-        | Some IPv4 -> ipv4 payload
-        | Some IPv6 -> ipv6 payload
-        | None -> Lwt.return_unit (* TODO: default ethertype payload handler *)
+        match header.ethertype with
+        | ARP -> arpv4 header.payload
+        | IPv4 -> ipv4 header.payload
+        | IPv6 -> ipv6 header.payload
       end
     | _ -> Lwt.return_unit
 
