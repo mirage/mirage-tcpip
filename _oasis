@@ -86,8 +86,7 @@ Library udp
   Findlibparent:      tcpip
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_parse, Udp_print
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult,
-                      tcpip
+  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult
 
 Library tcp
   CompiledObject:     best
@@ -367,7 +366,7 @@ Executable test
                       mirage-profile, mirage-flow, mirage-vnetif,
                       mirage-console.unix, mirage-clock-unix, pcap-format,
                       tcpip.ethif, tcpip.arpv4, tcpip.ipv4, tcpip.tcp, tcpip.udp,
-                      tcpip.stack-direct
+                      tcpip.stack-direct,tcpip.icmpv4
 
 Test test
   Run$:               flag(tests)
