@@ -17,6 +17,9 @@
 open Lwt.Infix
 open Printf
 
+let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   (** IO operation errors *)
@@ -78,19 +81,17 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       |ip when Ipaddr.V4.is_multicast ip ->
         Lwt.return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
-          let out = Ipaddr.V4.to_string in
           match t.gateways with
           |hd::_ ->
             Arpv4.query t.arp hd >>= begin function
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
-                printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
-                  (out ip) (out hd) ;
+                Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
+                             Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum hd);
                 Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
-            printf "IP.output: no route to %s (no default gateway is configured)\n%!"
-              (out ip);
+            Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
   end
