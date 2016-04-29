@@ -1,5 +1,8 @@
 open Result
 
+let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make(IP : V1_LWT.IPV4) = struct
   type buffer = Cstruct.t
   type 'a io = 'a Lwt.t
@@ -10,8 +13,8 @@ module Make(IP : V1_LWT.IPV4) = struct
     echo_reply : bool;
   }
 
-  let pp_dst_unreachable buf =
-    Printf.sprintf "ICMP Destination Unreachable: %s\n%!" @@
+  let pp_dst_unreachable fmt buf =
+    Format.fprintf fmt "ICMP Destination Unreachable: %s" @@
     match Icmpv4_wire.get_icmpv4_code buf with
     | 0  -> "Destination network unreachable"
     | 1  -> "Destination host unreachable"
@@ -45,9 +48,9 @@ module Make(IP : V1_LWT.IPV4) = struct
     MProf.Trace.label "icmp_input";
     match Icmpv4_wire.get_icmpv4_ty buf with
     |0 -> (* echo reply *)
-      printf "ICMP: discarding echo reply from %s\n%!" (Ipaddr.V4.to_string src);
+      Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
       Lwt.return_unit
-    |3 -> printf "%s\n%!" (pp_dst_unreachable buf); Lwt.return_unit
+    |3 -> Log.info (fun f -> f "%a" pp_dst_unreachable buf); Lwt.return_unit
     |8 -> if t.echo_reply && should_reply t dst then begin
       (* convert the echo request into an echo reply *)
       let csum =
@@ -62,7 +65,7 @@ module Make(IP : V1_LWT.IPV4) = struct
       IP.write t.ip frame buf
       end else Lwt.return_unit
     |ty ->
-      printf "ICMP unknown ty %d from %s\n" ty (Ipaddr.V4.to_string src);
+      Log.info (fun f -> f "ICMP unknown ty %d from %a" ty Ipaddr.V4.pp_hum src);
       Lwt.return_unit
 
   type error = [ `Routing | `Unknown ]
