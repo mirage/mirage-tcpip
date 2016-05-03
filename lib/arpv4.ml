@@ -18,6 +18,9 @@
 open Lwt.Infix
 open Printf
 
+let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP handler"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
   type arp = {
@@ -60,7 +63,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | Pending _ -> expired
         | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
     in
-    List.iter (fun ip -> printf "ARP: timeout %s\n%!" (Ipaddr.V4.to_string ip)) expired;
+    List.iter (fun ip -> Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip)) expired;
     List.iter (Hashtbl.remove t.cache) expired;
     Time.sleep arp_timeout >>= tick t
 
@@ -102,7 +105,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       let req_ipv4 = Ipaddr.V4.of_int32 (get_arp_tpa frame) in
       (* printf "ARP: who-has %s?\n%!" (Ipaddr.V4.to_string req_ipv4); *)
       if List.mem req_ipv4 t.bound_ips then begin
-        printf "ARP responding to: who-has %s?\n%!" (Ipaddr.V4.to_string req_ipv4);
+        Log.info (fun f -> f "ARP responding to: who-has %a?" Ipaddr.V4.pp_hum req_ipv4);
         (* We own this IP, so reply with our MAC *)
         let sha = Ethif.mac t.ethif in
         let tha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
@@ -113,13 +116,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     |2 -> (* Reply *)
       let spa = Ipaddr.V4.of_int32 (get_arp_spa frame) in
       let sha = Macaddr.of_bytes_exn (copy_arp_sha frame) in
-      printf "ARP: updating %s -> %s\n%!"
-        (Ipaddr.V4.to_string spa) (Macaddr.to_string sha);
+      Log.info (fun f -> f "ARP: updating %a -> %s"
+        Ipaddr.V4.pp_hum spa (Macaddr.to_string sha));
       (* If we have pending entry, notify the waiters that answer is ready *)
       notify t spa sha;
       Lwt.return_unit
     |n ->
-      printf "ARP: Unknown message %d ignored\n%!" n;
+      Log.info (fun f -> f "ARP: Unknown message %d ignored" n);
       Lwt.return_unit
 
   and output t arp =
@@ -160,13 +163,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let sha = Ethif.mac t.ethif in
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
-        printf "ARP: sending gratuitous from %s\n%!" (Ipaddr.V4.to_string spa);
+        Log.info (fun f -> f "ARP: sending gratuitous from %a" Ipaddr.V4.pp_hum spa);
         output t { op=`Reply; tha; sha; tpa; spa }
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
   let output_probe t tpa =
-    printf "ARP: transmitting probe -> %s\n%!" (Ipaddr.V4.to_string tpa);
+    Log.info (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
@@ -213,7 +216,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | `Timeout ->
           if n < probe_num then begin
             let n = n+1 in
-            printf "ARP: retrying %s (n=%d)\n%!" (Ipaddr.V4.to_string ip) n;
+            Log.info (fun f -> f "ARP: retrying %a (n=%d)" Ipaddr.V4.pp_hum ip n);
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;

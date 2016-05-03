@@ -15,10 +15,12 @@
  *
  *)
 
-open Lwt.Infix
-open Printf
+let src = Logs.Src.create "dhcp-clientv4" ~doc:"Mirage TCPIP's IPv4 DHCP client"
+module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (Console : V1_LWT.CONSOLE)
+open Lwt.Infix
+
+module Make
     (Time : V1_LWT.TIME)
     (Random : V1.RANDOM)
     (Udp : V1_LWT.UDPV4) = struct
@@ -40,7 +42,6 @@ module Make (Console : V1_LWT.CONSOLE)
     | Shutting_down
 
   type t = {
-    c: Console.t;
     udp: Udp.t;
     mac: Macaddr.t;
     mutable state: state;
@@ -98,8 +99,7 @@ module Make (Console : V1_LWT.CONSOLE)
     set_dhcp_cookie buf 0x63825363l;
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
-    Console.log_s t.c (sprintf "Sending DHCP broadcast (length %d)" total_len)
-    >>= fun () ->
+    Log.info (fun f -> f "Sending DHCP broadcast (length %d)" total_len);
     Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
 
   (* Receive a DHCP UDP packet *)
@@ -125,12 +125,15 @@ module Make (Console : V1_LWT.CONSOLE)
     let options = Cstruct.(copy buf sizeof_dhcp (len buf - sizeof_dhcp)) in
     let packet = Dhcpv4_option.Packet.of_bytes options in
     (* For debugging, print out the DHCP response *)
-    Lwt_list.iter_s (Console.log_s t.c)
-    [ "DHCP response:";
-      sprintf "input ciaddr %s yiaddr %s" (Ipaddr.V4.to_string ciaddr) (Ipaddr.V4.to_string yiaddr);
-      sprintf "siaddr %s giaddr %s" (Ipaddr.V4.to_string siaddr) (Ipaddr.V4.to_string giaddr);
-      sprintf "chaddr %s sname %s file %s" (chaddr) (copy_dhcp_sname buf) (copy_dhcp_file buf) ]
-    >>= fun () ->
+    Log.info (fun f -> f 
+      "@[<v 2>DHCP response:@ \
+        input ciaddr %a yiaddr %a@ \
+        siaddr %a giaddr %a@ \
+        chaddr %s sname %s file %s@]"
+      Ipaddr.V4.pp_hum ciaddr Ipaddr.V4.pp_hum yiaddr
+      Ipaddr.V4.pp_hum siaddr Ipaddr.V4.pp_hum giaddr
+      chaddr (copy_dhcp_sname buf) (copy_dhcp_file buf)
+    );
     (* See what state our Netif is in and if this packet is useful *)
     let open Dhcpv4_option.Packet in
     match t.state with
@@ -138,10 +141,12 @@ module Make (Console : V1_LWT.CONSOLE)
         (* we are expecting an offer *)
         match packet.op, xid with
         |`Offer, offer_xid when offer_xid=xid ->  begin
-            Lwt_list.iter_s (Console.log_s t.c)
-              [ sprintf "DHCP: offer received: %s" (Ipaddr.V4.to_string yiaddr);
-                sprintf "DHCP options: %s" (prettyprint packet) ]
-            >>= fun () ->
+            Log.info (fun f -> f 
+              "DHCP: offer received: %a@\n\
+               DHCP options: %s"
+              Ipaddr.V4.pp_hum yiaddr
+              (prettyprint packet)
+            );
             let netmask = find packet
                 (function `Subnet_mask addr -> Some addr |_ -> None) in
             let gateways = findl packet
@@ -168,7 +173,7 @@ module Make (Console : V1_LWT.CONSOLE)
             output_broadcast t ~xid ~yiaddr ~siaddr ~options
           end
         |_ ->
-          Console.log_s t.c "DHCP: offer not for us"
+          Log.info (fun f -> f "DHCP: offer not for us"); Lwt.return_unit
       end
     | Offer_accepted info -> begin
         (* we are expecting an ACK *)
@@ -183,11 +188,11 @@ module Make (Console : V1_LWT.CONSOLE)
             t.state <- Lease_held info;
             t.new_offer info
           end
-        |_ -> Console.log_s t.c "DHCP: ack not for us"
+        |_ -> Log.info (fun f -> f "DHCP: ack not for us"); Lwt.return_unit
       end
     | Shutting_down -> Lwt.return_unit
-    | Lease_held _  -> Console.log_s t.c "DHCP input: lease already held"
-    | Disabled      -> Console.log_s t.c "DHCP input: disabled"
+    | Lease_held _  -> Log.info (fun f -> f "DHCP input: lease already held"); Lwt.return_unit
+    | Disabled      -> Log.info (fun f -> f "DHCP input: disabled"); Lwt.return_unit
 
   (* Start a DHCP discovery off on an interface *)
   let start_discovery t =
@@ -200,8 +205,7 @@ module Make (Console : V1_LWT.CONSOLE)
         (`Parameter_request [`Subnet_mask; `Router; `DNS_server; `Broadcast]);
         (`Host_name "miragevm")
       ] } in
-    Console.log_s t.c (sprintf "DHCP: start discovery\n%!")
-    >>= fun () ->
+    Log.info (fun f -> f "DHCP: start discovery");
     t.state <- Request_sent xid;
     output_broadcast t ~xid ~yiaddr ~siaddr ~options >>= fun () ->
     Lwt.return_unit
@@ -217,29 +221,32 @@ module Make (Console : V1_LWT.CONSOLE)
       >>= fun () ->
       dhcp_thread t
     |Shutting_down ->
-      Console.log_s t.c "DHCP thread: done"
+      Log.info (fun f -> f "DHCP thread: done"); Lwt.return_unit
     |_ ->
       (* TODO: This should be looking at the lease time *)
       Time.sleep 3600.0
       >>= fun () ->
       dhcp_thread t
 
+  let pp_opt pp f = function
+    | None -> Format.pp_print_string f "None"
+    | Some x -> pp f x
+
   (* Create a DHCP thread *)
-  let create c mac udp =
+  let create mac udp =
     let state = Disabled in
     (* For now, just block on the first offer
        and shut down DHCP after. TODO: full protocol *)
     let offer_stream, offer_push = Lwt_stream.create () in
     let new_offer info =
-      Console.log_s c (sprintf "DHCP: offer received\nIPv4: %s\nNetmask: %s\nGateways: [%s]"
-                         (Ipaddr.V4.to_string info.ip_addr)
-                         (match info.netmask with |Some ip -> Ipaddr.V4.to_string ip |None -> "None")
-                         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)))
-      >>= fun () ->
+      Log.info (fun f -> f "DHCP: offer received@\nIPv4: %a@\nNetmask: %a\nGateways: [%s]"
+                         Ipaddr.V4.pp_hum info.ip_addr
+                         (pp_opt Ipaddr.V4.pp_hum) info.netmask
+                         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)));
       offer_push (Some info);
       Lwt.return_unit
     in
-    let t = { c; mac; udp; state; new_offer } in
+    let t = { mac; udp; state; new_offer } in
     (* TODO cancellation *)
     let _ = dhcp_thread t in
     t, offer_stream
