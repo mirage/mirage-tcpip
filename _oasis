@@ -25,7 +25,7 @@ Library tcpip
   Modules:            Wire_structs, Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  BuildDepends:       io-page,mirage-types (>= 2.8.0),ipaddr,cstruct (>= 1.9.0),cstruct.ppx,mirage-profile,bytes
+  BuildDepends:       io-page,mirage-types (>= 2.8.0),ipaddr,cstruct (>= 1.9.0),cstruct.ppx,mirage-profile,bytes,logs
   XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
 
 Library tcpip_xen

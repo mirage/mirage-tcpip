@@ -16,6 +16,9 @@
 
 open Lwt
 
+let src = Logs.Src.create "tcpip-stack-socket" ~doc:"Platform's native TCP/IP stack"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 type socket_ipv4_input = unit Lwt.t
 
 module type UDPV4_SOCKET = V1_LWT.UDP
@@ -49,7 +52,6 @@ module Make(Console:V1_LWT.CONSOLE) = struct
 
   type t = {
     id    : id;
-    c     : Console.t;
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
     udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
@@ -70,7 +72,7 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     match addrs with
     | [] -> return_unit
     | [any] when Ipaddr.V4.(compare any) any = 0 -> return_unit
-    | _ -> Console.log_s t.c "Manager: socket config currently ignored (TODO)"
+    | _ -> Log.warn (fun f -> f "Manager: socket config currently ignored (TODO)"); return_unit
 
   let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
 
@@ -132,14 +134,12 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     t (* TODO cancellation *)
 
   let connect id udpv4 tcpv4 =
-    let { V1_LWT.console = c; interface; _ } = id in
-    Console.log_s c "Manager: connect"
-    >>= fun () ->
+    let { V1_LWT.interface; _ } = id in
+    Log.info (fun f -> f "Manager: connect");
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; c; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
-    Console.log_s c "Manager: configuring"
-    >>= fun () ->
+    let t = { id; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+    Log.info (fun f -> f "Manager: configuring");
     configure t interface
     >>= fun () ->
     return (`Ok t)
