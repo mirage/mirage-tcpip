@@ -17,6 +17,9 @@
 
 open Lwt.Infix
 
+let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP handler"
+module PCB_Log = (val Logs.src_log src : Logs.LOG)
+
 type error = [`Bad_state of State.tcpstate]
 
 type 'a result = [`Ok of 'a | `Error of error]
@@ -465,6 +468,10 @@ struct
       Lwt.return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+    | exception ex ->
+      PCB_Log.err (fun f -> f "uncaught exception looking up handler for TCP port %d:@ %s"
+                      id.WIRE.local_port (Printexc.to_string ex));
+      Lwt.return_unit
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
     Log.f debug (with_stats "process-ack" t);
@@ -479,7 +486,13 @@ struct
         (* Finish processing ACK, so pcb.state is correct *)
         Rx.input t pkt newconn >>= fun () ->
         (* send new connection up to listener *)
-        pushf (fst newconn)
+        let flow = fst newconn in
+        Lwt.catch (fun () -> pushf flow)
+          (fun ex ->
+             PCB_Log.err (fun f -> f "uncaught exception accepting new TCP flow on port %d:@ %s"
+                             flow.id.WIRE.local_port (Printexc.to_string ex));
+             Lwt.return_unit
+          )
       ) else
         (* No RST because we are trying to connect on this id *)
         Lwt.return_unit

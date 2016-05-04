@@ -19,6 +19,10 @@ open Vnetif_common
 
 let (>>=) = Lwt.(>>=)
 
+let () =
+  Logs.set_level (Some Logs.Info);
+  Logs.set_reporter (Logs_fmt.reporter ())
+
 module Test_connect (B : Vnetif_backends.Backend) = struct
   module C = Console
   module V = VNETIF_STACK (B)

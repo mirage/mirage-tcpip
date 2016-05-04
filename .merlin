@@ -1,5 +1,5 @@
-PKG lwt ipaddr lwt mirage-types cstruct io-page uint mirage-flow oUnit alcotest
-PKG mirage-vnetif pcap-format mirage-console.unix
+PKG lwt ipaddr lwt mirage-types cstruct io-page mirage-flow oUnit alcotest
+PKG mirage-vnetif pcap-format mirage-console.unix logs
 
 B _build/**
 S lib/

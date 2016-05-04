@@ -59,6 +59,7 @@ depends: [
   "pcap-format" {test}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.5.0"}
+  "fmt" {test}
 ]
 depopts: [
   "mirage-xen"

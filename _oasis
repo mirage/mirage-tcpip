@@ -358,7 +358,7 @@ Executable test
   Path:               lib_test/
   MainIs:             test.ml
   Custom:             true
-  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
+  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix, logs.fmt,
                       mirage-profile, mirage-flow, mirage-vnetif,
                       mirage-console.unix, mirage-clock-unix,
                       tcpip.ethif, tcpip.icmpv4, tcpip.arpv4, tcpip.tcp, pcap-format

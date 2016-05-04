@@ -1,3 +1,11 @@
+### master
+
+* Use Logs library for logging.
+  Warning: Logs suppresses warnings and errors by default. Upgrading to the new
+  tcpip version without configuring logs means that bugs in your code that
+  previously resulted in an exception being displayed may now be silently
+  ignored. Remember to configure Logs in your unit-tests too.
+
 ### 2.8.0 (2016-04-04)
 
 * Provide an implementation for the ICMPV4 module type defined in mirage-types 2.8.0.  Remove default ICMP handling from the IPv4 module, but preserve it in tcpip-stack-direct. (#195 by @yomimono)
