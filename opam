@@ -44,9 +44,7 @@ depends: [
   "result"
   "cstruct" {>= "1.9.0"}
   "ppx_tools"
-  "channel"
   "mirage-types" {>= "2.8.0"}
-  "mirage-unix" {>= "1.1.0"}
   "mirage-console"
   "mirage-clock-unix" {>= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
