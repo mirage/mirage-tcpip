@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2a5f7b9236ef4200975f0d4ca6508a5f)
+# DO NOT EDIT (digest: 1a4ead7e8c841fcb0b644cc587810cdb)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -116,57 +116,14 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: use_tcp
 <lib/*.ml{,i,y}>: use_tcpip
 <lib/*.ml{,i,y}>: use_udp
-# Library ethif-unix
-"unix/ethif-unix.cmxs": use_ethif-unix
-# Library arpv4-unix
-"unix/arpv4-unix.cmxs": use_arpv4-unix
-# Library ipv4-unix
-"unix/ipv4-unix.cmxs": use_ipv4-unix
-# Library ipv6-unix
-"unix/ipv6-unix.cmxs": use_ipv6-unix
-# Library udpv4-unix
-"unix/udpv4-unix.cmxs": use_udpv4-unix
-# Library udpv6-unix
-"unix/udpv6-unix.cmxs": use_udpv6-unix
 # Library udpv4-socket
 "unix/udpv4-socket.cmxs": use_udpv4-socket
 # Library udpv6-socket
 "unix/udpv6-socket.cmxs": use_udpv6-socket
-# Library icmpv4-unix
-"unix/icmpv4-unix.cmxs": use_icmpv4-unix
-# Library tcpv4-unix
-"unix/tcpv4-unix.cmxs": use_tcpv4-unix
-# Library tcpv6-unix
-"unix/tcpv6-unix.cmxs": use_tcpv6-unix
 # Library tcpv4-socket
 "unix/tcpv4-socket.cmxs": use_tcpv4-socket
 # Library tcpv6-socket
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
-# Library tcpip-stack-unix
-"unix/tcpip-stack-unix.cmxs": use_tcpip-stack-unix
-<unix/*.ml{,i,y}>: pkg_channel
-<unix/*.ml{,i,y}>: pkg_mirage-clock-unix
-<unix/*.ml{,i,y}>: pkg_mirage-console.unix
-<unix/*.ml{,i,y}>: pkg_mirage-net-unix
-<unix/*.ml{,i,y}>: pkg_mirage-types.lwt
-<unix/*.ml{,i,y}>: pkg_mirage-unix
-<unix/*.ml{,i,y}>: pkg_result
-<unix/*.ml{,i,y}>: use_arpv4
-<unix/*.ml{,i,y}>: use_dhcpv4
-<unix/*.ml{,i,y}>: use_ethif
-<unix/*.ml{,i,y}>: use_ethif-unix
-<unix/*.ml{,i,y}>: use_icmpv4
-<unix/*.ml{,i,y}>: use_icmpv4-unix
-<unix/*.ml{,i,y}>: use_ipv4
-<unix/*.ml{,i,y}>: use_ipv4-unix
-<unix/*.ml{,i,y}>: use_ipv6
-<unix/*.ml{,i,y}>: use_ipv6-unix
-<unix/*.ml{,i,y}>: use_tcp
-<unix/*.ml{,i,y}>: use_tcpip-stack-direct
-<unix/*.ml{,i,y}>: use_tcpv4-unix
-<unix/*.ml{,i,y}>: use_tcpv6-unix
-<unix/*.ml{,i,y}>: use_udpv4-unix
-<unix/*.ml{,i,y}>: use_udpv6-unix
 # Library tcpip-stack-socket
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
 <unix/*.ml{,i,y}>: pkg_bytes

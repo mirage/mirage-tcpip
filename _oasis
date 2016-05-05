@@ -14,10 +14,6 @@ Flag xen
   Description:        Build Xen support
   Default:            false
 
-Flag unix
-  Description:        Build Unix support
-  Default:            true
-
 Library tcpip
   CompiledObject:     best
   Path:               lib
@@ -137,84 +133,6 @@ Library "tcpip-stack-direct"
                       tcpip.tcp,
                       tcpip.dhcpv4
 
-Library "ethif-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        ethif-unix
-  Modules:            Ethif_unix
-  BuildDepends:       tcpip.ethif,
-                      mirage-net-unix,
-                      lwt,
-                      lwt.unix
-
-Library "arpv4-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        arpv4-unix
-  Modules:            Arpv4_unix
-  BuildDepends:       tcpip.ethif,
-                      mirage-net-unix,
-                      lwt,
-                      lwt.unix
-
-Library "ipv4-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        ipv4-unix
-  Modules:            Ipv4_unix
-  BuildDepends:       tcpip.ethif-unix,
-                      tcpip.ipv4,
-                      lwt,
-                      lwt.unix
-
-Library "ipv6-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        ipv6-unix
-  Modules:            Ipv6_unix
-  BuildDepends:       tcpip.ethif-unix,
-                      tcpip.ipv6,
-                      lwt,
-                      lwt.unix
-
-Library "udpv4-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        udpv4-unix
-  Modules:            Udpv4_unix
-  BuildDepends:       tcpip.udp,
-                      tcpip.ipv4-unix,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
-
-Library "udpv6-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        udpv6-unix
-  Modules:            Udpv6_unix
-  BuildDepends:       tcpip.udp,
-                      tcpip.ipv6-unix,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
-
 Library "udpv4-socket"
   CompiledObject:     best
   Path:               unix
@@ -241,57 +159,6 @@ Library "udpv6-socket"
                       cstruct.lwt,
                       io-page.unix
 
-Library "icmpv4-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        icmpv4-unix
-  Modules:            Icmpv4_unix
-  BuildDepends:       tcpip.ipv4-unix,
-                      lwt,
-                      lwt.unix,
-                      mirage-unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
-
-Library "tcpv4-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        tcpv4-unix
-  Modules:            Tcpv4_unix
-  BuildDepends:       tcpip.tcp,
-                      tcpip.ipv4-unix,
-                      channel,
-                      lwt,
-                      lwt.unix,
-                      mirage-unix,
-                      mirage-clock-unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
-
-Library "tcpv6-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        tcpv6-unix
-  Modules:            Tcpv6_unix
-  BuildDepends:       tcpip.tcp,
-                      tcpip.ipv6-unix,
-                      channel,
-                      lwt,
-                      lwt.unix,
-                      mirage-unix,
-                      mirage-clock-unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
-
 Library "tcpv4-socket"
   CompiledObject:     best
   Path:               unix
@@ -314,28 +181,6 @@ Library "tcpv6-socket"
                       lwt.unix,
                       ipaddr.unix,
                       cstruct.lwt,
-                      io-page.unix
-
-Library "tcpip-stack-unix"
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibparent:      tcpip
-  Findlibname:        stack-unix
-  Modules:            Tcpip_stack_unix
-  BuildDepends:       tcpip.udpv4-unix,
-                      tcpip.tcpv4-unix,
-                      tcpip.icmpv4-unix,
-                      tcpip.udpv6-unix,
-                      tcpip.tcpv6-unix,
-                      tcpip.stack-direct,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      mirage-unix,
-                      mirage-clock-unix,
-                      mirage-console.unix,
-                      mirage-types.lwt,
                       io-page.unix
 
 Library "tcpip-stack-socket"
