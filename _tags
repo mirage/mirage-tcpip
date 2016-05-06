@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e0d1c8cb572d3de4f7153f0a6aa58699)
+# DO NOT EDIT (digest: dff8890b8b0d90439d6e3dc5932d749e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -24,6 +24,7 @@ true: annot, bin_annot
 "lib/checksum_stubs.c": pkg_cstruct.ppx
 "lib/checksum_stubs.c": pkg_io-page
 "lib/checksum_stubs.c": pkg_ipaddr
+"lib/checksum_stubs.c": pkg_logs
 "lib/checksum_stubs.c": pkg_mirage-profile
 "lib/checksum_stubs.c": pkg_mirage-types
 # Library tcpip_xen
@@ -38,6 +39,7 @@ true: annot, bin_annot
 <lib/ethif/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/ethif/*.ml{,i,y}>: pkg_io-page
 <lib/ethif/*.ml{,i,y}>: pkg_ipaddr
+<lib/ethif/*.ml{,i,y}>: pkg_logs
 <lib/ethif/*.ml{,i,y}>: pkg_lwt
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-types
@@ -50,6 +52,7 @@ true: annot, bin_annot
 <lib/arpv4/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/arpv4/*.ml{,i,y}>: pkg_io-page
 <lib/arpv4/*.ml{,i,y}>: pkg_ipaddr
+<lib/arpv4/*.ml{,i,y}>: pkg_logs
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-types
@@ -64,6 +67,7 @@ true: annot, bin_annot
 <lib/ipv4/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/ipv4/*.ml{,i,y}>: pkg_io-page
 <lib/ipv4/*.ml{,i,y}>: pkg_ipaddr
+<lib/ipv4/*.ml{,i,y}>: pkg_logs
 <lib/ipv4/*.ml{,i,y}>: pkg_lwt
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-types
@@ -77,6 +81,7 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/ipv6/*.ml{,i,y}>: pkg_io-page
 <lib/ipv6/*.ml{,i,y}>: pkg_ipaddr
+<lib/ipv6/*.ml{,i,y}>: pkg_logs
 <lib/ipv6/*.ml{,i,y}>: pkg_lwt
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-types
@@ -90,6 +95,7 @@ true: annot, bin_annot
 <lib/icmp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/icmp/*.ml{,i,y}>: pkg_io-page
 <lib/icmp/*.ml{,i,y}>: pkg_ipaddr
+<lib/icmp/*.ml{,i,y}>: pkg_logs
 <lib/icmp/*.ml{,i,y}>: pkg_lwt
 <lib/icmp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/icmp/*.ml{,i,y}>: pkg_mirage-types
@@ -103,6 +109,7 @@ true: annot, bin_annot
 <lib/udp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/udp/*.ml{,i,y}>: pkg_io-page
 <lib/udp/*.ml{,i,y}>: pkg_ipaddr
+<lib/udp/*.ml{,i,y}>: pkg_logs
 <lib/udp/*.ml{,i,y}>: pkg_lwt
 <lib/udp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/udp/*.ml{,i,y}>: pkg_mirage-types
@@ -132,6 +139,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/tcp/*.ml{,i,y}>: pkg_io-page
 <lib/tcp/*.ml{,i,y}>: pkg_ipaddr
+<lib/tcp/*.ml{,i,y}>: pkg_logs
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
@@ -147,6 +155,7 @@ true: annot, bin_annot
 <lib/dhcp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/dhcp/*.ml{,i,y}>: pkg_io-page
 <lib/dhcp/*.ml{,i,y}>: pkg_ipaddr
+<lib/dhcp/*.ml{,i,y}>: pkg_logs
 <lib/dhcp/*.ml{,i,y}>: pkg_lwt
 <lib/dhcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/dhcp/*.ml{,i,y}>: pkg_mirage-types
@@ -161,6 +170,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
+<lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
@@ -235,6 +245,7 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_io-page.unix
 <unix/*.ml{,i,y}>: pkg_ipaddr
 <unix/*.ml{,i,y}>: pkg_ipaddr.unix
+<unix/*.ml{,i,y}>: pkg_logs
 <unix/*.ml{,i,y}>: pkg_lwt
 <unix/*.ml{,i,y}>: pkg_lwt.unix
 <unix/*.ml{,i,y}>: pkg_mirage-profile
@@ -255,6 +266,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_io-page
 <lib_test/test.{native,byte}>: pkg_io-page.unix
 <lib_test/test.{native,byte}>: pkg_ipaddr
+<lib_test/test.{native,byte}>: pkg_logs
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.unix
 <lib_test/test.{native,byte}>: pkg_mirage-clock-unix
@@ -284,6 +296,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
+<lib_test/*.ml{,i,y}>: pkg_logs
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix

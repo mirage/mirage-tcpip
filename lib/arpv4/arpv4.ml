@@ -18,6 +18,9 @@
 open Lwt.Infix
 open Printf
 
+let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP handler"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
 
   type result = [ `Ok of Macaddr.t | `Timeout ]
@@ -52,7 +55,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | Pending _ -> expired
         | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
     in
-    List.iter (fun ip -> printf "ARP: timeout %s\n%!" (Ipaddr.V4.to_string ip)) expired;
+    List.iter (fun ip -> Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip)) expired;
     List.iter (Hashtbl.remove t.cache) expired;
     Time.sleep arp_timeout >>= tick t
 
@@ -92,11 +95,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       ~buf:(Cstruct.shift buf Ethif_wire.sizeof_ethernet)
       ~src_ip:arp.spa ~dst_ip:arp.tpa ~src_mac:arp.sha ~dst_mac:arp.tha
       ~op:arp.op with
-    | Error s -> (* TODO: log an error *) Lwt.return_unit
+    | Error s -> Log.info (fun f -> f "Failed to print Arpv4 header: %s" s);
+      Lwt.return_unit
     | Ok () ->
       let ethertype = Ethif_wire.ARP in
       match Ethif_print.print_ethif_header ~buf ~ethertype ~src_mac:arp.sha ~dst_mac:arp.tha with
-      | Error s -> (* TODO: log an error *) Lwt.return_unit
+      | Error s -> Log.info (fun f -> f "Failed to print Ethernet header: %s" s);
+        Lwt.return_unit
       | Ok () ->
         Ethif.write t.ethif buf
 
@@ -105,7 +110,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let open Arpv4_parse in
     MProf.Trace.label "arpv4.input";
     match parse_arpv4_header frame with
-    | Result.Error _ -> (* TODO: log an error *) Lwt.return_unit
+    | Result.Error s ->
+      Log.info (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
+                   Arpv4_parse.pp_error s (Cstruct.to_string frame));
+      Lwt.return_unit
     | Result.Ok arp ->
       match arp.op with
       | Arpv4_wire.Reply ->
@@ -132,12 +140,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let sha = Ethif.mac t.ethif in
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
+        Log.info (fun f -> f "ARP: sending gratuitous from %a" Ipaddr.V4.pp_hum spa);
         output t Arpv4_parse.({ op=Arpv4_wire.Reply; tha; sha; tpa; spa })
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
   let output_probe t tpa =
-    printf "ARP: transmitting probe -> %s\n%!" (Ipaddr.V4.to_string tpa);
+    Log.info (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
@@ -181,7 +190,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | `Timeout ->
           if n < probe_num then begin
             let n = n+1 in
-            printf "ARP: retrying %s (n=%d)\n%!" (Ipaddr.V4.to_string ip) n;
+            Log.info (fun f -> f "ARP: retrying %a (n=%d)" Ipaddr.V4.pp_hum ip n);
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;
@@ -199,5 +208,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     Lwt.async (tick t);
     Lwt.return (`Ok t)
 
-  let disconnect t = Lwt.return_unit (* TODO: should kill tick *)
+  let disconnect t =
+    Log.info (fun f -> f "Disconnected arpv4 device on %s" (Macaddr.to_string (
+               Ethif.mac t.ethif)));
+    Lwt.return_unit (* TODO: should kill tick *)
 end

@@ -1,5 +1,8 @@
 open Result
 
+let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make(IP : V1_LWT.IPV4) = struct
   type buffer = Cstruct.t
   type 'a io = 'a Lwt.t
@@ -19,35 +22,36 @@ module Make(IP : V1_LWT.IPV4) = struct
       in
       List.fold_left aux false (IP.get_ip t.ip)
     in
-    let open Lwt.Infix in
-    let open Printf in
     MProf.Trace.label "icmp_input";
     match Icmpv4_parse.input buf with
-    | Result.Error _ -> (* TODO: log *) Lwt.return_unit
+    | Result.Error s ->
+      Log.info (fun f -> f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
+      Lwt.return_unit
     | Result.Ok message ->
       let open Icmpv4_wire in
       match message.ty, message.subheader with
-      | Echo_reply, _ -> (* TODO: log *) Lwt.return_unit
-      | Destination_unreachable, _ -> (* TODO: log *)
+      | Echo_reply, _ -> Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
+        Lwt.return_unit
+      | Destination_unreachable, _ -> Log.info (fun f -> f "ICMP: destination unreachable from %a" 
+                                                   Ipaddr.V4.pp_hum src);
         Lwt.return_unit
       | Echo_request, Id_and_seq (id, seq) ->
         if t.echo_reply && should_reply t dst then begin
           (* get some memory to write in *)
           let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
           let icmp_chunk = Cstruct.shift frame header_len in
-          match Icmpv4_print.echo_reply ~buf:icmp_chunk ?payload:message.payload
-                  ~id ~seq with
+          match Icmpv4_print.echo_reply ~buf:icmp_chunk ?payload:message.payload ~id ~seq with
           | Result.Ok () ->
             let frame = Cstruct.set_len frame header_len in
             IP.write t.ip frame icmp_chunk
-          | Result.Error _ ->
-            (* TODO: log failure to respond *)
+          | Result.Error s ->
+            Log.info (fun f -> f "Failed to respond to ICMP echo request from %a: %s"
+                         Ipaddr.V4.pp_hum src s);
             Lwt.return_unit
         end else Lwt.return_unit
       | ty, _ ->
-        (* TODO: proper logging *)
-      printf "ICMP unknown type %d from %s\n" (ty_to_int ty) (Ipaddr.V4.to_string src);
-      Lwt.return_unit
+        Log.info (fun f -> f "ICMP unknown ty %s from %a" (ty_to_string ty) Ipaddr.V4.pp_hum src);
+        Lwt.return_unit
 
   type error = [ `Routing | `Unknown ]
 
