@@ -17,6 +17,9 @@
 open Lwt.Infix
 open Result
 
+let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   (** IO operation errors *)
@@ -78,19 +81,17 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       |ip when Ipaddr.V4.is_multicast ip ->
         Lwt.return (mac_of_multicast ip)
       |ip -> begin (* Gateway *)
-          let out = Ipaddr.V4.to_string in
           match t.gateways with
           |hd::_ ->
             Arpv4.query t.arp hd >>= begin function
               | `Ok mac -> Lwt.return mac
               | `Timeout ->
-                Printf.printf "IP.output: could not send to %s: failed to contact gateway %s\n%!"
-                  (out ip) (out hd) ;
+                Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
+                             Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum hd);
                 Lwt.fail (No_route_to_destination_address ip)
             end
           |[] ->
-            Printf.printf "IP.output: no route to %s (no default gateway is configured)\n%!"
-              (out ip);
+            Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
   end
@@ -109,16 +110,21 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let allocate_frame t ~dst ~proto =
     let open Ipv4_wire in
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
+    let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
     match Ethif_print.print_ethif_header ~buf:ethernet_frame
       ~ethertype:Ethif_wire.IPv4 ~src_mac:(Ethif.mac t.ethif)
       ~dst_mac:(Macaddr.broadcast) with
-    | Error s -> failwith s (* TODO: better error reporting *)
+    | Error s -> 
+      Log.info (fun f -> f "IP.allocate_frame: could not print ethernet header: %s" s);
+      (ethernet_frame, len)
     | Ok () ->
       let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
+      (* TODO: why 38 for TTL? *)
       match Ipv4_print.print_ipv4_header ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
-      | Error s -> failwith s (* TODO: very little we can do about this *)
+      | Error s ->
+        Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
+        (ethernet_frame, len)
       | Ok () ->
-        let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
         (ethernet_frame, len)
 
   let writev t frame bufs =
@@ -136,7 +142,9 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let input t ~tcp ~udp ~default buf =
     let open Ipv4_parse in
     match parse_ipv4_header buf with
-    | Error _ -> (* TODO: log an error on high debug level *) Lwt.return_unit
+    | Error s ->
+      Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
+      Lwt.return_unit
     | Ok packet ->
       match int_to_protocol packet.proto, packet.payload with
       (* Don't pass on empty buffers as payloads to known protocols
@@ -156,6 +164,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       ?(gateways=[]) ethif arp =
     let t = { ethif; arp; ip; netmask; gateways } in
     Lwt.return (`Ok t)
+
 
   let disconnect _ = Lwt.return_unit
 

@@ -12,6 +12,15 @@ type t = {
   tpa: Ipaddr.V4.t;
 }
 
+let string_of_error = function
+  | Too_short -> "buffer too short to be a valid arpv4 header"
+  | Unusable -> "arpv4 message is not for ipv4 -> ethernet"
+  | Unknown_code i -> Printf.sprintf "arpv4 message has unknown code %d" i
+  | Bad_mac macs ->
+    Printf.sprintf "arpv4 message with invalid MAC[s]: %S" @@ String.concat ", " macs
+
+let pp_error formatter e = Format.fprintf formatter "%s" @@ string_of_error e
+
 let parse_arpv4_header buf =
   let open Arpv4_wire in
   let open Rresult in

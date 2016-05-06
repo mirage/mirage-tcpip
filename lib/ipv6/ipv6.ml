@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
+let src = Logs.Src.create "ipv6" ~doc:"Mirage IPv6"
+module Log = (val Logs.src_log src : Logs.LOG)
 module I = Ipaddr
 
 open Lwt.Infix
@@ -127,7 +130,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     | None -> g ()
 
   let connect ?ip ?netmask ?gateways ethif =
-    Printf.printf "IP6: Starting\n%!";
+    Log.info (fun f -> f "IP6: Starting");
     let now = C.time () in
     let ctx, bufs = Ndpv6.local ~now (E.mac ethif) in
     let t = {ctx; ethif} in

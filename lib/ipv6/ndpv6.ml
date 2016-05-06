@@ -36,6 +36,9 @@ References:
   http://tools.ietf.org/html/rfc3810
 *)
 
+let src = Logs.Src.create "ndpc6" ~doc:"Mirage IPv6 discovery"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Ipaddr = Ipaddr.V6
 
 type buffer = Cstruct.t
@@ -349,21 +352,21 @@ module AddressList = struct
           | Some (preferred_lifetime, valid_lifetime) ->
             Some (now +. preferred_lifetime, valid_lifetime)
         in
-        Printf.printf "SLAAC: %s --> PREFERRED\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp_hum ip);
         Some (ip, PREFERRED timeout), []
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
         [SendNS (`Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-      Printf.printf "SLAAC: %s --> DEPRECATED\n%!" (Ipaddr.to_string ip);
+      Log.info (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp_hum ip);
       let valid_timeout = match valid_lifetime with
         | None -> None
         | Some valid_lifetime -> Some (now +. valid_lifetime)
       in
       Some (ip, DEPRECATED valid_timeout), []
     | ip, DEPRECATED (Some t) when t <= now ->
-      Printf.printf "SLAAC: %s --> EXPIRED\n%!" (Ipaddr.to_string ip);
+      Log.info (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp_hum ip);
       None, []
     | addr ->
       Some addr, []
@@ -422,7 +425,7 @@ module AddressList = struct
     try
       match List.assoc ip al with
       | TENTATIVE _ ->
-        Printf.printf "DAD: Failed: %s\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp_hum ip);
         List.remove_assoc ip al
       | _ ->
         al
@@ -487,27 +490,27 @@ module PrefixList = struct
          the prefix is not present in the host's Prefix List, silently ignore
          the option. *)
 
-    Printf.printf "ND6: Processing PREFIX option in RA\n%!";
+    Log.info (fun f -> f "ND6: Processing PREFIX option in RA");
     if Ipaddr.Prefix.link <> pfx then
       match vlft, List.mem_assoc pfx pl with
       | Some 0.0, true ->
-        Printf.printf "ND6: Removing PREFIX: pfx=%s\n%!" (Ipaddr.Prefix.to_string pfx);
+        Log.info (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp_hum pfx);
         List.remove_assoc pfx pl, []
       | Some 0.0, false ->
         pl, []
       | Some dt, true ->
-        Printf.printf "ND6: Refreshing PREFIX: pfx=%s lft=%f\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        Log.info (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
         let pl = List.remove_assoc pfx pl in
         (pfx, Some (now +. dt)) :: pl, []
       | Some dt, false ->
-        Printf.printf "ND6: Received new PREFIX: pfx=%s lft=%f\n%!" (Ipaddr.Prefix.to_string pfx) dt;
+        Log.info (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
         (pfx, Some (now +. dt)) :: pl, []
       | None, true ->
-        Printf.printf "ND6: Refreshing PREFIX: pfx=%s lft=inf\n%!" (Ipaddr.Prefix.to_string pfx);
+        Log.info (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
         let pl = List.remove_assoc pfx pl in
         (pfx, None) :: pl, []
       | None, false ->
-        Printf.printf "ND6: Received new PREFIX: pfx=%s lft=inf\n%!" (Ipaddr.Prefix.to_string pfx);
+        Log.info (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
         (pfx, None) :: pl, []
     else
       pl, []
@@ -552,29 +555,29 @@ module NeighborCache = struct
     match nb.state with
     | INCOMPLETE (t, tn) when t <= now ->
       if tn < Defaults.max_multicast_solicit then begin
-        Printf.printf "NUD: %s --> INCOMPLETE [Timeout]\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp_hum ip);
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         IpMap.add ip {nb with state = INCOMPLETE (now +. retrans_timer, tn+1)} nc,
         [SendNS (`Specified, dst, ip)]
       end else begin
-        Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
         (* TODO Generate ICMP error: Destination Unreachable *)
         IpMap.remove ip nc, [CancelQueued ip]
       end
     | REACHABLE (t, mac) when t <= now ->
-      Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string ip);
+      Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum ip);
       IpMap.add ip {nb with state = STALE mac} nc, []
     | DELAY (t, dmac) when t <= now ->
-      Printf.printf "NUD: %s --> PROBE\n%!" (Ipaddr.to_string ip);
+      Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp_hum ip);
       IpMap.add ip {nb with state = PROBE (now +. retrans_timer, 0, dmac)} nc,
       [SendNS (`Specified, ip, ip)]
     | PROBE (t, tn, dmac) when t <= now ->
       if tn < Defaults.max_unicast_solicit then begin
-        Printf.printf "NUD: %s --> PROBE [Timeout]\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp_hum ip);
         IpMap.add ip {nb with state = PROBE (now +. retrans_timer, tn+1, dmac)} nc,
         [SendNS (`Specified, ip, ip)]
       end else begin
-        Printf.printf "NUD: %s --> UNREACHABLE [Discarding]\n%!" (Ipaddr.to_string ip);
+        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
         IpMap.remove ip nc, []
       end
     | _ ->
@@ -605,7 +608,7 @@ module NeighborCache = struct
     IpMap.add src nb nc, acts
 
   let handle_ra nc ~src new_mac =
-    Printf.printf "ND6: Processing SLLA option in RA\n%!";
+    Log.info (fun f -> f "ND6: Processing SLLA option in RA");
     let nb =
       try
         let nb = IpMap.find src nc in
@@ -628,11 +631,11 @@ module NeighborCache = struct
     let update nb =
       match nb.state, new_mac, sol, ovr with
       | INCOMPLETE _, Some new_mac, false, _ ->
-        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = STALE new_mac} in
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, Some new_mac, true, _ ->
-        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, None, _, _ ->
@@ -644,11 +647,11 @@ module NeighborCache = struct
         in
         nc, []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, []
       | PROBE (_, _, mac), None, true, false ->
-        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
@@ -660,16 +663,16 @@ module NeighborCache = struct
         in
         nc, []
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        Printf.printf "NUD: %s --> REACHABLE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
-        Printf.printf "NUD: %s --> STALE\n%!" (Ipaddr.to_string tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
         let nb = {nb with state = STALE mac} in
         IpMap.add tgt nb nc, []
       | _ ->
@@ -738,15 +741,15 @@ module RouterList = struct
     | true ->
       let rl = List.remove_assoc src rl in
       if lft > 0.0 then begin
-        Printf.printf "RA: Refreshing Router: src=%s lft=%f\n%!" (Ipaddr.to_string src) lft;
+        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%f" Ipaddr.pp_hum src lft);
         (src, now +. lft) :: rl, []
       end else begin
-        Printf.printf "RA: Router Expired: src=%s\n%!" (Ipaddr.to_string src);
+        Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp_hum src);
         rl, []
       end
     | false ->
       if lft > 0.0 then begin
-        Printf.printf "RA: Adding Router: src=%s\n%!" (Ipaddr.to_string src);
+        Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
         (src, now +. lft) :: rl, []
       end else
         rl, []
@@ -825,7 +828,7 @@ module Parser = struct
         in
         PREFIX pfx :: parse_options1 opts
       | ty, len ->
-        Printf.printf "ND6: Unsupported ND option in RA: ty=%d len=%d\n%!" ty len;
+        Log.info (fun f -> f "ND6: Unsupported ND option in RA: ty=%d len=%d" ty len);
         parse_options1 opts
     else
       []
@@ -922,7 +925,7 @@ module Parser = struct
     let icmpbuf  = Cstruct.shift buf poff in
     let csum = checksum' ~proto:58 buf [ icmpbuf ] in
     if csum != 0 then begin
-      Printf.printf "ICMP6: Checksum error, dropping packet: csum=0x%x\n%!" csum;
+      Log.info (fun f -> f "ICMP6: Checksum error, dropping packet: csum=0x%x" csum);
       Drop
     end else begin
       match Ipv6_wire.get_icmpv6_ty icmpbuf with
@@ -932,7 +935,7 @@ module Parser = struct
         Ping (src, dst, id, seq, Cstruct.shift icmpbuf 8)
       | 129 (* Echo reply *) ->
         Pong (Cstruct.shift buf poff)
-      (* Printf.printf "ICMP6: Discarding Echo Reply\n%!"; *)
+      (* Log.info (fun f -> f "ICMP6: Discarding Echo Reply"; *)
       | 133 (* RS *) ->
         (* RFC 4861, 2.6.2 *)
         Drop
@@ -961,31 +964,31 @@ module Parser = struct
           else
             NA (src, dst, na)
       | 1 ->
-        Printf.printf "ICMP6 Destination Unreachable: %s\n%!" (dst_unreachable icmpbuf);
+        Log.info (fun f -> f "ICMP6 Destination Unreachable: %s" (dst_unreachable icmpbuf));
         Drop
       | 2 ->
-        Printf.printf "ICMP6 Packet Too Big\n%!";
+        Log.info (fun f -> f "ICMP6 Packet Too Big");
         Drop
       | 3 ->
-        Printf.printf "ICMP6 Time Exceeded: %s\n%!" (time_exceeded icmpbuf);
+        Log.info (fun f -> f "ICMP6 Time Exceeded: %s" (time_exceeded icmpbuf));
         Drop
       | 4 ->
-        Printf.printf "ICMP6 Parameter Problem: %s\n%!" (parameter_problem icmpbuf);
+        Log.info (fun f -> f "ICMP6 Parameter Problem: %s" (parameter_problem icmpbuf));
         Drop
       | n ->
-        Printf.printf "ICMP6: Unknown packet type: ty=%d\n%!" n;
+        Log.info (fun f -> f "ICMP6: Unknown packet type: ty=%d" n);
         Drop
     end
 
   let rec parse_extension ~src ~dst buf first hdr (poff : int) =
     match hdr with
     | 0 (* HOPTOPT *) when first ->
-      Printf.printf "IP6: Processing HOPOPT header\n%!";
+      Log.info (fun f -> f "IP6: Processing HOPOPT header");
       parse_options ~src ~dst buf poff
     | 0 ->
       Drop
     | 60 (* IPv6-Opts *) ->
-      Printf.printf "IP6: Processing DESTOPT header\n%!";
+      Log.info (fun f -> f "IP6: Processing DESTOPT header");
       parse_options ~src ~dst buf poff
     | 43 (* IPv6-Route *)
     | 44 (* IPv6-Frag *)
@@ -1016,14 +1019,14 @@ module Parser = struct
         let obuf = Cstruct.shift buf ooff in
         match Ipv6_wire.get_opt_ty obuf with
         | 0 ->
-          Printf.printf "IP6: Processing PAD1 option\n%!";
+          Log.info (fun f -> f "IP6: Processing PAD1 option");
           loop (ooff+1)
         | 1 ->
-          Printf.printf "IP6: Processing PADN option\n%!";
+          Log.info (fun f -> f "IP6: Processing PADN option");
           let len = Ipv6_wire.get_opt_len obuf in
           loop (ooff+len+2)
         | _ as n ->
-          Printf.printf "IP6: Processing unknown option, MSB %x\n%!" n;
+          Log.info (fun f -> f "IP6: Processing unknown option, MSB %x" n);
           let len = Ipv6_wire.get_opt_len obuf in
           match n land 0xc0 with
           | 0x00 ->
@@ -1053,15 +1056,15 @@ module Parser = struct
 
     (* TODO check version = 6 *)
 
-    (* Printf.printf "IPv6 packet received from %s to %s\n%!" *)
-    (* (Ipaddr.to_string src) (Ipaddr.to_string dst); *)
+    (* Log.info (fun f -> f "IPv6 packet received from %s to %s" *)
+    (* Ipaddr.pp_hum src) Ipaddr.pp_hum dst); *)
 
     if Ipaddr.Prefix.(mem src multicast) then begin
-      Printf.printf "IP6: Dropping packet, src is mcast\n%!";
+      Log.info (fun f -> f "IP6: Dropping packet, src is mcast");
       Drop
     end else
     if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
-      Printf.printf "IP6: Dropping packet, not for me\n%!";
+      Log.info (fun f -> f "IP6: Dropping packet, not for me");
       Drop
     end
     else
@@ -1103,29 +1106,29 @@ let rec process_actions ~now ctx actions =
         | `Unspecified -> Ipaddr.unspecified
         | `Specified -> AddressList.select_source ctx.address_list ~dst
       in
-      Printf.printf "ND6: Sending NS src=%s dst=%s tgt=%s\n%!"
-        (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt);
+      Log.info (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
+        Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt);
       let frame = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
       send ~now ctx dst frame []
     | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
-      Printf.printf "ND6: Sending NA: src=%s dst=%s tgt=%s sol=%B\n%!"
-        (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string tgt) sol;
+      Log.info (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
+        Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt sol);
       let frame = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
       send ~now ctx dst frame []
     | SendRS ->
-      Printf.printf "ND6: Sending RS\n%!";
+      Log.info (fun f -> f "ND6: Sending RS");
       let frame = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
       let dst = Ipaddr.link_routers in
       send ~now ctx dst frame []
     | SendQueued (ip, dmac) ->
-      Printf.printf "IP6: Releasing queued packets: dst=%s mac=%s\n%!" (Ipaddr.to_string ip) (Macaddr.to_string dmac);
+      Log.info (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%s" Ipaddr.pp_hum ip (Macaddr.to_string dmac));
       let pkts, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let bufs = List.map (fun datav -> datav dmac) pkts in
       let ctx = {ctx with packet_queue} in
       ctx, bufs
     | CancelQueued ip ->
-      Printf.printf "IP6: Cancelling packets: dst = %s\n%!" (Ipaddr.to_string ip);
+      Log.info (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp_hum ip);
       let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       ctx, []
@@ -1152,11 +1155,11 @@ and send ~now ctx dst frame datav =
     let ctx = {ctx with neighbor_cache} in
     match mac with
     | Some dmac ->
-      Printf.printf "IP6: Sending packet: dst=%s mac=%s\n%!" (Ipaddr.to_string dst) (Macaddr.to_string dmac);
+      Log.info (fun f -> f "IP6: Sending packet: dst=%a mac=%s" Ipaddr.pp_hum dst (Macaddr.to_string dmac));
       let ctx, bufs = process_actions ~now ctx actions in
       ctx, datav dmac :: bufs
     | None ->
-      Printf.printf "IP6: Queueing packet: dst=%s\n%!" (Ipaddr.to_string dst);
+      Log.info (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp_hum dst);
       let packet_queue = PacketQueue.push ip datav ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
@@ -1201,7 +1204,7 @@ let select_source ctx dst =
   AddressList.select_source ctx.address_list dst
 
 let handle_ra ~now ctx ~src ~dst ra =
-  Printf.printf "ND: Received RA: src=%s dst=%s\n%!" (Ipaddr.to_string src) (Ipaddr.to_string dst);
+  Log.info (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
   let ctx =
     if ra.ra_cur_hop_limit <> 0 then
       {ctx with cur_hop_limit = ra.ra_cur_hop_limit}
@@ -1258,8 +1261,8 @@ let handle_ra ~now ctx ~src ~dst ra =
   {ctx with router_list}, actions
 
 let handle_ns ~now:_ ctx ~src ~dst ns =
-  Printf.printf "ND: Received NS: src=%s dst=%s tgt=%s\n%!"
-    (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string ns.ns_target);
+  Log.info (fun f -> f "ND: Received NS: src=%a dst=%a tgt=%a"
+    Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum ns.ns_target);
   (* TODO check hlim = 255, target not mcast, code = 0 *)
   let ctx, actions = match ns.ns_slla with
     | Some new_mac ->
@@ -1271,15 +1274,15 @@ let handle_ns ~now:_ ctx ~src ~dst ns =
   in
   if AddressList.is_my_addr ctx.address_list ns.ns_target then
     let src = ns.ns_target and dst = src in
-(*     (\* Printf.printf "Sending NA to %s from %s with target address %s\n%!" *\) *)
-(*       (\* (Ipaddr.to_string dst) (Ipaddr.to_string src) (Ipaddr.to_string target); *\) *)
+(*     (\* Log.info (fun f -> f "Sending NA to %a from %a with target address %a" *\) *)
+(*       (\* Ipaddr.pp_hum dst Ipaddr.pp_hum src Ipaddr.pp_hum target); *\) *)
     ctx, SendNA (src, dst, ns.ns_target, `Solicited) :: actions
   else
     ctx, actions
 
 let handle_na ~now ctx ~src ~dst na =
-  Printf.printf "ND: Received NA: src=%s dst=%s tgt=%s\n%!"
-    (Ipaddr.to_string src) (Ipaddr.to_string dst) (Ipaddr.to_string na.na_target);
+  Log.info (fun f -> f "ND: Received NA: src=%a dst=%a tgt=%a"
+    Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum na.na_target);
 
   (* TODO Handle case when na.target is one of my bound IPs. *)
 
@@ -1310,8 +1313,8 @@ let handle ~now ctx buf =
     let ctx, bufs = process_actions ~now ctx actions in
     ctx, bufs, []
   | Ping (src, dst, id, seq, data) ->
-    Printf.printf "ICMP6: Received PING: src=%s dst=%s id=%d seq=%d\n%!" (Ipaddr.to_string src)
-      (Ipaddr.to_string dst) id seq;
+    Log.info (fun f -> f "ICMP6: Received PING: src=%a dst=%a id=%d seq=%d" Ipaddr.pp_hum src
+      Ipaddr.pp_hum dst id seq);
     let dst = src
     and src =
       if Ipaddr.is_multicast dst then
