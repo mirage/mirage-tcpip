@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: dc9317ded28e0c894a12d0c7d550ba40)
+# DO NOT EDIT (digest: 95361f7add24e6ce9b125d5d8ba20ad8)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -22,19 +22,6 @@ package "xen" (
  exists_if = "tcpip_xen.cma"
 )
 
-package "udpv6-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.udp tcpip.ipv6-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
- archive(byte) = "udpv6-unix.cma"
- archive(byte, plugin) = "udpv6-unix.cma"
- archive(native) = "udpv6-unix.cmxa"
- archive(native, plugin) = "udpv6-unix.cmxs"
- exists_if = "udpv6-unix.cma"
-)
-
 package "udpv6-socket" (
  version = "2.8.0"
  description =
@@ -45,19 +32,6 @@ package "udpv6-socket" (
  archive(native) = "udpv6-socket.cmxa"
  archive(native, plugin) = "udpv6-socket.cmxs"
  exists_if = "udpv6-socket.cma"
-)
-
-package "udpv4-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.udp tcpip.ipv4-unix lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
- archive(byte) = "udpv4-unix.cma"
- archive(byte, plugin) = "udpv4-unix.cma"
- archive(native) = "udpv4-unix.cmxa"
- archive(native, plugin) = "udpv4-unix.cmxs"
- exists_if = "udpv4-unix.cma"
 )
 
 package "udpv4-socket" (
@@ -84,19 +58,6 @@ package "udp" (
  exists_if = "udp.cma"
 )
 
-package "tcpv6-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.tcp tcpip.ipv6-unix channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
- archive(byte) = "tcpv6-unix.cma"
- archive(byte, plugin) = "tcpv6-unix.cma"
- archive(native) = "tcpv6-unix.cmxa"
- archive(native, plugin) = "tcpv6-unix.cmxs"
- exists_if = "tcpv6-unix.cma"
-)
-
 package "tcpv6-socket" (
  version = "2.8.0"
  description =
@@ -107,19 +68,6 @@ package "tcpv6-socket" (
  archive(native) = "tcpv6-socket.cmxa"
  archive(native, plugin) = "tcpv6-socket.cmxs"
  exists_if = "tcpv6-socket.cma"
-)
-
-package "tcpv4-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.tcp tcpip.ipv4-unix channel lwt lwt.unix mirage-unix mirage-clock-unix ipaddr.unix cstruct.lwt io-page.unix"
- archive(byte) = "tcpv4-unix.cma"
- archive(byte, plugin) = "tcpv4-unix.cma"
- archive(native) = "tcpv4-unix.cmxa"
- archive(native, plugin) = "tcpv4-unix.cmxs"
- exists_if = "tcpv4-unix.cma"
 )
 
 package "tcpv4-socket" (
@@ -145,19 +93,6 @@ package "tcp" (
  archive(native) = "tcp.cmxa"
  archive(native, plugin) = "tcp.cmxs"
  exists_if = "tcp.cma"
-)
-
-package "stack-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.udpv4-unix tcpip.tcpv4-unix tcpip.icmpv4-unix tcpip.udpv6-unix tcpip.tcpv6-unix tcpip.stack-direct lwt lwt.unix ipaddr.unix mirage-unix mirage-clock-unix mirage-console.unix mirage-types.lwt io-page.unix"
- archive(byte) = "tcpip-stack-unix.cma"
- archive(byte, plugin) = "tcpip-stack-unix.cma"
- archive(native) = "tcpip-stack-unix.cmxa"
- archive(native, plugin) = "tcpip-stack-unix.cmxs"
- exists_if = "tcpip-stack-unix.cma"
 )
 
 package "stack-socket" (
@@ -186,18 +121,6 @@ package "stack-direct" (
  exists_if = "tcpip-stack-direct.cma"
 )
 
-package "ipv6-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires = "tcpip.ethif-unix tcpip.ipv6 lwt lwt.unix"
- archive(byte) = "ipv6-unix.cma"
- archive(byte, plugin) = "ipv6-unix.cma"
- archive(native) = "ipv6-unix.cmxa"
- archive(native, plugin) = "ipv6-unix.cmxs"
- exists_if = "ipv6-unix.cma"
-)
-
 package "ipv6" (
  version = "2.8.0"
  description =
@@ -208,18 +131,6 @@ package "ipv6" (
  archive(native) = "ipv6.cmxa"
  archive(native, plugin) = "ipv6.cmxs"
  exists_if = "ipv6.cma"
-)
-
-package "ipv4-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires = "tcpip.ethif-unix tcpip.ipv4 lwt lwt.unix"
- archive(byte) = "ipv4-unix.cma"
- archive(byte, plugin) = "ipv4-unix.cma"
- archive(native) = "ipv4-unix.cmxa"
- archive(native, plugin) = "ipv4-unix.cmxs"
- exists_if = "ipv4-unix.cma"
 )
 
 package "ipv4" (
@@ -234,19 +145,6 @@ package "ipv4" (
  exists_if = "ipv4.cma"
 )
 
-package "icmpv4-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "tcpip.ipv4-unix lwt lwt.unix mirage-unix ipaddr.unix cstruct.lwt io-page.unix"
- archive(byte) = "icmpv4-unix.cma"
- archive(byte, plugin) = "icmpv4-unix.cma"
- archive(native) = "icmpv4-unix.cmxa"
- archive(native, plugin) = "icmpv4-unix.cmxs"
- exists_if = "icmpv4-unix.cma"
-)
-
 package "icmpv4" (
  version = "2.8.0"
  description =
@@ -257,18 +155,6 @@ package "icmpv4" (
  archive(native) = "icmpv4.cmxa"
  archive(native, plugin) = "icmpv4.cmxs"
  exists_if = "icmpv4.cma"
-)
-
-package "ethif-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
- archive(byte) = "ethif-unix.cma"
- archive(byte, plugin) = "ethif-unix.cma"
- archive(native) = "ethif-unix.cmxa"
- archive(native, plugin) = "ethif-unix.cmxs"
- exists_if = "ethif-unix.cma"
 )
 
 package "ethif" (
@@ -294,18 +180,6 @@ package "dhcpv4" (
  archive(native) = "dhcpv4.cmxa"
  archive(native, plugin) = "dhcpv4.cmxs"
  exists_if = "dhcpv4.cma"
-)
-
-package "arpv4-unix" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires = "tcpip.ethif mirage-net-unix lwt lwt.unix"
- archive(byte) = "arpv4-unix.cma"
- archive(byte, plugin) = "arpv4-unix.cma"
- archive(native) = "arpv4-unix.cmxa"
- archive(native, plugin) = "arpv4-unix.cmxs"
- exists_if = "arpv4-unix.cma"
 )
 
 package "arpv4" (
