@@ -59,7 +59,4 @@ depends: [
 depopts: [
   "mirage-xen"
 ]
-conflicts: [
-  "mirage-net-unix" { < "1.1.0" }
-]
 available: [ocaml-version >= "4.02.3"]
