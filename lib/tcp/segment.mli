@@ -35,11 +35,6 @@ module Rx (T:V1_LWT.TIME) : sig
 
   val segment_of_parse : Tcp_parse.t -> segment
 
-  val segment:
-    sequence:Sequence.t -> fin:bool -> syn:bool -> rst:bool -> ack:bool ->
-    ack_number:Sequence.t -> window:int -> data:Cstruct.t ->
-    segment
-
   type t
   (** Queue of receive segments *)
 
