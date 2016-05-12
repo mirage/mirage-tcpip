@@ -54,44 +54,22 @@ let rec reset_seq segs =
    the Rtx queue to ack messages or close channels.
 *)
 module Rx(Time:V1_LWT.TIME) = struct
+  open Tcp_parse
 
   module StateTick = State.Make(Time)
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type segment = {
-    sequence: Sequence.t;
-    data: Cstruct.t;
-    fin: bool;
-    syn: bool;
-    ack: bool;
-    rst: bool;
-    ack_number: Sequence.t;
-    window: int;
-  }
+  type segment = Tcp_parse.t
 
-  let pp_segment fmt seg =
+  let pp_segment fmt (seg : Tcp_parse.t) =
     Log.pf fmt
       "RX seg seq=%a fin=%b syn=%b ack=%b acknum=%a win=%d"
       Sequence.pp seg.sequence seg.fin seg.syn seg.ack
       Sequence.pp seg.ack_number seg.window
 
-  let segment_of_parse (parsed_packet : Tcp_parse.t) : segment =
-    let open Tcp_parse in
-    {
-      sequence = parsed_packet.sequence;
-      data = parsed_packet.data;
-      fin = parsed_packet.fin;
-      syn = parsed_packet.syn;
-      ack = parsed_packet.ack;
-      rst = parsed_packet.rst;
-      ack_number = parsed_packet.ack_number;
-      window = parsed_packet.window;
-    }
-
-  let segment ~sequence ~fin ~syn ~rst ~ack ~ack_number ~window ~data =
-    { sequence; fin; syn; ack; rst; ack_number; window; data }
-
+  let segment_of_parse (parsed_packet : Tcp_parse.t) : segment = parsed_packet
+  
   let len seg =
     Sequence.of_int ((Cstruct.len seg.data) +
     (if seg.fin then 1 else 0) +
@@ -291,7 +269,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     xmit: xmit;                    (* Transmit packet to the wire *)
     rx_ack: Sequence.t Lwt_mvar.t; (* RX Ack thread that we've sent one *)
     wnd: Window.t;                 (* TCP Window information *)
-    state: State.t;
+    state: State.t;                (* state of the TCP connection associated
+                                      with this queue *)
     tx_wnd_update: int Lwt_mvar.t; (* Received updates to the transmit window *)
     rexmit_timer: Tcptimer.t;      (* Retransmission timer for this connection *)
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
