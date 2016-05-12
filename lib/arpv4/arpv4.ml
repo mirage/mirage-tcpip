@@ -55,8 +55,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         | Pending _ -> expired
         | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
     in
-    List.iter (fun ip -> Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip)) expired;
-    List.iter (Hashtbl.remove t.cache) expired;
+    List.iter (fun ip ->
+         Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip); Hashtbl.remove t.cache ip
+      ) expired;
     Time.sleep arp_timeout >>= tick t
 
   let to_repr t =
