@@ -106,11 +106,6 @@ module Rx(Time:V1_LWT.TIME) = struct
     try (S.max_elt q).fin
     with Not_found -> false
 
-  (* If there is a SYN flag in this segment set *)
-  (*  let syn q =
-      try (S.max_elt q).syn
-      with Not_found -> false *)
-
   let is_empty q = S.is_empty q.segs
 
   let check_valid_segment q seg =
@@ -196,7 +191,7 @@ module Rx(Time:V1_LWT.TIME) = struct
         let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
             (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l),
             (Sequence.add (len seg) acc_w)
-          )ready ([], Sequence.zero) in
+          ) ready ([], Sequence.zero) in
         let elems = List.rev elems_r in
         let w = if !force_ack || Sequence.(gt winadv zero)
           then Some winadv else None in
@@ -205,7 +200,7 @@ module Rx(Time:V1_LWT.TIME) = struct
            window as closed and tell the application *)
         (if fin ready then begin
             if S.cardinal waiting != 0 then
-              Log.s info "warning, rx closed but waiting segs != 0";
+              Log.s info "application receive queue closed, but there are waiting segments.";
             Lwt_mvar.put q.rx_data (None, Some Sequence.zero)
           end else Lwt.return_unit)
       in
@@ -216,7 +211,7 @@ module Rx(Time:V1_LWT.TIME) = struct
       Lwt.return_unit
     | `Reset ->
       StateTick.tick q.state State.Recv_rst;
-      (* Dump all the received but out of order frames *)
+      (* Abandon our current segments *)
       q.segs <- S.empty;
       (* Signal TX side *)
       let txalert ack_svcd =
@@ -227,7 +222,6 @@ module Rx(Time:V1_LWT.TIME) = struct
       (* Use the fin path to inform the application of end of stream *)
       Lwt_mvar.put q.rx_data (None, Some Sequence.zero)
 end
-
 
 (* Transmitted segments are sent in-order, and may also be marked
    with control flags (such as urgent, or fin to mark the end).
