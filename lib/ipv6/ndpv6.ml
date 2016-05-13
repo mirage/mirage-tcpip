@@ -352,21 +352,21 @@ module AddressList = struct
           | Some (preferred_lifetime, valid_lifetime) ->
             Some (now +. preferred_lifetime, valid_lifetime)
         in
-        Log.info (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp_hum ip);
+        Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp_hum ip);
         Some (ip, PREFERRED timeout), []
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
         [SendNS (`Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-      Log.info (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp_hum ip);
       let valid_timeout = match valid_lifetime with
         | None -> None
         | Some valid_lifetime -> Some (now +. valid_lifetime)
       in
       Some (ip, DEPRECATED valid_timeout), []
     | ip, DEPRECATED (Some t) when t <= now ->
-      Log.info (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp_hum ip);
       None, []
     | addr ->
       Some addr, []
@@ -388,12 +388,14 @@ module AddressList = struct
       ) al
 
   let add al ~now ~retrans_timer ~lft ip =
-    if not (List.mem_assoc ip al) then
+    match List.mem_assoc ip al with
+    | false ->
       let al = (ip, TENTATIVE (lft, 0, now +. retrans_timer)) :: al in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
       al, [SendNS (`Unspecified, dst, ip)]
-    else
-      (* TODO log warning *)
+    | true ->
+      Log.warn (fun f -> f "ndpv6: attempted to add ip %a already in address list"
+                   Ipaddr.pp_hum ip);
       al, []
 
   let is_my_addr al ip =
@@ -490,27 +492,27 @@ module PrefixList = struct
          the prefix is not present in the host's Prefix List, silently ignore
          the option. *)
 
-    Log.info (fun f -> f "ND6: Processing PREFIX option in RA");
+    Log.debug (fun f -> f "ND6: Processing PREFIX option in RA");
     if Ipaddr.Prefix.link <> pfx then
       match vlft, List.mem_assoc pfx pl with
       | Some 0.0, true ->
-        Log.info (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp_hum pfx);
         List.remove_assoc pfx pl, []
       | Some 0.0, false ->
         pl, []
       | Some dt, true ->
-        Log.info (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
+        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
         let pl = List.remove_assoc pfx pl in
         (pfx, Some (now +. dt)) :: pl, []
       | Some dt, false ->
-        Log.info (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
+        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
         (pfx, Some (now +. dt)) :: pl, []
       | None, true ->
-        Log.info (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
         let pl = List.remove_assoc pfx pl in
         (pfx, None) :: pl, []
       | None, false ->
-        Log.info (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
         (pfx, None) :: pl, []
     else
       pl, []
@@ -1056,15 +1058,15 @@ module Parser = struct
 
     (* TODO check version = 6 *)
 
-    (* Log.info (fun f -> f "IPv6 packet received from %s to %s" *)
+    (* Log.debug (fun f -> f "IPv6 packet received from %s to %s" *)
     (* Ipaddr.pp_hum src) Ipaddr.pp_hum dst); *)
 
     if Ipaddr.Prefix.(mem src multicast) then begin
-      Log.info (fun f -> f "IP6: Dropping packet, src is mcast");
+      Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
       Drop
     end else
     if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
-      Log.info (fun f -> f "IP6: Dropping packet, not for me");
+      Log.debug (fun f -> f "IP6: Dropping packet, not for me");
       Drop
     end
     else
@@ -1106,29 +1108,29 @@ let rec process_actions ~now ctx actions =
         | `Unspecified -> Ipaddr.unspecified
         | `Specified -> AddressList.select_source ctx.address_list ~dst
       in
-      Log.info (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
+      Log.debug (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
         Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt);
       let frame = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
       send ~now ctx dst frame []
     | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
-      Log.info (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
+      Log.debug (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
         Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt sol);
       let frame = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
       send ~now ctx dst frame []
     | SendRS ->
-      Log.info (fun f -> f "ND6: Sending RS");
+      Log.debug (fun f -> f "ND6: Sending RS");
       let frame = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
       let dst = Ipaddr.link_routers in
       send ~now ctx dst frame []
     | SendQueued (ip, dmac) ->
-      Log.info (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%s" Ipaddr.pp_hum ip (Macaddr.to_string dmac));
+      Log.debug (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%s" Ipaddr.pp_hum ip (Macaddr.to_string dmac));
       let pkts, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let bufs = List.map (fun datav -> datav dmac) pkts in
       let ctx = {ctx with packet_queue} in
       ctx, bufs
     | CancelQueued ip ->
-      Log.info (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp_hum ip);
       let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       ctx, []
@@ -1155,11 +1157,11 @@ and send ~now ctx dst frame datav =
     let ctx = {ctx with neighbor_cache} in
     match mac with
     | Some dmac ->
-      Log.info (fun f -> f "IP6: Sending packet: dst=%a mac=%s" Ipaddr.pp_hum dst (Macaddr.to_string dmac));
+      Log.debug (fun f -> f "IP6: Sending packet: dst=%a mac=%s" Ipaddr.pp_hum dst (Macaddr.to_string dmac));
       let ctx, bufs = process_actions ~now ctx actions in
       ctx, datav dmac :: bufs
     | None ->
-      Log.info (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp_hum dst);
+      Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp_hum dst);
       let packet_queue = PacketQueue.push ip datav ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
@@ -1204,7 +1206,7 @@ let select_source ctx dst =
   AddressList.select_source ctx.address_list dst
 
 let handle_ra ~now ctx ~src ~dst ra =
-  Log.info (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
+  Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
   let ctx =
     if ra.ra_cur_hop_limit <> 0 then
       {ctx with cur_hop_limit = ra.ra_cur_hop_limit}
@@ -1261,7 +1263,7 @@ let handle_ra ~now ctx ~src ~dst ra =
   {ctx with router_list}, actions
 
 let handle_ns ~now:_ ctx ~src ~dst ns =
-  Log.info (fun f -> f "ND: Received NS: src=%a dst=%a tgt=%a"
+  Log.debug (fun f -> f "ND: Received NS: src=%a dst=%a tgt=%a"
     Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum ns.ns_target);
   (* TODO check hlim = 255, target not mcast, code = 0 *)
   let ctx, actions = match ns.ns_slla with
@@ -1274,14 +1276,14 @@ let handle_ns ~now:_ ctx ~src ~dst ns =
   in
   if AddressList.is_my_addr ctx.address_list ns.ns_target then
     let src = ns.ns_target and dst = src in
-(*     (\* Log.info (fun f -> f "Sending NA to %a from %a with target address %a" *\) *)
+(*     (\* Log.debug (fun f -> f "Sending NA to %a from %a with target address %a" *\) *)
 (*       (\* Ipaddr.pp_hum dst Ipaddr.pp_hum src Ipaddr.pp_hum target); *\) *)
     ctx, SendNA (src, dst, ns.ns_target, `Solicited) :: actions
   else
     ctx, actions
 
 let handle_na ~now ctx ~src ~dst na =
-  Log.info (fun f -> f "ND: Received NA: src=%a dst=%a tgt=%a"
+  Log.debug (fun f -> f "ND: Received NA: src=%a dst=%a tgt=%a"
     Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum na.na_target);
 
   (* TODO Handle case when na.target is one of my bound IPs. *)
