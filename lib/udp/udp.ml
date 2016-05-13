@@ -17,6 +17,11 @@
 open Lwt.Infix
 open Result
 
+let src = Logs.Src.create "udp" ~doc:"Mirage UDP"
+module Log = (val Logs.src_log src : Logs.LOG)
+
+let pp_ips = Format.pp_print_list Ipaddr.pp_hum
+
 module Make(Ip: V1_LWT.IP) = struct
 
   type 'a io = 'a Lwt.t
@@ -40,7 +45,8 @@ module Make(Ip: V1_LWT.IP) = struct
   let input ~listeners t ~src ~dst buf =
     let open Udp_parse in
     match parse_udp_header buf with
-    | Error s -> (* TODO: log message if log level is high *) Lwt.return_unit
+    | Error s ->
+      Log.debug (fun f -> f "Discarding received UDP message: error parsing: %s" s); Lwt.return_unit
     | Ok { src_port; dst_port; payload } -> 
       match listeners ~dst_port with
       | None    -> Lwt.return_unit
@@ -60,12 +66,20 @@ module Make(Ip: V1_LWT.IP) = struct
             ~dst_port:dest_port ~pseudoheader:ph ~payload:bufs with
     | Ok () -> 
       Ip.writev t.ip frame bufs
-    | Error _ -> (* TODO: log error *) Lwt.return_unit
+    | Error s -> Log.debug (fun f -> f "Discarding transmitted UDP message: error writing: %s" s);
+      Lwt.return_unit
 
   let write ?source_port ~dest_ip ~dest_port t buf =
     writev ?source_port ~dest_ip ~dest_port t [buf]
 
-  let connect ip = Lwt.return (`Ok { ip })
+  let connect ip =
+    let ips = List.map Ip.to_uipaddr @@ Ip.get_ip ip in
+    Log.info (fun f -> f "UDP interface disconnected on %a" pp_ips ips);
+    Lwt.return (`Ok { ip })
 
-  let disconnect _ = Lwt.return_unit
+  let disconnect t =
+    let ips = List.map Ip.to_uipaddr @@ Ip.get_ip t.ip in
+    Log.info (fun f -> f "UDP interface disconnected on %a" pp_ips ips);
+    Lwt.return_unit
+
 end
