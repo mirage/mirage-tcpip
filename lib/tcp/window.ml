@@ -108,9 +108,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
     rtt_timer_on; rtt_timer_reset;
     rtt_timer_seq; rtt_timer_starttime; srtt; rttvar; rto; backoff_count }
 
-(* Check if a sequence number is in the right range
-   TODO: modulo 32 for wrap
-*)
+(* Check if a sequence number is in the right range *)
 let valid t seq =
   let redge = Sequence.(add t.rx_nxt (of_int32 t.rx_wnd)) in
   let ledge = Sequence.(sub t.rx_nxt (of_int32 t.max_rx_wnd)) in
