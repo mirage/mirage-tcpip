@@ -60,7 +60,7 @@ module Make(Ip: V1_LWT.IP) = struct
     Wire_structs.set_udp_source_port udp_buf source_port;
     Wire_structs.set_udp_dest_port udp_buf dest_port;
     Wire_structs.set_udp_length udp_buf (Wire_structs.sizeof_udp + Cstruct.lenv bufs);
-    (* Wire_structs.set_udp_checksum udp_buf 0; *)
+    Wire_structs.set_udp_checksum udp_buf 0;
     let csum = Ip.checksum frame (udp_buf :: bufs) in
     Wire_structs.set_udp_checksum udp_buf csum;
     Ip.writev t.ip frame bufs
