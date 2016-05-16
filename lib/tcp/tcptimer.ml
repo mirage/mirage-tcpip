@@ -16,7 +16,8 @@
 
 open Lwt.Infix
 
-let debug = Log.create "TCP.Tcptimer"
+let src = Logs.Src.create "tcptimer" ~doc:"Mirage TCP Tcptimer module"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 type tr =
   | Stoptimer
@@ -35,7 +36,7 @@ module Make(Time:V1_LWT.TIME) = struct
     {period; expire; running}
 
   let timerloop t s =
-    Log.s debug "timerloop";
+    Log.debug (fun f -> f "timerloop");
     Stats.incr_timer ();
     let rec aux t s =
       Time.sleep t.period >>= fun () ->
@@ -43,13 +44,13 @@ module Make(Time:V1_LWT.TIME) = struct
       | Stoptimer ->
         Stats.decr_timer ();
         t.running <- false;
-        Log.s debug "timerloop: stoptimer";
+        Log.debug (fun f -> f "timerloop: stoptimer");
         Lwt.return_unit
       | Continue d ->
-        Log.s debug "timerloop: continuer";
+        Log.debug (fun f -> f "timerloop: continuer");
         aux t d
       | ContinueSetPeriod (p, d) ->
-        Log.s debug "timerloop: coontinuesetperiod";
+        Log.debug (fun f -> f "timerloop: coontinuesetperiod");
         t.period <- p;
         aux t d
     in

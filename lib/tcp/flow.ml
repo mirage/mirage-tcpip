@@ -20,7 +20,8 @@ open Lwt.Infix
 
 exception Refused
 
-let debug = Log.create "Flow"
+let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
 
@@ -42,14 +43,14 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   ]
 
   let err_timeout daddr dport =
-    Log.f debug (fun fmt ->
-        Log.pf fmt "Failed to connect to %a:%d\n%!"
+    Log.debug (fun fmt ->
+        fmt "Failed to connect to %a:%d\n%!"
           Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
     Lwt.return (`Error `Timeout)
 
   let err_refused daddr dport =
-    Log.f debug (fun fmt ->
-        Log.pf fmt "Refused connection to %a:%d\n%!"
+    Log.debug (fun fmt ->
+        fmt "Refused connection to %a:%d\n%!"
           Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
     Lwt.return (`Error `Refused)
 
@@ -61,12 +62,12 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | `Refused -> "Connection refused"
 
   let err_rewrite = function
-    | `Error (`Bad_state _) -> `Error `Refused
-    | `Ok () as x -> x
+    | Result.Error s -> `Error `Refused
+    | Result.Ok ()   -> `Ok ()
 
   let err_raise = function
-    | `Error (`Bad_state _) -> Lwt.fail Refused
-    | `Ok () -> Lwt.return_unit
+    | Result.Error s -> Lwt.fail Refused
+    | Result.Ok ()   -> Lwt.return_unit
 
   let id = Pcb.ip
   let get_dest = Pcb.get_dest

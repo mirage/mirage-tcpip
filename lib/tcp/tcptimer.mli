@@ -26,5 +26,3 @@ module Make(T:V1_LWT.TIME) : sig
 
   val start : t -> ?p:float -> Sequence.t -> unit Lwt.t
 end
-
-val debug: Log.t

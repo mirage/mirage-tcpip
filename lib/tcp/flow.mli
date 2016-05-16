@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val debug: Log.t
-
 exception Refused
 (** {b NOTE}: to be removed in favor of a proper result type in
     V1.write_nodelay and V1.writev_nodelay.*)

@@ -92,7 +92,7 @@ Library tcp
   Findlibname:        tcp
   Modules:            Options,State,Tcptimer,Sequence,Ack,
                       Window,Segment,User_buffer,Pcb,Flow,
-                      Stats, Log, Wire,
+                      Stats, Wire,
                       Tcp_wire, Tcp_parse, Tcp_print
   BuildDepends:       io-page,
                       mirage-types,
