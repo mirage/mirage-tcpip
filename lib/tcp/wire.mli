@@ -15,12 +15,15 @@
  *)
 
 module Make(Ip:V1_LWT.IP) : sig
-  type id = {
-    dest_port: int;               (* Remote TCP port *)
-    dest_ip: Ip.ipaddr;         (* Remote IP address *)
-    local_port: int;              (* Local TCP port *)
-    local_ip: Ip.ipaddr;        (* Local IP address *)
-  }
+  type id
+
+  val local_port_of_id : id -> int
+
+  val dest_of_id : id -> (Ip.ipaddr * int)
+
+  val wire : local_ip:Ip.ipaddr -> local_port:int -> dest_ip:Ip.ipaddr -> dest_port:int -> id
+
+  val pp_id : Format.formatter -> id -> unit
 
   val xmit : ip:Ip.t -> id:id ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->

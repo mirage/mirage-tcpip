@@ -32,6 +32,18 @@ module Make (Ip:V1_LWT.IP) = struct
     local_ip: Ip.ipaddr;        (* Local IP address *)
   }
 
+  let wire ~local_ip ~local_port ~dest_ip ~dest_port =
+    { dest_port ; dest_ip; local_port ; local_ip }
+
+  let local_port_of_id id = id.local_port
+
+  let dest_of_id id = (id.dest_ip, id.dest_port)
+
+  let pp_id fmt id =
+    let uip = Ip.to_uipaddr in
+    Format.fprintf fmt "remote %a,%d to local %a, %d"
+      Ipaddr.pp_hum (uip id.dest_ip) id.dest_port Ipaddr.pp_hum (uip id.local_ip) id.local_port
+
   let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload =
     (* Make a TCP/IP header frame *)
