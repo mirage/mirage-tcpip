@@ -47,11 +47,7 @@ val pp_tcpstate : Format.formatter -> tcpstate -> unit
 
 type close_cb = unit -> unit
 
-(* FIXME: abstract type *)
-type t = {
-  on_close: close_cb;
-  mutable state: tcpstate;
-}
+type t
 
 val state : t -> tcpstate
 val t : on_close:close_cb -> t

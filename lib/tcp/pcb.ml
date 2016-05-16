@@ -416,7 +416,7 @@ struct
 
   let process_syn t id ~listeners ~tx_wnd ~pkt ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
-    match listeners id.WIRE.local_port with
+    match listeners @@ WIRE.local_port_of_id id with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       (* TODO: make this configurable per listener *)
@@ -489,12 +489,7 @@ struct
       try
         let source_port = Tcp_wire.get_tcp_src_port data in
         let dest_port = Tcp_wire.get_tcp_dst_port data in
-        let id =
-          { WIRE.local_port = dest_port;
-            dest_ip         = src;
-            local_ip        = dst;
-            dest_port       = source_port }
-        in
+        let id = WIRE.wire ~local_port:dest_port ~dest_port:source_port ~dest_ip:src ~local_ip:dst in
         (* Lookup connection from the active PCB hash *)
         with_hashtbl t.channels id
           (* PCB exists, so continue the connection state machine in tcp_input *)
@@ -521,20 +516,29 @@ struct
     UTX.wait_for pcb.utx (Int32.of_int sz)
 
   let rec writefn pcb wfn data =
-    let len = Cstruct.len data in
-    match write_available pcb with
-    | 0 ->
-      write_wait_for pcb 1 >>= fun () ->
-      writefn pcb wfn data
-    | av_len when av_len < len ->
-      let first_bit = Cstruct.sub data 0 av_len in
-      let remaing_bit = Cstruct.sub data av_len (len - av_len) in
-      writefn pcb wfn first_bit >+= fun () ->
-      writefn pcb wfn remaing_bit
-    | _ ->
-      match State.state pcb.state with
-      | State.Established | State.Close_wait -> wfn [data] >>= ok
-      | e -> error e
+    match State.state pcb.state with
+    (* but it's only appropriate to send data if the connection is ready for it *)
+    | State.Established | State.Close_wait -> begin
+      let len = Cstruct.len data in
+      match write_available pcb with
+      | 0 -> (* no room at all; we must wait *)
+        write_wait_for pcb 1 >>= fun () ->
+        writefn pcb wfn data
+      | av_len when av_len >= len -> (* we have enough room for the whole packet *)
+        wfn [data] >>= fun n -> Lwt.return (Result.Ok n)
+      | av_len -> (* partial send is possible *)
+        let sendable = Cstruct.sub data 0 av_len in
+        writefn pcb wfn sendable >>= function
+        | Result.Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
+        | Result.Error _ as e -> Lwt.return e
+      end
+    | _ -> Lwt.return (Result.Error "attempted to send data before connection was ready")
+
+  let rec iter_s f = function
+    | [] -> Lwt.return (Result.Ok ())
+    | h :: t -> f h >>= function
+      | Result.Ok () -> iter_s f t
+      | e -> Lwt.return e
 
   (* Blocking write on a PCB *)
   let write pcb data = writefn pcb (UTX.write pcb.utx) data
@@ -546,7 +550,7 @@ struct
   (* Close - no more will be written *)
   let close pcb = Tx.close pcb
 
-  let get_dest pcb = pcb.id.WIRE.dest_ip, pcb.id.WIRE.dest_port
+  let get_dest pcb = WIRE.dest_of_id pcb.id
 
   let getid t dest_ip dest_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -558,17 +562,13 @@ struct
       Hashtbl.mem t.connects id ||
       Hashtbl.mem t.listens id
     in
-    let inuse t id = islistener t id.WIRE.local_port || idinuse t id in
+    let inuse t id = islistener t (WIRE.local_port_of_id id) || idinuse t id in
     let rec bumpport t =
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id =
-        { WIRE.local_port = t.localport;
-          dest_ip         = dest_ip;
-          local_ip        = Ip.get_source t.ip dest_ip;
-          dest_port       = dest_port }
-      in
+      let id = WIRE.wire ~local_ip:(Ip.get_source t.ip dest_ip)
+          ~local_port:t.localport ~dest_ip ~dest_port in
       if inuse t id then bumpport t else id
     in
     bumpport t
@@ -605,7 +605,7 @@ struct
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
     if Hashtbl.mem t.connects id then (
-      Log.debug (fun f -> f "duplicate attempt to make a connection: %a .  Removing the old state and replacing with new attempt" WIRE.pp_id id);
+      Log.debug (fun f -> f "duplicate attempt to make a connection: [%a] . Removing the old state and replacing with new attempt" WIRE.pp_id id);
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
     );
