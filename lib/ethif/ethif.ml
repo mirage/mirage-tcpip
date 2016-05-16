@@ -16,6 +16,7 @@
  *
  *)
 open Lwt.Infix
+open Result
 
 module Make(Netif : V1_LWT.NETWORK) = struct
 
@@ -46,6 +47,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     match parse_ethernet_header frame with
     | Ok header when of_interest header.destination ->
       begin
+        let open Ethif_wire in
         match header.ethertype with
         | ARP -> arpv4 header.payload
         | IPv4 -> ipv4 header.payload
