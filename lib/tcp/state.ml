@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Printf
 
 let src = Logs.Src.create "state" ~doc:"Mirage TCP State module"
 module Log = (val Logs.src_log src : Logs.LOG)

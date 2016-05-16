@@ -29,11 +29,12 @@ module Make(IP : V1_LWT.IPV4) = struct
       Lwt.return_unit
     | Result.Ok message ->
       let open Icmpv4_wire in
+      let open Icmpv4_parse in
       match message.ty, message.subheader with
       | Echo_reply, _ -> Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
         Lwt.return_unit
-      | Destination_unreachable, _ -> Log.info (fun f -> f "ICMP: destination unreachable from %a" 
-                                                   Ipaddr.V4.pp_hum src);
+      | Destination_unreachable, _ ->
+        Log.info (fun f -> f "ICMP: destination unreachable from %a" Ipaddr.V4.pp_hum src);
         Lwt.return_unit
       | Echo_request, Id_and_seq (id, seq) ->
         if t.echo_reply && should_reply t dst then begin

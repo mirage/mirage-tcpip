@@ -16,9 +16,9 @@
  *)
 
 open Lwt.Infix
-open Printf
+open Result
 
-let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP handler"
+let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
