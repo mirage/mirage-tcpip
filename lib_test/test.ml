@@ -33,6 +33,8 @@ let () =
       Log.enable log;
       Log.set_stats log false
     );
+  (* enable logging to stdout for other modules *)
+  Logs.set_reporter (Logs_fmt.reporter ~prefix:(Some "TCPIP test") ());
   (* Uncomment to enable tracing *)
   (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
   let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in

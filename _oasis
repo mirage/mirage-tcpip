@@ -211,7 +211,7 @@ Executable test
                       mirage-profile, mirage-flow, mirage-vnetif,
                       mirage-console.unix, mirage-clock-unix, pcap-format,
                       tcpip.ethif, tcpip.arpv4, tcpip.ipv4, tcpip.tcp, tcpip.udp,
-                      tcpip.stack-direct,tcpip.icmpv4
+                      tcpip.stack-direct,tcpip.icmpv4,logs.fmt
 
 Test test
   Run$:               flag(tests)
