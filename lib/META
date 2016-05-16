@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 95361f7add24e6ce9b125d5d8ba20ad8)
+# DO NOT EDIT (digest: ca7523c2165a38b285d01a1ea16cef0e)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -50,7 +50,7 @@ package "udp" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip result rresult"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
@@ -125,7 +125,7 @@ package "ipv6" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip tcpip.ethif"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
@@ -137,7 +137,8 @@ package "ipv4" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip"
+ requires =
+ "io-page mirage-types ipaddr cstruct lwt tcpip rresult tcpip.ethif"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
@@ -149,7 +150,7 @@ package "icmpv4" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "io-page mirage-types ipaddr cstruct lwt tcpip result"
+ requires = "io-page mirage-types ipaddr cstruct lwt tcpip result rresult"
  archive(byte) = "icmpv4.cma"
  archive(byte, plugin) = "icmpv4.cma"
  archive(native) = "icmpv4.cmxa"
@@ -161,7 +162,7 @@ package "ethif" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "tcpip io-page mirage-types ipaddr cstruct lwt"
+ requires = "tcpip io-page mirage-types ipaddr cstruct lwt rresult"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"
@@ -186,7 +187,8 @@ package "arpv4" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt"
+ requires =
+ "tcpip io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.ethif result rresult"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"
