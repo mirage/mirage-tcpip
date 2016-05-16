@@ -29,9 +29,7 @@ tags: ["org:mirage"]
 
 build: [
   ["./configure" "--prefix" prefix
-    "--%{mirage-xen:enable}%-xen"
-    "--%{mirage-net-unix:enable}%-unix"
-  ]
+    "--%{mirage-xen:enable}%-xen" ]
   [make]
 ]
 build-test: [
@@ -47,9 +45,7 @@ depends: [
   "rresult"
   "cstruct" {>= "1.9.0"}
   "ppx_tools"
-  "channel"
   "mirage-types" {>= "2.8.0"}
-  "mirage-unix" {>= "1.1.0"}
   "mirage-console"
   "mirage-clock-unix" {>= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
@@ -63,9 +59,5 @@ depends: [
 ]
 depopts: [
   "mirage-xen"
-  "mirage-net-unix"
-]
-conflicts: [
-  "mirage-net-unix" { < "1.1.0" }
 ]
 available: [ocaml-version >= "4.02.3"]
