@@ -18,37 +18,9 @@
 open Lwt.Infix
 open Tcp_parse
 
-type error = [`Bad_state of State.tcpstate]
+let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
+module Log = (val Logs.src_log src : Logs.LOG)
 
-type 'a result = [`Ok of 'a | `Error of error]
-let ok x = Lwt.return (`Ok x)
-let error s = Lwt.return (`Error (`Bad_state s))
-
-let (>+=) x f =
-  x >>= function
-  | `Ok x -> f x
-  | `Error _ as e -> Lwt.return e
-
-let iter_s f l =
-  let rec aux = function
-    | []   -> ok ()
-    | h::t -> f h >+= fun () -> aux t
-  in
-  aux l
-
-
-let debug = Log.create "PCB"
-let info  = Log.create ~enabled:true ~stats:false "PCB"
-
-[%%cstruct
-type pseudo_header = {
-    src:   uint32_t;
-    dst:   uint32_t;
-    res:   uint8_t;
-    proto: uint8_t;
-    len:   uint16_t;
-  } [@@big_endian]
-]
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
 struct
 
@@ -86,13 +58,16 @@ struct
     connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
+  let pp_pcb fmt pcb =
+    Format.fprintf fmt "id=[%a] state=[%a]" WIRE.pp_id pcb.id State.pp pcb.state
+
   let pp_stats fmt t =
-    Log.pf fmt "[channels=%d listens=%d connects=%d]"
+    Format.fprintf fmt "[channels=%d listens=%d connects=%d]"
       (Hashtbl.length t.channels)
       (Hashtbl.length t.listens)
       (Hashtbl.length t.connects)
 
-  let with_stats name t fmt = Log.pf fmt "%s: %a" name pp_stats t
+  let log_with_stats level name t = Log.msg level (fun fmt -> fmt "%s: %a" name pp_stats t)
 
   let ip { ip; _ } = ip
 
@@ -127,7 +102,7 @@ struct
 
     (* Queue up an immediate close segment *)
     let close pcb =
-      Log.s debug "TX.close";
+      Log.debug (fun f -> f "Closing connection %a" WIRE.pp_id pcb.id);
       match State.state pcb.state with
       | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
@@ -136,8 +111,8 @@ struct
          TXS.output ~flags:Segment.Fin pcb.txq []
         )
       | _ ->
-        Log.f debug (fun fmt ->
-            Log.pf fmt "TX.close: skipping, state=%a" State.pp pcb.state);
+        Log.debug (fun fmt ->
+            fmt "TX.close: close requested but no action needed, state=%a" State.pp pcb.state);
         Lwt.return_unit
 
     (* Thread that transmits ACKs in response to received packets,
@@ -169,7 +144,7 @@ struct
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t pkt (pcb,_) =
       match Tcp_parse.parse_tcp_header pkt with
-      | Result.Error s -> Log.s debug ("Tcp_parse.parse_tcp_header: " ^ s);
+      | Result.Error s -> Log.debug (fun fmt -> fmt "Tcp_parse.parse_tcp_header: %s" s);
         Lwt.return_unit
       | Result.Ok parsed ->
         let { rxq; _ } = pcb in
@@ -240,23 +215,22 @@ struct
     try Some (Hashtbl.find h k) with Not_found -> None
 
   let clearpcb t id tx_isn =
-    (* TODO: add more info to log msgs *)
-    Log.f debug (with_stats "removing pcb from tables" t);
+    Logs.(log_with_stats Debug "removing pcb from connection tables" t);
     match hashtbl_find t.channels id with
     | Some _ ->
-      Log.s debug "removed from channels!!";
       Hashtbl.remove t.channels id;
       Stats.decr_channel ();
+      Log.debug (fun f -> f "removed %a from active channels" WIRE.pp_id id);
     | None ->
       match hashtbl_find t.listens id with
       | Some (isn, _) ->
         if isn = tx_isn then (
-          Log.s debug "removing incomplete listen pcb";
           Hashtbl.remove t.listens id;
           Stats.decr_listen ();
+          Log.debug (fun f -> f "removed %a from incomplete listen pcbs" WIRE.pp_id id);
         )
       | None ->
-        Log.s debug "error in removing pcb - no such connection"
+        Log.debug (fun f -> f "error in removing %a - no such connection" WIRE.pp_id id)
 
   let pcb_allocs = ref 0
   let th_allocs = ref 0
@@ -336,7 +310,8 @@ struct
       | ex ->
         (* cancel the other threads *)
         List.iter Lwt.cancel threads;
-        Log.s info "ERROR: thread failure; terminating threads and closing connection";
+        Log.err (fun f -> f "thread failure: [%s]. Terminating threads and closing connection"
+                    (Printexc.to_string ex));
         on_close ();
         !Lwt.async_exception_hook ex
     in
@@ -351,13 +326,14 @@ struct
     Lwt.return (pcb, th, opts)
 
   let new_server_connection t params id pushf =
-    Log.f debug (with_stats "new-server-connection" t);
+    Logs.(log_with_stats Debug "new-server-connection" t);
     new_pcb t params id >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
     if Hashtbl.mem t.listens id then (
-      Log.s info "WARNING: connection already being attempted";
+      Log.debug (fun f -> f "duplicate attempt to make a connection: %a .
+      Removing the old state and replacing with new attempt" WIRE.pp_id id);
       Hashtbl.remove t.listens id;
       Stats.decr_listen ();
     );
@@ -369,7 +345,7 @@ struct
     Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number =
-    Log.f debug (with_stats "new-client-connection" t);
+    Logs.(log_with_stats Debug "new-client-connection" t);
     let tx_isn = params.tx_isn in
     let params = { params with tx_isn = Sequence.incr tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
@@ -384,7 +360,7 @@ struct
     Lwt.return (pcb, th)
 
   let process_reset t id ~ack ~ack_number =
-    Log.f debug (with_stats "process-reset" t);
+    Logs.(log_with_stats Debug "process-reset" t);
     if ack then
         match hashtbl_find t.connects id with
         | Some (wakener, tx_isn) ->
@@ -412,7 +388,7 @@ struct
         Lwt.return_unit
 
   let process_synack t id ~pkt ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
-    Log.f debug (with_stats "process-synack" t);
+    Logs.(log_with_stats Debug "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
       if Sequence.(compare (incr tx_isn) ack_number = 0) then (
@@ -439,7 +415,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_syn t id ~listeners ~tx_wnd ~pkt ~ack_number ~sequence ~options ~syn ~fin =
-    Log.f debug (with_stats "process-syn" t);
+    Logs.(log_with_stats Debug "process-syn" t);
     match listeners id.WIRE.local_port with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
@@ -455,7 +431,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
-    Log.f debug (with_stats "process-ack" t);
+    Logs.(log_with_stats Debug "process-ack" t);
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(compare (incr tx_isn) ack_number = 0) then (
@@ -482,7 +458,7 @@ struct
 
   let input_no_pcb t listeners pkt id =
     match Tcp_parse.parse_tcp_header pkt with
-    | Result.Error s -> Log.s debug ("Tcp_parse.parse_header: " ^ s);
+    | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Result.Ok parsed ->
       match parsed.rst with
@@ -500,14 +476,14 @@ struct
                             ~fin:parsed.fin
         | false, false ->
           (* No SYN, ACK, or RST, so just drop it *)
-          Log.s debug "input-no-pcb: unknown packet";
+          Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
           Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
     match verify_checksum src dst data with
     | false ->
-      Log.s debug "RX.input: checksum error";
+      Log.debug (fun f -> f "TCP checksum was not correct; discarding packet");
       Lwt.return_unit
     | true ->
       try
@@ -527,7 +503,7 @@ struct
           (input_no_pcb t listeners data)
       with
       | Invalid_argument s ->
-        Log.s debug ("RX.input: couldn't read ports: " ^ s);
+        Log.debug (fun f -> f "dropping packet: couldn't read TCP source or destination ports: %s" s);
         Lwt.return_unit
 
   (* Blocking read on a PCB *)
@@ -563,6 +539,7 @@ struct
   (* Blocking write on a PCB *)
   let write pcb data = writefn pcb (UTX.write pcb.utx) data
   let writev pcb data = iter_s (write pcb) data
+
   let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data
   let writev_nodelay pcb data = iter_s (write_nodelay pcb) data
 
@@ -628,7 +605,7 @@ struct
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
     if Hashtbl.mem t.connects id then (
-      Log.s info "WARNING: connection already being attempted";
+      Log.debug (fun f -> f "duplicate attempt to make a connection: %a .  Removing the old state and replacing with new attempt" WIRE.pp_id id);
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
     );

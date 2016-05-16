@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val debug: Log.t
-
 module Make(Ip:V1_LWT.IP) : sig
   type id = {
     dest_port: int;               (* Remote TCP port *)

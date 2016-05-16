@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val debug: Log.t
-
 type t
 
 val pp: Format.formatter -> t -> unit

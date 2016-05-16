@@ -16,8 +16,8 @@
 
 open Lwt.Infix
 
-let debug = Log.create "Segment"
-let info = Log.create ~enabled:true ~stats:false "Segment"
+let src = Logs.Src.create "segment" ~doc:"Mirage TCP Segment module"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 let lwt_sequence_add_l s seq =
   let (_:'a Lwt_sequence.node) = Lwt_sequence.add_l s seq in
@@ -63,7 +63,7 @@ module Rx(Time:V1_LWT.TIME) = struct
   type segment = Tcp_parse.t
 
   let pp_segment fmt (seg : Tcp_parse.t) =
-    Log.pf fmt
+    Format.fprintf fmt
       "RX seg seq=%a fin=%b syn=%b ack=%b acknum=%a win=%d"
       Sequence.pp seg.sequence seg.fin seg.syn seg.ack
       Sequence.pp seg.ack_number seg.window
@@ -95,9 +95,9 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let pp fmt t =
     let pp_v fmt seg =
-      Log.pf fmt "%a[%a]" Sequence.pp seg.sequence Sequence.pp (len seg)
+      Format.fprintf fmt "%a[%a]" Sequence.pp seg.sequence Sequence.pp (len seg)
     in
-    Log.pp_print_list pp_v fmt (S.elements t.segs)
+    Format.pp_print_list pp_v fmt (S.elements t.segs)
 
   (* If there is a FIN flag at the end of this segment set.  TODO:
      should look for a FIN and chop off the rest of the set as they
@@ -200,7 +200,7 @@ module Rx(Time:V1_LWT.TIME) = struct
            window as closed and tell the application *)
         (if fin ready then begin
             if S.cardinal waiting != 0 then
-              Log.s info "application receive queue closed, but there are waiting segments.";
+              Log.info (fun f -> f "application receive queue closed, but there are waiting segments.");
             Lwt_mvar.put q.rx_data (None, Some Sequence.zero)
           end else Lwt.return_unit)
       in
@@ -271,7 +271,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
   }
 
   let pp_seg fmt seg =
-    Log.pf fmt "[%s%a]"
+    Format.fprintf fmt "[%s%a]"
       (match seg.flags with
        | No_flags ->""
        | Syn ->"SYN "
@@ -295,8 +295,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
         | Some rexmit_seg ->
           match rexmit_seg.seq = seq with
           | false ->
-            Log.f debug (fun fmt ->
-                Log.pf fmt "PUSHING TIMER - new time=%f, new seq=%a"
+            Log.debug (fun fmt ->
+                fmt "PUSHING TIMER - new time=%f, new seq=%a"
                   (Window.rto wnd) Sequence.pp rexmit_seg.seq);
             let ret =
               Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
@@ -305,20 +305,20 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           | true ->
             if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
-              Log.s info "Max retransmits reached for connection - terminating";
+              Log.info (fun fmt -> fmt "Max retransmits reached for connection - terminating");
               StateTick.tick st State.Timeout;
               Lwt.return Tcptimer.Stoptimer
             ) else (
               let flags = rexmit_seg.flags in
               let options = [] in (* TODO: put the right options *)
-              Log.f info (fun fmt ->
-                  Log.pf fmt "TCP retransmission on timer seq = %d"
+              Log.debug (fun fmt ->
+                  fmt "TCP retransmission triggered by timer! seq = %d"
                     (Sequence.to_int rexmit_seg.seq));
               Lwt.async
                 (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
               Window.backoff_rto wnd;
-              Log.f debug (fun fmt ->
-                  Log.pf fmt "PUSHING TIMER - new time = %f, new seq = %a"
+              Log.debug (fun fmt ->
+                  fmt "PUSHING TIMER - new time = %f, new seq = %a"
                     (Window.rto wnd) Sequence.pp rexmit_seg.seq);
               let ret =
                 Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
@@ -335,13 +335,13 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     | true ->
       match Lwt_sequence.take_opt_l segs with
       | None ->
-        Log.s info "Dubious ACK received";
+        Log.debug (fun f -> f "Dubious ACK received");
         ack_remaining
       | Some s ->
         let seg_len = (len s) in
         match Sequence.lt ack_remaining seg_len with
         | true ->
-          Log.s info "Partial ACK received";
+          Log.debug (fun f -> f "Partial ACK received");
           (* return uncleared segment to the sequence *)
           lwt_sequence_add_l s segs;
           ack_remaining
@@ -365,8 +365,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
             Window.alert_fast_rexmit q.wnd seq;
             (* retransmit the bottom of the unacked list of packets *)
             let rexmit_seg = peek_l q.segs in
-            Log.f debug (fun fmt ->
-                Log.pf fmt "TCP fast retransmission seq=%a, dupack=%a"
+            Log.debug (fun fmt ->
+                fmt "TCP fast retransmission seq=%a, dupack=%a"
                   Sequence.pp rexmit_seg.seq Sequence.pp seq);
             let { wnd; _ } = q in
             let flags=rexmit_seg.flags in

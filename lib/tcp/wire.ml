@@ -16,8 +16,8 @@
 
 open Lwt.Infix
 
-let debug = Log.create "Wire"
-let info = Log.create ~enabled:true ~stats:false "WIRE"
+let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
@@ -26,9 +26,9 @@ let set_options buf ts =
 
 module Make (Ip:V1_LWT.IP) = struct
   type id = {
-    dest_port: int;               (* Remote TCP port *)
+    dest_port: int;             (* Remote TCP port *)
     dest_ip: Ip.ipaddr;         (* Remote IP address *)
-    local_port: int;              (* Local TCP port *)
+    local_port: int;            (* Local TCP port *)
     local_ip: Ip.ipaddr;        (* Local IP address *)
   }
 
@@ -43,7 +43,7 @@ module Make (Ip:V1_LWT.IP) = struct
       ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
       ~psh ~window ~payload with
     | Result.Error s ->
-      Log.f info (fun fmt -> Log.pf fmt "Error transmitting TCP packet: %s" s);
+      Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
       Lwt.return_unit
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
