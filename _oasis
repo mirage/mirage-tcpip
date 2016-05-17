@@ -21,7 +21,7 @@ Library tcpip
   Modules:            Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  BuildDepends:       io-page,mirage-types (>= 2.8.0),ipaddr,cstruct (>= 1.9.0),cstruct.ppx,mirage-profile,bytes,logs
+  BuildDepends:       mirage-types (>= 2.8.0),ipaddr,cstruct (>= 1.9.0)
   XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
 
 Library tcpip_xen
@@ -39,7 +39,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_parse, Ethif_print
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,lwt,rresult
+  BuildDepends:       mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult
 
 Library arpv4
   CompiledObject:     best
@@ -47,8 +47,8 @@ Library arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire, Arpv4_parse, Arpv4_print
-  BuildDepends:       tcpip,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip.ethif,result,rresult
+  BuildDepends:       mirage-types,logs,ipaddr,cstruct,cstruct.ppx,lwt,
+                      result,rresult,tcpip.ethif
 
 Library ipv4
   CompiledObject:     best
@@ -56,8 +56,8 @@ Library ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Ipv4, Ipv4_wire, Ipv4_parse, Ipv4_print
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,rresult,
-                      tcpip.ethif
+  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
+                      tcpip,tcpip.ethif
 
 Library ipv6
   CompiledObject:     best
@@ -65,8 +65,8 @@ Library ipv6
   Findlibparent:      tcpip
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6, Ipv6_wire
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,
-                      tcpip.ethif
+  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
+                      tcpip,tcpip.ethif
 
 Library icmpv4
   CompiledObject:     best
@@ -74,7 +74,8 @@ Library icmpv4
   Findlibparent:      tcpip
   Findlibname:        icmpv4
   Modules:            Icmpv4, Icmpv4_parse, Icmpv4_print, Icmpv4_wire
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult
+  BuildDepends:       logs,mirage-types,cstruct,cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
+                      tcpip
 
 Library udp
   CompiledObject:     best
@@ -82,7 +83,8 @@ Library udp
   Findlibparent:      tcpip
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_parse, Udp_print
-  BuildDepends:       io-page,mirage-types,ipaddr,cstruct,lwt,tcpip,result,rresult
+  BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
+                      tcpip
 
 Library tcp
   CompiledObject:     best
@@ -94,16 +96,9 @@ Library tcp
                       Window,Segment,User_buffer,Pcb,Flow,
                       Stats, Wire,
                       Tcp_wire, Tcp_parse, Tcp_print
-  BuildDepends:       io-page,
-                      mirage-types,
-                      ipaddr,
-                      cstruct,
-                      cstruct.ppx,
-                      lwt,
-                      tcpip,
-                      tcpip.ipv4,
-                      tcpip.ipv6,
-                      mirage-profile
+  BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
+                      io-page,
+                      tcpip
 
 Library dhcpv4
   CompiledObject:     best
@@ -111,12 +106,7 @@ Library dhcpv4
   Findlibparent:      tcpip
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
-  BuildDepends:       io-page, bytes,
-                      mirage-types,
-                      ipaddr,
-                      cstruct,
-                      cstruct.ppx,
-                      lwt,
+  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
                       tcpip.udp
 
 Library "tcpip-stack-direct"
@@ -125,16 +115,7 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       io-page,
-                      mirage-types,
-                      ipaddr,
-                      cstruct,
-                      lwt,
-                      tcpip.ethif,
-                      tcpip.arpv4,
-                      tcpip.icmpv4,
-                      tcpip.udp,
-                      tcpip.tcp,
+  BuildDepends:       logs,mirage-types,ipaddr,lwt,
                       tcpip.dhcpv4
 
 Library "udpv4-socket"
@@ -143,12 +124,7 @@ Library "udpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv4-socket
   Modules:            Udpv4_socket
-  BuildDepends:       tcpip.udp,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
+  BuildDepends:       lwt,ipaddr.unix,cstruct.lwt
 
 Library "udpv6-socket"
   CompiledObject:     best
@@ -156,12 +132,7 @@ Library "udpv6-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv6-socket
   Modules:            Udpv6_socket
-  BuildDepends:       tcpip.udp,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix
 
 Library "tcpv4-socket"
   CompiledObject:     best
@@ -169,11 +140,7 @@ Library "tcpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-socket
   Modules:            Tcpv4_socket
-  BuildDepends:       lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,mirage-types.lwt,mirage-types
 
 Library "tcpv6-socket"
   CompiledObject:     best
@@ -181,11 +148,7 @@ Library "tcpv6-socket"
   Findlibparent:      tcpip
   Findlibname:        tcpv6-socket
   Modules:            Tcpv6_socket
-  BuildDepends:       lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      cstruct.lwt,
-                      io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix
 
 Library "tcpip-stack-socket"
   CompiledObject:     best
@@ -193,12 +156,7 @@ Library "tcpip-stack-socket"
   Findlibparent:      tcpip
   Findlibname:        stack-socket
   Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
-  BuildDepends:       tcpip.udpv4-socket, tcpip.udpv6-socket,
-                      tcpip.tcpv4-socket, tcpip.tcpv6-socket,
-                      lwt,
-                      lwt.unix,
-                      ipaddr.unix,
-                      io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs
 
 Executable test
   CompiledObject:     best
@@ -207,11 +165,12 @@ Executable test
   Path:               lib_test/
   MainIs:             test.ml
   Custom:             true
-  BuildDepends:       alcotest, oUnit, lwt, lwt.unix, io-page.unix,
-                      mirage-profile, mirage-flow, mirage-vnetif,
-                      mirage-console.unix, mirage-clock-unix, pcap-format,
-                      tcpip.ethif, tcpip.arpv4, tcpip.ipv4, tcpip.tcp, tcpip.udp,
-                      tcpip.stack-direct,tcpip.icmpv4,logs.fmt
+  BuildDepends:       alcotest,oUnit,lwt,lwt.unix,io-page.unix,
+                      logs,logs.fmt,
+                      mirage-profile,mirage-flow,mirage-vnetif,
+                      mirage-console.unix,mirage-clock-unix,pcap-format,
+                      tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
+                      tcpip.stack-direct,tcpip.icmpv4
 
 Test test
   Run$:               flag(tests)
