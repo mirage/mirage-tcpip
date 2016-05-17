@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f57f4e91f12b496918a867079ffd2dcf)
+# DO NOT EDIT (digest: 23c8de423e22b2a03a3a527f39f9725e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,13 +19,8 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: oasis_library_tcpip_ccopt
 "lib/checksum_stubs.c": oasis_library_tcpip_ccopt
 <lib/tcpip.{cma,cmxa}>: use_libtcpip_stubs
-"lib/checksum_stubs.c": pkg_bytes
 "lib/checksum_stubs.c": pkg_cstruct
-"lib/checksum_stubs.c": pkg_cstruct.ppx
-"lib/checksum_stubs.c": pkg_io-page
 "lib/checksum_stubs.c": pkg_ipaddr
-"lib/checksum_stubs.c": pkg_logs
-"lib/checksum_stubs.c": pkg_mirage-profile
 "lib/checksum_stubs.c": pkg_mirage-types
 # Library tcpip_xen
 "lib/tcpip_xen.cmxs": use_tcpip_xen
@@ -34,23 +29,17 @@ true: annot, bin_annot
 <lib/tcpip_xen.{cma,cmxa}>: use_libtcpip_xen_stubs
 # Library ethif
 "lib/ethif/ethif.cmxs": use_ethif
-<lib/ethif/*.ml{,i,y}>: pkg_bytes
 <lib/ethif/*.ml{,i,y}>: pkg_cstruct
-<lib/ethif/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/ethif/*.ml{,i,y}>: pkg_io-page
 <lib/ethif/*.ml{,i,y}>: pkg_ipaddr
-<lib/ethif/*.ml{,i,y}>: pkg_logs
 <lib/ethif/*.ml{,i,y}>: pkg_lwt
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-types
+<lib/ethif/*.ml{,i,y}>: pkg_result
 <lib/ethif/*.ml{,i,y}>: pkg_rresult
-<lib/ethif/*.ml{,i,y}>: use_tcpip
 # Library arpv4
 "lib/arpv4/arpv4.cmxs": use_arpv4
-<lib/arpv4/*.ml{,i,y}>: pkg_bytes
 <lib/arpv4/*.ml{,i,y}>: pkg_cstruct
 <lib/arpv4/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/arpv4/*.ml{,i,y}>: pkg_io-page
 <lib/arpv4/*.ml{,i,y}>: pkg_ipaddr
 <lib/arpv4/*.ml{,i,y}>: pkg_logs
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
@@ -59,10 +48,8 @@ true: annot, bin_annot
 <lib/arpv4/*.ml{,i,y}>: pkg_result
 <lib/arpv4/*.ml{,i,y}>: pkg_rresult
 <lib/arpv4/*.ml{,i,y}>: use_ethif
-<lib/arpv4/*.ml{,i,y}>: use_tcpip
 # Library ipv4
 "lib/ipv4/ipv4.cmxs": use_ipv4
-<lib/ipv4/*.ml{,i,y}>: pkg_bytes
 <lib/ipv4/*.ml{,i,y}>: pkg_cstruct
 <lib/ipv4/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/ipv4/*.ml{,i,y}>: pkg_io-page
@@ -71,12 +58,12 @@ true: annot, bin_annot
 <lib/ipv4/*.ml{,i,y}>: pkg_lwt
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv4/*.ml{,i,y}>: pkg_result
 <lib/ipv4/*.ml{,i,y}>: pkg_rresult
 <lib/ipv4/*.ml{,i,y}>: use_ethif
 <lib/ipv4/*.ml{,i,y}>: use_tcpip
 # Library ipv6
 "lib/ipv6/ipv6.cmxs": use_ipv6
-<lib/ipv6/*.ml{,i,y}>: pkg_bytes
 <lib/ipv6/*.ml{,i,y}>: pkg_cstruct
 <lib/ipv6/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/ipv6/*.ml{,i,y}>: pkg_io-page
@@ -85,15 +72,14 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_lwt
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-types
+<lib/ipv6/*.ml{,i,y}>: pkg_result
 <lib/ipv6/*.ml{,i,y}>: pkg_rresult
 <lib/ipv6/*.ml{,i,y}>: use_ethif
 <lib/ipv6/*.ml{,i,y}>: use_tcpip
 # Library icmpv4
 "lib/icmp/icmpv4.cmxs": use_icmpv4
-<lib/icmp/*.ml{,i,y}>: pkg_bytes
 <lib/icmp/*.ml{,i,y}>: pkg_cstruct
 <lib/icmp/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/icmp/*.ml{,i,y}>: pkg_io-page
 <lib/icmp/*.ml{,i,y}>: pkg_ipaddr
 <lib/icmp/*.ml{,i,y}>: pkg_logs
 <lib/icmp/*.ml{,i,y}>: pkg_lwt
@@ -104,10 +90,8 @@ true: annot, bin_annot
 <lib/icmp/*.ml{,i,y}>: use_tcpip
 # Library udp
 "lib/udp/udp.cmxs": use_udp
-<lib/udp/*.ml{,i,y}>: pkg_bytes
 <lib/udp/*.ml{,i,y}>: pkg_cstruct
 <lib/udp/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/udp/*.ml{,i,y}>: pkg_io-page
 <lib/udp/*.ml{,i,y}>: pkg_ipaddr
 <lib/udp/*.ml{,i,y}>: pkg_logs
 <lib/udp/*.ml{,i,y}>: pkg_lwt
@@ -133,7 +117,6 @@ true: annot, bin_annot
 "lib/tcp/tcp_wire.cmx": for-pack(Tcp)
 "lib/tcp/tcp_parse.cmx": for-pack(Tcp)
 "lib/tcp/tcp_print.cmx": for-pack(Tcp)
-<lib/tcp/*.ml{,i,y}>: pkg_bytes
 <lib/tcp/*.ml{,i,y}>: pkg_cstruct
 <lib/tcp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/tcp/*.ml{,i,y}>: pkg_io-page
@@ -142,14 +125,11 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
+<lib/tcp/*.ml{,i,y}>: pkg_result
 <lib/tcp/*.ml{,i,y}>: pkg_rresult
-<lib/tcp/*.ml{,i,y}>: use_ethif
-<lib/tcp/*.ml{,i,y}>: use_ipv4
-<lib/tcp/*.ml{,i,y}>: use_ipv6
 <lib/tcp/*.ml{,i,y}>: use_tcpip
 # Library dhcpv4
 "lib/dhcp/dhcpv4.cmxs": use_dhcpv4
-<lib/dhcp/*.ml{,i,y}>: pkg_bytes
 <lib/dhcp/*.ml{,i,y}>: pkg_cstruct
 <lib/dhcp/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/dhcp/*.ml{,i,y}>: pkg_io-page
@@ -164,7 +144,6 @@ true: annot, bin_annot
 <lib/dhcp/*.ml{,i,y}>: use_udp
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
-<lib/*.ml{,i,y}>: pkg_bytes
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib/*.ml{,i,y}>: pkg_io-page
@@ -175,13 +154,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: pkg_result
 <lib/*.ml{,i,y}>: pkg_rresult
-<lib/*.ml{,i,y}>: use_arpv4
 <lib/*.ml{,i,y}>: use_dhcpv4
-<lib/*.ml{,i,y}>: use_ethif
-<lib/*.ml{,i,y}>: use_icmpv4
-<lib/*.ml{,i,y}>: use_ipv4
-<lib/*.ml{,i,y}>: use_ipv6
-<lib/*.ml{,i,y}>: use_tcp
 <lib/*.ml{,i,y}>: use_tcpip
 <lib/*.ml{,i,y}>: use_udp
 # Library udpv4-socket
@@ -190,34 +163,20 @@ true: annot, bin_annot
 "unix/udpv6-socket.cmxs": use_udpv6-socket
 # Library tcpv4-socket
 "unix/tcpv4-socket.cmxs": use_tcpv4-socket
+<unix/*.ml{,i,y}>: pkg_mirage-types
+<unix/*.ml{,i,y}>: pkg_mirage-types.lwt
 # Library tcpv6-socket
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
+<unix/*.ml{,i,y}>: pkg_cstruct.lwt
 # Library tcpip-stack-socket
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
-<unix/*.ml{,i,y}>: pkg_bytes
-<unix/*.ml{,i,y}>: pkg_cstruct
-<unix/*.ml{,i,y}>: pkg_cstruct.lwt
-<unix/*.ml{,i,y}>: pkg_cstruct.ppx
-<unix/*.ml{,i,y}>: pkg_io-page
 <unix/*.ml{,i,y}>: pkg_io-page.unix
-<unix/*.ml{,i,y}>: pkg_ipaddr
 <unix/*.ml{,i,y}>: pkg_ipaddr.unix
 <unix/*.ml{,i,y}>: pkg_logs
 <unix/*.ml{,i,y}>: pkg_lwt
 <unix/*.ml{,i,y}>: pkg_lwt.unix
-<unix/*.ml{,i,y}>: pkg_mirage-profile
-<unix/*.ml{,i,y}>: pkg_mirage-types
-<unix/*.ml{,i,y}>: pkg_result
-<unix/*.ml{,i,y}>: pkg_rresult
-<unix/*.ml{,i,y}>: use_tcpip
-<unix/*.ml{,i,y}>: use_tcpv4-socket
-<unix/*.ml{,i,y}>: use_tcpv6-socket
-<unix/*.ml{,i,y}>: use_udp
-<unix/*.ml{,i,y}>: use_udpv4-socket
-<unix/*.ml{,i,y}>: use_udpv6-socket
 # Executable test
 <lib_test/test.{native,byte}>: pkg_alcotest
-<lib_test/test.{native,byte}>: pkg_bytes
 <lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_cstruct.ppx
 <lib_test/test.{native,byte}>: pkg_io-page
@@ -242,13 +201,11 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: use_ethif
 <lib_test/test.{native,byte}>: use_icmpv4
 <lib_test/test.{native,byte}>: use_ipv4
-<lib_test/test.{native,byte}>: use_ipv6
 <lib_test/test.{native,byte}>: use_tcp
 <lib_test/test.{native,byte}>: use_tcpip
 <lib_test/test.{native,byte}>: use_tcpip-stack-direct
 <lib_test/test.{native,byte}>: use_udp
 <lib_test/*.ml{,i,y}>: pkg_alcotest
-<lib_test/*.ml{,i,y}>: pkg_bytes
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib_test/*.ml{,i,y}>: pkg_io-page
@@ -273,7 +230,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_ethif
 <lib_test/*.ml{,i,y}>: use_icmpv4
 <lib_test/*.ml{,i,y}>: use_ipv4
-<lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
 <lib_test/*.ml{,i,y}>: use_tcpip-stack-direct
