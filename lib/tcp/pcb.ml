@@ -142,14 +142,10 @@ struct
   module Rx = struct
 
     (* Process an incoming TCP packet that has an active PCB *)
-    let input _t pkt (pcb,_) =
-      match Tcp_parse.parse_tcp_header pkt with
-      | Result.Error s -> Log.debug (fun fmt -> fmt "Tcp_parse.parse_tcp_header: %s" s);
-        Lwt.return_unit
-      | Result.Ok parsed ->
-        let { rxq; _ } = pcb in
-        (* Coalesce any outstanding segments and retrieve ready segments *)
-        RXS.input rxq parsed
+    let input _t parsed (pcb,_) =
+      let { rxq; _ } = pcb in
+      (* Coalesce any outstanding segments and retrieve ready segments *)
+      RXS.input rxq parsed
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
@@ -387,7 +383,7 @@ struct
         (* rst without ack, drop it *)
         Lwt.return_unit
 
-  let process_synack t id ~pkt ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
+  let process_synack t id ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
@@ -414,7 +410,7 @@ struct
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let process_syn t id ~listeners ~tx_wnd ~pkt ~ack_number ~sequence ~options ~syn ~fin =
+  let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.local_port_of_id id with
     | Some pushf ->
@@ -456,50 +452,39 @@ struct
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let input_no_pcb t listeners pkt id =
-    match Tcp_parse.parse_tcp_header pkt with
-    | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
-      Lwt.return_unit
-    | Result.Ok parsed ->
-      match parsed.rst with
-      | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
-      | false ->
-        match parsed.syn, parsed.ack with
-        | true , true  -> process_synack t id ~pkt ~ack_number:parsed.ack_number
-                            ~sequence:parsed.sequence ~tx_wnd:parsed.window
-                            ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-        | true , false -> process_syn t id ~listeners ~pkt ~tx_wnd:parsed.window
-                            ~ack_number:parsed.ack_number ~sequence:parsed.sequence
-                            ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-        | false, true  -> process_ack t id ~pkt ~ack_number:parsed.ack_number
-                            ~sequence:parsed.sequence ~syn:parsed.syn
-                            ~fin:parsed.fin
-        | false, false ->
-          (* No SYN, ACK, or RST, so just drop it *)
-          Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
-          Lwt.return_unit
+  let input_no_pcb t listeners parsed id =
+    let open Tcp_wire in
+    match parsed.rst with
+    | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
+    | false ->
+      match parsed.syn, parsed.ack with
+      | true , true  -> process_synack t id ~ack_number:parsed.ack_number
+                          ~sequence:parsed.sequence ~tx_wnd:parsed.window
+                          ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
+      | true , false -> process_syn t id ~listeners ~tx_wnd:parsed.window
+                          ~ack_number:parsed.ack_number ~sequence:parsed.sequence
+                          ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
+      | false, true  -> process_ack t id ~pkt:parsed ~ack_number:parsed.ack_number
+                          ~sequence:parsed.sequence ~syn:parsed.syn
+                          ~fin:parsed.fin
+      | false, false ->
+        (* No SYN, ACK, or RST, so just drop it *)
+        Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
+        Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    match verify_checksum src dst data with
-    | false ->
-      Log.debug (fun f -> f "TCP checksum was not correct; discarding packet");
+    match Tcp_parse.parse_tcp_header data with
+    | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
-    | true ->
-      try
-        let source_port = Tcp_wire.get_tcp_src_port data in
-        let dest_port = Tcp_wire.get_tcp_dst_port data in
-        let id = WIRE.wire ~local_port:dest_port ~dest_port:source_port ~dest_ip:src ~local_ip:dst in
-        (* Lookup connection from the active PCB hash *)
-        with_hashtbl t.channels id
-          (* PCB exists, so continue the connection state machine in tcp_input *)
-          (Rx.input t data)
-          (* No existing PCB, so check if it is a SYN for a listening function *)
-          (input_no_pcb t listeners data)
-      with
-      | Invalid_argument s ->
-        Log.debug (fun f -> f "dropping packet: couldn't read TCP source or destination ports: %s" s);
-        Lwt.return_unit
+    | Result.Ok pkt ->
+      let id = WIRE.wire ~local_port:pkt.dest_port ~dest_port:pkt.source_port ~dest_ip:src ~local_ip:dst in
+      (* Lookup connection from the active PCB hash *)
+      with_hashtbl t.channels id
+        (* PCB exists, so continue the connection state machine in tcp_input *)
+        (Rx.input t pkt)
+        (* No existing PCB, so check if it is a SYN for a listening function *)
+        (input_no_pcb t listeners pkt)
 
   (* Blocking read on a PCB *)
   let read pcb =
