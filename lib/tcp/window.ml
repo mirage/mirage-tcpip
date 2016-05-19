@@ -114,9 +114,8 @@ let valid t seq =
   let redge = Sequence.(add t.rx_nxt (of_int32 t.rx_wnd)) in
   let ledge = Sequence.(sub t.rx_nxt (of_int32 t.max_rx_wnd)) in
   let r = Sequence.between seq ledge redge in
-  (* PERF: ~5% perf degradation if commenting out that line
-  Log.debug (fun f -> f "valid: seq=%a range=%a[%lu] res=%b"
-    Sequence.pp seq Sequence.pp t.rx_nxt t.rx_wnd r; *)
+  Log.debug (fun f -> f "sequence validation: seq=%a range=%a[%lu] res=%b"
+    Sequence.pp seq Sequence.pp t.rx_nxt t.rx_wnd r);
   r
 
 (* Advance received packet sequence number *)
