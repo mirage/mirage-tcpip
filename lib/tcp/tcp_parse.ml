@@ -12,6 +12,8 @@ type t = {
   data : Cstruct.t;
   sequence : Sequence.t;
   ack_number : Sequence.t;
+  source_port : Cstruct.uint16;
+  dest_port : Cstruct.uint16;
   }
 
 let parse_tcp_header pkt =
@@ -47,7 +49,10 @@ let parse_tcp_header pkt =
     let syn = get_syn pkt in
     let fin = get_fin pkt in
     let window = get_tcp_window pkt in
+    let source_port = get_tcp_src_port pkt in
+    let dest_port = get_tcp_dst_port pkt in
     let data = Cstruct.shift pkt data_offset in
-    Result.Ok { urg; ack; psh; rst; syn; fin; window; options; data; sequence; ack_number }
+    Result.Ok { urg; ack; psh; rst; syn; fin; window; options; data;
+                sequence; ack_number; source_port; dest_port }
   with
   | Invalid_argument s -> Result.Error s
