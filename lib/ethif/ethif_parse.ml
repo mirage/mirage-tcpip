@@ -10,7 +10,8 @@ type t = {
 let parse_ethernet_header frame =
   if Cstruct.len frame >= sizeof_ethernet then
     match get_ethernet_ethertype frame |> int_to_ethertype with
-    | None -> Result.Error "unknown ethertype in frame"
+    | None -> Result.Error (Printf.sprintf "unknown ethertype 0x%x in frame"
+                              (get_ethernet_ethertype frame))
     | Some ethertype ->
       let payload = Cstruct.shift frame sizeof_ethernet
       and source = Macaddr.of_bytes_exn (copy_ethernet_src frame)

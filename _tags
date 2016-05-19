@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 23c8de423e22b2a03a3a527f39f9725e)
+# DO NOT EDIT (digest: 0202554fc6746528a627fc64a4fade11)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -31,6 +31,7 @@ true: annot, bin_annot
 "lib/ethif/ethif.cmxs": use_ethif
 <lib/ethif/*.ml{,i,y}>: pkg_cstruct
 <lib/ethif/*.ml{,i,y}>: pkg_ipaddr
+<lib/ethif/*.ml{,i,y}>: pkg_logs
 <lib/ethif/*.ml{,i,y}>: pkg_lwt
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-types
