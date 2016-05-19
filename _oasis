@@ -39,7 +39,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_parse, Ethif_print
-  BuildDepends:       mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult
+  BuildDepends:       logs,mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult
 
 Library arpv4
   CompiledObject:     best

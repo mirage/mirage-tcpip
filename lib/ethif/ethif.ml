@@ -18,6 +18,9 @@
 open Lwt.Infix
 open Result
 
+let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Make(Netif : V1_LWT.NETWORK) = struct
 
   type 'a io = 'a Lwt.t
@@ -53,7 +56,9 @@ module Make(Netif : V1_LWT.NETWORK) = struct
         | IPv4 -> ipv4 header.payload
         | IPv6 -> ipv6 header.payload
       end
-    | _ -> Lwt.return_unit
+    | Ok header -> Lwt.return_unit
+    | Error s -> Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
+      Lwt.return_unit
 
   let write t frame =
     MProf.Trace.label "ethif.write";
@@ -65,7 +70,11 @@ module Make(Netif : V1_LWT.NETWORK) = struct
 
   let connect netif =
     MProf.Trace.label "ethif.connect";
-    Lwt.return (`Ok { netif })
+    let t = { netif } in
+    Log.info (fun f -> f "Connected Ethernet interface %s" (Macaddr.to_string (mac t)));
+    Lwt.return (`Ok t)
 
-  let disconnect _ = Lwt.return_unit
+  let disconnect t =
+    Log.info (fun f -> f "Disconnected Ethernet interface %s" (Macaddr.to_string (mac t)));
+    Lwt.return_unit
 end
