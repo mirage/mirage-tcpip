@@ -74,7 +74,7 @@ module Make(Ip: V1_LWT.IP) = struct
 
   let connect ip =
     let ips = List.map Ip.to_uipaddr @@ Ip.get_ip ip in
-    Log.info (fun f -> f "UDP interface disconnected on %a" pp_ips ips);
+    Log.info (fun f -> f "UDP interface connected on %a" pp_ips ips);
     Lwt.return (`Ok { ip })
 
   let disconnect t =
