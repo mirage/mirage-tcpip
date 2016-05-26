@@ -1,6 +1,6 @@
 open Rresult
 
-let print_udp_header ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload =
+let to_cstruct ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload =
   let open Udp_wire in
   let check_header_len () =
     if (Cstruct.len udp_buf) < sizeof_udp then Error "Not enough space for a UDP header"

@@ -1,9 +1,3 @@
-let int_to_protocol = function
-  | 1  -> Some `ICMP
-  | 6  -> Some `TCP
-  | 17 -> Some `UDP
-  | _  -> None
-
 type t = {
   src     : Ipaddr.V4.t;
   dst     : Ipaddr.V4.t;
@@ -12,7 +6,15 @@ type t = {
   payload : Cstruct.t option;
 }
 
-let parse_ipv4_header buf =
+type error = string
+
+let int_to_protocol = function
+  | 1  -> Some `ICMP
+  | 6  -> Some `TCP
+  | 17 -> Some `UDP
+  | _  -> None
+
+let of_cstruct buf =
   let open Rresult in
   let open Ipv4_wire in
   let length_of_hlen_version n = (n land 0x0f) * 4 in

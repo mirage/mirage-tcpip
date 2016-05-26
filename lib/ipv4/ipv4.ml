@@ -111,7 +111,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     let open Ipv4_wire in
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
-    match Ethif_print.print_ethif_header ~buf:ethernet_frame
+    match Ethif_marshal.to_cstruct ~buf:ethernet_frame
       ~ethertype:Ethif_wire.IPv4 ~src_mac:(Ethif.mac t.ethif)
       ~dst_mac:(Macaddr.broadcast) with
     | Error s -> 
@@ -120,7 +120,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     | Ok () ->
       let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
       (* TODO: why 38 for TTL? *)
-      match Ipv4_print.print_ipv4_header ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
+      match Ipv4_marshal.to_cstruct ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
       | Error s ->
         Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
         (ethernet_frame, len)
@@ -140,8 +140,8 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     writev t frame [buf]
 
   let input t ~tcp ~udp ~default buf =
-    let open Ipv4_parse in
-    match parse_ipv4_header buf with
+    let open Ipv4_unmarshal in
+    match of_cstruct buf with
     | Error s ->
       Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
       Lwt.return_unit
@@ -188,7 +188,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let get_ip_gateways { gateways; _ } = gateways
 
   let pseudoheader t ~dst ~proto len =
-    Ipv4_print.pseudoheader ~src:t.ip ~dst ~proto len
+    Ipv4_marshal.pseudoheader ~src:t.ip ~dst ~proto len
 
   let checksum frame bufs =
     let packet = Cstruct.shift frame Ethif_wire.sizeof_ethernet in

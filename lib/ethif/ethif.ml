@@ -42,12 +42,11 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let mac t = Netif.mac t.netif
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
-    let open Ethif_parse in
     MProf.Trace.label "ethif.input";
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match parse_ethernet_header frame with
+    match Ethif_unmarshal.of_cstruct frame with
     | Ok header when of_interest header.destination ->
       begin
         let open Ethif_wire in

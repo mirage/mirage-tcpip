@@ -30,7 +30,7 @@ module Rx (T:V1_LWT.TIME) : sig
 
   val pp_segment: Format.formatter -> segment -> unit
 
-  val segment_of_parse : Tcp_parse.t -> segment
+  val segment_of_parse : Tcp_unmarshal.t -> segment
 
   type t
   (** Queue of receive segments *)
@@ -46,7 +46,7 @@ module Rx (T:V1_LWT.TIME) : sig
 
   val is_empty : t -> bool
 
-  val input : t -> Tcp_parse.t -> unit Lwt.t
+  val input : t -> Tcp_unmarshal.t -> unit Lwt.t
   (** Given the current receive queue and an incoming packet,
       update the window, extract any ready segments into the
       user receive queue, and signal any acks to the Tx queue *)

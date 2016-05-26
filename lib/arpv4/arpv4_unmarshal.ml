@@ -21,7 +21,7 @@ let string_of_error = function
 
 let pp_error formatter e = Format.fprintf formatter "%s" @@ string_of_error e
 
-let parse_arpv4_header buf =
+let of_cstruct buf =
   let open Arpv4_wire in
   let open Rresult in
   let check_len buf =

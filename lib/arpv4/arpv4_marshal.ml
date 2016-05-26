@@ -12,7 +12,7 @@ let check_len buf =
     Result.Error "Not enough space for an arpv4 header"
   else Result.Ok ()
 
-let print_arpv4_header ~buf ~op ~src_ip ~dst_ip ~src_mac ~dst_mac =
+let to_cstruct ~buf ~op ~src_ip ~dst_ip ~src_mac ~dst_mac =
   let open Rresult in
   check_len buf >>= fun () ->
   let dmac = Macaddr.to_bytes dst_mac in

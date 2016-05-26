@@ -1,6 +1,6 @@
 type t = {src_port: Cstruct.uint16; dst_port : Cstruct.uint16; payload : Cstruct.t }
 
-let parse_udp_header buf =
+let of_cstruct buf =
   let open Rresult in
   let open Udp_wire in
   let check_header_length () =

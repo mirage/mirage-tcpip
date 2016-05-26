@@ -7,7 +7,9 @@ type t = {
   payload : Cstruct.t; (* bare ethernet frames not allowed *)
 }
 
-let parse_ethernet_header frame =
+type error = string
+
+let of_cstruct frame =
   if Cstruct.len frame >= sizeof_ethernet then
     match get_ethernet_ethertype frame |> int_to_ethertype with
     | None -> Result.Error (Printf.sprintf "unknown ethertype 0x%x in frame"

@@ -38,7 +38,7 @@ Library ethif
   Path:               lib/ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
-  Modules:            Ethif, Ethif_wire, Ethif_parse, Ethif_print
+  Modules:            Ethif, Ethif_wire, Ethif_unmarshal, Ethif_marshal
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult
 
 Library arpv4
@@ -46,7 +46,7 @@ Library arpv4
   Path:               lib/arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
-  Modules:            Arpv4, Arpv4_wire, Arpv4_parse, Arpv4_print
+  Modules:            Arpv4, Arpv4_wire, Arpv4_unmarshal, Arpv4_marshal
   BuildDepends:       mirage-types,logs,ipaddr,cstruct,cstruct.ppx,lwt,
                       result,rresult,tcpip.ethif
 
@@ -55,7 +55,7 @@ Library ipv4
   Path:               lib/ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4, Ipv4_wire, Ipv4_parse, Ipv4_print
+  Modules:            Ipv4, Ipv4_wire, Ipv4_unmarshal, Ipv4_marshal
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
                       tcpip,tcpip.ethif
 
@@ -73,7 +73,7 @@ Library icmpv4
   Path:               lib/icmp
   Findlibparent:      tcpip
   Findlibname:        icmpv4
-  Modules:            Icmpv4, Icmpv4_parse, Icmpv4_print, Icmpv4_wire
+  Modules:            Icmpv4, Icmpv4_unmarshal, Icmpv4_marshal, Icmpv4_wire
   BuildDepends:       logs,mirage-types,cstruct,cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
                       tcpip
 
@@ -82,7 +82,7 @@ Library udp
   Path:               lib/udp
   Findlibparent:      tcpip
   Findlibname:        udp
-  Modules:            Udp, Udp_wire, Udp_parse, Udp_print
+  Modules:            Udp, Udp_wire, Udp_unmarshal, Udp_marshal
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       tcpip
 
@@ -95,7 +95,7 @@ Library tcp
   Modules:            Options,State,Tcptimer,Sequence,Ack,
                       Window,Segment,User_buffer,Pcb,Flow,
                       Stats, Wire,
-                      Tcp_wire, Tcp_parse, Tcp_print
+                      Tcp_wire, Tcp_unmarshal, Tcp_marshal
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       io-page,
                       tcpip
