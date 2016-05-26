@@ -41,7 +41,7 @@ module Make(IP : V1_LWT.IPV4) = struct
           (* get some memory to write in *)
           let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
           let icmp_chunk = Cstruct.shift frame header_len in
-          match Icmpv4_marshal.echo_reply ~buf:icmp_chunk ?payload:message.payload ~id ~seq with
+          match Icmpv4_marshal.echo_reply ~buf:icmp_chunk ~payload:message.payload ~id ~seq with
           | Result.Ok () ->
             let frame = Cstruct.set_len frame header_len in
             IP.write t.ip frame icmp_chunk

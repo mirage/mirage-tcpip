@@ -2,8 +2,8 @@ type t = {
   src     : Ipaddr.V4.t;
   dst     : Ipaddr.V4.t;
   proto   : Cstruct.uint8;
-  options : Cstruct.t option;
-  payload : Cstruct.t option;
+  options : Cstruct.t;
+  payload : Cstruct.t;
 }
 
 type error = string
@@ -34,16 +34,12 @@ let of_cstruct buf =
       let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
       let proto = get_ipv4_proto buf in
       let options =
-        if options_len > 0 then Some (Cstruct.sub buf sizeof_ipv4 options_len)
-        else None
+        if options_len > 0 then (Cstruct.sub buf sizeof_ipv4 options_len)
+        else (Cstruct.create 0)
       in
       let payload_len = (get_ipv4_len buf) - sizeof_ipv4 - options_len in
-      if payload_len = 0 then
-        Ok {src; dst; proto; options; payload=None }
-      else begin
-        let payload = Some (Cstruct.sub buf (sizeof_ipv4 + options_len) payload_len) in
+      let payload = Cstruct.sub buf (sizeof_ipv4 + options_len) payload_len in
         Ok {src; dst; proto; options; payload}
-      end
     with
     | Invalid_argument s -> Result.Error s
   in

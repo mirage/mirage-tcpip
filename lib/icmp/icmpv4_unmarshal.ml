@@ -12,8 +12,10 @@ type t = {
   ty : ty;
   csum : Cstruct.uint16;
   subheader : subheader;
-  payload : Cstruct.t option;
+  payload : Cstruct.t;
 }
+
+type error = string
 
 let subheader_of_cstruct ty buf =
   let open Cstruct.BE in
@@ -43,9 +45,5 @@ let of_cstruct buf =
   let code = get_icmpv4_code buf in
   let csum = get_icmpv4_csum buf in
   let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
-  let payload =
-    if Cstruct.len buf > sizeof_icmpv4
-    then Some (Cstruct.shift buf sizeof_icmpv4)
-    else None
-  in
+  let payload = Cstruct.shift buf sizeof_icmpv4 in
   Result.Ok { code; ty; csum; subheader; payload }
