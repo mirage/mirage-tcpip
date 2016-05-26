@@ -4,4 +4,4 @@ type t = {
   payload  : Cstruct.t
 }
 
-val parse_udp_header : Cstruct.t -> (t, string) Result.result
+val of_cstruct : Cstruct.t -> (t, string) Result.result

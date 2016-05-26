@@ -1,5 +1,12 @@
 open Ipv4_wire
 
+type error = string
+
+type protocol = [
+  | `ICMP
+  | `TCP
+  | `UDP ]
+
 let protocol_to_int = function
   | `ICMP   -> 1
   | `TCP    -> 6
@@ -16,7 +23,7 @@ let pseudoheader ~src ~dst ~proto len =
   Cstruct.BE.set_uint16 ph 10 len;
   ph
 
-let print_ipv4_header ~buf ~src ~dst ~proto ~ttl =
+let to_cstruct ~buf ~src ~dst ~proto ~ttl =
   if Cstruct.len buf < sizeof_ipv4 then
     Result.Error "Not enough space for IPv4 header"
   else begin

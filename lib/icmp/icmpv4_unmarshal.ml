@@ -28,7 +28,7 @@ let subheader_of_cstruct ty buf =
   | Redirect -> Address (Ipaddr.V4.of_int32 (get_uint32 buf 0))
   | Parameter_problem -> Pointer (Cstruct.get_uint8 buf 0)
 
-let input buf =
+let of_cstruct buf =
   let open Rresult in
   let check_len () =
   if Cstruct.len buf < sizeof_icmpv4 then

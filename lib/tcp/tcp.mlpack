@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e47345eb2b2a8b2e260595389912aafc)
+# DO NOT EDIT (digest: 89001f9ed3b23e1246a470c6aa7d079f)
 Options
 State
 Tcptimer
@@ -13,6 +13,6 @@ Flow
 Stats
 Wire
 Tcp_wire
-Tcp_parse
-Tcp_print
+Tcp_unmarshal
+Tcp_marshal
 # OASIS_STOP

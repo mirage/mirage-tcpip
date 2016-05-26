@@ -54,21 +54,21 @@ let rec reset_seq segs =
    the Rtx queue to ack messages or close channels.
 *)
 module Rx(Time:V1_LWT.TIME) = struct
-  open Tcp_parse
+  open Tcp_unmarshal
 
   module StateTick = State.Make(Time)
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type segment = Tcp_parse.t
+  type segment = Tcp_unmarshal.t
 
-  let pp_segment fmt (seg : Tcp_parse.t) =
+  let pp_segment fmt (seg : Tcp_unmarshal.t) =
     Format.fprintf fmt
       "RX seg seq=%a fin=%b syn=%b ack=%b acknum=%a win=%d"
       Sequence.pp seg.sequence seg.fin seg.syn seg.ack
       Sequence.pp seg.ack_number seg.window
 
-  let segment_of_parse (parsed_packet : Tcp_parse.t) : segment = parsed_packet
+  let segment_of_parse (parsed_packet : Tcp_unmarshal.t) : segment = parsed_packet
   
   let len seg =
     Sequence.of_int ((Cstruct.len seg.data) +
@@ -109,7 +109,7 @@ module Rx(Time:V1_LWT.TIME) = struct
   let is_empty q = S.is_empty q.segs
 
   let check_valid_segment q seg =
-    let open Tcp_parse in
+    let open Tcp_unmarshal in
     if seg.rst then
       if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
         `Reset
@@ -138,7 +138,7 @@ module Rx(Time:V1_LWT.TIME) = struct
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
-    let open Tcp_parse in
+    let open Tcp_unmarshal in
     match check_valid_segment q seg with
     | `Ok ->
       let force_ack = ref false in

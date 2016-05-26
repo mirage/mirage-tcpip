@@ -16,7 +16,6 @@
  *)
 
 open Lwt.Infix
-open Tcp_parse
 
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -453,7 +452,7 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners parsed id =
-    let open Tcp_wire in
+    let open Tcp_unmarshal in
     match parsed.rst with
     | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
     | false ->
@@ -474,7 +473,7 @@ struct
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    match Tcp_parse.parse_tcp_header data with
+    match Tcp_unmarshal.of_cstruct data with
     | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Result.Ok pkt ->

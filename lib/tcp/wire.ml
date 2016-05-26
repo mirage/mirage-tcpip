@@ -51,7 +51,7 @@ module Make (Ip:V1_LWT.IP) = struct
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
     let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.lenv payload) in
-    match Tcp_print.print_tcp_header ~tcp_buf ~src_port:id.local_port
+    match Tcp_marshal.to_cstruct ~buf:tcp_buf ~src_port:id.local_port
       ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
       ~psh ~window ~payload with
     | Result.Error s ->
