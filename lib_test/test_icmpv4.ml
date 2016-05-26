@@ -140,7 +140,7 @@ let echo_request () =
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
   let echo_request = Cstruct.create 4096 in
-  Icmpv4_marshal.echo_request ?payload:None ~buf:echo_request ~id:id_no
+  Icmpv4_marshal.echo_request ~payload:Cstruct.(create 0) ~buf:echo_request ~id:id_no
     ~seq:seq_no >>=? fun () ->
   let check buf =
     let open Icmpv4_unmarshal in
@@ -152,9 +152,9 @@ let echo_request () =
     Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
     Alcotest.(check int) "icmp echo-reply id" id_no id;
     Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-    match reply.payload with
-    | Some _ -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
-    | None -> Lwt.return_unit
+    match (Cstruct.len reply.payload) with
+    | 0 -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
+    | n -> Lwt.return_unit
   in
   Lwt.pick [
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
@@ -167,7 +167,7 @@ let echo_silent () =
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   let echo_request = Cstruct.create 4096 in
-  Icmpv4_marshal.echo_request ?payload:None ~buf:echo_request ~id:0xff ~seq:0x4341 >>=? fun () ->
+  Icmpv4_marshal.echo_request ~payload:(Cstruct.create 0) ~buf:echo_request ~id:0xff ~seq:0x4341 >>=? fun () ->
   let open Icmpv4_unmarshal in
   let check buf =
     of_cstruct buf >>=? fun message ->

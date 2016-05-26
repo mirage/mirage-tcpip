@@ -36,3 +36,19 @@ let to_cstruct ~buf ~src ~dst ~proto ~ttl =
     set_ipv4_dst buf (Ipaddr.V4.to_int32 dst);
     Result.Ok ()
   end
+
+let make_cstruct t =
+  let open Ipv4_unmarshal in
+  let nearest_4 n = match n mod 4 with
+    | 0 -> n
+    | k -> (4 - k) + n
+  in
+  let options_len = nearest_4 @@ Cstruct.len t.options in
+  let buf = Cstruct.create (sizeof_ipv4 + options_len) in
+  Cstruct.memset buf 0x00; (* should be removable in the future *)
+  set_ipv4_hlen_version buf ((4 lsl 4) + (options_len / 4));
+  set_ipv4_ttl buf t.ttl;
+  set_ipv4_proto buf t.proto;
+  set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
+  set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
+  buf

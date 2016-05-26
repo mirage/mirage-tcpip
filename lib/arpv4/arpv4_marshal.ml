@@ -26,3 +26,19 @@ let to_cstruct ~buf ~op ~src_ip ~dst_ip ~src_mac ~dst_mac =
   set_arp_tha dmac 0 buf;
   set_arp_tpa buf tpa;
   Result.Ok ()
+
+let make_cstruct t =
+  let open Arpv4_unmarshal in
+  let open Arpv4_wire in
+  let buf = Cstruct.create sizeof_arp in
+  let dmac = Macaddr.to_bytes t.tha in
+  let smac = Macaddr.to_bytes t.sha in
+  let spa = Ipaddr.V4.to_int32 t.spa in
+  let tpa = Ipaddr.V4.to_int32 t.tpa in
+  fill_constants buf;
+  set_arp_op buf (op_to_int t.op);
+  set_arp_sha smac 0 buf;
+  set_arp_spa buf spa;
+  set_arp_tha dmac 0 buf;
+  set_arp_tpa buf tpa;
+  buf
