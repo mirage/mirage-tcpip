@@ -2,6 +2,16 @@ open Icmpv4_wire
 
 type error = string
 
+let subheader_to_cstruct ~buf sh =
+  let open Cstruct.BE in
+  let open Icmpv4_unmarshal in
+  match sh with
+  | Id_and_seq (id, seq) -> set_uint16 buf 0 id; set_uint16 buf 2 seq
+  | Next_hop_mtu mtu -> set_uint16 buf 0 0; set_uint16 buf 2 mtu
+  | Pointer byte -> set_uint32 buf 0 Int32.zero; Cstruct.set_uint8 buf 0 byte;
+  | Address addr -> set_uint32 buf 0 (Ipaddr.V4.to_int32 addr)
+  | Unused -> set_uint32 buf 0 Int32.zero
+
 let echo ~buf ~payload ~ty ~id ~seq =
   let min_len = Icmpv4_wire.sizeof_icmpv4 + (Cstruct.len payload) in
   if Cstruct.len buf < min_len then
