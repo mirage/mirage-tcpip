@@ -52,3 +52,14 @@ let would_fragment ~buf ~ip_header ~ip_payload ~next_hop_mtu =
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list [ icmp_packet ]);
     Result.Ok ()
   end
+
+let make_cstruct t =
+  let open Icmpv4_unmarshal in
+  let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
+  Cstruct.memset buf 0x00; (* can be removed once cstructs are zero'd by default *)
+  set_icmpv4_ty buf (ty_to_int t.ty);
+  set_icmpv4_code buf t.code;
+  set_icmpv4_csum buf 0x0000;
+  subheader_to_cstruct ~buf:(Cstruct.shift buf 4) t.subheader;
+  set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list [ buf; t.payload ]);
+  buf
