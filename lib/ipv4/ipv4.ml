@@ -146,17 +146,17 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
       Lwt.return_unit
     | Ok packet ->
-      match int_to_protocol packet.proto, packet.payload with
-      (* Don't pass on empty buffers as payloads to known protocols
-         -- they have no relevant headers *)
-      | Some _, None -> Lwt.return_unit
-      | Some `TCP, Some payload -> tcp ~src:packet.src ~dst:packet.dst payload
-      | Some `UDP, Some payload -> udp ~src:packet.src ~dst:packet.dst payload
-      | Some `ICMP, Some payload | None, Some payload ->
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
-      | None, None -> (* we don't know anything about the handler -- it may know
-                         what to do with an empty payload *)
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst (Cstruct.create 0)
+      match int_to_protocol packet.proto, Cstruct.len packet.payload with
+      | Some _, 0 ->
+        (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
+        Lwt.return_unit
+      | None, 0 -> (* we don't know anything about the protocol; an empty
+                      payload may be meaningful somehow? *)
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst packet.payload
+      | Some `TCP, _ -> tcp ~src:packet.src ~dst:packet.dst packet.payload
+      | Some `UDP, _ -> udp ~src:packet.src ~dst:packet.dst packet.payload
+      | Some `ICMP, _ | None, _ ->
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst packet.payload
 
   let connect
       ?(ip=Ipaddr.V4.any)
@@ -164,7 +164,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       ?(gateways=[]) ethif arp =
     let t = { ethif; arp; ip; netmask; gateways } in
     Lwt.return (`Ok t)
-
 
   let disconnect _ = Lwt.return_unit
 
