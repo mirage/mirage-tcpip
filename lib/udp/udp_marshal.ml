@@ -19,3 +19,16 @@ let to_cstruct ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload =
   let csum = Tcpip_checksum.ones_complement_list (pseudoheader :: (udp_buf :: payload)) in
   set_udp_checksum udp_buf csum;
   Ok ()
+
+let make_cstruct ~pseudoheader t =
+  let open Udp_wire in
+  let open Udp_unmarshal in
+  let buf = Cstruct.create Udp_wire.sizeof_udp in
+  let len = sizeof_udp + Cstruct.lenv t.payload in
+  set_udp_source_port buf t.src_port;
+  set_udp_dest_port buf t.dst_port;
+  set_udp_length buf len;
+  set_udp_checksum buf 0;
+  let csum = Tcpip_checksum.ones_complement_list (pseudoheader :: (buf :: t.payload)) in
+  set_udp_checksum buf csum;
+  buf
