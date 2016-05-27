@@ -116,14 +116,14 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       ~dst_mac:(Macaddr.broadcast) with
     | Error s -> 
       Log.info (fun f -> f "IP.allocate_frame: could not print ethernet header: %s" s);
-      (ethernet_frame, len)
+      raise (Invalid_argument "writing ethif header to ipv4.allocate_frame failed")
     | Ok () ->
       let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
       (* TODO: why 38 for TTL? *)
       match Ipv4_marshal.to_cstruct ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
       | Error s ->
         Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
-        (ethernet_frame, len)
+        raise (Invalid_argument "writing ipv4 header to ipv4.allocate_frame failed")
       | Ok () ->
         (ethernet_frame, len)
 
