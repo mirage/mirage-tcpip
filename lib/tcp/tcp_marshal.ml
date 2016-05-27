@@ -1,10 +1,10 @@
 open Rresult
+open Tcp_wire
 
 type error = string
 
 let to_cstruct ~buf ~src_port ~dst_port ~pseudoheader ~options ~syn
     ~fin ~rst ~psh ~window ~payload ~seq ~rx_ack =
-  let open Tcp_wire in
   let check_header_len () =
     if (Cstruct.len buf) < sizeof_tcp then Error "Not enough space for a TCP header"
     else Ok ()
@@ -51,3 +51,33 @@ let to_cstruct ~buf ~src_port ~dst_port ~pseudoheader ~options ~syn
   let checksum = Tcpip_checksum.ones_complement_list (pseudoheader :: (buf :: payload)) in
   set_tcp_checksum buf checksum;
   Ok (sizeof_tcp + options_len)
+
+let make_cstruct ~pseudoheader t =
+  let open Tcp_unmarshal in
+  let options_buf = Cstruct.create 40 in (* more than 40 bytes of options can't
+                                            be signalled in the length field of
+                                            the tcp header *)
+  let options_len = Options.marshal options_buf t.options in
+  let options_buf = Cstruct.set_len options_buf options_len in
+  let buf = Cstruct.create sizeof_tcp in
+  let sequence = Sequence.to_int32 t.sequence in
+  let ack_number = Sequence.to_int32 t.ack_number in
+  let data_off = (sizeof_tcp / 4) + (options_len / 4) in
+  set_tcp_src_port buf t.source_port;
+  set_tcp_dst_port buf t.dest_port;
+  set_tcp_sequence buf sequence;
+  set_tcp_ack_number buf ack_number;
+  set_data_offset buf data_off;
+  set_tcp_flags buf 0;
+  if t.ack then set_ack buf;
+  if t.rst then set_rst buf;
+  if t.syn then set_syn buf;
+  if t.fin then set_fin buf;
+  if t.psh then set_psh buf;
+  set_tcp_window buf t.window;
+  set_tcp_checksum buf 0;
+  set_tcp_urg_ptr buf 0;
+  let checksum = Tcpip_checksum.ones_complement_list [pseudoheader ; buf ;
+                                                      options_buf  ; t.data ] in
+  set_tcp_checksum buf checksum;
+  Cstruct.concat [buf; options_buf]

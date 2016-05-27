@@ -50,7 +50,7 @@ module Make(Ip: V1_LWT.IP) = struct
       match listeners ~dst_port with
       | None    -> Lwt.return_unit
       | Some fn ->
-        fn ~src ~dst ~src_port payload
+        fn ~src ~dst ~src_port @@ Cstruct.concat payload
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
     begin match source_port with

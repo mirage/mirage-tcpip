@@ -1,4 +1,8 @@
-type t = {src_port: Cstruct.uint16; dst_port : Cstruct.uint16; payload : Cstruct.t }
+type t = {
+  src_port : Cstruct.uint16;
+  dst_port : Cstruct.uint16;
+  payload  : Cstruct.t list
+}
 
 let of_cstruct buf =
   let open Rresult in
@@ -17,5 +21,5 @@ let of_cstruct buf =
   check_payload_length length (Cstruct.len buf) >>= fun payload_len ->
   let src_port = Udp_wire.get_udp_source_port buf in
   let dst_port = Udp_wire.get_udp_dest_port buf in
-  let payload = Cstruct.sub buf Udp_wire.sizeof_udp payload_len in
+  let payload = [ Cstruct.sub buf Udp_wire.sizeof_udp payload_len ] in
   Ok { src_port; dst_port; payload }
