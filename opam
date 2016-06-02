@@ -55,7 +55,7 @@ depends: [
   "alcotest" {test}
   "pcap-format" {test}
   "lwt" {>= "2.4.7"}
-  "logs" {>= "0.5.0"}
+  "logs" {>= "0.6.0"}
 ]
 depopts: [
   "mirage-xen"
