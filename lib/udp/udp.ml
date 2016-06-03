@@ -43,14 +43,14 @@ module Make(Ip: V1_LWT.IP) = struct
   let id {ip} = ip
 
   let input ~listeners t ~src ~dst buf =
-    match Udp_unmarshal.of_cstruct buf with
+    match Udp_packet.Unmarshal.of_cstruct buf with
     | Error s ->
       Log.debug (fun f -> f "Discarding received UDP message: error parsing: %s" s); Lwt.return_unit
-    | Ok { Udp_unmarshal.src_port; dst_port; payload } ->
+    | Ok ({ Udp_packet.src_port; dst_port}, payload) ->
       match listeners ~dst_port with
       | None    -> Lwt.return_unit
       | Some fn ->
-        fn ~src ~dst ~src_port @@ Cstruct.concat payload
+        fn ~src ~dst ~src_port payload
 
   let writev ?source_port ~dest_ip ~dest_port t bufs =
     begin match source_port with
@@ -61,8 +61,8 @@ module Make(Ip: V1_LWT.IP) = struct
     let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
     let ph = Ip.pseudoheader t.ip ~dst:dest_ip ~proto:`UDP (Cstruct.lenv bufs) in
-    match Udp_marshal.to_cstruct ~udp_buf ~src_port:source_port
-            ~dst_port:dest_port ~pseudoheader:ph ~payload:bufs with
+    match Udp_packet.Marshal.to_cstruct ~udp_buf ~src_port:source_port
+            ~dst_port:dest_port ~pseudoheader:ph ~payload:(Cstruct.concat bufs) with
     | Ok () -> 
       Ip.writev t.ip frame bufs
     | Error s -> Log.debug (fun f -> f "Discarding transmitted UDP message: error writing: %s" s);
