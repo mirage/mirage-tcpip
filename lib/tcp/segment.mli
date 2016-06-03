@@ -25,12 +25,10 @@
 *)
 module Rx (T:V1_LWT.TIME) : sig
 
-  type segment
+  type segment = { header: Tcp_packet.t; payload: Cstruct.t }
   (** Individual received TCP segment *)
 
   val pp_segment: Format.formatter -> segment -> unit
-
-  val segment_of_parse : Tcp_unmarshal.t -> segment
 
   type t
   (** Queue of receive segments *)
@@ -46,7 +44,7 @@ module Rx (T:V1_LWT.TIME) : sig
 
   val is_empty : t -> bool
 
-  val input : t -> Tcp_unmarshal.t -> unit Lwt.t
+  val input : t -> segment -> unit Lwt.t
   (** Given the current receive queue and an incoming packet,
       update the window, extract any ready segments into the
       user receive queue, and signal any acks to the Tx queue *)
@@ -60,7 +58,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
+    seq:Sequence.t -> Cstruct.t -> unit Lwt.t
 
   type t
   (** Queue of pre-transmission segments *)
@@ -72,15 +70,14 @@ module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
     tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t
 
   val output:
-    ?flags:tx_flags -> ?options:Options.t list -> t -> Cstruct.t list ->
-    unit Lwt.t
+    ?flags:tx_flags -> ?options:Options.t list -> t -> Cstruct.t -> unit Lwt.t
   (** Queue a segment for transmission. May block if:
 
       {ul
         {- There is no transmit window available.}
         {- The wire transmit function blocks.}}
 
-      The transmitter should check that the segment size will will not
+      The transmitter should check that the segment size will not
       be greater than the transmit window.  *)
 
 end

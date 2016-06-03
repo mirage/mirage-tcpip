@@ -1,0 +1,39 @@
+type t = {
+  src_port : Cstruct.uint16;
+  dst_port : Cstruct.uint16;
+}
+
+module Unmarshal : sig
+
+  type error = string 
+
+(** [of_cstruct buf] attempts to interpret [buf] as a UDP header.  If
+    successful, it returns [Ok (header, payload)], although [payload] may be an
+    empty Cstruct.t . *)
+  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) Result.result
+end
+module Marshal : sig
+
+  type error = string
+
+  (** [to_cstruct ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload] attempts to
+      assemble a UDP header in [udp_buf] with [src_port] and [dst_port] set,
+      along with the correct length and checksum.
+      It does not write [pseudoheader] or [payload] into the buffer,
+      but requires them to calculate the correct checksum. *)
+  val to_cstruct :
+    udp_buf:Cstruct.t       ->
+    src_port:Cstruct.uint16 ->
+    dst_port:Cstruct.uint16 ->
+    pseudoheader:Cstruct.t  ->
+    payload:Cstruct.t       ->
+    (unit, error) Result.result
+
+  (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
+      representing the UDP header corresponding to [t].  [make_cstruct] will
+      allocate 8 bytes for the UDP header.
+      [payload] and [pseudoheader] are not directly represented in the output,
+      and are required for correct computation of the UDP checksum only.
+      The checksum will be properly set to reflect the pseudoheader, header, and payload. *)
+  val make_cstruct : pseudoheader:Cstruct.t -> payload:Cstruct.t -> t -> Cstruct.t
+end

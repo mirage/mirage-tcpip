@@ -29,5 +29,5 @@ module Make(Ip:V1_LWT.IP) : sig
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
     options:Options.t list ->
-    Cstruct.t list -> unit Lwt.t
+    Cstruct.t -> unit Lwt.t
 end

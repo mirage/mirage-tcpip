@@ -50,8 +50,8 @@ module Make (Ip:V1_LWT.IP) = struct
     let frame, header_len = Ip.allocate_frame ip ~dst:id.dest_ip ~proto:`TCP in
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.lenv payload) in
-    match Tcp_marshal.to_cstruct ~buf:tcp_buf ~src_port:id.local_port
+    let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.len payload) in
+    match Tcp_packet.Marshal.to_cstruct ~buf:tcp_buf ~src_port:id.local_port
       ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
       ~psh ~window ~payload with
     | Result.Error s ->
@@ -59,7 +59,7 @@ module Make (Ip:V1_LWT.IP) = struct
       Lwt.return_unit
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
-      MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv payload + (if syn then 1 else 0));
-      Ip.writev ip frame payload
+      MProf.Counter.increase count_tcp_to_ip (Cstruct.len payload + (if syn then 1 else 0));
+      Ip.write ip frame payload
 
 end

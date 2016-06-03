@@ -54,31 +54,29 @@ let rec reset_seq segs =
    the Rtx queue to ack messages or close channels.
 *)
 module Rx(Time:V1_LWT.TIME) = struct
-  open Tcp_unmarshal
-
+  open Tcp_packet
   module StateTick = State.Make(Time)
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
-  type segment = Tcp_unmarshal.t
+  type segment = { header: Tcp_packet.t; payload: Cstruct.t }
 
-  let pp_segment fmt (seg : Tcp_unmarshal.t) =
+  let pp_segment fmt {header; payload} =
     Format.fprintf fmt
-      "RX seg seq=%a fin=%b syn=%b ack=%b acknum=%a win=%d"
-      Sequence.pp seg.sequence seg.fin seg.syn seg.ack
-      Sequence.pp seg.ack_number seg.window
+      "RX seg seq=%a acknum=%a ack=%b rst=%b syn=%b fin=%b win=%d len=%d"
+      Sequence.pp header.sequence Sequence.pp header.ack_number
+      header.ack header.rst header.syn header.fin
+      header.window (Cstruct.len payload)
 
-  let segment_of_parse (parsed_packet : Tcp_unmarshal.t) : segment = parsed_packet
-  
   let len seg =
-    Sequence.of_int ((Cstruct.len seg.data) +
-    (if seg.fin then 1 else 0) +
-    (if seg.syn then 1 else 0))
+    Sequence.of_int ((Cstruct.len seg.payload) +
+    (if seg.header.fin then 1 else 0) +
+    (if seg.header.syn then 1 else 0))
 
   (* Set of segments, ordered by sequence number *)
   module S = Set.Make(struct
       type t = segment
-      let compare a b = Sequence.compare a.sequence b.sequence
+      let compare a b = (Sequence.compare a.header.sequence b.header.sequence)
     end)
 
   type t = {
@@ -95,7 +93,7 @@ module Rx(Time:V1_LWT.TIME) = struct
 
   let pp fmt t =
     let pp_v fmt seg =
-      Format.fprintf fmt "%a[%a]" Sequence.pp seg.sequence Sequence.pp (len seg)
+      Format.fprintf fmt "%a[%a]" Sequence.pp seg.header.sequence Sequence.pp (len seg)
     in
     Format.pp_print_list pp_v fmt (S.elements t.segs)
 
@@ -103,25 +101,24 @@ module Rx(Time:V1_LWT.TIME) = struct
      should look for a FIN and chop off the rest of the set as they
      may be orphan segments *)
   let fin q =
-    try (S.max_elt q).fin
+    try (S.max_elt q).header.fin
     with Not_found -> false
 
   let is_empty q = S.is_empty q.segs
 
   let check_valid_segment q seg =
-    let open Tcp_unmarshal in
-    if seg.rst then
-      if Sequence.compare seg.sequence (Window.rx_nxt q.wnd) = 0 then
+    if seg.header.rst then
+      if Sequence.compare seg.header.sequence (Window.rx_nxt q.wnd) = 0 then
         `Reset
-      else if Window.valid q.wnd seg.sequence then
+      else if Window.valid q.wnd seg.header.sequence then
         `ChallengeAck
       else
         `Drop
-    else if seg.syn then
+    else if seg.header.syn then
       `ChallengeAck
-    else if Window.valid q.wnd seg.sequence then
+    else if Window.valid q.wnd seg.header.sequence then
       let min = Sequence.(sub (Window.tx_una q.wnd) (of_int32 (Window.max_tx_wnd q.wnd))) in
-      if Sequence.between seg.ack_number min (Window.tx_nxt q.wnd) then
+      if Sequence.between seg.header.ack_number min (Window.tx_nxt q.wnd) then
         `Ok
       else
         (* rfc5961 5.2 *)
@@ -138,15 +135,14 @@ module Rx(Time:V1_LWT.TIME) = struct
      queue, update the window, extract any ready segments into the
      user receive queue, and signal any acks to the Tx queue *)
   let input (q:t) seg =
-    let open Tcp_unmarshal in
     match check_valid_segment q seg with
     | `Ok ->
       let force_ack = ref false in
       (* Insert the latest segment *)
-      let segs = S.add (segment_of_parse seg) q.segs in
+      let segs = S.add seg q.segs in
       (* Walk through the set and get a list of contiguous segments *)
       let ready, waiting = S.fold (fun seg acc ->
-          match Sequence.compare seg.sequence (Window.rx_nxt_inseq q.wnd) with
+          match Sequence.compare seg.header.sequence (Window.rx_nxt_inseq q.wnd) with
           | (-1) ->
             (* Sequence number is in the past, probably an overlapping
                segment. Drop it for now, but TODO segment
@@ -169,18 +165,18 @@ module Rx(Time:V1_LWT.TIME) = struct
       q.segs <- waiting;
       (* If the segment has an ACK, tell the transmit side *)
       let tx_ack =
-        if seg.ack && (Sequence.geq seg.ack_number (Window.ack_seq q.wnd)) then begin
-          StateTick.tick q.state (State.Recv_ack seg.ack_number);
+        if seg.header.ack && (Sequence.geq seg.header.ack_number (Window.ack_seq q.wnd)) then begin
+          StateTick.tick q.state (State.Recv_ack seg.header.ack_number);
           let data_in_flight = Window.tx_inflight q.wnd in
-          let ack_has_advanced = (Window.ack_seq q.wnd) <> seg.ack_number in
-          let win_has_changed = (Window.ack_win q.wnd) <> seg.window in
+          let ack_has_advanced = (Window.ack_seq q.wnd) <> seg.header.ack_number in
+          let win_has_changed = (Window.ack_win q.wnd) <> seg.header.window in
           if ((data_in_flight && (Window.ack_serviced q.wnd || not ack_has_advanced)) ||
               (not data_in_flight && win_has_changed)) then begin
             Window.set_ack_serviced q.wnd false;
-            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
+            Window.set_ack_seq_win q.wnd seg.header.ack_number seg.header.window;
             Lwt_mvar.put q.tx_ack ((Window.ack_seq q.wnd), (Window.ack_win q.wnd))
           end else begin
-            Window.set_ack_seq_win q.wnd seg.ack_number seg.window;
+            Window.set_ack_seq_win q.wnd seg.header.ack_number seg.header.window;
             Lwt.return_unit
           end
         end else Lwt.return_unit
@@ -189,7 +185,7 @@ module Rx(Time:V1_LWT.TIME) = struct
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
         let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-            (if Cstruct.len seg.data > 0 then seg.data :: acc_l else acc_l),
+            (if Cstruct.len seg.payload > 0 then seg.payload :: acc_l else acc_l),
             (Sequence.add (len seg) acc_w)
           ) ready ([], Sequence.zero) in
         let elems = List.rev elems_r in
@@ -227,7 +223,7 @@ end
    with control flags (such as urgent, or fin to mark the end).
 *)
 
-type tx_flags = (* Either Syn/Fin/Rst allowed, but not combinations *)
+type tx_flags = (* At most one of Syn/Fin/Rst/Psh allowed *)
   | No_flags
   | Syn
   | Fin
@@ -241,10 +237,10 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
   module TX = Window.Make(Clock)
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t list -> unit Lwt.t
+    seq:Sequence.t -> Cstruct.t -> unit Lwt.t
 
   type seg = {
-    data: Cstruct.t list;
+    data: Cstruct.t;
     flags: tx_flags;
     seq: Sequence.t;
   }
@@ -255,7 +251,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     ((match seg.flags with
      | No_flags | Psh | Rst -> 0
      | Syn | Fin -> 1) +
-    (Cstruct.lenv seg.data))
+    (Cstruct.len seg.data))
 
   (* Queue of pre-transmission segments *)
   type t = {

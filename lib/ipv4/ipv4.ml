@@ -111,7 +111,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     let open Ipv4_wire in
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
-    match Ethif_marshal.to_cstruct ~buf:ethernet_frame
+    match Ethif_packet.Marshal.to_cstruct ~buf:ethernet_frame
       ~ethertype:Ethif_wire.IPv4 ~src_mac:(Ethif.mac t.ethif)
       ~dst_mac:(Macaddr.broadcast) with
     | Error s -> 
@@ -120,7 +120,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     | Ok () ->
       let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
       (* TODO: why 38 for TTL? *)
-      match Ipv4_marshal.to_cstruct ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
+      match Ipv4_packet.Marshal.to_cstruct ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
       | Error s ->
         Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
         raise (Invalid_argument "writing ipv4 header to ipv4.allocate_frame failed")
@@ -140,23 +140,22 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     writev t frame [buf]
 
   let input t ~tcp ~udp ~default buf =
-    let open Ipv4_unmarshal in
-    match of_cstruct buf with
+    match Ipv4_packet.Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
       Lwt.return_unit
-    | Ok packet ->
-      match int_to_protocol packet.proto, Cstruct.len packet.payload with
+    | Ok (packet, payload) ->
+      match Ipv4_packet.Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
       | Some _, 0 ->
         (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
         Lwt.return_unit
       | None, 0 -> (* we don't know anything about the protocol; an empty
                       payload may be meaningful somehow? *)
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst packet.payload
-      | Some `TCP, _ -> tcp ~src:packet.src ~dst:packet.dst packet.payload
-      | Some `UDP, _ -> udp ~src:packet.src ~dst:packet.dst packet.payload
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
+      | Some `TCP, _ -> tcp ~src:packet.src ~dst:packet.dst payload
+      | Some `UDP, _ -> udp ~src:packet.src ~dst:packet.dst payload
       | Some `ICMP, _ | None, _ ->
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst packet.payload
+        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
 
   let connect
       ?(ip=Ipaddr.V4.any)
@@ -187,7 +186,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let get_ip_gateways { gateways; _ } = gateways
 
   let pseudoheader t ~dst ~proto len =
-    Ipv4_marshal.pseudoheader ~src:t.ip ~dst ~proto len
+    Ipv4_packet.Marshal.pseudoheader ~src:t.ip ~dst ~proto len
 
   let checksum frame bufs =
     let packet = Cstruct.shift frame Ethif_wire.sizeof_ethernet in

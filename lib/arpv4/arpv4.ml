@@ -88,31 +88,22 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   let output t arp =
-    let open Arpv4_unmarshal in
     (* Obtain a buffer to write into *)
-    let buf = Cstruct.create (Ethif_wire.sizeof_ethernet + Arpv4_wire.sizeof_arp) in
-    (* Write the ARP packet *)
-    match Arpv4_marshal.to_cstruct
-      ~buf:(Cstruct.shift buf Ethif_wire.sizeof_ethernet)
-      ~src_ip:arp.spa ~dst_ip:arp.tpa ~src_mac:arp.sha ~dst_mac:arp.tha
-      ~op:arp.op with
-    | Error s -> Log.info (fun f -> f "Failed to print Arpv4 header: %s" s);
-      Lwt.return_unit
-    | Ok () ->
-      let ethertype = Ethif_wire.ARP in
-      match Ethif_marshal.to_cstruct ~buf ~ethertype ~src_mac:arp.sha ~dst_mac:arp.tha with
-      | Error s -> Log.info (fun f -> f "Failed to print Ethernet header: %s" s);
-        Lwt.return_unit
-      | Ok () ->
-        Ethif.write t.ethif buf
+    let payload = Arpv4_packet.Marshal.make_cstruct arp in
+    let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
+        source = arp.sha;
+        destination = arp.tha;
+        ethertype = Ethif_wire.ARP;
+      }) in
+    Ethif.writev t.ethif [ethif_packet ; payload]
 
   (* Input handler for an ARP packet *)
   let input t frame =
     MProf.Trace.label "arpv4.input";
-    match Arpv4_unmarshal.of_cstruct frame with
+    match Arpv4_packet.Unmarshal.of_cstruct frame with
     | Result.Error s ->
       Log.info (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
-                   Arpv4_unmarshal.pp_error s (Cstruct.to_string frame));
+                   Arpv4_packet.Unmarshal.pp_error s (Cstruct.to_string frame));
       Lwt.return_unit
     | Result.Ok arp ->
       match arp.op with
@@ -140,7 +131,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
         Log.info (fun f -> f "ARP: sending gratuitous from %a" Ipaddr.V4.pp_hum spa);
-        output t Arpv4_unmarshal.({ op=Arpv4_wire.Reply; tha; sha; tpa; spa })
+        output t Arpv4_packet.({ op=Arpv4_wire.Reply; tha; sha; tpa; spa })
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
@@ -151,13 +142,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     (* Source protocol address, pick one of our IP addresses *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
-    output t Arpv4_unmarshal.({ op=Arpv4_wire.Request; tha; sha; tpa; spa })
+    output t Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa })
 
   let get_ips t = t.bound_ips
 
-  (* Set the bound IP address list, which will xmit a GARP packet also *)
+  (* Set the bound IP address list, which will xmit GARP packets also *)
   let set_ips t ips =
-    t.bound_ips <- ips;
+    t.bound_ips <- (List.sort_uniq Ipaddr.V4.compare ips);
     output_garp t
 
   let add_ip t ip =

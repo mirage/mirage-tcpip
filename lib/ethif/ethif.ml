@@ -46,14 +46,14 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match Ethif_unmarshal.of_cstruct frame with
-    | Ok header when of_interest header.destination ->
+    match Ethif_packet.Unmarshal.of_cstruct frame with
+    | Ok (header, payload) when of_interest header.destination ->
       begin
         let open Ethif_wire in
         match header.ethertype with
-        | ARP -> arpv4 header.payload
-        | IPv4 -> ipv4 header.payload
-        | IPv6 -> ipv6 header.payload
+        | ARP -> arpv4 payload
+        | IPv4 -> ipv4 payload
+        | IPv6 -> ipv6 payload
       end
     | Ok header -> Lwt.return_unit
     | Error s -> Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
