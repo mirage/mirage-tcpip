@@ -57,9 +57,13 @@ end = struct
 
   let input t buffer =
     (* disregard responses, but reply to queries *)
+    try
     match Arpv4_wire.get_arp_op buffer with
     | 1 -> A.input t.base buffer
     | 2 | _ -> Lwt.return_unit
+    with
+    | Invalid_argument s -> Printf.printf "Arpv4_wire failed on buffer: %s" s;
+      Lwt.return_unit
 
   let add_entry t ip mac =
     Hashtbl.add t.table ip mac
@@ -77,6 +81,15 @@ type stack = {
   ip : Ip.t;
   icmp : Icmp.t;
 }
+
+let testbind x y =
+  match x with
+  | Result.Ok p -> y p
+  | Result.Error s -> Alcotest.fail s
+let (>>=?) = testbind
+
+let slowly fn =
+  OS.Time.sleep 0.1 >>= fun () -> fn >>= fun () -> OS.Time.sleep 0.1
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
@@ -114,7 +127,7 @@ let mac_of_stack stack = E.mac stack.ethif
 
 let short_read () =
   let too_short = Cstruct.create 4 in
-  match Icmpv4_parse.input too_short with
+  match Icmpv4_unmarshal.of_cstruct too_short with
   | Ok icmp -> Alcotest.fail "processed something too short to be real"
   | Error str -> Printf.printf "short packet rejected successfully! msg: %s\n" str;
     Lwt.return_unit
@@ -126,57 +139,54 @@ let echo_request () =
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
-  let echo_request = Icmpv4_print.echo_request id_no seq_no in
+  let echo_request = Cstruct.create 4096 in
+  Icmpv4_marshal.echo_request ~payload:Cstruct.(create 0) ~buf:echo_request ~id:id_no
+    ~seq:seq_no >>=? fun () ->
   let check buf =
-    let open Icmpv4_parse in
+    let open Icmpv4_unmarshal in
     Printf.printf "Incoming ICMP message: ";
     Cstruct.hexdump buf;
-    match input buf with
-    | Error s -> Alcotest.fail ("echo request got an unparseable reply: " ^ s)
-    | Ok reply ->
-      let (Icmpv4_parse.Id_and_seq (id, seq)) = reply.subheader in
-      Alcotest.(check int) "icmp response type" 0x00 reply.ty; (* expect an icmp echo reply *)
-      Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
-      Alcotest.(check int) "icmp echo-reply id" id_no id;
-      Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-      match reply.payload with
-      | Some _ -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
-      | None -> Lwt.return_unit
+    of_cstruct buf >>=? fun reply ->
+    let (Icmpv4_unmarshal.Id_and_seq (id, seq)) = reply.subheader in
+    Alcotest.(check int) "icmp response type" 0x00 (Icmpv4_wire.ty_to_int reply.ty); (* expect an icmp echo reply *)
+    Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
+    Alcotest.(check int) "icmp echo-reply id" id_no id;
+    Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
+    match (Cstruct.len reply.payload) with
+    | 0 -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
+    | n -> Lwt.return_unit
   in
   Lwt.pick [
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
     icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
                              ~dst buf);
-    Lwt_unix.sleep 0.5 >>= fun () -> Icmp.write speaker.icmp ~dst:listener_address echo_request;
+    slowly (Icmp.write speaker.icmp ~dst:listener_address echo_request);
   ]
 
 let echo_silent () =
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
-  let echo_request = Icmpv4_print.echo_request 0xff 0x4341 in
+  let echo_request = Cstruct.create 4096 in
+  Icmpv4_marshal.echo_request ~payload:(Cstruct.create 0) ~buf:echo_request ~id:0xff ~seq:0x4341 >>=? fun () ->
+  let open Icmpv4_unmarshal in
   let check buf =
-    let open Icmpv4_parse in
-    match input buf with
-    | Error str -> Alcotest.fail ("received a strange ICMP message: " ^ str)
-    | Ok message ->
-      match message.ty with
-      | 0 -> Alcotest.fail "received an ICMP echo reply even though we shouldn't have"
-      | 8 -> Printf.printf "received an ICMP echo request; ignoring it";
-        Lwt.return_unit
-      | _ -> Lwt.return_unit
+    of_cstruct buf >>=? fun message ->
+    match message.ty with
+    | Icmpv4_wire.Echo_reply -> Alcotest.fail "received an ICMP echo reply even though we shouldn't have"
+    | Echo_request -> Printf.printf "received an ICMP echo request; ignoring it";
+      Lwt.return_unit
+    | _ -> Lwt.return_unit
   in
   let nobody_home = Ipaddr.V4.of_string_exn "192.168.222.90" in
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
-  inform_arp speaker nobody_home (mac_of_stack listener); (* maximum likelihood
-                                                             of listener seeing
-                                                             this echo-request *)
+  (* set up an ARP mapping so the listener is more likely to see the echo-request *)
+  inform_arp speaker nobody_home (mac_of_stack listener);
   Lwt.pick [
     icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
                              ~dst buf);
     icmp_listen speaker (fun ~src ~dst -> check);
-    Lwt_unix.sleep 0.5 >>= fun () -> Icmp.write speaker.icmp
-      ~dst:nobody_home echo_request >>= fun () -> Lwt_unix.sleep 0.5
+    slowly (Icmp.write speaker.icmp ~dst:nobody_home echo_request);
   ]
 
 let suite = [

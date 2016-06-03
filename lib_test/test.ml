@@ -27,12 +27,8 @@ let run test () =
   Lwt_main.run (test ())
 
 let () =
-  (* Enable TCP debug output *)
-  let open Tcp in
-  [Segment.info; Segment.debug; Pcb.info; Pcb.debug] |> List.iter (fun log ->
-      Log.enable log;
-      Log.set_stats log false
-    );
+  (* enable logging to stdout for all modules *)
+  Logs.set_reporter (Logs_fmt.reporter ());
   (* Uncomment to enable tracing *)
   (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
   let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in

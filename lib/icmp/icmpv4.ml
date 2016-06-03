@@ -13,27 +13,6 @@ module Make(IP : V1_LWT.IPV4) = struct
     echo_reply : bool;
   }
 
-  let pp_dst_unreachable fmt buf =
-    Format.fprintf fmt "ICMP Destination Unreachable: %s" @@
-    match Icmpv4_wire.get_icmpv4_code buf with
-    | 0  -> "Destination network unreachable"
-    | 1  -> "Destination host unreachable"
-    | 2  -> "Destination protocol unreachable"
-    | 3  -> "Destination port unreachable"
-    | 4  -> "Fragmentation required, and DF flag set"
-    | 5  -> "Source route failed"
-    | 6  -> "Destination network unknown"
-    | 7  -> "Destination host unknown"
-    | 8  -> "Source host isolated"
-    | 9  -> "Network administratively prohibited"
-    | 10 -> "Host administratively prohibited"
-    | 11 -> "Network unreachable for TOS"
-    | 12 -> "Host unreachable for TOS"
-    | 13 -> "Communication administratively prohibited"
-    | 14 -> "Host Precedence Violation"
-    | 15 -> "Precedence cutoff in effect"
-    | code -> Printf.sprintf "Unknown ICMP code: %d" code
-
   let input t ~src ~dst buf =
     let should_reply t dst =
       let aux found this =
@@ -43,30 +22,37 @@ module Make(IP : V1_LWT.IPV4) = struct
       in
       List.fold_left aux false (IP.get_ip t.ip)
     in
-    let open Lwt.Infix in
-    let open Printf in
     MProf.Trace.label "icmp_input";
-    match Icmpv4_wire.get_icmpv4_ty buf with
-    |0 -> (* echo reply *)
-      Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
+    match Icmpv4_unmarshal.of_cstruct buf with
+    | Result.Error s ->
+      Log.info (fun f -> f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
       Lwt.return_unit
-    |3 -> Log.info (fun f -> f "%a" pp_dst_unreachable buf); Lwt.return_unit
-    |8 -> if t.echo_reply && should_reply t dst then begin
-      (* convert the echo request into an echo reply *)
-      let csum =
-        let orig_csum = Icmpv4_wire.get_icmpv4_csum buf in
-        let shift = if orig_csum > 0xffff -0x0800 then 0x0801 else 0x0800 in
-        (orig_csum + shift) land 0xffff in
-      Icmpv4_wire.set_icmpv4_ty buf 0;
-      Icmpv4_wire.set_icmpv4_csum buf csum;
-      (* stick an IPv4 header on the front and transmit *)
-      let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
-      let frame = Cstruct.set_len frame header_len in
-      IP.write t.ip frame buf
-      end else Lwt.return_unit
-    |ty ->
-      Log.info (fun f -> f "ICMP unknown ty %d from %a" ty Ipaddr.V4.pp_hum src);
-      Lwt.return_unit
+    | Result.Ok message ->
+      let open Icmpv4_wire in
+      let open Icmpv4_unmarshal in
+      match message.ty, message.subheader with
+      | Echo_reply, _ -> Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
+        Lwt.return_unit
+      | Destination_unreachable, _ ->
+        Log.info (fun f -> f "ICMP: destination unreachable from %a" Ipaddr.V4.pp_hum src);
+        Lwt.return_unit
+      | Echo_request, Id_and_seq (id, seq) ->
+        if t.echo_reply && should_reply t dst then begin
+          (* get some memory to write in *)
+          let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
+          let icmp_chunk = Cstruct.shift frame header_len in
+          match Icmpv4_marshal.echo_reply ~buf:icmp_chunk ~payload:message.payload ~id ~seq with
+          | Result.Ok () ->
+            let frame = Cstruct.set_len frame header_len in
+            IP.write t.ip frame icmp_chunk
+          | Result.Error s ->
+            Log.info (fun f -> f "Failed to respond to ICMP echo request from %a: %s"
+                         Ipaddr.V4.pp_hum src s);
+            Lwt.return_unit
+        end else Lwt.return_unit
+      | ty, _ ->
+        Log.info (fun f -> f "ICMP unknown ty %s from %a" (ty_to_string ty) Ipaddr.V4.pp_hum src);
+        Lwt.return_unit
 
   type error = [ `Routing | `Unknown ]
 
