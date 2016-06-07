@@ -1,9 +1,14 @@
 PKG lwt ipaddr lwt mirage-types cstruct io-page uint mirage-flow oUnit alcotest
-PKG mirage-vnetif pcap-format mirage-console.unix
+PKG mirage-vnetif pcap-format mirage-console.unix logs
 
 B _build/**
 S lib/
+S lib/tcp/
+S lib/udp/
+S lib/icmp/
+S lib/ipv4/
+S lib/ipv6/
+S lib/arpv4/
+S lib/ethif/
 S lib_test/
-S tcp/
 S unix/
-S dhcp/
