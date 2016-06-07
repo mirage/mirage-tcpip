@@ -2,3 +2,7 @@ _build
 .*.swp
 setup.data
 setup.log
+test.native
+_tests
+tests
+coveralls.json
