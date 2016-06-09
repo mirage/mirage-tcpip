@@ -8,6 +8,13 @@ type t = {
   tpa: Ipaddr.V4.t;
 }
 
+let equal s t = (s = t)
+
+let pp fmt t =
+  Format.fprintf fmt "MAC %s (IP %a) -> MAC %s (IP %a): ARP operation %s"
+    (Macaddr.to_string t.sha) Ipaddr.V4.pp_hum t.spa (Macaddr.to_string t.tha)
+    Ipaddr.V4.pp_hum t.tpa (Arpv4_wire.op_to_string t.op)
+
 module Unmarshal = struct
   type error =
     | Too_short

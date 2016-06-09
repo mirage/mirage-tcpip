@@ -11,6 +11,12 @@ type protocol = [
   | `TCP
   | `UDP ]
 
+let pp fmt t =
+  Format.fprintf fmt "IPv4 packet %a -> %a: proto %d, ttl %d, options %a"
+    Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.proto t.ttl Cstruct.hexdump_pp t.options
+
+let equal p q = (p = q)
+
 module Unmarshal = struct
   type error = string
 

@@ -15,6 +15,20 @@ type t = {
   subheader : subheader;
 }
 
+let pp fmt t =
+  let say = Format.fprintf in
+  let pp_subheader fmt = function
+    | Id_and_seq (id, seq) -> say fmt "subheader: id: %d, sequence %d" id seq
+    | Next_hop_mtu mtu -> say fmt "subheader: MTU %d" mtu
+    | Pointer pt -> say fmt "subheader: pointer to byte %d" pt
+    | Address addr -> say fmt "subheader: ip %a" Ipaddr.V4.pp_hum addr
+    | Unused -> ()
+  in
+  say fmt "ICMP type %s, code %d, subheader [%a]" (Icmpv4_wire.ty_to_string t.ty)
+    t.code pp_subheader t.subheader
+
+let equal p q = (p = q)
+
 module Unmarshal = struct
 
   type error = string

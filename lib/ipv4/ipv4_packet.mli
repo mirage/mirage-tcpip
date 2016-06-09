@@ -6,6 +6,9 @@ type t = {
   options : Cstruct.t;
 }
 
+val pp : Format.formatter -> t -> unit
+val equal : t -> t -> bool
+
 type protocol = [
   | `ICMP
   | `TCP

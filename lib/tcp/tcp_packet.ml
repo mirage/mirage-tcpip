@@ -13,9 +13,9 @@ type t = {
   dest_port : Cstruct.uint16;
 }
 
+let equal p q = (p = q)
+
 let pp fmt t =
-  (* TODO: more useful output -- put seq/ack together, output all flags,
-     mention options, print packet length *)
   Format.fprintf fmt
     "TCP packet seq=%a acknum=%a ack=%b rst=%b syn=%b fin=%b win=%d options=%a"
     Sequence.pp t.sequence Sequence.pp t.ack_number
