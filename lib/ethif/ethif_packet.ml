@@ -10,6 +10,8 @@ let pp fmt t =
   Format.fprintf fmt "%s -> %s: %s" (Macaddr.to_string t.source)
     (Macaddr.to_string t.destination) (Ethif_wire.ethertype_to_string t.ethertype)
 
+let equal p q = (p = q)
+
 module Unmarshal = struct
 
   type error = string

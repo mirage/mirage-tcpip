@@ -3,6 +3,9 @@ type t = {
   dst_port : Cstruct.uint16;
 }
 
+val pp : Format.formatter -> t -> unit
+val equal : t -> t -> bool
+
 module Unmarshal : sig
 
   type error = string 

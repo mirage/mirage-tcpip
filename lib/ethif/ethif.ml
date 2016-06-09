@@ -41,6 +41,9 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let id t = t.netif
   let mac t = Netif.mac t.netif
 
+  let pp_mac fmt mac = Format.fprintf fmt "%s" (Macaddr.to_string mac)
+  let tags = Logs.Tag.def "Ethif MAC" pp_mac (* definition for a mac tag *)
+
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     MProf.Trace.label "ethif.input";
     let of_interest dest =

@@ -4,6 +4,9 @@ type t = {
   ethertype : Ethif_wire.ethertype;
 }
 
+val pp : Format.formatter -> t -> unit
+val equal : t -> t -> bool
+
 module Unmarshal : sig
   type error = string
 

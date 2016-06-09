@@ -6,6 +6,10 @@ type t = {
   tpa: Ipaddr.V4.t;  (* target protocol address - can also be broadcast *)
 }
 
+val equal : t -> t -> bool
+
+val pp : Format.formatter -> t -> unit
+
 module Unmarshal : sig
   type error =
     | Too_short
