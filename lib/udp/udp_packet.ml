@@ -17,15 +17,21 @@ module Unmarshal = struct
     let check_header_length () =
       if Cstruct.len buf < sizeof_udp then Error "UDP header too short" else Ok ()
     in
-    let check_payload_length hlen buflen () =
-      let payload_len = buflen - hlen in
-      if payload_len < 0
-      then Error "UDP header claimed payload longer than it was"
-      else Ok payload_len
+    let check_payload_length length_from_header length_of_buffer =
+      if length_from_header < sizeof_udp then
+        Error "UDP header claimed a total length < the size of just the header"
+      else begin
+        let payload_len = length_from_header - sizeof_udp in
+        if payload_len > length_of_buffer
+        then Error (Printf.sprintf
+                      "UDP header claimed a payload longer than the supplied
+                      buffer: %d vs %d." payload_len length_of_buffer)
+        else Ok payload_len
+      end
     in
-    let length = get_udp_length buf in
-    check_header_length () >>=
-    check_payload_length length (Cstruct.len buf) >>= fun payload_len ->
+    check_header_length () >>= fun () ->
+    let total_length_from_header = get_udp_length buf in
+    check_payload_length total_length_from_header (Cstruct.len buf) >>= fun payload_len ->
     let src_port = Udp_wire.get_udp_source_port buf in
     let dst_port = Udp_wire.get_udp_dest_port buf in
     let payload = Cstruct.sub buf Udp_wire.sizeof_udp payload_len in
