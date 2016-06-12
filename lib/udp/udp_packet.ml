@@ -36,7 +36,16 @@ module Marshal = struct
 
   type error = string
 
-  let to_cstruct ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload =
+  let unsafe_fill ~pseudoheader ~payload {src_port; dst_port} udp_buf len =
+    let open Udp_wire in
+    set_udp_source_port udp_buf src_port;
+    set_udp_dest_port udp_buf dst_port;
+    set_udp_length udp_buf len;
+    set_udp_checksum udp_buf 0;
+    let csum = Tcpip_checksum.ones_complement_list [ pseudoheader ; udp_buf ; payload ] in
+    set_udp_checksum udp_buf csum
+
+  let into_cstruct ~pseudoheader ~payload t udp_buf =
     let open Udp_wire in
     let check_header_len () =
       if (Cstruct.len udp_buf) < sizeof_udp then Error "Not enough space for a UDP header"
@@ -48,23 +57,12 @@ module Marshal = struct
       else Ok ((Cstruct.len payload) + sizeof_udp)
     in
     check_header_len () >>= check_overall_len >>= fun len ->
-    set_udp_source_port udp_buf src_port;
-    set_udp_dest_port udp_buf dst_port;
-    set_udp_length udp_buf len;
-    set_udp_checksum udp_buf 0;
-    let csum = Tcpip_checksum.ones_complement_list [ pseudoheader ; udp_buf ; payload ] in
-    set_udp_checksum udp_buf csum;
+    unsafe_fill ~pseudoheader ~payload t udp_buf len;
     Ok ()
 
   let make_cstruct ~pseudoheader ~payload t =
-    let open Udp_wire in
     let buf = Cstruct.create Udp_wire.sizeof_udp in
-    let len = sizeof_udp + Cstruct.len payload in
-    set_udp_source_port buf t.src_port;
-    set_udp_dest_port buf t.dst_port;
-    set_udp_length buf len;
-    set_udp_checksum buf 0;
-    let csum = Tcpip_checksum.ones_complement_list [ pseudoheader ; buf ; payload ] in
-    set_udp_checksum buf csum;
+    let len = Udp_wire.sizeof_udp + Cstruct.len payload in
+    unsafe_fill ~pseudoheader ~payload t buf len;
     buf
 end

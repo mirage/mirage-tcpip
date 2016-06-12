@@ -26,10 +26,10 @@ end
 module Marshal : sig
   type error = string
 
-  val to_cstruct : buf:Cstruct.t -> op:Arpv4_wire.op ->
-    src_ip:Ipaddr.V4.t -> dst_ip:Ipaddr.V4.t ->
-    src_mac:Macaddr.t -> dst_mac:Macaddr.t ->
-    (unit, error) Result.result
+  (** [into_cstruct t buf] attempts to write an ARP header representing
+      [t.op], and the source/destination ip/mac in [t] into [buf] at offset 0.
+      [buf] should be at least 24 bytes in size for the call to succeed. *)
+  val into_cstruct : t -> Cstruct.t -> (unit, error) Result.result
 
   (** given a [t], construct and return an ARP header representing
       [t.op], and the source/destination ip/mac in [t].  [make_cstruct] will allocate

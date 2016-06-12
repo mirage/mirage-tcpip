@@ -139,9 +139,9 @@ let echo_request () =
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
-  let echo_request = Cstruct.create 4096 in
-  Icmpv4_packet.Marshal.echo_request ~payload:Cstruct.(create 0) ~buf:echo_request ~id:id_no
-    ~seq:seq_no >>=? fun () ->
+  let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
+                            subheader = Id_and_seq (id_no, seq_no)}) in
+  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
   let check buf =
     let open Icmpv4_packet.Unmarshal in
     Printf.printf "Incoming ICMP message: ";
@@ -166,8 +166,9 @@ let echo_request () =
 let echo_silent () =
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
-  let echo_request = Cstruct.create 4096 in
-  Icmpv4_packet.Marshal.echo_request ~payload:(Cstruct.create 0) ~buf:echo_request ~id:0xff ~seq:0x4341 >>=? fun () ->
+  let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
+                            subheader = Id_and_seq (0xff, 0x4341)}) in
+  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
   let open Icmpv4_packet.Unmarshal in
   let check buf =
     of_cstruct buf >>=? fun (message, payload) ->

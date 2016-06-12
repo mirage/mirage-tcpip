@@ -107,20 +107,24 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     let checksum = Tcpip_checksum.ones_complement buf in
     set_ipv4_csum buf checksum
 
-  let allocate_frame t ~dst ~proto =
+  let allocate_frame t ~(dst:ipaddr) ~(proto : [`ICMP | `TCP | `UDP]) : (buffer * int) =
     let open Ipv4_wire in
     let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
     let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
-    match Ethif_packet.Marshal.to_cstruct ~buf:ethernet_frame
-      ~ethertype:Ethif_wire.IPv4 ~src_mac:(Ethif.mac t.ethif)
-      ~dst_mac:(Macaddr.broadcast) with
+    let eth_header = Ethif_packet.({ethertype = Ethif_wire.IPv4;
+                                    source = Ethif.mac t.ethif;
+                                    destination = Macaddr.broadcast}) in
+    match Ethif_packet.Marshal.into_cstruct eth_header ethernet_frame with
     | Error s -> 
       Log.info (fun f -> f "IP.allocate_frame: could not print ethernet header: %s" s);
       raise (Invalid_argument "writing ethif header to ipv4.allocate_frame failed")
     | Ok () ->
       let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
       (* TODO: why 38 for TTL? *)
-      match Ipv4_packet.Marshal.to_cstruct ~buf ~src:t.ip ~dst ~proto ~ttl:38 with
+      let ipv4_header = Ipv4_packet.({options = Cstruct.create 0;
+                                      src = t.ip; dst; ttl = 38; 
+                                      proto = Ipv4_packet.Marshal.protocol_to_int proto; }) in
+      match Ipv4_packet.Marshal.into_cstruct ipv4_header buf with
       | Error s ->
         Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
         raise (Invalid_argument "writing ipv4 header to ipv4.allocate_frame failed")

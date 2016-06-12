@@ -8,7 +8,6 @@ type subheader =
 type t = {
   code : Cstruct.uint8;
   ty : Icmpv4_wire.ty;
-  csum : Cstruct.uint16;
   subheader : subheader;
 }
 
@@ -25,14 +24,11 @@ end
 module Marshal : sig
   type error = string
 
-  val echo_request : buf:Cstruct.t -> payload:Cstruct.t ->
-    id:Cstruct.uint8 -> seq:Cstruct.uint8 -> (unit, error) Result.result
-
-  val echo_reply : buf:Cstruct.t -> payload:Cstruct.t ->
-    id:Cstruct.uint8 -> seq:Cstruct.uint8 -> (unit, error) Result.result
-
-  val would_fragment : buf:Cstruct.t -> ip_header:Cstruct.t ->
-    ip_payload:Cstruct.t -> next_hop_mtu:Cstruct.uint16 -> (unit, error) Result.result
+  (** [into_cstruct t buf ~payload] generates an ICMPv4 header from [t] and
+      writes it into [buf] at offset 0. [payload] is used to calculate the ICMPv4 header
+      checksum, but is not included in the generated buffer. [into_cstruct] may
+      fail if the buffer is of insufficient size. *)
+  val into_cstruct : t -> Cstruct.t -> payload:Cstruct.t -> (unit, error) Result.result
 
   (** [make_cstruct t ~payload] allocates, fills, and returns a Cstruct.t with the header
       information from [t].  The payload is used to calculate the ICMPv4 header
