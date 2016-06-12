@@ -61,8 +61,9 @@ module Make(Ip: V1_LWT.IP) = struct
     let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
     let ph = Ip.pseudoheader t.ip ~dst:dest_ip ~proto:`UDP (Cstruct.lenv bufs) in
-    match Udp_packet.Marshal.to_cstruct ~udp_buf ~src_port:source_port
-            ~dst_port:dest_port ~pseudoheader:ph ~payload:(Cstruct.concat bufs) with
+    let udp_header = Udp_packet.({ src_port = source_port; dst_port = dest_port; }) in
+    match Udp_packet.Marshal.into_cstruct udp_header udp_buf ~pseudoheader:ph
+            ~payload:(Cstruct.concat bufs) with
     | Ok () -> 
       Ip.writev t.ip frame bufs
     | Error s -> Log.debug (fun f -> f "Discarding transmitted UDP message: error writing: %s" s);

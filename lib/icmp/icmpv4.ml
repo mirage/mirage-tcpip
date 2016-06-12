@@ -40,10 +40,14 @@ module Make(IP : V1_LWT.IPV4) = struct
           (* get some memory to write in *)
           let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
           let icmp_chunk = Cstruct.shift frame header_len in
-          match Icmpv4_packet.Marshal.echo_reply ~buf:icmp_chunk ~payload:payload ~id ~seq with
+          let icmp = Icmpv4_packet.({ code = 0x00;
+                                      ty   = Icmpv4_wire.Echo_reply;
+                                      subheader = Id_and_seq (id, seq);
+                                    }) in
+          match Icmpv4_packet.Marshal.into_cstruct ~payload icmp icmp_chunk with
           | Result.Ok () ->
             let frame = Cstruct.set_len frame header_len in
-            IP.write t.ip frame icmp_chunk
+            IP.writev t.ip frame [icmp_chunk ; payload]
           | Result.Error s ->
             Log.info (fun f -> f "Failed to respond to ICMP echo request from %a: %s"
                          Ipaddr.V4.pp_hum src s);

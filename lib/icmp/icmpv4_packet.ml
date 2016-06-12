@@ -11,7 +11,6 @@ type subheader =
 type t = {
   code : Cstruct.uint8;
   ty : ty;
-  csum : Cstruct.uint16;
   subheader : subheader;
 }
 
@@ -57,19 +56,19 @@ module Unmarshal = struct
       | None -> Result.Error "unrecognized ICMPv4 type"
       | Some ty -> Result.Ok ty
     in
+    (* TODO: check checksum as well, and return an error if it's invalid *)
     check_len () >>= check_ty >>= fun ty ->
     let code = get_icmpv4_code buf in
-    let csum = get_icmpv4_csum buf in
     let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
     let payload = Cstruct.shift buf sizeof_icmpv4 in
-    Result.Ok ({ code; ty; csum; subheader}, payload)
+    Result.Ok ({ code; ty; subheader}, payload)
 end
 
 module Marshal = struct
 
   type error = string
 
-  let subheader_to_cstruct ~buf sh =
+  let subheader_into_cstruct ~buf sh =
     let open Cstruct.BE in
     match sh with
     | Id_and_seq (id, seq) -> set_uint16 buf 0 id; set_uint16 buf 2 seq
@@ -77,35 +76,49 @@ module Marshal = struct
     | Pointer byte -> set_uint32 buf 0 Int32.zero; Cstruct.set_uint8 buf 0 byte;
     | Address addr -> set_uint32 buf 0 (Ipaddr.V4.to_int32 addr)
     | Unused -> set_uint32 buf 0 Int32.zero
+  
+  let unsafe_fill {ty; code; subheader} buf ~payload =
+    set_icmpv4_ty buf (ty_to_int ty);
+    set_icmpv4_code buf code;
+    set_icmpv4_csum buf 0x0000;
+    subheader_into_cstruct (Cstruct.shift buf 4) subheader;
+    let packets = [buf ; payload] in
+    set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
 
-  let echo ~buf ~payload ~ty ~id ~seq =
-    let min_len = Icmpv4_wire.sizeof_icmpv4 + (Cstruct.len payload) in
-    if Cstruct.len buf < min_len then
-      Result.Error "Not enough space for ICMP header and payload"
-    else begin
-      let buf = Cstruct.set_len buf min_len in
-      set_icmpv4_ty buf (ty_to_int ty);
-      set_icmpv4_code buf 0x00;
-      set_icmpv4_csum buf 0x0000;
-      set_icmpv4_seq buf seq;
-      set_icmpv4_id buf id;
-      let packets = [buf ; payload] in
-      set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets);
-      Result.Ok ()
-    end
+  let check_len buf =
+    if Cstruct.len buf < Icmpv4_wire.sizeof_icmpv4 then
+      Result.Error "Not enough space for ICMP header"
+    else Result.Ok ()
 
-  let echo_request ~buf ~payload ~id ~seq =
-    echo ~buf ~payload ~ty:Echo_request ~id ~seq
+  let into_cstruct t buf ~payload =
+    let open Rresult in
+    check_len buf >>= fun () ->
+    unsafe_fill t buf ~payload;
+    Result.Ok ()
+
+  let make_cstruct t ~payload =
+    let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
+    unsafe_fill t buf ~payload;
+    Result.Ok ()
+
+  let echo ~payload ~ty ~id ~seq =
+    let t = {
+      ty;
+      code = 0x00;
+      subheader = Id_and_seq (id, seq);
+    } in
+    make_cstruct t ~payload
+
+  let echo_request ~payload ~id ~seq =
+    echo ~payload ~ty:Echo_request ~id ~seq
 
   let echo_reply ~buf ~payload ~id ~seq =
-    echo ~buf ~payload ~ty:Echo_reply ~id ~seq
+    echo ~payload ~ty:Echo_reply ~id ~seq
 
   (** [would_fragment ip_header ip_payload next_hop_mtu] generates an
       ICMP destination unreachable message, with the code set to 4 ("packet
       fragmentation is required but the don't-fragment bit is set").  [ip_header] should
-      be the IP header of the packet which will be rejected; [ip_payload] is the
-      optional first 8 bytes of the IPv4 payload (generally the first 8 bytes of
-      a UDP or TCP header).  Payloads of length > 8 will be truncated. *)
+      be the IP header of the packet which will be rejected. *)
   let would_fragment ~buf ~ip_header ~ip_payload ~next_hop_mtu =
     (* type 3, code 4 *)
     let icmp_payload = match Cstruct.len ip_payload with
@@ -135,7 +148,7 @@ module Marshal = struct
     set_icmpv4_ty buf (ty_to_int t.ty);
     set_icmpv4_code buf t.code;
     set_icmpv4_csum buf 0x0000;
-    subheader_to_cstruct ~buf:(Cstruct.shift buf 4) t.subheader;
+    subheader_into_cstruct ~buf:(Cstruct.shift buf 4) t.subheader;
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list [ buf; payload ]);
     buf
 end

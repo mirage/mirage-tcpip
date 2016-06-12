@@ -25,22 +25,25 @@ end
 module Marshal : sig
   type error = string
 
-  (** construct a packet in the given buffer with the information provided.
-      Returns either the number of bytes written into the buffer or an error. *)
-  val to_cstruct :
-    buf:Cstruct.t -> src_port:Cstruct.uint16 -> dst_port:Cstruct.uint16 ->
+  (** [into_cstruct ~pseudoheader ~payload t buf] attempts to write a valid TCP
+      header representing [t] into [buf] at offset 0.  [pseudoheader] and
+      [payload] are required to calculate a correct checksum but are not
+      otherwise reflected in the data written into [buf] -- [buf] will contain
+      only a TCP header after a call to [into_cstruct].
+      Returns either the number of bytes written into the buffer on success; if
+      the buffer supplied is too small to write the entire header, an error is
+      returned. *)
+  val into_cstruct :
     pseudoheader:Cstruct.t ->
-    seq:Sequence.t -> rx_ack:Sequence.t option ->
-    syn:bool -> fin:bool -> rst:bool -> psh:bool ->
-    window:int ->
-    options:Options.t list ->
     payload:Cstruct.t      ->
+    t -> Cstruct.t ->
     (int, error) Result.result
 
-  (** [make_cstruct pseudoheader t] allocates, fills, and and returns a buffer
+  (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
       representing the TCP header corresponding to [t].  If [t.options] is
-      non-empty, [t.options] will be concatenated onto the result.  A variable
-      amount of memory (at least 20 bytes, and at most 60) will be allocated, but
+      non-empty, [t.options] will be concatenated onto the result as part of the
+      header.
+      A variable amount of memory (at least 20 bytes, and at most 60) will be allocated, but
       [] is not represented in the output.  The checksum will be properly
       set to reflect the pseudoheader, header, options, and payload. *)
   val make_cstruct : pseudoheader:Cstruct.t -> payload:Cstruct.t -> t -> Cstruct.t

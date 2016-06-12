@@ -41,18 +41,19 @@ module Marshal = struct
       Result.Error "Not enough space for an Ethernet header"
     else Result.Ok ()
 
-  let to_cstruct ~buf ~ethertype ~src_mac ~dst_mac =
+  let unsafe_fill t buf =
+    set_ethernet_dst (Macaddr.to_bytes t.destination) 0 buf;
+    set_ethernet_src (Macaddr.to_bytes t.source) 0 buf;
+    set_ethernet_ethertype buf (ethertype_to_int t.ethertype);
+    ()
+
+  let into_cstruct t buf =
     check_len buf >>= fun () ->
-    set_ethernet_dst (Macaddr.to_bytes dst_mac) 0 buf;
-    set_ethernet_src (Macaddr.to_bytes src_mac) 0 buf;
-    set_ethernet_ethertype buf (ethertype_to_int ethertype);
-    Result.Ok ()
+    Result.Ok (unsafe_fill t buf)
 
   let make_cstruct t =
     let buf = Cstruct.create sizeof_ethernet in
     Cstruct.memset buf 0x00; (* can be removed in the future *)
-    set_ethernet_dst (Macaddr.to_bytes t.destination) 0 buf;
-    set_ethernet_src (Macaddr.to_bytes t.source) 0 buf;
-    set_ethernet_ethertype buf (ethertype_to_int t.ethertype);
+    unsafe_fill t buf;
     buf
 end

@@ -78,25 +78,10 @@ module Marshal = struct
       Result.Error "Not enough space for an arpv4 header"
     else Result.Ok ()
 
-  let to_cstruct ~buf ~op ~src_ip ~dst_ip ~src_mac ~dst_mac =
-    let open Rresult in
-    check_len buf >>= fun () ->
-    let dmac = Macaddr.to_bytes dst_mac in
-    let smac = Macaddr.to_bytes src_mac in
-    let spa = Ipaddr.V4.to_int32 src_ip in
-    let tpa = Ipaddr.V4.to_int32 dst_ip in
-    fill_constants buf;
-    set_arp_op buf (op_to_int op);
-    set_arp_sha smac 0 buf;
-    set_arp_spa buf spa;
-    set_arp_tha dmac 0 buf;
-    set_arp_tpa buf tpa;
-    Result.Ok ()
-
-  let make_cstruct t =
-    let buf = Cstruct.create sizeof_arp in
-    let dmac = Macaddr.to_bytes t.tha in
+  (* call only with bufs that are sure to be large enough (>= 24 bytes) *)
+  let unsafe_fill t buf =
     let smac = Macaddr.to_bytes t.sha in
+    let dmac = Macaddr.to_bytes t.tha in
     let spa = Ipaddr.V4.to_int32 t.spa in
     let tpa = Ipaddr.V4.to_int32 t.tpa in
     fill_constants buf;
@@ -104,6 +89,17 @@ module Marshal = struct
     set_arp_sha smac 0 buf;
     set_arp_spa buf spa;
     set_arp_tha dmac 0 buf;
-    set_arp_tpa buf tpa;
+    set_arp_tpa buf tpa
+
+  let into_cstruct t buf =
+    let open Rresult in
+    check_len buf >>= fun () ->
+    unsafe_fill t buf;
+    Result.Ok ()
+
+  let make_cstruct t =
+    let buf = Cstruct.create sizeof_arp in
+    unsafe_fill t buf;
     buf
+
 end

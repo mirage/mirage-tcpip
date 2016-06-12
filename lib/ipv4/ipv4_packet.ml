@@ -37,7 +37,8 @@ module Unmarshal = struct
       | Invalid_argument s -> Result.Error s
     in
     let check_header_len buf options_end =
-      if options_end < 20 then Result.Error "IPv4 header claimed to have size < 20"
+      if options_end < 20 then Result.Error
+          (Printf.sprintf "IPv4 header claimed to have size < 20: %d" options_end)
       else Result.Ok (options_end - sizeof_ipv4)
     in
     let check_overall_len buf len =
@@ -82,18 +83,24 @@ module Marshal = struct
     Cstruct.BE.set_uint16 ph 10 len;
     ph
 
-  let to_cstruct ~buf ~src ~dst ~proto ~ttl =
-    if Cstruct.len buf < sizeof_ipv4 then
+  let unsafe_fill t buf =
+    let nearest_4 n = match n mod 4 with
+      | 0 -> n
+      | k -> (4 - k) + n
+    in
+    let options_len = nearest_4 @@ Cstruct.len t.options in
+    set_ipv4_hlen_version buf ((4 lsl 4) + 5 + (options_len / 4));
+    set_ipv4_ttl buf t.ttl;
+    set_ipv4_proto buf t.proto;
+    set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
+    set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
+    Cstruct.blit t.options 0 buf sizeof_ipv4 (Cstruct.len t.options)
+
+  let into_cstruct t buf =
+    if Cstruct.len buf < (sizeof_ipv4 + Cstruct.len t.options) then
       Result.Error "Not enough space for IPv4 header"
     else begin
-      set_ipv4_hlen_version buf ((4 lsl 4) + (5));
-      set_ipv4_tos buf 0;
-      set_ipv4_off buf 0; (* TODO fragmentation *)
-      set_ipv4_ttl buf ttl;
-      set_ipv4_proto buf (protocol_to_int proto);
-      set_ipv4_src buf (Ipaddr.V4.to_int32 src);
-      set_ipv4_dst buf (Ipaddr.V4.to_int32 dst);
-      Result.Ok ()
+      Result.Ok (unsafe_fill t buf)
     end
 
   let make_cstruct t =
@@ -104,10 +111,6 @@ module Marshal = struct
     let options_len = nearest_4 @@ Cstruct.len t.options in
     let buf = Cstruct.create (sizeof_ipv4 + options_len) in
     Cstruct.memset buf 0x00; (* should be removable in the future *)
-    set_ipv4_hlen_version buf ((4 lsl 4) + (options_len / 4));
-    set_ipv4_ttl buf t.ttl;
-    set_ipv4_proto buf t.proto;
-    set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
-    set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
+    unsafe_fill t buf;
     buf
 end

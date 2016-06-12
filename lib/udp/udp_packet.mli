@@ -19,17 +19,15 @@ module Marshal : sig
 
   type error = string
 
-  (** [to_cstruct ~udp_buf ~src_port ~dst_port ~pseudoheader ~payload] attempts to
-      assemble a UDP header in [udp_buf] with [src_port] and [dst_port] set,
+  (** [into_cstruct ~pseudoheader ~payload t buf] attempts to
+      assemble a UDP header in [buf] with [t.src_port] and [t.dst_port] set,
       along with the correct length and checksum.
       It does not write [pseudoheader] or [payload] into the buffer,
       but requires them to calculate the correct checksum. *)
-  val to_cstruct :
-    udp_buf:Cstruct.t       ->
-    src_port:Cstruct.uint16 ->
-    dst_port:Cstruct.uint16 ->
+  val into_cstruct :
     pseudoheader:Cstruct.t  ->
     payload:Cstruct.t       ->
+    t -> Cstruct.t ->
     (unit, error) Result.result
 
   (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
