@@ -30,16 +30,17 @@ module Marshal : sig
   val pseudoheader : src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> proto:([< `TCP | `UDP])
     -> int -> Cstruct.t
 
-(** [into_cstruct t buf] attempts to write a header representing [t] (including
-    [t.options] into [buf]
+(** [into_cstruct ~payload t buf] attempts to write a header representing [t] (including
+    [t.options], but not [payload]  into [buf]
     at offset 0.  If there is insufficient space to represent [t], an error will
     be returned. *)
-  val into_cstruct : t -> Cstruct.t -> (unit, error) Result.result
+  val into_cstruct : payload:Cstruct.t -> t -> Cstruct.t -> (unit, error) Result.result
 
-  (** [make_cstruct t] allocates, fills, and returns  a buffer repesenting the IPV4 header
-      corresponding to [t].  If [t.options] is non-empty, [t.options] will be
+  (** [make_cstruct ~payload t] allocates, fills, and returns a buffer
+      repesenting the IPV4 header corresponding to [t].
+      If [t.options] is non-empty, [t.options] will be
       concatenated onto the result. A variable amount of memory (at least 20 bytes
       for a zero-length options field) will be allocated, but [t.payload] is not
       represented in the output. *)
-  val make_cstruct : t -> Cstruct.t
+  val make_cstruct : payload:Cstruct.t -> t -> Cstruct.t
 end

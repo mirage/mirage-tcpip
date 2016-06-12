@@ -124,7 +124,10 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       let ipv4_header = Ipv4_packet.({options = Cstruct.create 0;
                                       src = t.ip; dst; ttl = 38; 
                                       proto = Ipv4_packet.Marshal.protocol_to_int proto; }) in
-      match Ipv4_packet.Marshal.into_cstruct ipv4_header buf with
+      (* set the payload to 0, since we don't know what it'll be yet *)
+      (* the caller needs to then use [writev] or [write] to output the buffer;
+         otherwise length, id, and checksum won't be set properly *)
+      match Ipv4_packet.Marshal.into_cstruct ~payload:(Cstruct.create 0) ipv4_header buf with
       | Error s ->
         Log.info (fun f -> f "IP.allocate_frame: could not print IPv4 header: %s" s);
         raise (Invalid_argument "writing ipv4 header to ipv4.allocate_frame failed")
