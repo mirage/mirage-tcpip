@@ -127,7 +127,7 @@ let mac_of_stack stack = E.mac stack.ethif
 
 let short_read () =
   let too_short = Cstruct.create 4 in
-  match Icmpv4_unmarshal.of_cstruct too_short with
+  match Icmpv4_packet.Unmarshal.of_cstruct too_short with
   | Ok icmp -> Alcotest.fail "processed something too short to be real"
   | Error str -> Printf.printf "short packet rejected successfully! msg: %s\n" str;
     Lwt.return_unit
@@ -139,20 +139,20 @@ let echo_request () =
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
-  let echo_request = Cstruct.create 4096 in
-  Icmpv4_marshal.echo_request ~payload:Cstruct.(create 0) ~buf:echo_request ~id:id_no
-    ~seq:seq_no >>=? fun () ->
+  let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
+                            subheader = Id_and_seq (id_no, seq_no)}) in
+  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
   let check buf =
-    let open Icmpv4_unmarshal in
+    let open Icmpv4_packet.Unmarshal in
     Printf.printf "Incoming ICMP message: ";
     Cstruct.hexdump buf;
-    of_cstruct buf >>=? fun reply ->
-    let (Icmpv4_unmarshal.Id_and_seq (id, seq)) = reply.subheader in
+    of_cstruct buf >>=? fun (reply, payload) ->
+    let (Icmpv4_packet.Id_and_seq (id, seq)) = reply.subheader in
     Alcotest.(check int) "icmp response type" 0x00 (Icmpv4_wire.ty_to_int reply.ty); (* expect an icmp echo reply *)
     Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
     Alcotest.(check int) "icmp echo-reply id" id_no id;
     Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-    match (Cstruct.len reply.payload) with
+    match (Cstruct.len payload) with
     | 0 -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
     | n -> Lwt.return_unit
   in
@@ -166,11 +166,12 @@ let echo_request () =
 let echo_silent () =
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
-  let echo_request = Cstruct.create 4096 in
-  Icmpv4_marshal.echo_request ~payload:(Cstruct.create 0) ~buf:echo_request ~id:0xff ~seq:0x4341 >>=? fun () ->
-  let open Icmpv4_unmarshal in
+  let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
+                            subheader = Id_and_seq (0xff, 0x4341)}) in
+  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
+  let open Icmpv4_packet.Unmarshal in
   let check buf =
-    of_cstruct buf >>=? fun message ->
+    of_cstruct buf >>=? fun (message, payload) ->
     match message.ty with
     | Icmpv4_wire.Echo_reply -> Alcotest.fail "received an ICMP echo reply even though we shouldn't have"
     | Echo_request -> Printf.printf "received an ICMP echo request; ignoring it";

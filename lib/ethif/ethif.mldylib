@@ -1,7 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: a0f9ae4228fd82dad85affaf966502c1)
+# DO NOT EDIT (digest: 6073d802ea8014490f6d4b82f4bfca7c)
 Ethif
 Ethif_wire
-Ethif_unmarshal
-Ethif_marshal
+Ethif_packet
 # OASIS_STOP

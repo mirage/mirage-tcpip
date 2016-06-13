@@ -46,20 +46,28 @@ module Make (Ip:V1_LWT.IP) = struct
 
   let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload =
+    let (ack, ack_number) = match rx_ack with
+      | None -> (false, Sequence.zero)
+      | Some n -> (true, n)
+    in
+    let header = Tcp_packet.({
+        sequence = seq; ack_number; window;
+        urg = false; ack; psh; rst; syn; fin;
+        options;
+        source_port = id.local_port; dest_port = id.dest_port;
+      }) in
     (* Make a TCP/IP header frame *)
     let frame, header_len = Ip.allocate_frame ip ~dst:id.dest_ip ~proto:`TCP in
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.lenv payload) in
-    match Tcp_marshal.to_cstruct ~buf:tcp_buf ~src_port:id.local_port
-      ~dst_port:id.dest_port ~seq ~rx_ack ~pseudoheader ~options ~syn ~rst ~fin
-      ~psh ~window ~payload with
+    let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.len payload) in
+    match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
       Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
       Lwt.return_unit
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
-      MProf.Counter.increase count_tcp_to_ip (Cstruct.lenv payload + (if syn then 1 else 0));
-      Ip.writev ip frame payload
+      MProf.Counter.increase count_tcp_to_ip (Cstruct.len payload + (if syn then 1 else 0));
+      Ip.write ip frame payload
 
 end

@@ -23,13 +23,12 @@ module Make(IP : V1_LWT.IPV4) = struct
       List.fold_left aux false (IP.get_ip t.ip)
     in
     MProf.Trace.label "icmp_input";
-    match Icmpv4_unmarshal.of_cstruct buf with
+    match Icmpv4_packet.Unmarshal.of_cstruct buf with
     | Result.Error s ->
       Log.info (fun f -> f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
       Lwt.return_unit
-    | Result.Ok message ->
+    | Result.Ok (message, payload) ->
       let open Icmpv4_wire in
-      let open Icmpv4_unmarshal in
       match message.ty, message.subheader with
       | Echo_reply, _ -> Log.info (fun f -> f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
         Lwt.return_unit
@@ -41,10 +40,14 @@ module Make(IP : V1_LWT.IPV4) = struct
           (* get some memory to write in *)
           let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
           let icmp_chunk = Cstruct.shift frame header_len in
-          match Icmpv4_marshal.echo_reply ~buf:icmp_chunk ~payload:message.payload ~id ~seq with
+          let icmp = Icmpv4_packet.({ code = 0x00;
+                                      ty   = Icmpv4_wire.Echo_reply;
+                                      subheader = Id_and_seq (id, seq);
+                                    }) in
+          match Icmpv4_packet.Marshal.into_cstruct ~payload icmp icmp_chunk with
           | Result.Ok () ->
             let frame = Cstruct.set_len frame header_len in
-            IP.write t.ip frame icmp_chunk
+            IP.writev t.ip frame [icmp_chunk ; payload]
           | Result.Error s ->
             Log.info (fun f -> f "Failed to respond to ICMP echo request from %a: %s"
                          Ipaddr.V4.pp_hum src s);

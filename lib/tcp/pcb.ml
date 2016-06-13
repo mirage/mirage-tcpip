@@ -77,7 +77,7 @@ struct
   module Tx = struct
 
     (* Output a TCP packet, and calculate some settings from a state descriptor *)
-    let xmit_pcb ip id ~flags ~wnd ~options ~seq datav =
+    let xmit_pcb ip id ~flags ~wnd ~options ~seq (datav : Cstruct.t) =
       let window = Int32.to_int (Window.rx_wnd_unscaled wnd) in
       let rx_ack = Some (Window.rx_nxt wnd) in
       let syn = match flags with Segment.Syn -> true | _ -> false in
@@ -93,11 +93,12 @@ struct
       let options = [] in
       let seq = ack_number in
       let rx_ack = Some Sequence.(add sequence (of_int32 datalen)) in
-      WIRE.xmit ~ip ~id ~rst:true ~rx_ack ~seq ~window ~options []
+      WIRE.xmit ~ip ~id ~rst:true ~rx_ack ~seq ~window ~options (Cstruct.create 0)
 
     (* Output a SYN packet *)
     let send_syn { ip; _ } id ~tx_isn ~options ~window =
-      WIRE.xmit ~ip ~id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options []
+      WIRE.xmit ~ip ~id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options
+        (Cstruct.create 0)
 
     (* Queue up an immediate close segment *)
     let close pcb =
@@ -107,7 +108,7 @@ struct
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
-         TXS.output ~flags:Segment.Fin pcb.txq []
+         TXS.output ~flags:Segment.Fin pcb.txq (Cstruct.create 0)
         )
       | _ ->
         Log.debug (fun fmt ->
@@ -128,7 +129,7 @@ struct
         let options = [] in
         let seq = Window.tx_nxt wnd in
         ACK.transmit ack ack_number >>= fun () ->
-        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq [] >>= fun () ->
+        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>= fun () ->
         send_empty_ack () in
       (* When something transmits an ACK, tell the delayed ACK thread *)
       let rec notify () =
@@ -336,7 +337,7 @@ struct
     Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
     let options = Options.MSS 1460 :: opts in
-    TXS.output ~flags:Segment.Syn ~options pcb.txq [] >>= fun () ->
+    TXS.output ~flags:Segment.Syn ~options pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number =
@@ -351,7 +352,7 @@ struct
     Stats.incr_channel ();
     STATE.tick pcb.state (State.Recv_synack ack_number);
     (* xmit ACK *)
-    TXS.output pcb.txq [] >>= fun () ->
+    TXS.output pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
   let process_reset t id ~ack ~ack_number =
@@ -425,8 +426,13 @@ struct
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let process_ack t id ~pkt ~ack_number ~sequence ~syn ~fin =
+  let process_ack t id ~pkt =
+    let open RXS in
     Logs.(log_with_stats Debug "process-ack" t);
+    let ack_number = pkt.header.ack_number in
+    let sequence = pkt.header.sequence in
+    let syn = pkt.header.syn in
+    let fin = pkt.header.fin in
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Sequence.(compare (incr tx_isn) ack_number = 0) then (
@@ -451,8 +457,8 @@ struct
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
-  let input_no_pcb t listeners parsed id =
-    let open Tcp_unmarshal in
+  let input_no_pcb t listeners (parsed, payload) id =
+    let open Tcp_packet in
     match parsed.rst with
     | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
     | false ->
@@ -463,9 +469,7 @@ struct
       | true , false -> process_syn t id ~listeners ~tx_wnd:parsed.window
                           ~ack_number:parsed.ack_number ~sequence:parsed.sequence
                           ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-      | false, true  -> process_ack t id ~pkt:parsed ~ack_number:parsed.ack_number
-                          ~sequence:parsed.sequence ~syn:parsed.syn
-                          ~fin:parsed.fin
+      | false, true  -> process_ack t id ~pkt:{ header = parsed; payload}
       | false, false ->
         (* No SYN, ACK, or RST, so just drop it *)
         Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
@@ -473,17 +477,17 @@ struct
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    match Tcp_unmarshal.of_cstruct data with
+    match Tcp_packet.Unmarshal.of_cstruct data with
     | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
-    | Result.Ok pkt ->
+    | Result.Ok (pkt, payload) ->
       let id = WIRE.wire ~local_port:pkt.dest_port ~dest_port:pkt.source_port ~dest_ip:src ~local_ip:dst in
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
         (* PCB exists, so continue the connection state machine in tcp_input *)
-        (Rx.input t pkt)
+        (Rx.input t {header = pkt; payload})
         (* No existing PCB, so check if it is a SYN for a listening function *)
-        (input_no_pcb t listeners pkt)
+        (input_no_pcb t listeners (pkt, payload))
 
   (* Blocking read on a PCB *)
   let read pcb =
