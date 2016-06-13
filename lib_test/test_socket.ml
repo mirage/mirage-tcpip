@@ -67,13 +67,19 @@ let two_connect_tcp () =
 let icmp_echo_request () =
   make_stack ~name:"server" ~ip:localhost >>= fun server ->
   make_stack ~name:"client" ~ip:localhost >>= fun client ->
-  let echo_request = Icmpv4_print.echo_request 0x40 0x10 in
+  let echo_request = Icmpv4_packet.(Marshal.make_cstruct
+                                      ~payload:(Cstruct.create 0)
+                                      { ty = Icmpv4_wire.Echo_request;
+                                        code = 0x00;
+                                        subheader = Id_and_seq (0x1dea, 0x0001)
+                                      }) in
   let received_icmp = ref 0 in
   Lwt.pick [
     Icmpv4_socket.listen server localhost (fun buf -> received_icmp :=
-                                              !received_icmp + 1;
-                                                             Lwt.return_unit);
-    OS.Time.sleep 0.5 >>= fun () -> Icmpv4_socket.write client ~dst:localhost echo_request 
+                                              !received_icmp + 1; Lwt.return_unit);
+    OS.Time.sleep 0.5 >>= fun () ->
+    Icmpv4_socket.write client ~dst:localhost echo_request >>= fun () ->
+    OS.Time.sleep 10.0;
   ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
     !received_icmp; Lwt.return_unit
 
