@@ -74,6 +74,8 @@ end
 module Ip = Ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
 
+module Udp = Udp.Make(Ip)
+
 type stack = {
   backend : B.t;
   netif : V.t;
@@ -81,6 +83,7 @@ type stack = {
   arp : Static_arp.t;
   ip : Ip.t;
   icmp : Icmp.t;
+  udp : Udp.t;
 }
 
 let testbind x y =
@@ -100,7 +103,8 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   or_error "arp" Static_arp.connect ethif >>= fun arp ->
   or_error "ipv4" (Ip.connect ethif) arp >>= fun ip ->
   or_error "icmpv4" Icmp.connect ip >>= fun icmp ->
-  Lwt.return { backend; netif; ethif; arp; ip; icmp; }
+  or_error "udp" Udp.connect ip >>= fun udp ->
+  Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }
 
 (* assume a class C network with no default gateway *)
 let configure ip stack =
@@ -198,8 +202,59 @@ let echo_silent () =
     slowly (Icmp.write speaker.icmp ~dst:nobody_home echo_request);
   ]
 
+let write_errors () =
+    (* TODO: this is a bit painful; revise when merging in with
+       separate_protocols *)
+  let reject_all stack =
+    let reject buf =
+      let ip_header = Cstruct.shift buf Wire_structs.sizeof_ethernet in
+      let reply = Icmpv4_print.would_fragment ~ip_header ~ip_payload:(Cstruct.shift ip_header
+                                                            (Wire_structs.Ipv4_wire.sizeof_ipv4))
+          ~next_hop_mtu:1400 in
+      let dst = Wire_structs.Ipv4_wire.get_ipv4_src ip_header |>
+                Ipaddr.V4.of_int32 in
+      Icmp.write stack.icmp ~dst reply
+    in
+    V.listen stack.netif reject
+  in
+  let check_packet buf =
+    (* the packet should be valid ICMP *)
+    match Icmpv4_parse.input buf with
+    | Error s -> Alcotest.fail s
+    | Ok icmp ->
+      Alcotest.(check int) "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
+      Alcotest.(check int) "ICMP message code" 0x04 icmp.code;
+      match icmp.payload with
+      | None -> Alcotest.fail "Error message should've had a payload"
+      | Some packet ->
+        (* TODO: packet should have an IP header in it *)
+        Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 packet
+                                                          0);
+        Lwt.return_unit
+  in
+  let check_rejection stack dest_ip =
+    let payload = Cstruct.of_string "!@#$" in
+    Lwt.pick [
+      icmp_listen stack (fun ~src ~dst buf -> check_packet buf >>= fun () ->
+                          V.disconnect stack.netif);
+      OS.Time.sleep 0.5 >>= fun () ->
+      Udp.write stack.udp ~dest_ip ~source_port:1212 ~dest_port:123 payload >>= fun () ->
+      OS.Time.sleep 1.0 >>= fun () ->
+      Alcotest.fail "writing thread completed first";
+    ]
+  in
+  get_stack () >>= configure speaker_address >>= fun speaker ->
+  get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
+  inform_arp speaker listener_address (mac_of_stack listener);
+  inform_arp listener speaker_address (mac_of_stack speaker);
+  Lwt.pick [
+    reject_all listener;
+    check_rejection speaker listener_address;
+  ]
+
 let suite = [
   "short read", `Quick, short_read;
   "echo requests elicit an echo reply", `Quick, echo_request;
   "echo requests for other ips don't elicit an echo reply", `Quick, echo_silent;
+  "error messages are written", `Quick, write_errors;
 ]
