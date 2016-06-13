@@ -8,6 +8,13 @@ module A = Arpv4.Make(E)(Clock)(Time)
 
 open Lwt.Infix
 
+type decomposed = {
+  ipv4_payload : Cstruct.t;
+  ipv4_header : Ipv4_packet.t;
+  ethernet_payload : Cstruct.t;
+  ethernet_header : Ethif_packet.t;
+}
+
 module Static_arp : sig
   include V1_LWT.ARP
   val connect : E.t -> [> `Ok of t | `Error of error ] Lwt.t
@@ -203,34 +210,50 @@ let echo_silent () =
   ]
 
 let write_errors () =
-    (* TODO: this is a bit painful; revise when merging in with
-       separate_protocols *)
+  let decompose buf =
+    let open Rresult in
+    Ethif_packet.Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
+    match ethernet_header.ethertype with
+    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Result.Error "not an ipv4 packet"
+    | Ethif_wire.IPv4 ->
+      Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
+      Result.Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
+  in
+  (* for any incoming packet, reject it with would_fragment *)
   let reject_all stack =
     let reject buf =
-      let ip_header = Cstruct.shift buf Wire_structs.sizeof_ethernet in
-      let reply = Icmpv4_print.would_fragment ~ip_header ~ip_payload:(Cstruct.shift ip_header
-                                                            (Wire_structs.Ipv4_wire.sizeof_ipv4))
-          ~next_hop_mtu:1400 in
-      let dst = Wire_structs.Ipv4_wire.get_ipv4_src ip_header |>
-                Ipaddr.V4.of_int32 in
-      Icmp.write stack.icmp ~dst reply
+      match decompose buf with
+      | Result.Error s -> Alcotest.fail s
+      | Result.Ok decomposed ->
+        let reply = Icmpv4_packet.({
+            ty = Icmpv4_wire.Destination_unreachable;
+            code = Icmpv4_wire.(unreachable_reason_to_int Would_fragment);
+            subheader = Next_hop_mtu 576;
+          }) in
+        let reply_packet = Icmpv4_packet.Marshal.make_cstruct reply
+            ~payload:decomposed.ethernet_payload in
+        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src reply_packet
     in
     V.listen stack.netif reject
   in
-  let check_packet buf =
-    (* the packet should be valid ICMP *)
-    match Icmpv4_parse.input buf with
-    | Error s -> Alcotest.fail s
-    | Ok icmp ->
+  let check_packet buf : unit Lwt.t =
+    let aux buf =
+      let (>>=) = Rresult.(>>=) in
+      (* the packet should be valid ICMP *)
+      decompose buf >>= fun decomposed ->
+      Icmpv4_packet.Unmarshal.of_cstruct decomposed.ipv4_payload >>= fun (icmp, icmp_payload) ->
       Alcotest.(check int) "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
       Alcotest.(check int) "ICMP message code" 0x04 icmp.code;
-      match icmp.payload with
-      | None -> Alcotest.fail "Error message should've had a payload"
-      | Some packet ->
+      match Cstruct.len icmp_payload with
+      | 0 -> Alcotest.fail "Error message should've had a payload"
+      | n ->
         (* TODO: packet should have an IP header in it *)
-        Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 packet
-                                                          0);
-        Lwt.return_unit
+        Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 icmp_payload 0);
+        Result.Ok ()
+    in
+    match aux buf with
+    | Result.Error s -> Alcotest.fail s
+    | Result.Ok () -> Lwt.return_unit
   in
   let check_rejection stack dest_ip =
     let payload = Cstruct.of_string "!@#$" in
