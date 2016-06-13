@@ -67,10 +67,15 @@ let two_connect_tcp () =
 let icmp_echo_request () =
   make_stack ~name:"server" ~ip:localhost >>= fun server ->
   make_stack ~name:"client" ~ip:localhost >>= fun client ->
-  Lwt.join [
-    Icmpv4_socket.listen server;
-    Icmpv4_socket.write client ~dst:localhost (Cstruct.of_string "payload");
-  ]
+  let echo_request = Icmpv4_print.echo_request 0x40 0x10 in
+  let received_icmp = ref 0 in
+  Lwt.pick [
+    Icmpv4_socket.listen server localhost (fun buf -> received_icmp :=
+                                              !received_icmp + 1;
+                                                             Lwt.return_unit);
+    OS.Time.sleep 0.5 >>= fun () -> Icmpv4_socket.write client ~dst:localhost echo_request 
+  ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
+    !received_icmp; Lwt.return_unit
 
 let suite = [
   "two sockets connect via TCP", `Quick, two_connect_tcp;
