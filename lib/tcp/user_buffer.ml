@@ -161,20 +161,7 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
       wait_for t sz
     end
 
-  let compactbufs bl =
-    (* TODO: fix hardecoded threshold *)
-    if (List.length bl > 8) then begin
-      let b = Io_page.(to_cstruct (get 1)) in
-      let copyf doff ab =
-        Cstruct.blit ab 0 b doff (Cstruct.len ab);
-        doff + (Cstruct.len ab)
-      in
-      let l = List.fold_left copyf 0 bl in
-      let b = Cstruct.sub b 0 l in
-      [b]
-    end else begin
-      bl
-    end
+  let compactbufs bl = Cstruct.concat bl
 
   (* Wait until the user buffer is flushed *)
   let rec wait_for_flushed t =

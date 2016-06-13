@@ -57,146 +57,102 @@ type arp_stack = {
   arp: A.t;
 }
 
-(* TODO: this code should be in tcpip proper for common use *)
-module Parse = struct
-  type arp = {
-    op: [ `Request |`Reply |`Unknown of int ];
-    sha: Macaddr.t;
-    spa: Ipaddr.V4.t;
-    tha: Macaddr.t;
-    tpa: Ipaddr.V4.t;
-  }
-  let garp src_mac src_ip =
-    { op = `Reply;
-      sha = src_mac;
-      tha = Macaddr.broadcast;
-      spa = src_ip;
-      tpa = Ipaddr.V4.any;
-    }
-
-  let cstruct_of_arp arp =
-    let open Arpv4_wire in
-    (* Obtain a buffer to write into *)
-    (* note that sizeof_arp includes sizeof_ethernet by what's currently in
-         arpv4_wire.ml *)
-    let buf = Cstruct.create (Arpv4_wire.sizeof_arp + Ethif_wire.sizeof_ethernet) in
-
-    (* Write the ARP packet *)
-    let dmac = Macaddr.to_bytes arp.tha in
-    let smac = Macaddr.to_bytes arp.sha in
-    let spa = Ipaddr.V4.to_int32 arp.spa in
-    let tpa = Ipaddr.V4.to_int32 arp.tpa in
-    let op =
-      match arp.op with
-      |`Request -> 1
-      |`Reply -> 2
-      |`Unknown n -> n
-    in
-    Ethif_wire.set_ethernet_dst dmac 0 buf;
-    Ethif_wire.set_ethernet_src smac 0 buf;
-    Ethif_wire.set_ethernet_ethertype buf 0x0806; (* ARP *)
-    let arpbuf = Cstruct.shift buf 14 in
-    set_arp_htype arpbuf 1;
-    set_arp_ptype arpbuf 0x0800; (* IPv4 *)
-    set_arp_hlen arpbuf 6; (* ethernet mac size *)
-    set_arp_plen arpbuf 4; (* ipv4 size *)
-    set_arp_op arpbuf op;
-    set_arp_sha smac 0 arpbuf;
-    set_arp_spa arpbuf spa;
-    set_arp_tha dmac 0 arpbuf;
-    set_arp_tpa arpbuf tpa;
-    buf
-
-  let arp_of_cstruct buf = 
-    let open Arpv4_wire in
-    let buf = Cstruct.shift buf 14 in
-    let unusable buf =
-      (* we only know how to deal with ethernet <-> IPv4 *)
-      get_arp_htype buf <> 1 || get_arp_ptype buf <> 0x0800 
-      || get_arp_hlen buf <> 6 || get_arp_plen buf <> 4
-    in
-    if (Cstruct.len buf) < sizeof_arp then `Too_short else begin
-      if (unusable buf) then `Unusable else begin
-        let op = match get_arp_op buf with
-          | 1 -> `Request
-          | 2 -> `Reply
-          | n -> `Unknown n
-        in
-        let src_mac = copy_arp_sha buf in
-        let target_mac = copy_arp_tha buf in
-        match (Macaddr.of_bytes src_mac, Macaddr.of_bytes target_mac) with
-        | None, Some _ -> `Bad_mac [ src_mac ]
-        | Some _, None -> `Bad_mac [ target_mac ]
-        | None, None -> `Bad_mac [ src_mac ; target_mac ]
-        | Some src_mac, Some target_mac ->
-          let src_ip = Ipaddr.V4.of_int32 (get_arp_spa buf) in
-          let target_ip = Ipaddr.V4.of_int32 (get_arp_tpa buf) in
-          `Ok { op; 
-                sha = src_mac; spa = src_ip; 
-                tha = target_mac; tpa = target_ip
-              }
-      end
-    end
-  let is_garp_for ip buf = match arp_of_cstruct buf with
-    | `Ok arp -> arp.op = `Reply && arp.tha = Macaddr.broadcast
-    | _ -> false
-
-  let to_string arp = 
-    let ip_str = Ipaddr.V4.to_string in
-    let mac_str = Macaddr.to_string in
-    let op = match arp.op with
-      | `Request -> "request"
-      | `Reply -> "reply"
-      | `Unknown n -> Printf.sprintf "unknown message type (%d)" n
-    in
-    Printf.sprintf "%s from mac %s (ip %s) to mac %s (ip %s)" 
-      op (mac_str arp.sha) (ip_str arp.spa) (mac_str arp.tha) (ip_str arp.tpa)
-
-end
-
 let first_ip = Ipaddr.V4.of_string_exn "192.168.3.1"
 let second_ip = Ipaddr.V4.of_string_exn "192.168.3.10"
 let sample_mac = Macaddr.of_string_exn "10:9a:dd:c0:ff:ee"
 
+let packet = (module Arpv4_packet : Alcotest.TESTABLE with type t = Arpv4_packet.t)
+let ip =
+  let module M = struct
+    type t = Ipaddr.V4.t
+    let pp = Ipaddr.V4.pp_hum
+    let equal p q = (Ipaddr.V4.compare p q) = 0
+  end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
+
+let macaddr =
+  let module M = struct
+    type t = Macaddr.t
+    let pp fmt t = Format.fprintf fmt "%s" (Macaddr.to_string t)
+    let equal p q = (Macaddr.compare p q) = 0
+  end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
+
+let check_header ~message expected actual =
+  Alcotest.(check packet) message expected actual
+
 let or_error = Common.or_error
-let equals = OUnit.assert_equal
-let fail = OUnit.assert_failure
+let fail = Alcotest.fail
 
 let timeout ~time t =
-  let msg = "timed out" in
+  let msg = Printf.sprintf "Timed out: didn't complete in %f seconds" time in
   Lwt.pick [ t; OS.Time.sleep time >>= fun () -> fail msg; ]
 
 let check_response expected buf =
-  let printer buf =
-    match Parse.arp_of_cstruct buf with
-    | `Ok arp -> Parse.to_string arp
-    | `Unusable -> "Reasonable ARP message for a protocol we don't understand"
-    | `Bad_mac _ -> "Unparseable MAC in message"
-    | `Too_short -> "Too short to parse"
-  in
-  equals ~printer expected buf
+  match Arpv4_packet.Unmarshal.of_cstruct buf with
+  | Result.Error s -> Alcotest.fail (Arpv4_packet.Unmarshal.string_of_error s)
+  | Result.Ok actual ->
+    Alcotest.(check packet) "parsed packet comparison" expected actual
+
+let check_ethif_response expected buf =
+  match Ethif_packet.Unmarshal.of_cstruct buf with
+  | Result.Error s -> Alcotest.fail s
+  | Result.Ok ({ethertype; _}, arp) ->
+    match ethertype with
+    | Ethif_wire.ARP -> check_response expected arp
+    | _ -> Alcotest.fail "Ethernet packet with non-ARP ethertype"
+
+let garp src_mac src_ip =
+  let open Arpv4_packet in
+  {
+    op = Arpv4_wire.Reply;
+    sha = src_mac;
+    tha = Macaddr.broadcast;
+    spa = src_ip;
+    tpa = Ipaddr.V4.any;
+  }
 
 let fail_on_receipt netif buf = 
   fail "received traffic when none was expected"
 
 let single_check netif expected =
-  V.listen netif (fun buf -> check_response expected buf; V.disconnect netif)
+  V.listen netif (fun buf ->
+      match Ethif_packet.Unmarshal.of_cstruct buf with
+      | Result.Error _ -> failwith "sad face"
+      | Result.Ok (_, payload) ->
+        check_response expected payload; V.disconnect netif)
+
+let wrap_arp arp =
+  let open Arpv4_packet in
+  let e = 
+    { Ethif_packet.source = arp.sha;
+      destination = arp.tha;
+      ethertype = Ethif_wire.ARP;
+    } in
+  let p = Ethif_packet.Marshal.make_cstruct e in
+  Format.printf "%a" Ethif_packet.pp e;
+  Cstruct.hexdump p;
+  p
 
 let arp_reply ~from_netif ~to_netif ~from_ip ~to_ip =
-  Parse.cstruct_of_arp
-      { Parse.op = `Reply; 
-        sha = (V.mac from_netif); 
-        tha = (V.mac to_netif);
-        spa = from_ip;
-        tpa = to_ip} 
+  let a = 
+    { Arpv4_packet.op = Arpv4_wire.Reply; 
+      sha = (V.mac from_netif); 
+      tha = (V.mac to_netif);
+      spa = from_ip;
+      tpa = to_ip} 
+  in
+  Cstruct.concat [wrap_arp a; Arpv4_packet.Marshal.make_cstruct a]
 
 let arp_request ~from_netif ~to_mac ~from_ip ~to_ip =
-  Parse.cstruct_of_arp
-      { Parse.op = `Request; 
-        sha = (V.mac from_netif); 
-        tha = to_mac;
-        spa = from_ip;
-        tpa = to_ip} 
+  let a =
+    { Arpv4_packet.op = Arpv4_wire.Request; 
+      sha = (V.mac from_netif); 
+      tha = to_mac;
+      spa = from_ip;
+      tpa = to_ip} 
+  in
+  Cstruct.concat [wrap_arp a; Arpv4_packet.Marshal.make_cstruct a]
 
 let get_arp ?(backend = B.create ~use_async_readers:true 
                 ~yield:(fun() -> Lwt_main.yield ()) ()) () =
@@ -228,7 +184,7 @@ let query_or_die ~arp ~ip ~expected_mac =
     fail "ARP query failed when success was mandatory";
     Lwt.return_unit
   | `Ok mac -> 
-    equals ~printer:Macaddr.to_string expected_mac mac;
+    Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
     Lwt.return_unit
 
 let set_and_check listener claimant ip =
@@ -258,10 +214,10 @@ let set_ip_sends_garp () =
   let emit_garp =
     OS.Time.sleep 0.1 >>= fun () ->
     A.set_ips speak.arp [ first_ip ] >>= fun () ->
-    equals [ first_ip ] (A.get_ips speak.arp);
+    Alcotest.(check (list ip)) "garp emitted when setting ip" [ first_ip ] (A.get_ips speak.arp);
     Lwt.return_unit
   in
-  let expected_garp = Parse.(cstruct_of_arp (garp (V.mac speak.netif) first_ip)) in
+  let expected_garp = garp (V.mac speak.netif) first_ip in
   timeout ~time:0.5 (
   Lwt.join [
     single_check listen.netif expected_garp;
@@ -269,27 +225,30 @@ let set_ip_sends_garp () =
   ]) >>= fun () ->
   (* now make sure we have consistency when setting *)
   A.set_ips speak.arp [] >>= fun () ->
-  equals [] (A.get_ips speak.arp);
+  Alcotest.(check (list ip)) "list of bound IPs on initialization" [] (A.get_ips speak.arp);
   A.set_ips speak.arp [ first_ip; second_ip ] >>= fun () ->
-  equals [ first_ip; second_ip ] (A.get_ips speak.arp);
+  Alcotest.(check (list ip)) "list of bound IPs after setting two IPs"
+    [ first_ip; second_ip ] (A.get_ips speak.arp);
   Lwt.return_unit
 
 let add_get_remove_ips () =
   get_arp () >>= fun stack ->
-  equals [] (A.get_ips stack.arp);
+  let check str expected =
+    Alcotest.(check (list ip)) "set ips with duplicate elements result in deduplication"
+      expected (A.get_ips stack.arp)
+  in
+  check "bound ips is an empty list on startup" [];
   A.set_ips stack.arp [ first_ip; first_ip ] >>= fun () ->
   let ips = A.get_ips stack.arp in
-  equals true (List.mem first_ip ips);
-  equals true (List.for_all (fun a -> a = first_ip) ips);
-  equals true (List.length ips >= 1 && List.length ips <= 2);
+  check "set ips with duplicate elements result in deduplication" [first_ip];
   A.remove_ip stack.arp first_ip >>= fun () ->
-  equals [] (A.get_ips stack.arp);
+  check "ip list is empty after removing only ip" [];
   A.remove_ip stack.arp first_ip >>= fun () ->
-  equals [] (A.get_ips stack.arp);
+  check "ip list is empty after removing from empty list" [];
   A.add_ip stack.arp first_ip >>= fun () ->
-  equals [ first_ip ] (A.get_ips stack.arp);
+  check "first ip is the only member of the set of bound ips" [first_ip];
   A.add_ip stack.arp first_ip >>= fun () ->
-  equals [ first_ip ] (A.get_ips stack.arp);
+  check "adding ips is idempotent" [first_ip];
   Lwt.return_unit
 
 let input_single_garp () =
@@ -374,8 +333,10 @@ let entries_expire () =
   two_arp () >>= fun (listen, speak) ->
   A.set_ips listen.arp [ second_ip ] >>= fun () ->
   (* here's what we expect listener to emit once its cache entry has expired *)
-  let expected_arp_query = arp_request ~from_netif:listen.netif
-      ~to_mac:Macaddr.broadcast ~from_ip:second_ip ~to_ip:first_ip
+  let expected_arp_query =
+    Arpv4_packet.({op = Arpv4_wire.Request;
+                   sha = (V.mac listen.netif); tha = Macaddr.broadcast;
+                   spa = second_ip; tpa = first_ip})
   in
   Lwt.async (fun () -> 
       V.listen listen.netif (start_arp_listener listen ()));
@@ -392,12 +353,15 @@ let entries_expire () =
    greater than 1 is fine *)
 let query_retries () =
   two_arp () >>= fun (listen, speak) ->
-  let expected_query = arp_request ~from_netif:speak.netif
-      ~to_mac:Macaddr.broadcast ~from_ip:Ipaddr.V4.any ~to_ip:first_ip
+  let expected_query = Arpv4_packet.({sha = (V.mac speak.netif);
+                                      tha = Macaddr.broadcast;
+                                      spa = Ipaddr.V4.any;
+                                      tpa = first_ip;
+                                      op  = Arpv4_wire.Request;})
   in
   let how_many = ref 0 in
   let rec listener buf =
-    check_response expected_query buf;
+    check_ethif_response expected_query buf;
     if !how_many = 0 then begin
       how_many := !how_many + 1;
       Lwt.return_unit
@@ -423,24 +387,22 @@ let requests_are_responded_to () =
   (* neither has a listener set up when we set IPs, so no GARPs in the cache *)
   A.add_ip answerer.arp answerer_ip >>= fun () ->
   A.add_ip inquirer.arp inquirer_ip >>= fun () ->
-  let request =
-    Parse.cstruct_of_arp
-      { Parse.op = `Request; sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
-       spa = inquirer_ip; tpa = answerer_ip }
+  let request = arp_request ~from_netif:inquirer.netif ~to_mac:Macaddr.broadcast
+      ~from_ip:inquirer_ip ~to_ip:answerer_ip
   in
-  let expected_reply = 
-    arp_reply ~from_netif:answerer.netif ~to_netif:inquirer.netif
-      ~from_ip:answerer_ip ~to_ip:inquirer_ip
+  let expected_reply =
+    { Arpv4_packet.op = Arpv4_wire.Reply;
+      sha = (V.mac answerer.netif); tha = (V.mac inquirer.netif);
+      spa = answerer_ip; tpa = inquirer_ip}
   in
   let listener close_netif buf =
-    equals ~printer:(Printf.sprintf "%S") 
-      (Cstruct.to_string expected_reply) (Cstruct.to_string buf);
+    check_ethif_response expected_reply buf;
     V.disconnect close_netif
   in
   let arp_listener =
       V.listen answerer.netif (start_arp_listener answerer ())
   in
-  Lwt.pick [
+  timeout ~time:1.0 (
     Lwt.join [
       (* listen for responses and check them against an expected result *)
       V.listen inquirer.netif (listener inquirer.netif);
@@ -450,8 +412,7 @@ let requests_are_responded_to () =
       OS.Time.sleep 0.1 >>= fun () -> V.write inquirer.netif request
       >>= fun () -> OS.Time.sleep 0.1 >>= fun () -> V.disconnect answerer.netif
     ];
-    OS.Time.sleep 3.0 >>= fun () -> fail "timed out"
-  ]
+  )
 
 let requests_not_us () =
   let (answerer_ip, inquirer_ip) = (first_ip, second_ip) in
@@ -459,9 +420,10 @@ let requests_not_us () =
   A.add_ip answerer.arp answerer_ip >>= fun () ->
   A.add_ip inquirer.arp inquirer_ip >>= fun () ->
   let ask ip =
-    Parse.cstruct_of_arp
-      { Parse.op = `Request; sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
-        spa = inquirer_ip; tpa = ip }
+    Arpv4_packet.Marshal.make_cstruct @@
+    { Arpv4_packet.op = Arpv4_wire.Request;
+      sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
+      spa = inquirer_ip; tpa = ip }
   in
   let requests = List.map ask [ inquirer_ip; Ipaddr.V4.any;
                                 Ipaddr.V4.of_string_exn "255.255.255.255" ] in
@@ -480,18 +442,28 @@ let nonsense_requests () =
   three_arp () >>= fun (answerer, inquirer, checker) ->
   A.set_ips answerer.arp [ answerer_ip ] >>= fun () ->
   let request number =
-    Parse.cstruct_of_arp
-      { Parse.op = (`Unknown number); sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
-        spa = inquirer_ip; tpa = answerer_ip }
+    let buf = Arpv4_packet.Marshal.make_cstruct @@
+    { op = Arpv4_wire.Request; sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
+      spa = inquirer_ip; tpa = answerer_ip } in
+    Arpv4_wire.set_arp_op buf number;
+    let eth_header = { Ethif_packet.source = (V.mac inquirer.netif);
+                       destination = Macaddr.broadcast; 
+                       ethertype = Ethif_wire.ARP;
+                       } in
+    Cstruct.concat [ Ethif_packet.Marshal.make_cstruct eth_header; buf ]
   in
   let requests = List.map request [0; 3; -1; 255; 256; 257; 65536] in
-  let make_requests = Lwt_list.iter_s (V.write inquirer.netif) requests in
-  let expected_probe = arp_request ~from_netif:answerer.netif
-      ~to_mac:Macaddr.broadcast ~from_ip:answerer_ip ~to_ip:inquirer_ip
+  let make_requests = Lwt_list.iter_s (fun l ->
+      V.write inquirer.netif l) requests in
+  let expected_probe = { Arpv4_packet.op = Arpv4_wire.Request;
+                         sha = V.mac answerer.netif;
+                         spa = answerer_ip;
+                         tha = Macaddr.broadcast;
+                         tpa = inquirer_ip; }
   in
   Lwt.async (fun () -> 
       V.listen answerer.netif (start_arp_listener answerer ()));
-  timeout ~time:5.0 (
+  timeout ~time:1.0 (
     Lwt.join [
       V.listen inquirer.netif (fail_on_receipt inquirer.netif);
       make_requests >>= fun () ->
@@ -502,8 +474,25 @@ let nonsense_requests () =
       not_in_cache ~listen:checker.netif expected_probe answerer.arp inquirer_ip
     ] )
 
+let packet () =
+  let first_mac  = Macaddr.of_string_exn "10:9a:dd:01:23:45" in
+  let second_mac = Macaddr.of_string_exn "00:16:3e:ab:cd:ef" in
+  let example_request = Arpv4_packet.({op = Arpv4_wire.Request;
+                               sha = first_mac;
+                               tha = second_mac;
+                               spa = first_ip;
+                               tpa = second_ip;
+                                      }) in
+  let marshalled = Arpv4_packet.Marshal.make_cstruct example_request in
+  match Arpv4_packet.Unmarshal.of_cstruct marshalled with
+  | Result.Error _ -> Alcotest.fail "couldn't unmarshal something we made ourselves"
+  | Result.Ok unmarshalled ->
+    Alcotest.(check packet) "serialize/deserialize" example_request unmarshalled;
+    Lwt.return_unit
+
 let suite =
   [
+    "conversions neither lose nor gain information", `Quick, packet;
     "nonsense requests are ignored", `Quick, nonsense_requests;
     "requests are responded to", `Quick, requests_are_responded_to;
     "irrelevant requests are ignored", `Quick, requests_not_us;
