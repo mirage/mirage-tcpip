@@ -10,12 +10,13 @@ type id = t
 
 type error = string
 
-let pp_error fmt err = Format.asprintf fmt "%s" err
+let pp_error fmt err = Format.fprintf fmt "%s" err
 
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 let port = 0 (* port isn't meaningful in this context *)
 
 let connect () = Lwt.return_unit
+let disconnect () = Lwt.return_unit
 
 let pp_sockaddr fmt sa =
   let open Lwt_unix in
