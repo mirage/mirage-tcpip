@@ -80,7 +80,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let checksum = Ndpv6.checksum
 
-  let get_source t ~dst = Ndpv6.select_source t.ctx dst
+  let get_src t ~dst = Ndpv6.select_source t.ctx dst
 
   let set_ip t ip =
     let now = C.time () in
@@ -111,7 +111,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let pseudoheader t ~dst ~proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
-    let src = get_source t ~dst in
+    let src = get_src t ~dst in
     Ndpv6.ipaddr_to_cstruct_raw src ph 0;
     Ndpv6.ipaddr_to_cstruct_raw dst ph 16;
     Cstruct.BE.set_uint32 ph 32 (Int32.of_int len);
