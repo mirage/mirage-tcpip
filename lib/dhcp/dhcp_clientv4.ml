@@ -95,7 +95,7 @@ module Make
     Cstruct.blit_from_string options 0 buf sizeof_dhcp options_len;
     let buf = Cstruct.set_len buf (sizeof_dhcp + options_len) in
     Log.info (fun f -> f "Sending DHCP broadcast (length %d)" total_len);
-    Udp.write ~dest_ip:Ipaddr.V4.broadcast ~source_port:68 ~dest_port:67 t.udp buf
+    Udp.write ~dst:Ipaddr.V4.broadcast ~src_port:68 ~dst_port:67 t.udp buf
 
   (* Receive a DHCP UDP packet *)
   let input t ~src:_ ~dst:_ ~src_port:_ buf =

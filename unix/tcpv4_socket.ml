@@ -56,7 +56,7 @@ let id {interface} =
   | None -> None
   | Some i -> Some (Ipaddr_unix.V4.of_inet_addr_exn i)
 
-let get_dest fd =
+let get_dst fd =
   match Lwt_unix.getpeername fd with
   | Unix.ADDR_UNIX _ ->
     raise (Failure "unexpected: got a unix instead of tcp sock")

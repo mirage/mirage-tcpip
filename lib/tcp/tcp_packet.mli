@@ -9,8 +9,8 @@ type t = {
   options : Options.t list;
   sequence : Sequence.t;
   ack_number : Sequence.t;
-  source_port : Cstruct.uint16;
-  dest_port : Cstruct.uint16;
+  src_port : Cstruct.uint16;
+  dst_port : Cstruct.uint16;
 }
 
 val pp : Format.formatter -> t -> unit

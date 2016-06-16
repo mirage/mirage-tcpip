@@ -66,13 +66,13 @@ let id { interface; _ } =
   let t, _ = Lwt.task () in
   t
 
-let write ?source_port ~dest_ip ~dest_port t buf =
+let write ?src_port ~dst ~dst_port t buf =
   let open Lwt_unix in
   let fd =
-    match source_port with
+    match src_port with
     | None -> get_udpv4_listening_fd t 0
     | Some port -> get_udpv4_listening_fd t port
   in
-  Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dest_ip), dest_port))
+  Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
   >>= fun _ ->
   return_unit
