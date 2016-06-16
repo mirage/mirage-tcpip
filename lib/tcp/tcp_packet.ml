@@ -9,8 +9,8 @@ type t = {
   options : Options.t list;
   sequence : Sequence.t;
   ack_number : Sequence.t;
-  source_port : Cstruct.uint16;
-  dest_port : Cstruct.uint16;
+  src_port : Cstruct.uint16;
+  dst_port : Cstruct.uint16;
 }
 
 let equal p q = (p = q)
@@ -58,11 +58,11 @@ module Unmarshal = struct
     let syn = get_syn pkt in
     let fin = get_fin pkt in
     let window = get_tcp_window pkt in
-    let source_port = get_tcp_src_port pkt in
-    let dest_port = get_tcp_dst_port pkt in
+    let src_port = get_tcp_src_port pkt in
+    let dst_port = get_tcp_dst_port pkt in
     let data = Cstruct.shift pkt data_offset in
     Result.Ok ({ urg; ack; psh; rst; syn; fin; window; options;
-                sequence; ack_number; source_port; dest_port }, data)
+                sequence; ack_number; src_port; dst_port }, data)
 end
 module Marshal = struct
   open Rresult
@@ -72,8 +72,8 @@ module Marshal = struct
 
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
     let data_off = (sizeof_tcp / 4) + (options_len / 4) in
-    set_tcp_src_port buf t.source_port;
-    set_tcp_dst_port buf t.dest_port;
+    set_tcp_src_port buf t.src_port;
+    set_tcp_dst_port buf t.dst_port;
     set_tcp_sequence buf (Sequence.to_int32 t.sequence);
     set_tcp_ack_number buf (Sequence.to_int32 t.ack_number);
     set_data_offset buf data_off;

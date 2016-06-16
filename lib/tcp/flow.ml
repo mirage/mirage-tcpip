@@ -70,7 +70,7 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | Result.Ok ()   -> Lwt.return_unit
 
   let id = Pcb.ip
-  let get_dest = Pcb.get_dest
+  let get_dst = Pcb.get_dst
   let close t = Pcb.close t
   let input = Pcb.input
 
@@ -88,7 +88,7 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   let disconnect _ = Lwt.return_unit
 
   let create_connection tcp (daddr, dport) =
-    Pcb.connect tcp ~dest_ip:daddr ~dest_port:dport >>= function
+    Pcb.connect tcp ~dst:daddr ~dst_port:dport >>= function
     | `Timeout    -> err_timeout daddr dport
     | `Rst        -> err_refused daddr dport
     | `Ok (fl, _) -> ok fl
