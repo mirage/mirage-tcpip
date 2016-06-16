@@ -555,7 +555,7 @@ struct
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id = WIRE.wire ~src:(Ip.get_source t.ip dst)
+      let id = WIRE.wire ~src:(Ip.get_src t.ip dst)
           ~src_port:t.localport ~dst ~dst_port in
       if inuse t id then bumpport t else id
     in
