@@ -22,7 +22,6 @@ module type TCPV4_DIRECT = V1_LWT.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
@@ -33,8 +32,7 @@ module Make
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
   include V1_LWT.STACKV4
-    with type console = Console.t
-     and type netif   = Netif.t
+    with type netif   = Netif.t
      and type mode    = V1_LWT.direct_stack_config
      and type udpv4   = Udpv4.t
      and type tcpv4   = Tcpv4.t
@@ -42,7 +40,7 @@ module Make
      and module IPV4 = Ipv4
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
-  val connect : (console, netif, mode) V1_LWT.stackv4_config ->
+  val connect : (netif, mode) V1_LWT.stackv4_config ->
     Ethif.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t -> Udpv4.t -> Tcpv4.t ->
     [> `Ok of t | `Error of error ] Lwt.t
 end
