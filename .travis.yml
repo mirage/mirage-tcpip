@@ -3,7 +3,7 @@ script: bash -ex .travis-ci.sh
 sudo: required
 env:
   global:
-          - PINS="mirage mirage-types:git://github.com/yomimono/mirage.git#standardize_record_fields mirage-types-lwt:git://github.com/yomimono/mirage.git#standardize_record_fields"
+  - PINS="mirage mirage-types:git://github.com/yomimono/mirage.git#standardize_record_fields mirage-types-lwt:git://github.com/yomimono/mirage.git#standardize_record_fields"
   matrix:
   - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix
   - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=xen
