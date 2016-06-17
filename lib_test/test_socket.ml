@@ -85,5 +85,5 @@ let icmp_echo_request () =
 
 let suite = [
   "two sockets connect via TCP", `Quick, two_connect_tcp;
-  "icmp echo-requests are sent", `Quick, icmp_echo_request;
+  "icmp echo-requests are sent", `Slow, icmp_echo_request;
 ]
