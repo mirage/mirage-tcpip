@@ -43,7 +43,7 @@ depends: [
   "ocamlfind" {build}
   "result"
   "rresult"
-  "cstruct" {>= "1.9.0"}
+  "cstruct" {>= "2.1.0"}
   "ppx_tools"
   "mirage-types" {>= "2.8.0"}
   "mirage-console"
