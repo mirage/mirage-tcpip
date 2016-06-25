@@ -44,7 +44,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     fail "client tried to write, got %s" err
 
   let accept c flow expected =
-    let ip, port = V.Stackv4.TCPV4.get_dst flow in
+    let ip, port = V.Stackv4.TCPV4.dst flow in
     log_s c "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port
     >>= fun () ->
     V.Stackv4.TCPV4.read flow >>= function

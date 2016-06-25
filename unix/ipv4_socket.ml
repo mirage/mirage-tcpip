@@ -46,6 +46,6 @@ let get_ip_netmasks _ = [Ipaddr.V4.of_string_exn "255.255.255.0"]
 let get_ip_gateways _ = raise (Failure "Not implemented")
 let set_ip_netmask _ _ = fail (Failure "Not implemented")
 let set_ip_gateways _ _ = fail (Failure "Not implemented")
-let get_src _ ~dst:_ = raise (Failure "Not implemented")
+let src _ ~dst:_ = raise (Failure "Not implemented")
 let checksum _ _ = raise (Failure "Not implemented")
 let pseudoheader _ ~dst:_ ~proto:_ _ = raise (Failure "Not implemented")
