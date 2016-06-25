@@ -70,7 +70,7 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | Result.Ok ()   -> Lwt.return_unit
 
   let id = Pcb.ip
-  let get_dst = Pcb.get_dst
+  let dst = Pcb.dst
   let close t = Pcb.close t
   let input = Pcb.input
 

@@ -35,7 +35,7 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
 
   val close: pcb -> unit Lwt.t
 
-  val get_dst: pcb -> (Ip.ipaddr * int)
+  val dst: pcb -> (Ip.ipaddr * int)
 
   (* Blocking read for a segment *)
   val read: pcb -> Cstruct.t option Lwt.t

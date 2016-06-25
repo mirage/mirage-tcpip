@@ -200,7 +200,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     Ipv4_wire.set_ipv4_csum packet 0;
     Tcpip_checksum.ones_complement_list (packet :: bufs)
 
-  let get_src t ~dst:_ =
+  let src t ~dst:_ =
     t.ip
 
   type uipaddr = Ipaddr.t
