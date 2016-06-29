@@ -127,7 +127,7 @@ let run backend fsm sut () =
 let reply_id_from ~src ~dst data =
   let sport = Tcp_wire.get_tcp_src_port data in
   let dport = Tcp_wire.get_tcp_dst_port data in
-  WIRE.wire ~dest_port:sport ~dest_ip:src ~local_port:dport ~local_ip:dst
+  WIRE.wire ~dst_port:sport ~dst:src ~src_port:dport ~src:dst
 
 let ack_for data =
   match Tcp_unmarshal.of_cstruct data with

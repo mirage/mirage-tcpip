@@ -17,11 +17,11 @@
 module Make(Ip:V1_LWT.IP) : sig
   type id
 
-  val local_port_of_id : id -> int
+  val src_port_of_id : id -> int
 
-  val dest_of_id : id -> (Ip.ipaddr * int)
+  val dst_of_id : id -> (Ip.ipaddr * int)
 
-  val wire : local_ip:Ip.ipaddr -> local_port:int -> dest_ip:Ip.ipaddr -> dest_port:int -> id
+  val wire : src:Ip.ipaddr -> src_port:int -> dst:Ip.ipaddr -> dst_port:int -> id
 
   val pp_id : Format.formatter -> id -> unit
 

@@ -412,7 +412,7 @@ struct
 
   let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
-    match listeners @@ WIRE.local_port_of_id id with
+    match listeners @@ WIRE.src_port_of_id id with
     | Some pushf ->
       let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
       (* TODO: make this configurable per listener *)
@@ -481,7 +481,7 @@ struct
     | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Result.Ok (pkt, payload) ->
-      let id = WIRE.wire ~local_port:pkt.dest_port ~dest_port:pkt.source_port ~dest_ip:src ~local_ip:dst in
+      let id = WIRE.wire ~src_port:pkt.dst_port ~dst_port:pkt.src_port ~dst:src ~src:dst in
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
         (* PCB exists, so continue the connection state machine in tcp_input *)
@@ -538,9 +538,9 @@ struct
   (* Close - no more will be written *)
   let close pcb = Tx.close pcb
 
-  let get_dest pcb = WIRE.dest_of_id pcb.id
+  let dst pcb = WIRE.dst_of_id pcb.id
 
-  let getid t dest_ip dest_port =
+  let getid t dst dst_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
     let islistener _t _port =
       (* TODO keep a list of active listen ports *)
@@ -550,13 +550,13 @@ struct
       Hashtbl.mem t.connects id ||
       Hashtbl.mem t.listens id
     in
-    let inuse t id = islistener t (WIRE.local_port_of_id id) || idinuse t id in
+    let inuse t id = islistener t (WIRE.src_port_of_id id) || idinuse t id in
     let rec bumpport t =
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id = WIRE.wire ~local_ip:(Ip.get_source t.ip dest_ip)
-          ~local_port:t.localport ~dest_ip ~dest_port in
+      let id = WIRE.wire ~src:(Ip.src t.ip dst)
+          ~src_port:t.localport ~dst ~dst_port in
       if inuse t id then bumpport t else id
     in
     bumpport t
@@ -582,8 +582,8 @@ struct
         )
       else Lwt.return_unit
 
-  let connect t ~dest_ip ~dest_port =
-    let id = getid t dest_ip dest_port in
+  let connect t ~dst ~dst_port =
+    let id = getid t dst dst_port in
     let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1BCD0000) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in

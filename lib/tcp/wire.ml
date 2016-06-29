@@ -26,25 +26,25 @@ let set_options buf ts =
 
 module Make (Ip:V1_LWT.IP) = struct
   type id = {
-    dest_port: int;             (* Remote TCP port *)
-    dest_ip: Ip.ipaddr;         (* Remote IP address *)
-    local_port: int;            (* Local TCP port *)
-    local_ip: Ip.ipaddr;        (* Local IP address *)
+    dst_port: int;             (* Remote TCP port *)
+    dst: Ip.ipaddr;            (* Remote IP address *)
+    src_port: int;             (* Local TCP port *)
+    src: Ip.ipaddr;            (* Local IP address *)
   }
 
-  let wire ~local_ip ~local_port ~dest_ip ~dest_port =
-    { dest_port ; dest_ip; local_port ; local_ip }
+  let wire ~src ~src_port ~dst ~dst_port =
+    { dst_port ; dst ; src_port ; src }
 
-  let local_port_of_id id = id.local_port
+  let src_port_of_id id = id.src_port
 
-  let dest_of_id id = (id.dest_ip, id.dest_port)
+  let dst_of_id id = (id.dst, id.dst_port)
 
   let pp_id fmt id =
     let uip = Ip.to_uipaddr in
     Format.fprintf fmt "remote %a,%d to local %a, %d"
-      Ipaddr.pp_hum (uip id.dest_ip) id.dest_port Ipaddr.pp_hum (uip id.local_ip) id.local_port
+      Ipaddr.pp_hum (uip id.dst) id.dst_port Ipaddr.pp_hum (uip id.src) id.src_port
 
-  let xmit ~ip ~id ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
+  let xmit ~ip ~(id:id) ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload =
     let (ack, ack_number) = match rx_ack with
       | None -> (false, Sequence.zero)
@@ -54,13 +54,13 @@ module Make (Ip:V1_LWT.IP) = struct
         sequence = seq; ack_number; window;
         urg = false; ack; psh; rst; syn; fin;
         options;
-        source_port = id.local_port; dest_port = id.dest_port;
+        src_port = id.src_port; dst_port = id.dst_port;
       }) in
     (* Make a TCP/IP header frame *)
-    let frame, header_len = Ip.allocate_frame ip ~dst:id.dest_ip ~proto:`TCP in
+    let frame, header_len = Ip.allocate_frame ip ~dst:id.dst ~proto:`TCP in
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst:id.dest_ip ~proto:`TCP (Cstruct.len payload) in
+    let pseudoheader = Ip.pseudoheader ip ~dst:id.dst ~proto:`TCP (Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
       Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
