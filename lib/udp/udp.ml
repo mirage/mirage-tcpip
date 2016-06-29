@@ -52,16 +52,16 @@ module Make(Ip: V1_LWT.IP) = struct
       | Some fn ->
         fn ~src ~dst ~src_port payload
 
-  let writev ?source_port ~dest_ip ~dest_port t bufs =
-    begin match source_port with
+  let writev ?src_port ~dst ~dst_port t bufs =
+    begin match src_port with
       | None   -> Lwt.fail (Failure "TODO; random source port")
       | Some p -> Lwt.return p
-    end >>= fun source_port ->
-    let frame, header_len = Ip.allocate_frame t.ip ~dst:dest_ip ~proto:`UDP in
+    end >>= fun src_port ->
+    let frame, header_len = Ip.allocate_frame t.ip ~dst:dst ~proto:`UDP in
     let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp) in
     let udp_buf = Cstruct.shift frame header_len in
-    let ph = Ip.pseudoheader t.ip ~dst:dest_ip ~proto:`UDP (Cstruct.lenv bufs) in
-    let udp_header = Udp_packet.({ src_port = source_port; dst_port = dest_port; }) in
+    let ph = Ip.pseudoheader t.ip ~dst ~proto:`UDP (Cstruct.lenv bufs) in
+    let udp_header = Udp_packet.({ src_port = src_port; dst_port = dst_port; }) in
     match Udp_packet.Marshal.into_cstruct udp_header udp_buf ~pseudoheader:ph
             ~payload:(Cstruct.concat bufs) with
     | Ok () -> 
@@ -69,8 +69,8 @@ module Make(Ip: V1_LWT.IP) = struct
     | Error s -> Log.debug (fun f -> f "Discarding transmitted UDP message: error writing: %s" s);
       Lwt.return_unit
 
-  let write ?source_port ~dest_ip ~dest_port t buf =
-    writev ?source_port ~dest_ip ~dest_port t [buf]
+  let write ?src_port ~dst ~dst_port t buf =
+    writev ?src_port ~dst ~dst_port t [buf]
 
   let connect ip =
     let ips = List.map Ip.to_uipaddr @@ Ip.get_ip ip in
