@@ -240,7 +240,6 @@ let add_get_remove_ips () =
   in
   check "bound ips is an empty list on startup" [];
   A.set_ips stack.arp [ first_ip; first_ip ] >>= fun () ->
-  let ips = A.get_ips stack.arp in
   check "set ips with duplicate elements result in deduplication" [first_ip];
   A.remove_ip stack.arp first_ip >>= fun () ->
   check "ip list is empty after removing only ip" [];
