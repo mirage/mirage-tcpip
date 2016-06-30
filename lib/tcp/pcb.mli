@@ -26,6 +26,9 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
   (** Result of attempting to open a connection *)
   type connection_result = [ `Ok of connection | `Rst | `Timeout ]
 
+  val pp_pcb : Format.formatter -> pcb -> unit
+  val pp_stats : Format.formatter -> t -> unit
+
   val ip : t -> Ip.t
 
   val input: t -> listeners:(int -> (pcb -> unit Lwt.t) option)
