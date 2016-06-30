@@ -46,7 +46,7 @@ let unmarshal buf =
          match Cstruct.get_uint8 buf 0 with
          | 0 -> None   (* EOF *)
          | 1 -> Some 1 (* NOP *)
-         | n ->
+         | _option_type ->
            match Cstruct.len buf with
            | 0 | 1 -> None
            | buffer_size ->
