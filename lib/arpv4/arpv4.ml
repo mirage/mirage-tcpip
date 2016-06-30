@@ -88,12 +88,11 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   let output t arp =
-    let open Arpv4_packet in
-    (* Obtain a buffer to write into *)
-    let payload = Marshal.make_cstruct arp in
+    let (source, destination) = Arpv4_packet.(arp.sha, arp.tha) in
+    let payload = Arpv4_packet.Marshal.make_cstruct arp in
     let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
-        source = arp.sha;
-        destination = arp.tha;
+	source;
+        destination;
         ethertype = Ethif_wire.ARP;
       }) in
     Ethif.writev t.ethif [ethif_packet ; payload]
