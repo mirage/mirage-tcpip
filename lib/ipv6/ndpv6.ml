@@ -707,6 +707,7 @@ module RouterList = struct
 
   let add rl ~now ?(lifetime = max_float) ip =
     (* FIXME *)
+    (* yomimono 2016-06-30: fix what? *)
     (ip, now +. lifetime) :: rl
 
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
@@ -1174,11 +1175,11 @@ let get_ip ctx =
 
 let allocate_frame ctx dst proto =
   let proto = Ipv6_wire.protocol_to_int proto in
-  let src = AddressList.select_source ctx.address_list dst in
+  let src = AddressList.select_source ctx.address_list ~dst in
   Allocate.frame ~mac:ctx.mac ~src ~hlim:ctx.cur_hop_limit ~dst ~proto
 
 let select_source ctx dst =
-  AddressList.select_source ctx.address_list dst
+  AddressList.select_source ctx.address_list ~dst
 
 let handle_ra ~now ctx ~src ~dst ra =
   Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
@@ -1295,7 +1296,7 @@ let handle ~now ctx buf =
     let dst = src
     and src =
       if Ipaddr.is_multicast dst then
-        AddressList.select_source ctx.address_list dst
+        AddressList.select_source ctx.address_list ~dst
       else
         dst
     in
