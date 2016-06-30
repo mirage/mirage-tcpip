@@ -147,12 +147,13 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     writev t frame [buf]
 
   let input t ~tcp ~udp ~default buf =
-    match Ipv4_packet.Unmarshal.of_cstruct buf with
+    let open Ipv4_packet in
+    match Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
       Lwt.return_unit
     | Ok (packet, payload) ->
-      match Ipv4_packet.Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
+      match Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
       | Some _, 0 ->
         (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
         Lwt.return_unit

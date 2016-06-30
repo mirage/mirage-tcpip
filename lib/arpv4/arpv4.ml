@@ -88,8 +88,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   let output t arp =
+    let open Arpv4_packet in
     (* Obtain a buffer to write into *)
-    let payload = Arpv4_packet.Marshal.make_cstruct arp in
+    let payload = Marshal.make_cstruct arp in
     let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
         source = arp.sha;
         destination = arp.tha;
@@ -99,11 +100,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
 
   (* Input handler for an ARP packet *)
   let input t frame =
+    let open Arpv4_packet in
     MProf.Trace.label "arpv4.input";
-    match Arpv4_packet.Unmarshal.of_cstruct frame with
+    match Unmarshal.of_cstruct frame with
     | Result.Error s ->
       Log.info (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
-                   Arpv4_packet.Unmarshal.pp_error s (Cstruct.to_string frame));
+                   Unmarshal.pp_error s (Cstruct.to_string frame));
       Lwt.return_unit
     | Result.Ok arp ->
       match arp.op with
