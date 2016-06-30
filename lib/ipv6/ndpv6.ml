@@ -74,13 +74,13 @@ let solicited_node_prefix =
   Ipaddr.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
 module Defaults = struct
-  let max_rtr_solicitation_delay = 1.0
-  let ptr_solicitation_interval  = 4
-  let max_rtr_solicitations      = 3
+  let _max_rtr_solicitation_delay = 1.0
+  let _ptr_solicitation_interval  = 4
+  let _max_rtr_solicitations      = 3
   let max_multicast_solicit      = 3
   let max_unicast_solicit        = 3
-  let max_anycast_delay_time     = 1
-  let max_neighbor_advertisement = 3
+  let _max_anycast_delay_time     = 1
+  let _max_neighbor_advertisement = 3
   let delay_first_probe_time     = 5.0
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
@@ -182,7 +182,7 @@ module Allocate = struct
     let header_len = Ethif_wire.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
     (ethernet_frame, header_len)
 
-  let error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
+  let _error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
     let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
     let maxbuf = Defaults.min_link_mtu - (header_len + Ipv6_wire.sizeof_icmpv6) in
@@ -360,7 +360,7 @@ module AddressList = struct
         ips, acts
       ) al ([], [])
 
-  let expired al ~now =
+  let _expired al ~now =
     List.exists (function
         | _, TENTATIVE (_, _, t)
         | _, PREFERRED (Some (t, _))
@@ -396,7 +396,7 @@ module AddressList = struct
   let configure al ~now ~retrans_timer ~lft mac pfx =
     (* FIXME is this the same as add ? *)
     match find_prefix al pfx with
-    | Some addr ->
+    | Some _addr ->
       (* TODO handle already configured SLAAC address 5.5.3 e). *)
       al, []
     | None ->
@@ -727,12 +727,12 @@ module RouterList = struct
       end
     | false ->
       if lft > 0.0 then begin
-        Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
-        (src, now +. lft) :: rl, []
+	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
+        (add rl ~now ~lifetime:lft src), []
       end else
         rl, []
 
-  let add rl ~now ip =
+  let add rl ~now:_ ip =
     match List.mem_assoc ip rl with
     | true -> rl
     | false -> (ip, max_float) :: rl
