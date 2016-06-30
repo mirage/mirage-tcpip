@@ -45,7 +45,7 @@ module Unmarshal = struct
         else Result.Ok hlen
       end
     in
-    let check_header_len buf options_end =
+    let check_header_len options_end =
       if options_end < sizeof_ipv4 then Result.Error
           (Printf.sprintf "IPv4 header claimed to have size < 20: %d" options_end)
       else Result.Ok options_end
@@ -63,7 +63,7 @@ module Unmarshal = struct
       let payload = Cstruct.sub buf options_end payload_len in
       Ok ({src; dst; proto; ttl; options;}, payload)
     in
-    get_header_length buf >>= check_header_len buf >>= parse buf
+    get_header_length buf >>= check_header_len >>= parse buf
 end
 module Marshal = struct
   open Ipv4_wire

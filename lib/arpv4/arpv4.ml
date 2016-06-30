@@ -16,7 +16,6 @@
  *)
 
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
