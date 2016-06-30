@@ -126,6 +126,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.return_unit
 
   let iperf c s server_done_u flow =
+    (* debug is too much for us here *)
+    Logs.set_level ~all:true (Some Logs.Info);
     log_s c "Iperf server: Received connection." >>= fun () ->
     let t0 = Clock.time () in
     let st = {
