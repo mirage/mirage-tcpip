@@ -119,7 +119,8 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     Lwt.return recorder_id
 
   let record_pcap backend pcap_file fn =
-    Lwt.catch(fun _ ->
+  Lwt.catch
+      (fun _ ->
         Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
         create_pcap_recorder backend oc >>= fun recorder_id ->
         fn () >>= fun () ->
@@ -130,7 +131,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
       (function
         | Unix.Unix_error _ ->
           Printf.printf "Could not create pcap file %s - something along the way doesn't exist.\n" pcap_file;
-          Lwt.return_unit
+          fn ()
         | e -> Lwt.fail e
       )
 end
