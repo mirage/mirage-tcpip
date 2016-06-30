@@ -14,15 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
-
 let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
-
-let set_options buf ts =
-  Options.marshal buf ts
 
 module Make (Ip:V1_LWT.IP) = struct
   type id = {
@@ -44,23 +39,23 @@ module Make (Ip:V1_LWT.IP) = struct
     Format.fprintf fmt "remote %a,%d to local %a, %d"
       Ipaddr.pp_hum (uip id.dst) id.dst_port Ipaddr.pp_hum (uip id.src) id.src_port
 
-  let xmit ~ip ~(id:id) ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
+  let xmit ~ip ~id:{ src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload =
     let (ack, ack_number) = match rx_ack with
       | None -> (false, Sequence.zero)
       | Some n -> (true, n)
     in
-    let header = Tcp_packet.({
-        sequence = seq; ack_number; window;
+    let header = {
+        sequence = seq; Tcp_packet.ack_number; window;
         urg = false; ack; psh; rst; syn; fin;
         options;
-        src_port = id.src_port; dst_port = id.dst_port;
-      }) in
+        src_port; dst_port;
+      } in
     (* Make a TCP/IP header frame *)
-    let frame, header_len = Ip.allocate_frame ip ~dst:id.dst ~proto:`TCP in
+    let frame, header_len = Ip.allocate_frame ip ~dst ~proto:`TCP in
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst:id.dst ~proto:`TCP (Cstruct.len payload) in
+    let pseudoheader = Ip.pseudoheader ip ~dst ~proto:`TCP (Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
       Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
