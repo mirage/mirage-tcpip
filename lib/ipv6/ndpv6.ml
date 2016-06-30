@@ -231,8 +231,9 @@ module Allocate = struct
   let rs ~mac select_source =
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
+    let cmp = Ipaddr.compare in
     let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
-    let include_slla = Ipaddr.(compare src unspecified) != 0 in
+    let include_slla = (cmp src Ipaddr.unspecified) != 0 in
     let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
     let eth_frame =
       Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + slla_len)
