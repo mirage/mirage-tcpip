@@ -309,13 +309,13 @@ module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
     clear_buffer t >>= fun () ->
     inform_app t
 
-  (* FIXME: duplicated code with Segment.reset_seq *)
-  let rec reset_seq segs =
-    match Lwt_sequence.take_opt_l segs with
-    | None   -> ()
-    | Some s -> reset_seq segs
-
-  let reset t  =
+  let reset t =
+    (* FIXME: duplicated code with Segment.reset_seq *)
+    let rec reset_seq segs =
+      match Lwt_sequence.take_opt_l segs with
+      | None   -> ()
+      | Some _ -> reset_seq segs
+    in
     reset_seq t.buffer;
     inform_app t
 
