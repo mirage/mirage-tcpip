@@ -119,7 +119,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     Lwt.return recorder_id
 
   let record_pcap backend pcap_file fn =
-  Lwt.catch
+    Lwt.catch
       (fun _ ->
         Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
         create_pcap_recorder backend oc >>= fun recorder_id ->
