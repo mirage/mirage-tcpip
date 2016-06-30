@@ -70,21 +70,6 @@ end
 
 module PacketQueue = BoundedMap (Ipaddr)
 
-let interface_addr mac =
-  let bmac = Macaddr.to_bytes mac in
-  let c i = Char.code (Bytes.get bmac i) in
-  Ipaddr.make
-    0 0 0 0
-    ((c 0 lxor 2) lsl 8 + c 1)
-    (c 2 lsl 8 + 0xff)
-    (0xfe00 + c 3)
-    (c 4 lsl 8 + c 5)
-
-let link_local_addr mac =
-  Ipaddr.(Prefix.network_address
-            (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
-            (interface_addr mac))
-
 let solicited_node_prefix =
   Ipaddr.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
@@ -122,11 +107,6 @@ let ipaddr_to_cstruct_raw i cs off =
   Cstruct.BE.set_uint32 cs (4 + off) b;
   Cstruct.BE.set_uint32 cs (8 + off) c;
   Cstruct.BE.set_uint32 cs (12 + off) d
-
-let ipaddr_to_cstruct ?(allocator = Cstruct.create) i =
-  let cs = allocator 16 in
-  ipaddr_to_cstruct_raw i cs 0;
-  cs
 
 let macaddr_to_cstruct_raw x cs off =
   Cstruct.blit_from_string (Macaddr.to_bytes x) 0 cs off 6
@@ -449,9 +429,6 @@ module PrefixList = struct
   let is_local pl ip =
     List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
 
-  let expired pl ~now =
-    List.exists (function (_, Some t) -> t <= now | (_, None) -> false) pl
-
   let tick pl ~now =
     List.filter (function (_, Some t) -> t > now | (_, None) -> true) pl
 
@@ -730,9 +707,6 @@ module RouterList = struct
   let add rl ~now ?(lifetime = max_float) ip =
     (* FIXME *)
     (ip, now +. lifetime) :: rl
-
-  let expired rl ~now =
-    List.exists (fun (_, t) -> t <= now) rl
 
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
   let tick rl ~now =
@@ -1236,7 +1210,7 @@ let handle_ra ~now ctx ~src ~dst ra =
   in
   let ctx, actions' =
     List.fold_left
-      (fun (state, acts) pfx ->
+      (fun (state, _) pfx ->
          let vlft = pfx.pfx_valid_lifetime in
          let prefix_list, acts = PrefixList.handle_ra state.prefix_list ~now ~vlft pfx.pfx_prefix in
          match pfx.pfx_autonomous, vlft with
