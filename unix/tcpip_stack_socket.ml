@@ -62,17 +62,20 @@ module Make(Console:V1_LWT.CONSOLE) = struct
       `Unknown of string
   ]
 
-  let id { id; _ } = id
   let udpv4 { udpv4; _ } = udpv4
   let tcpv4 { tcpv4; _ } = tcpv4
   let ipv4 _ = None
 
   (* List of IP addresses to bind to *)
-  let configure t addrs =
+  let configure _t addrs =
     match addrs with
     | [] -> return_unit
-    | [any] when Ipaddr.V4.(compare any) any = 0 -> return_unit
-    | _ -> Log.warn (fun f -> f "Manager: socket config currently ignored (TODO)"); return_unit
+    | [ip] when (Ipaddr.V4.compare Ipaddr.V4.any ip) = 0 -> return_unit
+    | l ->
+      let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp_hum fmt l in
+      Log.warn (fun f -> f
+		   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
+      return_unit
 
   let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
 
@@ -105,12 +108,12 @@ module Make(Console:V1_LWT.CONSOLE) = struct
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
-      let open Lwt_unix in
-      let fd = socket PF_INET SOCK_STREAM 0 in
-      setsockopt fd SO_REUSEADDR true;
-      let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in (* TODO *)
-      bind fd (ADDR_INET (interface, port));
-      listen fd 10;
+      let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+      Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
+      let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port));
+      Lwt_unix.listen fd 10;
       let rec loop () =
         let continue () =
           (* TODO cancellation *)

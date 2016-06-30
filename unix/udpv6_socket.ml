@@ -34,9 +34,8 @@ let get_udpv6_listening_fd {listen_fds;interface} port =
   try
     Hashtbl.find listen_fds (interface,port)
   with Not_found ->
-    let open Lwt_unix in
-    let fd = socket PF_INET6 SOCK_DGRAM 0 in
-    bind fd (ADDR_INET (interface,port));
+    let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface,port));
     Hashtbl.add listen_fds (interface,port) fd;
     fd
 
