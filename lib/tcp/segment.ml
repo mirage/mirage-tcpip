@@ -266,16 +266,6 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
-  let pp_seg fmt seg =
-    Format.fprintf fmt "[%s%a]"
-      (match seg.flags with
-       | No_flags ->""
-       | Syn ->"SYN "
-       | Fin ->"FIN "
-       | Rst -> "RST "
-       | Psh -> "PSH ")
-      Sequence.pp (len seg)
-
   let ack_segment _ _ = ()
   (* Take any action to the user transmit queue due to this being
      successfully ACKed *)
