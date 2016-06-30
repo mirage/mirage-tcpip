@@ -81,7 +81,7 @@ module Marshal = struct
     set_icmpv4_ty buf (ty_to_int ty);
     set_icmpv4_code buf code;
     set_icmpv4_csum buf 0x0000;
-    subheader_into_cstruct (Cstruct.shift buf 4) subheader;
+    subheader_into_cstruct ~buf:(Cstruct.shift buf 4) subheader;
     let packets = [buf ; payload] in
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
 
@@ -95,52 +95,6 @@ module Marshal = struct
     check_len buf >>= fun () ->
     unsafe_fill t buf ~payload;
     Result.Ok ()
-
-  let make_cstruct t ~payload =
-    let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
-    unsafe_fill t buf ~payload;
-    Result.Ok ()
-
-  let echo ~payload ~ty ~id ~seq =
-    let t = {
-      ty;
-      code = 0x00;
-      subheader = Id_and_seq (id, seq);
-    } in
-    make_cstruct t ~payload
-
-  let echo_request ~payload ~id ~seq =
-    echo ~payload ~ty:Echo_request ~id ~seq
-
-  let echo_reply ~buf ~payload ~id ~seq =
-    echo ~payload ~ty:Echo_reply ~id ~seq
-
-  (** [would_fragment ip_header ip_payload next_hop_mtu] generates an
-      ICMP destination unreachable message, with the code set to 4 ("packet
-      fragmentation is required but the don't-fragment bit is set").  [ip_header] should
-      be the IP header of the packet which will be rejected. *)
-  let would_fragment ~buf ~ip_header ~ip_payload ~next_hop_mtu =
-    (* type 3, code 4 *)
-    let icmp_payload = match Cstruct.len ip_payload with
-      | 0 -> ip_header
-      | n when n <= 8 ->
-        Cstruct.append ip_header ip_payload
-      | n ->
-        Cstruct.append ip_header @@ Cstruct.sub ip_payload 0 8
-    in
-    if (Cstruct.len buf < sizeof_icmpv4 + Cstruct.len icmp_payload) then
-      Result.Error "buf is not large enough for icmp header and payload"
-    else begin
-      set_icmpv4_ty buf (ty_to_int Destination_unreachable);
-      set_icmpv4_code buf (unreachable_reason_to_int Would_fragment);
-      set_icmpv4_csum buf 0x0000;
-      (* this field is unused for icmp destination unreachable *)
-      set_icmpv4_id buf 0x00;
-      set_icmpv4_seq buf next_hop_mtu;
-      let icmp_packet = Cstruct.append buf icmp_payload in
-      set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list [ icmp_packet ]);
-      Result.Ok ()
-    end
 
   let make_cstruct t ~payload =
     let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
