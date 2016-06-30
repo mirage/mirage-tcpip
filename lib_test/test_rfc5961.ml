@@ -133,9 +133,11 @@ let ack_for data =
   match Tcp_unmarshal.of_cstruct data with
   | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
   | Ok (packet, data) ->
-    let data_len = Sequence.of_int ((Cstruct.len data) +
-                   (if packet.fin then 1 else 0) +
-                   (if packet.syn then 1 else 0)) in
+    let open Tcp.Tcp_packet in
+    let data_len =
+      Sequence.of_int ((Cstruct.len data) +
+		       (if packet.fin then 1 else 0) +
+		       (if packet.syn then 1 else 0)) in
     let sequence = packet.sequence in
     let ack_n = Sequence.(add sequence data_len) in
     ack_n

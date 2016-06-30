@@ -95,7 +95,8 @@ let check_response expected buf =
     Alcotest.(check packet) "parsed packet comparison" expected actual
 
 let check_ethif_response expected buf =
-  match Ethif_packet.Unmarshal.of_cstruct buf with
+  let open Ethif_packet in
+  match Unmarshal.of_cstruct buf with
   | Result.Error s -> Alcotest.fail s
   | Result.Ok ({ethertype; _}, arp) ->
     match ethertype with
@@ -442,9 +443,13 @@ let nonsense_requests () =
   three_arp () >>= fun (answerer, inquirer, checker) ->
   A.set_ips answerer.arp [ answerer_ip ] >>= fun () ->
   let request number =
-    let buf = Arpv4_packet.Marshal.make_cstruct @@
-    { op = Arpv4_wire.Request; sha = (V.mac inquirer.netif); tha = Macaddr.broadcast;
-      spa = inquirer_ip; tpa = answerer_ip } in
+    let open Arpv4_packet in
+    let buf = Marshal.make_cstruct @@
+      { op = Arpv4_wire.Request;
+	sha = (V.mac inquirer.netif);
+	tha = Macaddr.broadcast;
+	spa = inquirer_ip;
+	tpa = answerer_ip } in
     Arpv4_wire.set_arp_op buf number;
     let eth_header = { Ethif_packet.source = (V.mac inquirer.netif);
                        destination = Macaddr.broadcast; 

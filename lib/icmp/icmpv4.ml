@@ -14,6 +14,7 @@ module Make(IP : V1_LWT.IPV4) = struct
   }
 
   let input t ~src ~dst buf =
+    let open Icmpv4_packet in
     let should_reply t dst =
       let aux found this =
         match found with
@@ -23,7 +24,7 @@ module Make(IP : V1_LWT.IPV4) = struct
       List.fold_left aux false (IP.get_ip t.ip)
     in
     MProf.Trace.label "icmp_input";
-    match Icmpv4_packet.Unmarshal.of_cstruct buf with
+    match Unmarshal.of_cstruct buf with
     | Result.Error s ->
       Log.info (fun f -> f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
       Lwt.return_unit
@@ -40,11 +41,11 @@ module Make(IP : V1_LWT.IPV4) = struct
           (* get some memory to write in *)
           let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
           let icmp_chunk = Cstruct.shift frame header_len in
-          let icmp = Icmpv4_packet.({ code = 0x00;
-                                      ty   = Icmpv4_wire.Echo_reply;
-                                      subheader = Id_and_seq (id, seq);
-                                    }) in
-          match Icmpv4_packet.Marshal.into_cstruct ~payload icmp icmp_chunk with
+          let icmp = { code = 0x00;
+		       ty   = Icmpv4_wire.Echo_reply;
+		       subheader = Id_and_seq (id, seq);
+		     } in
+          match Marshal.into_cstruct ~payload icmp icmp_chunk with
           | Result.Ok () ->
             let frame = Cstruct.set_len frame header_len in
             IP.writev t.ip frame [icmp_chunk ; payload]

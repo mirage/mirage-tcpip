@@ -45,11 +45,12 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   let tags = Logs.Tag.def "Ethif MAC" pp_mac (* definition for a mac tag *)
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
+    let open Ethif_packet in
     MProf.Trace.label "ethif.input";
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match Ethif_packet.Unmarshal.of_cstruct frame with
+    match Unmarshal.of_cstruct frame with
     | Ok (header, payload) when of_interest header.destination ->
       begin
         let open Ethif_wire in

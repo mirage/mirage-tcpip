@@ -427,6 +427,7 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let process_ack t id ~pkt =
+    let open Tcp_packet in
     let open RXS in
     Logs.(log_with_stats Debug "process-ack" t);
     let ack_number = pkt.header.ack_number in
@@ -469,7 +470,9 @@ struct
       | true , false -> process_syn t id ~listeners ~tx_wnd:parsed.window
                           ~ack_number:parsed.ack_number ~sequence:parsed.sequence
                           ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-      | false, true  -> process_ack t id ~pkt:{ header = parsed; payload}
+      | false, true  ->
+	let open RXS in
+	process_ack t id ~pkt:{ header = parsed; payload}
       | false, false ->
         (* No SYN, ACK, or RST, so just drop it *)
         Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
@@ -477,7 +480,8 @@ struct
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    match Tcp_packet.Unmarshal.of_cstruct data with
+    let open Tcp_packet in
+    match Unmarshal.of_cstruct data with
     | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Result.Ok (pkt, payload) ->
@@ -485,7 +489,7 @@ struct
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
         (* PCB exists, so continue the connection state machine in tcp_input *)
-        (Rx.input t {header = pkt; payload})
+        (Rx.input t RXS.({header = pkt; payload}))
         (* No existing PCB, so check if it is a SYN for a listening function *)
         (input_no_pcb t listeners (pkt, payload))
 
