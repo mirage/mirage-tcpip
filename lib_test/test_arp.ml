@@ -114,7 +114,8 @@ let garp src_mac src_ip =
   }
 
 let fail_on_receipt netif buf = 
-  fail "received traffic when none was expected"
+  Alcotest.fail (Format.asprintf "received traffic when none was expected on interface %s: %a"
+	  (Macaddr.to_string (V.mac netif)) Cstruct.hexdump_pp buf)
 
 let single_check netif expected =
   V.listen netif (fun buf ->
@@ -175,7 +176,7 @@ let three_arp () =
   get_arp ~backend:first.backend () >>= fun third ->
   Lwt.return (first, second, third)
 
-let query_or_die ~arp ~ip ~expected_mac = 
+let query_or_die arp ip expected_mac = 
   A.query arp ip >>= function
   | `Timeout ->
     let pp_ip = Ipaddr.V4.to_string ip in
@@ -193,7 +194,7 @@ let set_and_check listener claimant ip =
   query_or_die listener ip (V.mac claimant.netif)
 
 let start_arp_listener stack () =
-  let noop = (fun buf -> Lwt.return_unit) in
+  let noop = (fun _ -> Lwt.return_unit) in
   E.input ~arpv4:(A.input stack.arp) ~ipv4:noop ~ipv6:noop stack.ethif
 
 let output_then_disconnect ~speak:speak_netif ~disconnect:listen_netif bufs =
@@ -206,7 +207,7 @@ let not_in_cache ~listen probe arp ip =
     single_check listen probe;
     OS.Time.sleep 0.1 >>= fun () ->
     A.query arp ip >>= function
-    | `Ok mac -> fail "entry in cache when it shouldn't be"
+    | `Ok mac -> fail @@ "entry in cache when it shouldn't be" ^ (Macaddr.to_string mac)
     | `Timeout -> Lwt.return_unit
   ]
 
@@ -235,8 +236,7 @@ let set_ip_sends_garp () =
 let add_get_remove_ips () =
   get_arp () >>= fun stack ->
   let check str expected =
-    Alcotest.(check (list ip)) "set ips with duplicate elements result in deduplication"
-      expected (A.get_ips stack.arp)
+    Alcotest.(check (list ip)) str expected (A.get_ips stack.arp)
   in
   check "bound ips is an empty list on startup" [];
   A.set_ips stack.arp [ first_ip; first_ip ] >>= fun () ->
@@ -314,7 +314,7 @@ let input_resolves_wait () =
 let unreachable_times_out () =
   get_arp () >>= fun speak ->
   A.query speak.arp first_ip >>= function
-  | `Ok mac -> fail "query claimed success when impossible"
+  | `Ok mac -> fail @@ "query claimed success when impossible for " ^ (Macaddr.to_string mac)
   | `Timeout -> Lwt.return_unit
 
 let input_replaces_old () =
@@ -360,7 +360,7 @@ let query_retries () =
                                       op  = Arpv4_wire.Request;})
   in
   let how_many = ref 0 in
-  let rec listener buf =
+  let listener buf =
     check_ethif_response expected_query buf;
     if !how_many = 0 then begin
       how_many := !how_many + 1;
@@ -371,7 +371,7 @@ let query_retries () =
     A.query speak.arp first_ip >>= function
     | `Timeout -> fail "Received `Timeout before >1 query";
       Lwt.return_unit
-    | `Ok mac -> fail "got result from query, erroneously";
+    | `Ok mac -> fail(Printf.sprintf"got result from query for %s, erroneously" (Macaddr.to_string mac));
       Lwt.return_unit
   in
   Lwt.pick [
