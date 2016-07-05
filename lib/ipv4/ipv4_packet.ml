@@ -29,11 +29,19 @@ module Unmarshal = struct
   let of_cstruct buf =
     let open Rresult in
     let open Ipv4_wire in
+    let check_version buf =
+      let version n = (n land 0xf0) in
+      match get_ipv4_hlen_version buf |> version with
+      | 0x40 -> Result.Ok buf
+      | n -> Result.Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
+    in
+    let size_check buf =
+      if (Cstruct.len buf < sizeof_ipv4) then Result.Error "buffer sent to IPv4 parser had size < 20"
+      else Result.Ok buf
+    in
     let get_header_length buf =
       let length_of_hlen_version n = (n land 0x0f) * 4 in
-      if (Cstruct.len buf < sizeof_ipv4) then Result.Error "buffer sent to IPv4 parser had size < 20"
-      else begin
-        let hlen = get_ipv4_hlen_version buf |> length_of_hlen_version in
+      let hlen = get_ipv4_hlen_version buf |> length_of_hlen_version in
         if (get_ipv4_len buf) < sizeof_ipv4 then
           Result.Error (Printf.sprintf
                           "total length %d is smaller than minimum header length"
@@ -42,13 +50,9 @@ module Unmarshal = struct
           Result.Error (Printf.sprintf
                           "total length %d is smaller than stated header length %d"
                           (get_ipv4_len buf) hlen)
+        else if hlen < sizeof_ipv4 then Result.Error
+          (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
         else Result.Ok hlen
-      end
-    in
-    let check_header_len options_end =
-      if options_end < sizeof_ipv4 then Result.Error
-          (Printf.sprintf "IPv4 header claimed to have size < 20: %d" options_end)
-      else Result.Ok options_end
     in
     let parse buf options_end =
       let payload_len = (get_ipv4_len buf) - options_end in
@@ -61,9 +65,9 @@ module Unmarshal = struct
         else (Cstruct.create 0)
       in
       let payload = Cstruct.sub buf options_end payload_len in
-      Ok ({src; dst; proto; ttl; options;}, payload)
+      Result.Ok ({src; dst; proto; ttl; options;}, payload)
     in
-    get_header_length buf >>= check_header_len >>= parse buf
+    size_check buf >>= check_version >>= get_header_length >>= parse buf
 end
 module Marshal = struct
   open Ipv4_wire
