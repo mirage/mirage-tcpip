@@ -125,7 +125,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     st.bin_packets <- 0L;
     Lwt.return_unit
 
-  let iperf c s server_done_u flow =
+  let iperf c _s server_done_u flow =
     (* debug is too much for us here *)
     Logs.set_level ~all:true (Some Logs.Info);
     log_s c "Iperf server: Received connection." >>= fun () ->

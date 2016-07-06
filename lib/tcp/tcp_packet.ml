@@ -101,7 +101,7 @@ module Marshal = struct
       if (Cstruct.len buf) < ((Cstruct.len payload) + header_length) then
         Error (Printf.sprintf "Not enough space for header and payload: %d < %d"
                  (Cstruct.len buf) (Cstruct.len payload + header_length))
-      else Ok ((Cstruct.len payload) + sizeof_tcp)
+      else Ok ()
     in
     let insert_options options_frame =
       match t.options with
@@ -117,7 +117,7 @@ module Marshal = struct
     let options_frame = Cstruct.shift buf sizeof_tcp in
     check_header_len () >>= fun () ->
     insert_options options_frame >>= fun options_len ->
-    check_overall_len (sizeof_tcp + options_len) >>= fun len ->
+    check_overall_len (sizeof_tcp + options_len) >>= fun () ->
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     Ok (sizeof_tcp + options_len)
 

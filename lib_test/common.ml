@@ -4,7 +4,7 @@ let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
 
 let or_error name fn t =
   fn t >>= function
-  | `Error e -> fail "or_error starting %s" name
+  | `Error _ -> fail "or_error starting %s" name
   | `Ok t    -> Lwt.return t
 
 let expect_error error name fn t =

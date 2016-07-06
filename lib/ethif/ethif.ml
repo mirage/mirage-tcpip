@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  *)
-open Lwt.Infix
 open Result
 
 let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"
@@ -38,18 +37,15 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     netif: Netif.t;
   }
 
-  let id t = t.netif
   let mac t = Netif.mac t.netif
 
-  let pp_mac fmt mac = Format.fprintf fmt "%s" (Macaddr.to_string mac)
-  let tags = Logs.Tag.def "Ethif MAC" pp_mac (* definition for a mac tag *)
-
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
+    let open Ethif_packet in
     MProf.Trace.label "ethif.input";
     let of_interest dest =
       Macaddr.compare dest (mac t) = 0 || not (Macaddr.is_unicast dest)
     in
-    match Ethif_packet.Unmarshal.of_cstruct frame with
+    match Unmarshal.of_cstruct frame with
     | Ok (header, payload) when of_interest header.destination ->
       begin
         let open Ethif_wire in
@@ -58,7 +54,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
         | IPv4 -> ipv4 payload
         | IPv6 -> ipv6 payload
       end
-    | Ok header -> Lwt.return_unit
+    | Ok _ -> Lwt.return_unit
     | Error s -> Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
       Lwt.return_unit
 

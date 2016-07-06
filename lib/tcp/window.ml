@@ -75,8 +75,8 @@ let pp fmt t =
 (* Initialise the sequence space *)
 let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let tx_nxt = tx_isn in
-  let rx_nxt = Sequence.(incr rx_isn) in
-  let rx_nxt_inseq = Sequence.(incr rx_isn) in
+  let rx_nxt = Sequence.incr rx_isn in
+  let rx_nxt_inseq = Sequence.incr rx_isn in
   (* TODO: improve this sanity check of tx_mss *)
   let tx_mss = match tx_mss with |None -> default_mss |Some mss -> min mss max_mss in
   let snd_una = tx_nxt in

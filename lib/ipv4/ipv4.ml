@@ -34,7 +34,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   type ipaddr = Ipaddr.V4.t
   type prefix = Ipaddr.V4.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
-  type macaddr = Ethif.macaddr
 
   type t = {
     ethif : Ethif.t;
@@ -43,11 +42,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     mutable netmask: Ipaddr.V4.t;
     mutable gateways: Ipaddr.V4.t list;
   }
-
-  let input_arpv4 t buf =
-    Arpv4.input t.arp buf
-
-  let id { ethif; _ } = ethif
 
   module Routing = struct
 
@@ -146,13 +140,15 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let write t frame buf =
     writev t frame [buf]
 
-  let input t ~tcp ~udp ~default buf =
-    match Ipv4_packet.Unmarshal.of_cstruct buf with
+  (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
+  let input _t ~tcp ~udp ~default buf =
+    let open Ipv4_packet in
+    match Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
       Lwt.return_unit
     | Ok (packet, payload) ->
-      match Ipv4_packet.Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
+      match Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
       | Some _, 0 ->
         (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
         Lwt.return_unit

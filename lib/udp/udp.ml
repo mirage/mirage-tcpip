@@ -40,9 +40,8 @@ module Make(Ip: V1_LWT.IP) = struct
     ip : Ip.t;
   }
 
-  let id {ip} = ip
-
-  let input ~listeners t ~src ~dst buf =
+  (* TODO: ought we to check to make sure the destination is relevant here?  Currently we process all incoming packets without making sure they're either unicast for us or otherwise interesting. *)
+  let input ~listeners _t ~src ~dst buf =
     match Udp_packet.Unmarshal.of_cstruct buf with
     | Error s ->
       Log.debug (fun f -> f "Discarding received UDP message: error parsing: %s" s); Lwt.return_unit

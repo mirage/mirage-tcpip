@@ -13,13 +13,13 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt
-open Result
 open Common
 
 (*
- * Connects two stacks to the same backend.  One is a complete v4 stack (the sut).
- * The other gives us low level access to inject crafted TCP packets, and check sut behaviour.
+ * Connects two stacks to the same backend.
+ * One is a complete v4 stack (the system under test, referred to as [sut]).
+ * The other gives us low level access to inject crafted TCP packets,
+ * and sends and receives crafted packets to check the [sut] behavior.
  *)
 module VNETIF_STACK = Vnetif_common.VNETIF_STACK(Vnetif_backends.Basic)
 
@@ -90,12 +90,12 @@ let run backend fsm sut () =
             ~arpv4:(A.input arp)
             ~ipv4:(I.input
                      ~tcp: (fun ~src ~dst data -> pushf (Some(src,dst,data)); Lwt.return_unit)
-                     ~udp:(fun ~src ~dst data -> Lwt.return_unit)
-                     ~default:(fun ~proto ~src ~dst data ->
-                         Console.log_s console "DEFAULT")
+                     ~udp:(fun ~src:_ ~dst:_ _data -> Lwt.return_unit)
+                     ~default:(fun ~proto ~src:_ ~dst:_ _data ->
+                         Console.log_s console (Printf.sprintf "DEFAULT: %d" proto))
                      rawip
                   )
-            ~ipv6:(fun buf -> return (Console.log console "IP6"))
+            ~ipv6:(fun _buf -> Lwt.return (Console.log console "IP6"))
             ethif) ));
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
@@ -116,8 +116,7 @@ let run backend fsm sut () =
     (Lwt_mvar.take error_mbox >>= fun cause ->
      Lwt.return_some cause);
   ] >>= function
-  | None ->
-    Lwt.return_unit
+  | None -> Lwt.return_unit
   | Some err ->
     Alcotest.fail err;
     Lwt.return_unit
@@ -131,11 +130,13 @@ let reply_id_from ~src ~dst data =
 
 let ack_for data =
   match Tcp_unmarshal.of_cstruct data with
-  | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
-  | Ok (packet, data) ->
-    let data_len = Sequence.of_int ((Cstruct.len data) +
-                   (if packet.fin then 1 else 0) +
-                   (if packet.syn then 1 else 0)) in
+  | Result.Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
+  | Result.Ok (packet, data) ->
+    let open Tcp.Tcp_packet in
+    let data_len =
+      Sequence.of_int ((Cstruct.len data) +
+		       (if packet.fin then 1 else 0) +
+		       (if packet.syn then 1 else 0)) in
     let sequence = packet.sequence in
     let ack_n = Sequence.(add sequence data_len) in
     ack_n
@@ -151,8 +152,9 @@ let ack_from_past data off =
 
 let fail_result_not_expected fail = function
   | `Ok data ->
-    fail "data not expected"
-  | `Error err ->
+    Alcotest.fail (Format.asprintf "data not expected but received: %a"
+		     Cstruct.hexdump_pp data)
+  | `Error _err ->
     fail "error not expected"
   | `Eof ->
     fail "eof"
@@ -162,18 +164,18 @@ let fail_result_not_expected fail = function
 
 
 (* Common sut: able to connect, connection not reset, no data received *)
-let sut_connects_and_remains_connected console stack fail_callback =
+let sut_connects_and_remains_connected _console stack fail_callback =
   let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
   or_error "connect" conn (server_ip, 80) >>= fun flow ->
   (* We must remain blocked on read, connection shouldn't be terminated.
-   * If after half second that remains true, assume test succed *)
+   * If after half second that remains true, assume test succeeds *)
   Lwt.pick [
     (VNETIF_STACK.Stackv4.TCPV4.read flow >>= fail_result_not_expected fail_callback);
     OS.Time.sleep 0.5 ]
 
 
 let blind_rst_on_syn_scenario =
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -199,7 +201,7 @@ let blind_rst_on_syn_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let connection_refused_scenario =
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -212,7 +214,7 @@ let connection_refused_scenario =
         Lwt.return Fsm_done
       ) else
         Lwt.return (Fsm_error "Expected initial syn request") in
-  let sut console stack fail =
+  let sut _console stack _fail =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
     (* connection must be rejected *)
     expect_error `Refused "connect" conn (server_ip, 80) in 
@@ -220,7 +222,7 @@ let connection_refused_scenario =
 
 
 let blind_rst_on_established_scenario =
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -250,7 +252,7 @@ let blind_rst_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let rst_on_established_scenario =
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -272,7 +274,7 @@ let rst_on_established_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance") in
 
-  let sut console stack fail_callback =
+  let sut _console stack fail_callback =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
     or_error "connect" conn (server_ip, 80) >>= fun flow ->
     VNETIF_STACK.Stackv4.TCPV4.read flow >>= function
@@ -284,7 +286,7 @@ let rst_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut
 
 let blind_syn_on_established_scenario =
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -315,7 +317,7 @@ let blind_syn_on_established_scenario =
 let blind_data_injection_scenario =
   let page = Io_page.to_cstruct (Io_page.get 1) in
   let page = Cstruct.set_len page 512 in
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -349,7 +351,7 @@ let data_repeated_ack_scenario =
   (* This is the just data transmission with ack in the past but within the acceptable window *)
   let page = Io_page.to_cstruct (Io_page.get 1) in
   let page = Cstruct.set_len page 512 in
-  let fsm console ip state ~src ~dst data =
+  let fsm _console ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
       let syn = Tcp_wire.get_syn data in
@@ -376,13 +378,12 @@ let data_repeated_ack_scenario =
       else
         Lwt.return (Fsm_error "Ack for data expected") in
 
-  let sut console stack fail_callback =
+  let sut _console stack fail_callback =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
     or_error "connect" conn (server_ip, 80) >>= fun flow ->
     (* We should receive the data *)
     VNETIF_STACK.Stackv4.TCPV4.read flow >>= function
-    | `Ok data ->
-      Lwt.return_unit
+    | `Ok _ -> Lwt.return_unit
     | other -> fail_result_not_expected fail_callback other in
   (`WAIT_FOR_SYN, fsm), sut
 
