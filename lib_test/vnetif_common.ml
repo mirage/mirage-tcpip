@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Common
 
 (* TODO Some of these modules and signatures could eventually be moved to mirage-vnetif *)
@@ -83,11 +82,11 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | `Error e -> fail "Error occured while registering to backend"
+    | `Error _ -> fail "Error occured while registering to backend"
     | `Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =
-    B.set_listen_fn backend id (fun buf -> Lwt.return_unit)
+    B.set_listen_fn backend id (fun _buf -> Lwt.return_unit)
 
   let create_pcap_recorder backend channel =
     let header_buf = Cstruct.create Pcap.sizeof_pcap_header in

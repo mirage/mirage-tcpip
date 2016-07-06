@@ -6,7 +6,7 @@ let errors ?(check_msg = false) exp = function
   | Ok opt ->
     Alcotest.fail (Format.asprintf "Result.Ok %a when Result.error %s expected"
                      Tcp.Options.pps opt exp)
-  | Error p -> if check_msg then Alcotest.(check string) "Result.Error didn't give the expected error message" exp p else ()
+  | Error p -> if check_msg then Alcotest.check Alcotest.string "Result.Error didn't give the expected error message" exp p else ()
 
 let test_unmarshal_bad_mss () =
   let odd_sized_mss = Cstruct.create 3 in
@@ -116,7 +116,7 @@ let test_unmarshal_random_data () =
       Cstruct.hexdump random;
       (* acceptable outcomes: some list of options or the expected exception *)
       match Tcp.Options.unmarshal random with
-      | Error s -> (* Errors are OK, just finish *) Lwt.return_unit
+      | Error _ -> (* Errors are OK, just finish *) Lwt.return_unit
       | Ok l ->
         Tcp.Options.pps Format.std_formatter l;
         (* a really basic truth: the longest list we can have is 64 noops *)

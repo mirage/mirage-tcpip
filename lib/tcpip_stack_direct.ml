@@ -46,7 +46,6 @@ struct
   type mode = V1_LWT.direct_stack_config
   type id = (console, netif, mode) config
   type buffer = Cstruct.t
-  type arpv4 = Arpv4.t
   type ipv4addr = Ipaddr.V4.t
   type tcpv4 = Tcpv4.t
   type udpv4 = Udpv4.t
@@ -75,7 +74,6 @@ struct
       `Unknown of string
   ]
 
-  let id { id; _ } = id
   let tcpv4 { tcpv4; _ } = tcpv4
   let udpv4 { udpv4; _ } = udpv4
   let ipv4 { ipv4; _ } = ipv4
@@ -181,7 +179,7 @@ struct
     Log.info (fun f -> f "Manager: configuration done");
     Lwt.return (`Ok t)
 
-  let disconnect t =
+  let disconnect _t =
     (* TODO: kill the listening thread *)
     Log.info (fun f -> f "Manager: disconnect");
     Lwt.return_unit

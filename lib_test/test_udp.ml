@@ -1,7 +1,7 @@
 let fails msg f args =
   match f args with
-  | Result.Ok p -> Alcotest.fail msg
-  | Result.Error s -> ()
+  | Result.Ok _ -> Alcotest.fail msg
+  | Result.Error _ -> ()
 
 let cstruct =
   let module M = struct
@@ -10,6 +10,8 @@ let cstruct =
     let equal = Cstruct.equal
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
+
+let packet = (module Udp_packet : Alcotest.TESTABLE with type t = Udp_packet.t)
 
 let marshal_unmarshal () =
   let parse = Udp_packet.Unmarshal.of_cstruct in
@@ -24,7 +26,7 @@ let marshal_unmarshal () =
   let with_data = Cstruct.concat [with_data; payload] in
   match Udp_packet.Unmarshal.of_cstruct with_data with
   | Result.Error s -> Alcotest.fail s
-  | Result.Ok (header, data) ->
+  | Result.Ok (_header, data) ->
     Alcotest.(check cstruct) "unmarshalling gives expected data" payload data;
     Lwt.return_unit
 

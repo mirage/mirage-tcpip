@@ -70,8 +70,6 @@ struct
 
   let ip { ip; _ } = ip
 
-  let verify_checksum _ _ _ = true
-
   let wscale_default = 2
 
   module Tx = struct
@@ -150,7 +148,7 @@ struct
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
     let thread (pcb:pcb) ~rx_data =
-      let { wnd; ack; urx; } = pcb in
+      let { wnd; ack; urx; _ } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
         Lwt_mvar.take rx_data >>= fun (data, winadv) ->
@@ -328,7 +326,7 @@ struct
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
     if Hashtbl.mem t.listens id then (
-      Log.debug (fun f -> f "duplicate attempt to make a connection: %a .
+      Log.debug (fun f -> f "duplicate attempt to make a connection: %a .\
       Removing the old state and replacing with new attempt" WIRE.pp_id id);
       Hashtbl.remove t.listens id;
       Stats.decr_listen ();
@@ -355,18 +353,21 @@ struct
     TXS.output pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
+  let is_correct_ack ~tx_isn ~ack_number =
+   (Sequence.compare (Sequence.incr tx_isn) ack_number) = 0
+
   let process_reset t id ~ack ~ack_number =
     Logs.(log_with_stats Debug "process-reset" t);
     if ack then
         match hashtbl_find t.connects id with
         | Some (wakener, tx_isn) ->
           (* We don't send data in the syn request, so the expected ack is tx_isn + 1 *)
-          if Sequence.(compare (incr tx_isn) ack_number = 0) then (
+          if is_correct_ack ~tx_isn ~ack_number then begin
             Hashtbl.remove t.connects id;
             Stats.decr_connect ();
             Lwt.wakeup wakener `Rst;
             Lwt.return_unit
-          ) else
+          end else
             Lwt.return_unit
         | None ->
           match hashtbl_find t.listens id with
@@ -387,7 +388,7 @@ struct
     Logs.(log_with_stats Debug "process-synack" t);
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn) ->
-      if Sequence.(compare (incr tx_isn) ack_number = 0) then (
+      if is_correct_ack ~tx_isn ~ack_number then (
         Hashtbl.remove t.connects id;
         Stats.decr_connect ();
         let rx_wnd = 65535 in
@@ -429,13 +430,9 @@ struct
   let process_ack t id ~pkt =
     let open RXS in
     Logs.(log_with_stats Debug "process-ack" t);
-    let ack_number = pkt.header.ack_number in
-    let sequence = pkt.header.sequence in
-    let syn = pkt.header.syn in
-    let fin = pkt.header.fin in
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
-      if Sequence.(compare (incr tx_isn) ack_number = 0) then (
+      if Tcp_packet.(is_correct_ack ~tx_isn ~ack_number:pkt.header.ack_number) then begin
         (* Established connection - promote to active channels *)
         Hashtbl.remove t.listens id;
         Stats.decr_listen ();
@@ -445,7 +442,7 @@ struct
         Rx.input t pkt newconn >>= fun () ->
         (* send new connection up to listener *)
         pushf (fst newconn)
-      ) else
+      end else
         (* No RST because we are trying to connect on this id *)
         Lwt.return_unit
     | None ->
@@ -454,30 +451,29 @@ struct
         (* No RST because we are trying to connect on this id *)
         Lwt.return_unit
       | None ->
+        let { sequence; Tcp_packet.ack_number; syn; fin; _ } = pkt.header in
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
 
   let input_no_pcb t listeners (parsed, payload) id =
-    let open Tcp_packet in
-    match parsed.rst with
-    | true -> process_reset t id ~ack:parsed.ack ~ack_number:parsed.ack_number
-    | false ->
-      match parsed.syn, parsed.ack with
-      | true , true  -> process_synack t id ~ack_number:parsed.ack_number
-                          ~sequence:parsed.sequence ~tx_wnd:parsed.window
-                          ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-      | true , false -> process_syn t id ~listeners ~tx_wnd:parsed.window
-                          ~ack_number:parsed.ack_number ~sequence:parsed.sequence
-                          ~options:parsed.options ~syn:parsed.syn ~fin:parsed.fin
-      | false, true  -> process_ack t id ~pkt:{ header = parsed; payload}
-      | false, false ->
-        (* No SYN, ACK, or RST, so just drop it *)
-        Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
-        Lwt.return_unit
+    let { sequence; Tcp_packet.ack_number; window; options; syn; fin; rst; ack; _ } = parsed in
+    match rst, syn, ack with
+    | true, _, _ -> process_reset t id ~ack ~ack_number
+    | false, true, true ->
+      process_synack t id ~ack_number ~sequence ~tx_wnd:window ~options ~syn ~fin
+    | false, true , false -> process_syn t id ~listeners ~tx_wnd:window
+			       ~ack_number ~sequence ~options ~syn ~fin
+    | false, false, true  ->
+      let open RXS in
+      process_ack t id ~pkt:{ header = parsed; payload}
+    | false, false, false ->
+      Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
+      Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
-    match Tcp_packet.Unmarshal.of_cstruct data with
+    let open Tcp_packet in
+    match Unmarshal.of_cstruct data with
     | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Result.Ok (pkt, payload) ->
@@ -485,7 +481,7 @@ struct
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
         (* PCB exists, so continue the connection state machine in tcp_input *)
-        (Rx.input t {header = pkt; payload})
+        (Rx.input t RXS.({header = pkt; payload}))
         (* No existing PCB, so check if it is a SYN for a listening function *)
         (input_no_pcb t listeners (pkt, payload))
 
@@ -555,7 +551,7 @@ struct
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id = WIRE.wire ~src:(Ip.src t.ip dst)
+      let id = WIRE.wire ~src:(Ip.src t.ip ~dst)
           ~src_port:t.localport ~dst ~dst_port in
       if inuse t id then bumpport t else id
     in

@@ -41,9 +41,9 @@ let error_message = function
   | `Timeout -> "Timeout while attempting to connect"
   | `Refused -> "Connection refused"
 
-let connect id =
+let connect addr =
   let t =
-    match id with
+    match addr with
     | None -> { interface=None }
     | Some ip -> { interface=Some (Ipaddr_unix.V6.to_inet_addr ip) }
   in
@@ -51,11 +51,6 @@ let connect id =
 
 let disconnect _ =
   return_unit
-
-let id {interface} =
-  match interface with
-  | None -> None
-  | Some i -> Some (Ipaddr_unix.V6.of_inet_addr_exn i)
 
 let dst fd =
   match Lwt_unix.getpeername fd with

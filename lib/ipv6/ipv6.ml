@@ -37,8 +37,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     [ `Unimplemented
     | `Unknown of string ]
 
-  let id { ethif } = ethif
-
   let start_ticking t =
     let rec loop () =
       let now = C.time () in
@@ -67,7 +65,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let input t ~tcp ~udp ~default buf =
     let now = C.time () in
-    let ctx, bufs, actions = Ndpv6.handle ~now t.ctx buf in
+    let _, bufs, actions = Ndpv6.handle ~now t.ctx buf in
     Lwt_list.iter_s (function
         | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
         | `Udp (src, dst, buf) -> udp ~src ~dst buf

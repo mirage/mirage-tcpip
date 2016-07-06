@@ -51,11 +51,6 @@ let connect id =
 let disconnect _ =
   return_unit
 
-let id {interface} =
-  match interface with
-  | None -> None
-  | Some i -> Some (Ipaddr_unix.V4.of_inet_addr_exn i)
-
 let dst fd =
   match Lwt_unix.getpeername fd with
   | Unix.ADDR_UNIX _ ->

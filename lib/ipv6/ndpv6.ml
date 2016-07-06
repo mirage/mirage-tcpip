@@ -70,32 +70,17 @@ end
 
 module PacketQueue = BoundedMap (Ipaddr)
 
-let interface_addr mac =
-  let bmac = Macaddr.to_bytes mac in
-  let c i = Char.code (Bytes.get bmac i) in
-  Ipaddr.make
-    0 0 0 0
-    ((c 0 lxor 2) lsl 8 + c 1)
-    (c 2 lsl 8 + 0xff)
-    (0xfe00 + c 3)
-    (c 4 lsl 8 + c 5)
-
-let link_local_addr mac =
-  Ipaddr.(Prefix.network_address
-            (Prefix.make 64 (make 0xfe80 0 0 0 0 0 0 0))
-            (interface_addr mac))
-
 let solicited_node_prefix =
   Ipaddr.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
 module Defaults = struct
-  let max_rtr_solicitation_delay = 1.0
-  let ptr_solicitation_interval  = 4
-  let max_rtr_solicitations      = 3
+  let _max_rtr_solicitation_delay = 1.0
+  let _ptr_solicitation_interval  = 4
+  let _max_rtr_solicitations      = 3
   let max_multicast_solicit      = 3
   let max_unicast_solicit        = 3
-  let max_anycast_delay_time     = 1
-  let max_neighbor_advertisement = 3
+  let _max_anycast_delay_time     = 1
+  let _max_neighbor_advertisement = 3
   let delay_first_probe_time     = 5.0
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
@@ -122,11 +107,6 @@ let ipaddr_to_cstruct_raw i cs off =
   Cstruct.BE.set_uint32 cs (4 + off) b;
   Cstruct.BE.set_uint32 cs (8 + off) c;
   Cstruct.BE.set_uint32 cs (12 + off) d
-
-let ipaddr_to_cstruct ?(allocator = Cstruct.create) i =
-  let cs = allocator 16 in
-  ipaddr_to_cstruct_raw i cs 0;
-  cs
 
 let macaddr_to_cstruct_raw x cs off =
   Cstruct.blit_from_string (Macaddr.to_bytes x) 0 cs off 6
@@ -202,7 +182,7 @@ module Allocate = struct
     let header_len = Ethif_wire.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
     (ethernet_frame, header_len)
 
-  let error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
+  let _error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
     let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
     let maxbuf = Defaults.min_link_mtu - (header_len + Ipv6_wire.sizeof_icmpv6) in
@@ -251,8 +231,9 @@ module Allocate = struct
   let rs ~mac select_source =
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
+    let cmp = Ipaddr.compare in
     let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
-    let include_slla = Ipaddr.(compare src unspecified) != 0 in
+    let include_slla = (cmp src Ipaddr.unspecified) != 0 in
     let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
     let eth_frame =
       Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + slla_len)
@@ -379,7 +360,7 @@ module AddressList = struct
         ips, acts
       ) al ([], [])
 
-  let expired al ~now =
+  let _expired al ~now =
     List.exists (function
         | _, TENTATIVE (_, _, t)
         | _, PREFERRED (Some (t, _))
@@ -415,7 +396,7 @@ module AddressList = struct
   let configure al ~now ~retrans_timer ~lft mac pfx =
     (* FIXME is this the same as add ? *)
     match find_prefix al pfx with
-    | Some addr ->
+    | Some _addr ->
       (* TODO handle already configured SLAAC address 5.5.3 e). *)
       al, []
     | None ->
@@ -448,9 +429,6 @@ module PrefixList = struct
 
   let is_local pl ip =
     List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
-
-  let expired pl ~now =
-    List.exists (function (_, Some t) -> t <= now | (_, None) -> false) pl
 
   let tick pl ~now =
     List.filter (function (_, Some t) -> t > now | (_, None) -> true) pl
@@ -729,10 +707,8 @@ module RouterList = struct
 
   let add rl ~now ?(lifetime = max_float) ip =
     (* FIXME *)
+    (* yomimono 2016-06-30: fix what? *)
     (ip, now +. lifetime) :: rl
-
-  let expired rl ~now =
-    List.exists (fun (_, t) -> t <= now) rl
 
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
   let tick rl ~now =
@@ -751,12 +727,12 @@ module RouterList = struct
       end
     | false ->
       if lft > 0.0 then begin
-        Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
-        (src, now +. lft) :: rl, []
+	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
+        (add rl ~now ~lifetime:lft src), []
       end else
         rl, []
 
-  let add rl ~now ip =
+  let add rl ~now:_ ip =
     match List.mem_assoc ip rl with
     | true -> rl
     | false -> (ip, max_float) :: rl
@@ -1199,11 +1175,11 @@ let get_ip ctx =
 
 let allocate_frame ctx dst proto =
   let proto = Ipv6_wire.protocol_to_int proto in
-  let src = AddressList.select_source ctx.address_list dst in
+  let src = AddressList.select_source ctx.address_list ~dst in
   Allocate.frame ~mac:ctx.mac ~src ~hlim:ctx.cur_hop_limit ~dst ~proto
 
 let select_source ctx dst =
-  AddressList.select_source ctx.address_list dst
+  AddressList.select_source ctx.address_list ~dst
 
 let handle_ra ~now ctx ~src ~dst ra =
   Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
@@ -1236,7 +1212,7 @@ let handle_ra ~now ctx ~src ~dst ra =
   in
   let ctx, actions' =
     List.fold_left
-      (fun (state, acts) pfx ->
+      (fun (state, _) pfx ->
          let vlft = pfx.pfx_valid_lifetime in
          let prefix_list, acts = PrefixList.handle_ra state.prefix_list ~now ~vlft pfx.pfx_prefix in
          match pfx.pfx_autonomous, vlft with
@@ -1320,7 +1296,7 @@ let handle ~now ctx buf =
     let dst = src
     and src =
       if Ipaddr.is_multicast dst then
-        AddressList.select_source ctx.address_list dst
+        AddressList.select_source ctx.address_list ~dst
       else
         dst
     in

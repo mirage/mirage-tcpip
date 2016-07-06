@@ -62,14 +62,13 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
     | `Refused -> "Connection refused"
 
   let err_rewrite = function
-    | Result.Error s -> `Error `Refused
+    | Result.Error _ -> `Error `Refused
     | Result.Ok ()   -> `Ok ()
 
   let err_raise = function
-    | Result.Error s -> Lwt.fail Refused
+    | Result.Error _ -> Lwt.fail Refused
     | Result.Ok ()   -> Lwt.return_unit
 
-  let id = Pcb.ip
   let dst = Pcb.dst
   let close t = Pcb.close t
   let input = Pcb.input
