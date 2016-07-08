@@ -50,7 +50,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     | `Eof     -> err_read_eof ()
     | `Error e -> err_read e
     | `Ok b    ->
-      OS.Time.sleep 0.1 >>= fun () ->
+      Lwt_unix.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
       assert_string "accept" expected (Cstruct.to_string b);
       Logs.debug (fun f -> f "Connection closed");

@@ -23,9 +23,10 @@ open Common
  *)
 module VNETIF_STACK = Vnetif_common.VNETIF_STACK(Vnetif_backends.Basic)
 
+module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Vnetif_common.Clock)(Vnetif_common.Time)
+module A = Arpv4.Make(E)(Vnetif_common.Clock)(Time)
 module I = Ipv4.Make(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
@@ -100,7 +101,7 @@ let run backend fsm sut () =
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
   Lwt.pick [
-    (OS.Time.sleep 5.0 >>= fun () ->
+    (Time.sleep 5.0 >>= fun () ->
      Lwt.return_some "timed out");
 
     (Lwt.join [
@@ -108,9 +109,9 @@ let run backend fsm sut () =
 
         (* time to let the other end connects to the network and listen.
          * Otherwise initial syn might need to be repeated slowing down the test *)
-        (OS.Time.sleep 0.1 >>= fun () -> 
+        (Time.sleep 0.1 >>= fun () -> 
          sut stackv4 (Lwt_mvar.put error_mbox) >>= fun _ ->
-         OS.Time.sleep 0.1);
+         Time.sleep 0.1);
       ] >>= fun () -> Lwt.return_none);
 
     (Lwt_mvar.take error_mbox >>= fun cause ->
@@ -171,7 +172,7 @@ let sut_connects_and_remains_connected stack fail_callback =
    * If after half second that remains true, assume test succeeds *)
   Lwt.pick [
     (VNETIF_STACK.Stackv4.TCPV4.read flow >>= fail_result_not_expected fail_callback);
-    OS.Time.sleep 0.5 ]
+    Time.sleep 0.5 ]
 
 
 let blind_rst_on_syn_scenario =
