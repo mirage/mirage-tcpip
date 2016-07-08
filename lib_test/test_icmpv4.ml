@@ -1,9 +1,10 @@
 open Result
 
+module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Clock)(OS.Time)
+module A = Arpv4.Make(E)(Clock)(Time)
 
 open Lwt.Infix
 
@@ -89,7 +90,7 @@ let testbind x y =
 let (>>=?) = testbind
 
 let slowly fn =
-  OS.Time.sleep 0.1 >>= fun () -> fn >>= fun () -> OS.Time.sleep 0.1
+  Time.sleep 0.1 >>= fun () -> fn >>= fun () -> Time.sleep 0.1
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
