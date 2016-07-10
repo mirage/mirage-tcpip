@@ -32,120 +32,117 @@ module type TCPV4_SOCKET = V1_LWT.TCP
 module Tcpv4 = Tcpv4_socket
 module Udpv4 = Udpv4_socket
 
-module Make(Console:V1_LWT.CONSOLE) = struct
-  type +'a io = 'a Lwt.t
-  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
-  type console = Console.t
-  type netif = Ipaddr.V4.t list
-  type mode = unit
-  type id = (console, netif, mode) config
-  type buffer = Cstruct.t
-  type ipv4addr = Ipaddr.V4.t
+type +'a io = 'a Lwt.t
+type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+type netif = Ipaddr.V4.t list
+type mode = unit
+type id = (netif, mode) config
+type buffer = Cstruct.t
+type ipv4addr = Ipaddr.V4.t
 
-  module TCPV4 = Tcpv4_socket
-  module UDPV4 = Udpv4_socket
-  module IPV4  = Ipv4_socket
+module TCPV4 = Tcpv4_socket
+module UDPV4 = Udpv4_socket
+module IPV4  = Ipv4_socket
 
-  type udpv4 = Udpv4_socket.t
-  type tcpv4 = Tcpv4_socket.t
-  type ipv4  = Ipaddr.V4.t option
+type udpv4 = Udpv4_socket.t
+type tcpv4 = Tcpv4_socket.t
+type ipv4  = Ipaddr.V4.t option
 
-  type t = {
-    id    : id;
-    udpv4 : Udpv4.t;
-    tcpv4 : Tcpv4.t;
-    udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
-    tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
-  }
+type t = {
+  id    : id;
+  udpv4 : Udpv4.t;
+  tcpv4 : Tcpv4.t;
+  udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
+  tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
+}
 
-  type error = [
-      `Unknown of string
-  ]
+type error = [
+    `Unknown of string
+]
 
-  let udpv4 { udpv4; _ } = udpv4
-  let tcpv4 { tcpv4; _ } = tcpv4
-  let ipv4 _ = None
+let udpv4 { udpv4; _ } = udpv4
+let tcpv4 { tcpv4; _ } = tcpv4
+let ipv4 _ = None
 
-  (* List of IP addresses to bind to *)
-  let configure _t addrs =
-    match addrs with
-    | [] -> return_unit
-    | [ip] when (Ipaddr.V4.compare Ipaddr.V4.any ip) = 0 -> return_unit
-    | l ->
-      let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp_hum fmt l in
-      Log.warn (fun f -> f
-		   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
+(* List of IP addresses to bind to *)
+let configure _t addrs =
+  match addrs with
+  | [] -> return_unit
+  | [ip] when (Ipaddr.V4.compare Ipaddr.V4.any ip) = 0 -> return_unit
+  | l ->
+    let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp_hum fmt l in
+    Log.warn (fun f -> f
+              "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
+    return_unit
+
+let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
+
+let listen_udpv4 t ~port callback =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (err_invalid_port port))
+  else
+    let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
+    let buf = Cstruct.create 4096 in
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_cstruct.recvfrom fd buf []
+      >>= fun (len, sa) ->
+      let buf = Cstruct.sub buf 0 len in
+      begin match sa with
+            | Lwt_unix.ADDR_INET (addr, src_port) ->
+               let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
+               let dst = Ipaddr.V4.any in (* TODO *)
+               callback ~src ~dst ~src_port buf
+            | _ -> return_unit
+      end >>= fun () ->
+      continue ()
+    in
+    (* FIXME: we should not ignore the result *)
+    ignore_result (loop ())
+
+let listen_tcpv4 _t ~port callback =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (err_invalid_port port))
+  else
+    let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+    Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+    (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
+    let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
+    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port));
+    Lwt_unix.listen fd 10;
+    let rec loop () =
+      let continue () =
+        (* TODO cancellation *)
+        if true then loop () else return_unit in
+      Lwt_unix.accept fd
+      >>= fun (afd, _) ->
+      Lwt.async (fun () ->
+                 Lwt.catch
+                   (fun () -> callback afd)
+                   (fun _ -> return_unit)
+                );
       return_unit
+      >>= fun () ->
+      continue ();
+    in
+    (* FIXME: we should not ignore the result *)
+    ignore_result (loop ())
 
-  let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
+let listen _t =
+  let t, _ = Lwt.task () in
+  t (* TODO cancellation *)
 
-  let listen_udpv4 t ~port callback =
-    if port < 0 || port > 65535 then
-      raise (Invalid_argument (err_invalid_port port))
-    else
-      let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
-      let buf = Cstruct.create 4096 in
-      let rec loop () =
-        let continue () =
-          (* TODO cancellation *)
-          if true then loop () else return_unit in
-        Lwt_cstruct.recvfrom fd buf []
-        >>= fun (len, sa) ->
-        let buf = Cstruct.sub buf 0 len in
-        begin match sa with
-              | Lwt_unix.ADDR_INET (addr, src_port) ->
-                 let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
-                 let dst = Ipaddr.V4.any in (* TODO *)
-                 callback ~src ~dst ~src_port buf
-              | _ -> return_unit
-        end >>= fun () ->
-        continue ()
-      in
-      (* FIXME: we should not ignore the result *)
-      ignore_result (loop ())
+let connect id udpv4 tcpv4 =
+  let { V1_LWT.interface; _ } = id in
+  Log.info (fun f -> f "Manager: connect");
+  let udpv4_listeners = Hashtbl.create 7 in
+  let tcpv4_listeners = Hashtbl.create 7 in
+  let t = { id; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+  Log.info (fun f -> f "Manager: configuring");
+  configure t interface
+  >>= fun () ->
+  return (`Ok t)
 
-  let listen_tcpv4 _t ~port callback =
-    if port < 0 || port > 65535 then
-      raise (Invalid_argument (err_invalid_port port))
-    else
-      let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
-      Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
-      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
-      let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
-      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port));
-      Lwt_unix.listen fd 10;
-      let rec loop () =
-        let continue () =
-          (* TODO cancellation *)
-          if true then loop () else return_unit in
-        Lwt_unix.accept fd
-        >>= fun (afd, _) ->
-        Lwt.async (fun () ->
-                   Lwt.catch
-                     (fun () -> callback afd)
-                     (fun _ -> return_unit)
-                  );
-        return_unit
-        >>= fun () ->
-        continue ();
-      in
-      (* FIXME: we should not ignore the result *)
-      ignore_result (loop ())
-
-  let listen _t =
-    let t, _ = Lwt.task () in
-    t (* TODO cancellation *)
-
-  let connect id udpv4 tcpv4 =
-    let { V1_LWT.interface; _ } = id in
-    Log.info (fun f -> f "Manager: connect");
-    let udpv4_listeners = Hashtbl.create 7 in
-    let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
-    Log.info (fun f -> f "Manager: configuring");
-    configure t interface
-    >>= fun () ->
-    return (`Ok t)
-
-  let disconnect _ = return_unit
-end
+let disconnect _ = return_unit
