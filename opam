@@ -43,10 +43,9 @@ depends: [
   "ocamlfind" {build}
   "result"
   "rresult"
-  "cstruct" {>= "1.9.0"}
+  "cstruct" {>= "2.1.0"}
   "ppx_tools"
   "mirage-types" {>= "2.8.0"}
-  "mirage-console"
   "mirage-clock-unix" {>= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile" {>= "0.5"}

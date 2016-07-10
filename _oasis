@@ -168,7 +168,7 @@ Executable test
   BuildDepends:       alcotest,oUnit,lwt,lwt.unix,io-page.unix,
                       logs,logs.fmt,
                       mirage-profile,mirage-flow,mirage-vnetif,
-                      mirage-console.unix,mirage-clock-unix,pcap-format,
+                      mirage-clock-unix,pcap-format,
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4
 

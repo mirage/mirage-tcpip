@@ -22,7 +22,6 @@ let (>>=) = Lwt.(>>=)
 
 module Test_iperf (B : Vnetif_backends.Backend) = struct
 
-  module C = Console
   module V = VNETIF_STACK (B)
 
   let backend = V.create_backend ()
@@ -80,8 +79,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let err = V.Stackv4.TCPV4.error_message e in
     fail "Error in server while reading: %s" err
 
-  let log_s c fmt = Printf.ksprintf (C.log_s c) (fmt ^^ "%!")
-
   let write_and_check flow buf =
     V.Stackv4.TCPV4.write flow buf >>= function
     | `Ok ()   -> Lwt.return_unit
@@ -93,9 +90,9 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     | `Error e -> err_connect e ip port ()
     | `Ok f    -> Lwt.return f
 
-  let iperfclient c s amt dest_ip dport =
+  let iperfclient s amt dest_ip dport =
     let iperftx flow =
-      log_s c "Iperf client: Made connection to server." >>= fun () ->
+    Logs.info (fun f -> f  "Iperf client: Made connection to server.");
       let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
       Cstruct.blit_from_string msg 0 a 0 mlen;
       let rec loop = function
@@ -107,28 +104,29 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       write_and_check flow a >>= fun () ->
       V.Stackv4.TCPV4.close flow
     in
-    log_s c "Iperf client: Attempting connection." >>= fun () ->
+    Logs.info (fun f -> f  "Iperf client: Attempting connection.");
     tcp_connect (V.Stackv4.tcpv4 s) (dest_ip, dport) >>= fun flow ->
     iperftx flow >>= fun () ->
-    log_s c "Iperf client: Done."
+    Logs.debug (fun f -> f  "Iperf client: Done.");
+    Lwt.return_unit
 
-  let print_data c st ts_now =
+  let print_data st ts_now =
     let server = ts_now -. st.start_time in
     let rate =
       (Int64.to_float st.bin_bytes /. (ts_now -. st.last_time)) /. 125.
     in
     let live_words = Gc.((stat()).live_words) in
-    log_s c "Iperf server: t = %.0f, rate = %.0fd KBits/s, totbytes = %Ld, \
-             live_words = %d" server rate st.bytes live_words >>= fun () ->
+    Logs.debug (fun f -> f  "Iperf server: t = %.0f, rate = %.0fd KBits/s, totbytes = %Ld, \
+             live_words = %d" server rate st.bytes live_words);
     st.last_time <- ts_now;
     st.bin_bytes <- 0L;
     st.bin_packets <- 0L;
     Lwt.return_unit
 
-  let iperf c _s server_done_u flow =
+  let iperf _s server_done_u flow =
     (* debug is too much for us here *)
     Logs.set_level ~all:true (Some Logs.Info);
-    log_s c "Iperf server: Received connection." >>= fun () ->
+    Logs.info (fun f -> f  "Iperf server: Received connection.");
     let t0 = Clock.time () in
     let st = {
       bytes=0L; packets=0L; bin_bytes=0L; bin_packets=0L; start_time = t0;
@@ -143,9 +141,10 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
-        print_data c st ts_now >>= fun () ->
+        print_data st ts_now >>= fun () ->
         V.Stackv4.TCPV4.close flow >>= fun () ->
-        C.log_s c "Iperf server: Done - closed connection."
+        Logs.info (fun f -> f  "Iperf server: Done - closed connection.");
+        Lwt.return_unit
       | `Ok data ->
         begin
           let l = Cstruct.len data in
@@ -155,7 +154,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
           st.bin_packets <- (Int64.add st.bin_packets 1L);
           let ts_now = (Clock.time ()) in
           (if ((ts_now -. st.last_time) >= 1.0) then
-             print_data c st ts_now
+             print_data st ts_now
            else
              Lwt.return_unit) >>= fun () ->
           iperf_h flow
@@ -166,7 +165,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.return_unit
 
   let tcp_iperf amt () =
-    or_error "console" C.connect "console" >>= fun c ->
     let port = 5001 in
 
     let server_ready, server_ready_u = Lwt.wait () in
@@ -179,21 +177,20 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun() -> (* Give server 0.1 s to call listen *)
-       log_s c "I am client with IP %s, trying to connect to server @ %s:%d"
+       Logs.info (fun f -> f  "I am client with IP %s, trying to connect to server @ %s:%d"
          (Ipaddr.V4.to_string client_ip)
-         (Ipaddr.V4.to_string server_ip) port
-       >>= fun () ->
-       V.create_stack c backend client_ip netmask [gw] >>= fun client_s ->
-       iperfclient c client_s amt server_ip port);
+       (Ipaddr.V4.to_string server_ip) port);
+       V.create_stack backend client_ip netmask [gw] >>= fun client_s ->
+       iperfclient client_s amt server_ip port);
 
-      (log_s c "I am server with IP %s, expecting connections on port %d"
-         (Ipaddr.V4.to_string server_ip) port >>= fun () ->
-       V.create_stack c backend server_ip netmask [gw] >>= fun server_s ->
-       V.Stackv4.listen_tcpv4 server_s ~port (iperf c server_s server_done_u);
+      (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
+         (Ipaddr.V4.to_string server_ip) port);
+       V.create_stack backend server_ip netmask [gw] >>= fun server_s ->
+       V.Stackv4.listen_tcpv4 server_s ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->
 
-    log_s c "Waiting for server_done..." >>= fun () ->
+       Logs.info (fun f -> f  "Waiting for server_done...");
     server_done >>= fun () ->
     Lwt.return_unit (* exit cleanly *)
 

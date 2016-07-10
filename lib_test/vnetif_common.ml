@@ -24,7 +24,6 @@ module Time = struct
 end
 
 module Clock = Unix
-module Console = Console_unix
 
 module type VNETIF_STACK =
 sig
@@ -36,7 +35,7 @@ sig
   (** Create a new backend *)
   val create_backend : unit -> backend
   (** Create a new stack connected to an existing backend *)
-  val create_stack : Console.t -> backend -> Ipaddr.V4.t -> Ipaddr.V4.t -> Ipaddr.V4.t list -> Stackv4.t Lwt.t
+  val create_stack : backend -> Ipaddr.V4.t -> Ipaddr.V4.t -> Ipaddr.V4.t list -> Stackv4.t Lwt.t
   (** Add a listener function to the backend *)
   val create_backend_listener : backend -> (buffer -> unit io) -> id
   (** Disable a listener function *)
@@ -59,12 +58,12 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
   module U = Udp.Make(Ip)
   module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Random)
   module Stackv4 =
-    Tcpip_stack_direct.Make(Console)(Time)(Random)(V)(E)(A)(Ip)(Icmp)(U)(T)
+    Tcpip_stack_direct.Make(Time)(Random)(V)(E)(A)(Ip)(Icmp)(U)(T)
 
   let create_backend () =
     B.create ()
 
-  let create_stack c backend ip netmask gw =
+  let create_stack backend ip netmask gw =
     or_error "backend" V.connect backend >>= fun netif ->
     or_error "ethif" E.connect netif >>= fun ethif ->
     or_error "arpv4" A.connect ethif >>= fun arpv4 ->
@@ -74,7 +73,6 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     or_error "tcpv4" T.connect ipv4 >>= fun tcpv4 ->
     let config = {
       V1_LWT.name = "stack";
-      console = c;
       interface = netif;
       mode = `IPv4 (ip, netmask, gw);
     } in

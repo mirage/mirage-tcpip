@@ -27,7 +27,6 @@ module type TCPV4_DIRECT = V1_LWT.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Console : V1_LWT.CONSOLE)
     (Time    : V1_LWT.TIME)
     (Random  : V1.RANDOM)
     (Netif   : V1_LWT.NETWORK)
@@ -40,11 +39,10 @@ module Make
 struct
 
   type +'a io = 'a Lwt.t
-  type ('a,'b,'c) config = ('a,'b,'c) V1_LWT.stackv4_config
-  type console = Console.t
+  type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
   type netif = Netif.t
   type mode = V1_LWT.direct_stack_config
-  type id = (console, netif, mode) config
+  type id = (netif, mode) config
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
   type tcpv4 = Tcpv4.t
