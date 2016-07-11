@@ -4,7 +4,7 @@ module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Clock)(Time)
+module Static_arp = Static_arp.Make(E)(Clock)(Time)
 
 open Lwt.Infix
 
@@ -14,69 +14,6 @@ type decomposed = {
   ethernet_payload : Cstruct.t;
   ethernet_header : Ethif_packet.t;
 }
-
-module Static_arp : sig
-  include V1_LWT.ARP
-  val connect : E.t -> [> `Ok of t | `Error of error ] Lwt.t
-  val add_entry : t -> Ipaddr.V4.t -> macaddr -> unit
-end = struct
-  (* generally repurpose A, but substitute input and query, and add functions
-     for adding/deleting entries *)
-  type error = A.error
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type macaddr = Macaddr.t
-  type result = A.result
-  type ipaddr = Ipaddr.V4.t
-  type id = A.id
-  type repr = string
-
-  type t = {
-    base : A.t;
-    table : (Ipaddr.V4.t, macaddr) Hashtbl.t;
-  }
-
-  let add_ip t = A.add_ip t.base
-  let remove_ip t = A.remove_ip t.base
-  let set_ips t = A.set_ips t.base
-  let get_ips t = A.get_ips t.base
-
-  let to_repr t =
-    let print ip entry acc =
-      let key = Ipaddr.V4.to_string ip in
-      let entry = Macaddr.to_string entry in
-      Printf.sprintf "%sIP %s : MAC %s\n" acc key entry
-    in
-    Lwt.return (Hashtbl.fold print t.table "")
-
-  let pp fmt repr =
-    Format.fprintf fmt "%s" repr
-
-  let connect e = A.connect e >>= function
-    | `Ok base -> Lwt.return (`Ok { base; table = (Hashtbl.create 7) })
-    | `Error e -> Lwt.return (`Error e)
-
-  let disconnect t = A.disconnect t.base
-
-  let query t ip =
-    match Hashtbl.mem t.table ip with
-    | false -> Lwt.return `Timeout
-    | true -> Lwt.return (`Ok (Hashtbl.find t.table ip))
-
-  let input t buffer =
-    (* disregard responses, but reply to queries *)
-    try
-    match Arpv4_wire.get_arp_op buffer with
-    | 1 -> A.input t.base buffer
-    | 2 | _ -> Lwt.return_unit
-    with
-    | Invalid_argument s -> Printf.printf "Arpv4_wire failed on buffer: %s" s;
-      Lwt.return_unit
-
-  let add_entry t ip mac =
-    Hashtbl.add t.table ip mac
-
-end
 
 module Ip = Ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
@@ -231,20 +168,19 @@ let write_errors () =
             code = Icmpv4_wire.(unreachable_reason_to_int Would_fragment);
             subheader = Next_hop_mtu 576;
           }) in
-        let reply_packet = Icmpv4_packet.Marshal.make_cstruct reply
+        let header = Icmpv4_packet.Marshal.make_cstruct reply
             ~payload:decomposed.ethernet_payload in
+        let header_and_payload = Cstruct.concat ([header ; decomposed.ethernet_payload]) in
         let open Ipv4_packet in
-        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src reply_packet
+        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload
     in
     V.listen stack.netif reject
   in
   let check_packet buf : unit Lwt.t =
     let aux buf =
       let (>>=) = Rresult.(>>=) in
-      (* the packet should be valid ICMP *)
-      decompose buf >>= fun decomposed ->
       let open Icmpv4_packet in
-      Unmarshal.of_cstruct decomposed.ipv4_payload >>= fun (icmp, icmp_payload) ->
+      Unmarshal.of_cstruct buf >>= fun (icmp, icmp_payload) ->
       Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
       Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
       match Cstruct.len icmp_payload with
