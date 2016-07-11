@@ -178,10 +178,12 @@ true: annot, bin_annot
 # Executable test
 <lib_test/test.{native,byte}>: pkg_alcotest
 <lib_test/test.{native,byte}>: pkg_cstruct
+<lib_test/test.{native,byte}>: pkg_cstruct.lwt
 <lib_test/test.{native,byte}>: pkg_cstruct.ppx
 <lib_test/test.{native,byte}>: pkg_io-page
 <lib_test/test.{native,byte}>: pkg_io-page.unix
 <lib_test/test.{native,byte}>: pkg_ipaddr
+<lib_test/test.{native,byte}>: pkg_ipaddr.unix
 <lib_test/test.{native,byte}>: pkg_logs
 <lib_test/test.{native,byte}>: pkg_logs.fmt
 <lib_test/test.{native,byte}>: pkg_lwt
@@ -190,6 +192,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mirage-flow
 <lib_test/test.{native,byte}>: pkg_mirage-profile
 <lib_test/test.{native,byte}>: pkg_mirage-types
+<lib_test/test.{native,byte}>: pkg_mirage-types.lwt
 <lib_test/test.{native,byte}>: pkg_mirage-vnetif
 <lib_test/test.{native,byte}>: pkg_oUnit
 <lib_test/test.{native,byte}>: pkg_pcap-format
@@ -203,13 +206,18 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: use_tcp
 <lib_test/test.{native,byte}>: use_tcpip
 <lib_test/test.{native,byte}>: use_tcpip-stack-direct
+<lib_test/test.{native,byte}>: use_tcpip-stack-socket
+<lib_test/test.{native,byte}>: use_tcpv4-socket
 <lib_test/test.{native,byte}>: use_udp
+<lib_test/test.{native,byte}>: use_udpv4-socket
 <lib_test/*.ml{,i,y}>: pkg_alcotest
 <lib_test/*.ml{,i,y}>: pkg_cstruct
+<lib_test/*.ml{,i,y}>: pkg_cstruct.lwt
 <lib_test/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
+<lib_test/*.ml{,i,y}>: pkg_ipaddr.unix
 <lib_test/*.ml{,i,y}>: pkg_logs
 <lib_test/*.ml{,i,y}>: pkg_logs.fmt
 <lib_test/*.ml{,i,y}>: pkg_lwt
@@ -218,6 +226,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
+<lib_test/*.ml{,i,y}>: pkg_mirage-types.lwt
 <lib_test/*.ml{,i,y}>: pkg_mirage-vnetif
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: pkg_pcap-format
@@ -231,7 +240,10 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
 <lib_test/*.ml{,i,y}>: use_tcpip-stack-direct
+<lib_test/*.ml{,i,y}>: use_tcpip-stack-socket
+<lib_test/*.ml{,i,y}>: use_tcpv4-socket
 <lib_test/*.ml{,i,y}>: use_udp
+<lib_test/*.ml{,i,y}>: use_udpv4-socket
 <lib_test/test.{native,byte}>: custom
 # OASIS_STOP
 true: annot, bin_annot, principal, strict_sequence, debug, warn(A-4-50)
