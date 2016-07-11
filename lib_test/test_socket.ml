@@ -5,6 +5,7 @@ module Stack = Tcpip_stack_socket.Make(Console_unix)
 type stack_stack = {
   console : Console_unix.t;
   stack : Stack.t;
+  icmp  : Icmpv4_socket.t;
   udp   : Udpv4_socket.t;
   tcp   : Tcpv4_socket.t;
 }
@@ -36,8 +37,9 @@ let make_stack ~name ~ip =
     interface = [ip];
     mode = ();
   } in
+  Icmpv4_socket.connect () >>= fun icmp ->
   or_fail_str ~str:"stack initialization failed" (Stack.connect config udp) tcp >>= fun stack ->
-  Lwt.return { console; stack; udp; tcp }
+  Lwt.return { console; stack; icmp; udp; tcp }
 
 let two_connect_tcp () =
   let announce flow =
@@ -63,7 +65,12 @@ let two_connect_tcp () =
   ]
 
 let icmp_echo_request () =
-  Lwt.return_unit
+  make_stack ~name:"server" ~ip:localhost >>= fun server ->
+  make_stack ~name:"client" ~ip:localhost >>= fun client ->
+  Lwt.join [
+    Icmpv4_socket.listen server;
+    Icmpv4_socket.write client ~dst:localhost (Cstruct.of_string "payload");
+  ]
 
 let suite = [
   "two sockets connect via TCP", `Quick, two_connect_tcp;
