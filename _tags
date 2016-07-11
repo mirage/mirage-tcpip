@@ -157,6 +157,8 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: use_dhcpv4
 <lib/*.ml{,i,y}>: use_tcpip
 <lib/*.ml{,i,y}>: use_udp
+# Library icmpv4-socket
+"unix/icmpv4-socket.cmxs": use_icmpv4-socket
 # Library udpv4-socket
 "unix/udpv4-socket.cmxs": use_udpv4-socket
 # Library udpv6-socket

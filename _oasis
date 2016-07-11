@@ -118,6 +118,18 @@ Library "tcpip-stack-direct"
   BuildDepends:       logs,mirage-types,ipaddr,lwt,
                       tcpip.dhcpv4
 
+Library "icmpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        icmpv4-socket
+  Modules:            Icmpv4_socket
+  BuildDepends:       lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix
+
 Library "udpv4-socket"
   CompiledObject:     best
   Path:               unix
