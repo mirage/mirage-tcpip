@@ -1,9 +1,9 @@
 open Lwt.Infix
 
-module Stack = Tcpip_stack_socket.Make(Console_unix)
+module Stack = Tcpip_stack_socket
+module Time = Vnetif_common.Time
 
 type stack_stack = {
-  console : Console_unix.t;
   stack : Stack.t;
   icmp  : Icmpv4_socket.t;
   udp   : Udpv4_socket.t;
@@ -23,9 +23,6 @@ let or_fail_str ~str f args =
 let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
 
 let make_stack ~name ~ip =
-  Console_unix.connect "test_socket" >>= function
-  | `Error (`Invalid_console s) -> Alcotest.fail s
-  | `Ok console ->
   (* define a config record, which should match the type expected of
      V1_LWT.stackv4_config *)
   or_fail_str ~str:"error initializing TCP socket" Tcpv4_socket.connect (Some ip) >>= fun tcp ->
@@ -33,13 +30,12 @@ let make_stack ~name ~ip =
   let open V1_LWT in
   let config = {
     name;
-    console;
     interface = [ip];
     mode = ();
   } in
   Icmpv4_socket.connect () >>= fun icmp ->
   or_fail_str ~str:"stack initialization failed" (Stack.connect config udp) tcp >>= fun stack ->
-  Lwt.return { console; stack; icmp; udp; tcp }
+  Lwt.return { stack; icmp; udp; tcp }
 
 let two_connect_tcp () =
   let announce flow =
@@ -53,7 +49,7 @@ let two_connect_tcp () =
   make_stack ~name:"server" ~ip:localhost >>= fun server ->
   make_stack ~name:"client" ~ip:localhost >>= fun client ->
 
-  Stack.listen_tcpv4 server.stack server_port announce;
+  Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
     Stack.listen server.stack;
     or_fail_str ~str:"couldn't create connection from client to server for TCP socket test"
@@ -74,12 +70,16 @@ let icmp_echo_request () =
                                         subheader = Id_and_seq (0x1dea, 0x0001)
                                       }) in
   let received_icmp = ref 0 in
+  let log_and_count buf =
+    received_icmp := !received_icmp + 1;
+    Logs.debug (fun f -> f "received ICMP packet number %d: %a" !received_icmp Cstruct.hexdump_pp buf);
+    Lwt.return_unit
+  in
   Lwt.pick [
-    Icmpv4_socket.listen server localhost (fun buf -> received_icmp :=
-                                              !received_icmp + 1; Lwt.return_unit);
-    OS.Time.sleep 0.5 >>= fun () ->
-    Icmpv4_socket.write client ~dst:localhost echo_request >>= fun () ->
-    OS.Time.sleep 10.0;
+    Icmpv4_socket.listen server.icmp localhost log_and_count;
+    Time.sleep 0.5 >>= fun () ->
+    Icmpv4_socket.write client.icmp ~dst:localhost echo_request >>= fun () ->
+    Time.sleep 10.0;
   ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
     !received_icmp; Lwt.return_unit
 
