@@ -16,6 +16,7 @@
 
 let suite = [
   "udp"            , Test_udp.suite         ;
+  "socket"         , Test_socket.suite      ;
   "icmpv4"         , Test_icmpv4.suite      ;
   "tcp_options"    , Test_tcp_options.suite ;
   "rfc5961"        , Test_rfc5961.suite     ;
