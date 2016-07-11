@@ -58,8 +58,10 @@ module Marshal = struct
       else Ok ()
     in
     let check_overall_len () =
-      if (Cstruct.len udp_buf) < ((Cstruct.len payload) + sizeof_udp) then
-        Error "Not enough space for header and payload"
+      let needed = (Cstruct.len payload) + sizeof_udp in
+      let provided = Cstruct.len udp_buf in
+      if provided < needed then
+        Error (Printf.sprintf "Not enough space for header and payload: provided %d, need %d" provided needed)
       else Ok ((Cstruct.len payload) + sizeof_udp)
     in
     check_header_len () >>= check_overall_len >>= fun len ->
