@@ -211,8 +211,9 @@ let echo_silent () =
 
 let write_errors () =
   let decompose buf =
-    let open Rresult in
-    Ethif_packet.Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
+    let (>>=) = Rresult.(>>=) in
+    let open Ethif_packet in
+    Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
     | Ethif_wire.IPv6 | Ethif_wire.ARP -> Result.Error "not an ipv4 packet"
     | Ethif_wire.IPv4 ->
@@ -232,6 +233,7 @@ let write_errors () =
           }) in
         let reply_packet = Icmpv4_packet.Marshal.make_cstruct reply
             ~payload:decomposed.ethernet_payload in
+        let open Ipv4_packet in
         Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src reply_packet
     in
     V.listen stack.netif reject
@@ -241,12 +243,13 @@ let write_errors () =
       let (>>=) = Rresult.(>>=) in
       (* the packet should be valid ICMP *)
       decompose buf >>= fun decomposed ->
-      Icmpv4_packet.Unmarshal.of_cstruct decomposed.ipv4_payload >>= fun (icmp, icmp_payload) ->
-      Alcotest.(check int) "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
-      Alcotest.(check int) "ICMP message code" 0x04 icmp.code;
+      let open Icmpv4_packet in
+      Unmarshal.of_cstruct decomposed.ipv4_payload >>= fun (icmp, icmp_payload) ->
+      Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
+      Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
       match Cstruct.len icmp_payload with
       | 0 -> Alcotest.fail "Error message should've had a payload"
-      | n ->
+      | _n ->
         (* TODO: packet should have an IP header in it *)
         Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 icmp_payload 0);
         Result.Ok ()
@@ -255,14 +258,14 @@ let write_errors () =
     | Result.Error s -> Alcotest.fail s
     | Result.Ok () -> Lwt.return_unit
   in
-  let check_rejection stack dest_ip =
+  let check_rejection stack dst =
     let payload = Cstruct.of_string "!@#$" in
     Lwt.pick [
-      icmp_listen stack (fun ~src ~dst buf -> check_packet buf >>= fun () ->
+      icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
                           V.disconnect stack.netif);
-      OS.Time.sleep 0.5 >>= fun () ->
-      Udp.write stack.udp ~dest_ip ~source_port:1212 ~dest_port:123 payload >>= fun () ->
-      OS.Time.sleep 1.0 >>= fun () ->
+      Time.sleep 0.5 >>= fun () ->
+      Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload >>= fun () ->
+      Time.sleep 1.0 >>= fun () ->
       Alcotest.fail "writing thread completed first";
     ]
   in
