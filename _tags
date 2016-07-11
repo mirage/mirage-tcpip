@@ -159,6 +159,14 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: use_udp
 # Library icmpv4-socket
 "unix/icmpv4-socket.cmxs": use_icmpv4-socket
+<unix/*.ml{,i,y}>: pkg_cstruct
+<unix/*.ml{,i,y}>: pkg_cstruct.ppx
+<unix/*.ml{,i,y}>: pkg_ipaddr
+<unix/*.ml{,i,y}>: pkg_mirage-profile
+<unix/*.ml{,i,y}>: pkg_result
+<unix/*.ml{,i,y}>: pkg_rresult
+<unix/*.ml{,i,y}>: use_icmpv4
+<unix/*.ml{,i,y}>: use_tcpip
 # Library udpv4-socket
 "unix/udpv4-socket.cmxs": use_udpv4-socket
 # Library udpv6-socket

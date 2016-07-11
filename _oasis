@@ -128,7 +128,8 @@ Library "icmpv4-socket"
                       lwt.unix,
                       ipaddr.unix,
                       cstruct.lwt,
-                      io-page.unix
+                      io-page.unix,
+                      tcpip.icmpv4
 
 Library "udpv4-socket"
   CompiledObject:     best
