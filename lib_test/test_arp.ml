@@ -107,9 +107,9 @@ let check_ethif_response expected buf =
 let garp src_mac src_ip =
   let open Arpv4_packet in
   {
-    op = Arpv4_wire.Reply;
+    op = Arpv4_wire.Request;
     sha = src_mac;
-    tha = Macaddr.broadcast;
+    tha = src_mac;
     spa = src_ip;
     tpa = Ipaddr.V4.any;
   }
