@@ -56,8 +56,9 @@ module Make(Ip: V1_LWT.IP) = struct
       | None   -> Lwt.fail (Failure "TODO; random source port")
       | Some p -> Lwt.return p
     end >>= fun src_port ->
+    let payload_size = Cstruct.lenv bufs in
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dst ~proto:`UDP in
-    let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp) in
+    let frame = Cstruct.set_len frame (header_len + Udp_wire.sizeof_udp + payload_size) in
     let udp_buf = Cstruct.shift frame header_len in
     let ph = Ip.pseudoheader t.ip ~dst ~proto:`UDP (Cstruct.lenv bufs) in
     let udp_header = Udp_packet.({ src_port = src_port; dst_port = dst_port; }) in

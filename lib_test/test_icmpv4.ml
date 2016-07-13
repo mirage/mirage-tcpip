@@ -4,75 +4,21 @@ module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Clock)(Time)
+module Static_arp = Static_arp.Make(E)(Clock)(Time)
 
 open Lwt.Infix
 
-module Static_arp : sig
-  include V1_LWT.ARP
-  val connect : E.t -> [> `Ok of t | `Error of error ] Lwt.t
-  val add_entry : t -> Ipaddr.V4.t -> macaddr -> unit
-end = struct
-  (* generally repurpose A, but substitute input and query, and add functions
-     for adding/deleting entries *)
-  type error = A.error
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type macaddr = Macaddr.t
-  type result = A.result
-  type ipaddr = Ipaddr.V4.t
-  type id = A.id
-  type repr = string
-
-  type t = {
-    base : A.t;
-    table : (Ipaddr.V4.t, macaddr) Hashtbl.t;
-  }
-
-  let add_ip t = A.add_ip t.base
-  let remove_ip t = A.remove_ip t.base
-  let set_ips t = A.set_ips t.base
-  let get_ips t = A.get_ips t.base
-
-  let to_repr t =
-    let print ip entry acc =
-      let key = Ipaddr.V4.to_string ip in
-      let entry = Macaddr.to_string entry in
-      Printf.sprintf "%sIP %s : MAC %s\n" acc key entry
-    in
-    Lwt.return (Hashtbl.fold print t.table "")
-
-  let pp fmt repr =
-    Format.fprintf fmt "%s" repr
-
-  let connect e = A.connect e >>= function
-    | `Ok base -> Lwt.return (`Ok { base; table = (Hashtbl.create 7) })
-    | `Error e -> Lwt.return (`Error e)
-
-  let disconnect t = A.disconnect t.base
-
-  let query t ip =
-    match Hashtbl.mem t.table ip with
-    | false -> Lwt.return `Timeout
-    | true -> Lwt.return (`Ok (Hashtbl.find t.table ip))
-
-  let input t buffer =
-    (* disregard responses, but reply to queries *)
-    try
-    match Arpv4_wire.get_arp_op buffer with
-    | 1 -> A.input t.base buffer
-    | 2 | _ -> Lwt.return_unit
-    with
-    | Invalid_argument s -> Printf.printf "Arpv4_wire failed on buffer: %s" s;
-      Lwt.return_unit
-
-  let add_entry t ip mac =
-    Hashtbl.add t.table ip mac
-
-end
+type decomposed = {
+  ipv4_payload : Cstruct.t;
+  ipv4_header : Ipv4_packet.t;
+  ethernet_payload : Cstruct.t;
+  ethernet_header : Ethif_packet.t;
+}
 
 module Ip = Ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
+
+module Udp = Udp.Make(Ip)
 
 type stack = {
   backend : B.t;
@@ -81,6 +27,7 @@ type stack = {
   arp : Static_arp.t;
   ip : Ip.t;
   icmp : Icmp.t;
+  udp : Udp.t;
 }
 
 let testbind x y =
@@ -100,7 +47,8 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   or_error "arp" Static_arp.connect ethif >>= fun arp ->
   or_error "ipv4" (Ip.connect ethif) arp >>= fun ip ->
   or_error "icmpv4" Icmp.connect ip >>= fun icmp ->
-  Lwt.return { backend; netif; ethif; arp; ip; icmp; }
+  or_error "udp" Udp.connect ip >>= fun udp ->
+  Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }
 
 (* assume a class C network with no default gateway *)
 let configure ip stack =
@@ -198,8 +146,77 @@ let echo_silent () =
     slowly (Icmp.write speaker.icmp ~dst:nobody_home echo_request);
   ]
 
+let write_errors () =
+  let decompose buf =
+    let (>>=) = Rresult.(>>=) in
+    let open Ethif_packet in
+    Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
+    match ethernet_header.ethertype with
+    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Result.Error "not an ipv4 packet"
+    | Ethif_wire.IPv4 ->
+      Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
+      Result.Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
+  in
+  (* for any incoming packet, reject it with would_fragment *)
+  let reject_all stack =
+    let reject buf =
+      match decompose buf with
+      | Result.Error s -> Alcotest.fail s
+      | Result.Ok decomposed ->
+        let reply = Icmpv4_packet.({
+            ty = Icmpv4_wire.Destination_unreachable;
+            code = Icmpv4_wire.(unreachable_reason_to_int Would_fragment);
+            subheader = Next_hop_mtu 576;
+          }) in
+        let header = Icmpv4_packet.Marshal.make_cstruct reply
+            ~payload:decomposed.ethernet_payload in
+        let header_and_payload = Cstruct.concat ([header ; decomposed.ethernet_payload]) in
+        let open Ipv4_packet in
+        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload
+    in
+    V.listen stack.netif reject
+  in
+  let check_packet buf : unit Lwt.t =
+    let aux buf =
+      let (>>=) = Rresult.(>>=) in
+      let open Icmpv4_packet in
+      Unmarshal.of_cstruct buf >>= fun (icmp, icmp_payload) ->
+      Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
+      Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
+      match Cstruct.len icmp_payload with
+      | 0 -> Alcotest.fail "Error message should've had a payload"
+      | _n ->
+        (* TODO: packet should have an IP header in it *)
+        Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 icmp_payload 0);
+        Result.Ok ()
+    in
+    match aux buf with
+    | Result.Error s -> Alcotest.fail s
+    | Result.Ok () -> Lwt.return_unit
+  in
+  let check_rejection stack dst =
+    let payload = Cstruct.of_string "!@#$" in
+    Lwt.pick [
+      icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
+                          V.disconnect stack.netif);
+      Time.sleep 0.5 >>= fun () ->
+      Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload >>= fun () ->
+      Time.sleep 1.0 >>= fun () ->
+      Alcotest.fail "writing thread completed first";
+    ]
+  in
+  get_stack () >>= configure speaker_address >>= fun speaker ->
+  get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
+  inform_arp speaker listener_address (mac_of_stack listener);
+  inform_arp listener speaker_address (mac_of_stack speaker);
+  Lwt.pick [
+    reject_all listener;
+    check_rejection speaker listener_address;
+  ]
+
 let suite = [
   "short read", `Quick, short_read;
   "echo requests elicit an echo reply", `Quick, echo_request;
   "echo requests for other ips don't elicit an echo reply", `Quick, echo_silent;
+  "error messages are written", `Quick, write_errors;
 ]
