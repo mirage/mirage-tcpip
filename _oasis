@@ -118,6 +118,19 @@ Library "tcpip-stack-direct"
   BuildDepends:       logs,mirage-types,ipaddr,lwt,
                       tcpip.dhcpv4
 
+Library "icmpv4-socket"
+  CompiledObject:     best
+  Path:               unix
+  Findlibparent:      tcpip
+  Findlibname:        icmpv4-socket
+  Modules:            Icmpv4_socket
+  BuildDepends:       lwt,
+                      lwt.unix,
+                      ipaddr.unix,
+                      cstruct.lwt,
+                      io-page.unix,
+                      tcpip.icmpv4
+
 Library "udpv4-socket"
   CompiledObject:     best
   Path:               unix
@@ -170,7 +183,8 @@ Executable test
                       mirage-profile,mirage-flow,mirage-vnetif,
                       mirage-clock-unix,pcap-format,
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
-                      tcpip.stack-direct,tcpip.icmpv4
+                      tcpip.stack-direct,tcpip.icmpv4,
+                      tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket
 
 Test test
   Run$:               flag(tests)
