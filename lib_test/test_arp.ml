@@ -51,6 +51,9 @@ module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 module A = Arpv4.Make(E)(Fast_clock)(Fast_time)
 
+let src = Logs.Src.create "test_arp" ~doc:"Mirage ARP tester"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 type arp_stack = {
   backend : B.t;
   netif: V.t;
@@ -180,23 +183,26 @@ let three_arp () =
 let query_or_die arp ip expected_mac = 
   A.query arp ip >>= function
   | `Timeout ->
-    let pp_ip = Ipaddr.V4.to_string ip in
-    Format.printf "Timeout querying %s." pp_ip;
+    let pp_ip = Ipaddr.V4.pp_hum in
     A.to_repr arp >>= fun repr ->
-    A.pp Format.std_formatter repr;
+    Logs.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
     Lwt.return_unit
   | `Ok mac -> 
     Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
     Lwt.return_unit
 
-let set_and_check listener claimant ip =
+let set_and_check ~listener ~claimant ip =
   A.set_ips claimant.arp [ ip ] >>= fun () ->
+  Log.debug (fun f -> f "Set IP for %s to %a" (Macaddr.to_string (V.mac claimant.netif)) Ipaddr.V4.pp_hum ip);
+  A.to_repr listener >>= fun repr ->
+  Logs.debug (fun f -> f "Listener table contents after IP set on claimant: %a" A.pp repr);
   query_or_die listener ip (V.mac claimant.netif)
 
 let start_arp_listener stack () =
   let noop = (fun _ -> Lwt.return_unit) in
-  E.input ~arpv4:(A.input stack.arp) ~ipv4:noop ~ipv6:noop stack.ethif
+  Logs.debug (fun f -> f "starting arp listener for %s" (Macaddr.to_string (V.mac stack.netif)));
+  E.input ~arpv4:(fun frame -> Logs.debug (fun f -> f "frame received for arpv4"); A.input stack.arp frame) ~ipv4:noop ~ipv6:noop stack.ethif
 
 let output_then_disconnect ~speak:speak_netif ~disconnect:listen_netif bufs =
   Lwt.join (List.map (V.write speak_netif) bufs) >>= fun () ->
@@ -208,7 +214,7 @@ let not_in_cache ~listen probe arp ip =
     single_check listen probe;
     Time.sleep 0.1 >>= fun () ->
     A.query arp ip >>= function
-    | `Ok mac -> fail @@ "entry in cache when it shouldn't be" ^ (Macaddr.to_string mac)
+    | `Ok mac -> fail @@ "entry in cache when it shouldn't be " ^ (Macaddr.to_string mac)
     | `Timeout -> Lwt.return_unit
   ]
 
@@ -321,14 +327,13 @@ let unreachable_times_out () =
 let input_replaces_old () =
   three_arp () >>= fun (listen, claimant_1, claimant_2) ->
   let listener = start_arp_listener listen () in
+  Lwt.async ( fun () -> Logs.debug (fun f -> f "arp listener started"); V.listen listen.netif (fun buf -> Logs.debug (fun f -> f "packet received: %a" Cstruct.hexdump_pp buf); listener buf));
   timeout ~time:2.0 (
-    Lwt.join [
-      V.listen listen.netif listener;
-      Time.sleep 0.1 >>= fun () ->
-      set_and_check listen.arp claimant_1 first_ip >>= fun () ->
-      set_and_check listen.arp claimant_2 first_ip >>= fun () ->
-      V.disconnect listen.netif
-    ])
+    Time.sleep 0.1 >>= fun () ->
+    set_and_check ~listener:listen.arp ~claimant:claimant_1 first_ip >>= fun () ->
+    set_and_check ~listener:listen.arp ~claimant:claimant_2 first_ip >>= fun () ->
+    V.disconnect listen.netif
+    )
 
 let entries_expire () =
   two_arp () >>= fun (listen, speak) ->
@@ -343,7 +348,7 @@ let entries_expire () =
       V.listen listen.netif (start_arp_listener listen ()));
   let test =
     Time.sleep 0.1 >>= fun () ->
-    set_and_check listen.arp speak first_ip >>= fun () ->
+    set_and_check ~listener:listen.arp ~claimant:speak first_ip >>= fun () ->
     Time.sleep 1.0 >>= fun () ->
     (* asking now should generate a query *)
     not_in_cache ~listen:speak.netif expected_arp_query listen.arp first_ip;
