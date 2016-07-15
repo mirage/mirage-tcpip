@@ -55,7 +55,8 @@ module Make (Ip:V1_LWT.IP) = struct
     let frame, header_len = Ip.allocate_frame ip ~dst ~proto:`TCP in
     (* Shift this out by the combined ethernet + IP header sizes *)
     let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst ~proto:`TCP (Cstruct.len payload) in
+    let pseudoheader = Ip.pseudoheader ip ~dst ~proto:`TCP
+      (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
       Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
