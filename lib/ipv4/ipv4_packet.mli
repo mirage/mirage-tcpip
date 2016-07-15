@@ -29,6 +29,7 @@ module Marshal : sig
 
   val pseudoheader : src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> proto:([< `TCP | `UDP])
     -> int -> Cstruct.t
+    (** [pseudoheader src dst proto len] constructs a pseudoheader, suitable for inclusion in transport-layer checksum calculations, including the information supplied.  [len] should be the total length of the transport-layer header and payload.  *)
 
 (** [into_cstruct ~payload t buf] attempts to write a header representing [t] (including
     [t.options], but not [payload]  into [buf]
