@@ -25,6 +25,7 @@ type t =
   | Timestamp of int32 * int32      (** RFC1323 3.2 *)
   | Unknown of int * string         (** RFC793 *)
 
+val lenv: t list -> int (* how many bytes are required to marshal this list *)
 val marshal: Cstruct.t -> t list -> int
 val unmarshal : Cstruct.t -> (t list, string) Result.result
 val pp : Format.formatter -> t -> unit
