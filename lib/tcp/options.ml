@@ -100,6 +100,25 @@ let unmarshal buf =
       | _, Error s | Error s, _ -> Error s
     ) i (Ok [])
 
+let size_of_option = function
+  | Noop -> 1
+  | MSS _ -> 4
+  | Window_size_shift _ -> 3
+  | SACK_ok -> 2
+  | SACK acks -> (List.length acks * 8) + 2
+  | Timestamp _ -> 10
+  | Unknown (_, contents) -> String.length contents + 2
+
+(* add padding to word length *)
+let pad tlen =
+  match (4 - (tlen mod 4)) mod 4 with
+  | 0 -> tlen
+  | n when n < 4 -> tlen + n
+  | _ -> assert false
+
+let lenv l =
+  pad @@ List.fold_left (fun acc item -> size_of_option item + acc) 0 l
+
 let write_iter buf =
   let set_tlen t l =
     Cstruct.set_uint8 buf 0 t;
