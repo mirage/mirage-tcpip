@@ -73,21 +73,24 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     Format.fprintf fmt "%s" repr
 
   let notify t ip mac =
-    let now = Clock.time () in
-    let expire = now +. arp_timeout in
-    try
-      match Hashtbl.find t.cache ip with
-      | Pending (_, w) ->
-        Hashtbl.replace t.cache ip (Confirmed (expire, mac));
-        Lwt.wakeup w (`Ok mac)
-      | Confirmed _ ->
+    Log.debug (fun f -> f "notifying: %a -> %s" Ipaddr.V4.pp_hum ip (Macaddr.to_string mac));
+    match Ipaddr.V4.is_multicast ip || (Ipaddr.V4.compare ip Ipaddr.V4.any = 0) with
+    | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp_hum ip)
+    | false ->
+      let now = Clock.time () in
+      let expire = now +. arp_timeout in
+      try
+        match Hashtbl.find t.cache ip with
+        | Pending (_, w) ->
+          Hashtbl.replace t.cache ip (Confirmed (expire, mac));
+          Lwt.wakeup w (`Ok mac)
+        | Confirmed _ ->
+          Hashtbl.replace t.cache ip (Confirmed (expire, mac))
+      with
+      | Not_found ->
         Hashtbl.replace t.cache ip (Confirmed (expire, mac))
-    with
-    | Not_found ->
-      Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
-  let output t arp =
-    let (source, destination) = Arpv4_packet.(arp.sha, arp.tha) in
+  let output t ~source ~destination arp =
     let payload = Arpv4_packet.Marshal.make_cstruct arp in
     let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
 	source;
@@ -100,17 +103,17 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let input t frame =
     let open Arpv4_packet in
     MProf.Trace.label "arpv4.input";
+    Log.debug (fun f -> f "ARP packet received: %a" Cstruct.hexdump_pp frame);
     match Unmarshal.of_cstruct frame with
     | Result.Error s ->
       Log.info (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
                    Unmarshal.pp_error s (Cstruct.to_string frame));
       Lwt.return_unit
     | Result.Ok arp ->
+      Logs.debug (fun f -> f "ARP packet received: %a" Arpv4_packet.pp arp);
+      notify t arp.spa arp.sha; (* cache the sender's mapping. this will get GARPs too *)
       match arp.op with
-      | Arpv4_wire.Reply ->
-        (* If we have pending entry, notify the waiters that answer is ready *)
-        notify t arp.spa arp.sha;
-        Lwt.return_unit
+      | Arpv4_wire.Reply -> Lwt.return_unit
       | Arpv4_wire.Request ->
         (* Received ARP request, check if we can satisfy it from
            our own IPv4 list *)
@@ -122,16 +125,18 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
           let tha = arp.sha in
           let spa = arp.tpa in (* the requested address *)
           let tpa = arp.spa in (* the requesting host IPv4 *)
-          output t (Arpv4_wire.{ op=Reply; sha; tha; spa; tpa })
+          output t ~source:sha ~destination:tha (Arpv4_wire.{ op=Reply; sha; tha; spa; tpa })
 
   (* Send a gratuitous ARP for our IP addresses *)
   let output_garp t =
-    let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
+    let tha = sha in
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
-        Log.info (fun f -> f "ARP: sending gratuitous from %a" Ipaddr.V4.pp_hum spa);
-        output t Arpv4_packet.({ op=Arpv4_wire.Reply; tha; sha; tpa; spa })
+        let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
+        Log.info (fun f -> f "ARP: sending gratuitous from %a" Arpv4_packet.pp arp);
+        Log.debug (fun f -> f "ARP: sending gratuitous: %a" Ipaddr.V4.pp_hum spa);
+        output t ~source:(Ethif.mac t.ethif) ~destination:Macaddr.broadcast arp
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
@@ -142,7 +147,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     (* Source protocol address, pick one of our IP addresses *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
-    output t Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa })
+    let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
+    Logs.debug (fun f -> f "ARP: transmitting probe: %a" Arpv4_packet.pp arp);
+    output t ~source:sha ~destination:tha arp
 
   let get_ips t = t.bound_ips
 
