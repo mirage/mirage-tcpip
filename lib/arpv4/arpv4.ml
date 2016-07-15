@@ -103,14 +103,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let input t frame =
     let open Arpv4_packet in
     MProf.Trace.label "arpv4.input";
-    Log.debug (fun f -> f "ARP packet received: %a" Cstruct.hexdump_pp frame);
     match Unmarshal.of_cstruct frame with
     | Result.Error s ->
-      Log.info (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
+      Log.debug (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
                    Unmarshal.pp_error s (Cstruct.to_string frame));
       Lwt.return_unit
     | Result.Ok arp ->
-      Logs.debug (fun f -> f "ARP packet received: %a" Arpv4_packet.pp arp);
       notify t arp.spa arp.sha; (* cache the sender's mapping. this will get GARPs too *)
       match arp.op with
       | Arpv4_wire.Reply -> Lwt.return_unit
@@ -134,14 +132,13 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let tpa = Ipaddr.V4.any in
     Lwt_list.iter_s (fun spa ->
         let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
-        Log.info (fun f -> f "ARP: sending gratuitous from %a" Arpv4_packet.pp arp);
-        Log.debug (fun f -> f "ARP: sending gratuitous: %a" Ipaddr.V4.pp_hum spa);
+        Log.debug (fun f -> f "ARP: sending gratuitous from %a" Arpv4_packet.pp arp);
         output t ~source:(Ethif.mac t.ethif) ~destination:Macaddr.broadcast arp
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
   let output_probe t tpa =
-    Log.info (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
+    Log.debug (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
@@ -191,6 +188,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;
+            Log.info (fun f -> f "ARP: giving up on resolution of %a after %d attempts"
+                               Ipaddr.V4.pp_hum ip n);
             Lwt.wakeup waker `Timeout;
             Lwt.return_unit
           end
@@ -203,6 +202,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     let bound_ips = [] in
     let t = { ethif; cache; bound_ips } in
     Lwt.async (tick t);
+    Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
+               Ethif.mac t.ethif)));
     Lwt.return (`Ok t)
 
   let disconnect t =
