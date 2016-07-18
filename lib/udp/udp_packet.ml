@@ -44,10 +44,14 @@ module Marshal = struct
 
   let unsafe_fill ~pseudoheader ~payload {src_port; dst_port} udp_buf len =
     let open Udp_wire in
+    let udp_buf = Cstruct.sub udp_buf 0 sizeof_udp in
     set_udp_source_port udp_buf src_port;
     set_udp_dest_port udp_buf dst_port;
     set_udp_length udp_buf len;
     set_udp_checksum udp_buf 0;
+    (* if we've been passed a buffer larger than sizeof_udp, make sure we
+     * consider only the portion which will actually contain the header
+     * when calculating this bit of the checksum *)
     let csum = Tcpip_checksum.ones_complement_list [ pseudoheader ; udp_buf ; payload ] in
     set_udp_checksum udp_buf csum
 
