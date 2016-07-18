@@ -118,6 +118,7 @@ module Marshal = struct
     check_header_len () >>= fun () ->
     insert_options options_frame >>= fun options_len ->
     check_overall_len (sizeof_tcp + options_len) >>= fun () ->
+    let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     Ok (sizeof_tcp + options_len)
 

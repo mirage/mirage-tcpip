@@ -65,7 +65,8 @@ module Marshal = struct
       else Ok ((Cstruct.len payload) + sizeof_udp)
     in
     check_header_len () >>= check_overall_len >>= fun len ->
-    unsafe_fill ~pseudoheader ~payload t udp_buf len;
+    let buf = Cstruct.sub udp_buf 0 Udp_wire.sizeof_udp in
+    unsafe_fill ~pseudoheader ~payload t buf len;
     Ok ()
 
   let make_cstruct ~pseudoheader ~payload t =
