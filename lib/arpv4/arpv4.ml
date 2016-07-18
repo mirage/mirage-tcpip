@@ -128,9 +128,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   (* Send a gratuitous ARP for our IP addresses *)
   let output_garp t =
     let sha = Ethif.mac t.ethif in
-    let tha = sha in
-    let tpa = Ipaddr.V4.any in
+    let tha = Macaddr.broadcast in
     Lwt_list.iter_s (fun spa ->
+        let tpa = spa in
         let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
         Log.debug (fun f -> f "ARP: sending gratuitous from %a" Arpv4_packet.pp arp);
         output t ~source:(Ethif.mac t.ethif) ~destination:Macaddr.broadcast arp

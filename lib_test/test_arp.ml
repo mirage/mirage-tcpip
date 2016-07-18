@@ -112,9 +112,9 @@ let garp src_mac src_ip =
   {
     op = Arpv4_wire.Request;
     sha = src_mac;
-    tha = src_mac;
+    tha = Macaddr.broadcast;
     spa = src_ip;
-    tpa = Ipaddr.V4.any;
+    tpa = src_ip;
   }
 
 let fail_on_receipt netif buf = 
