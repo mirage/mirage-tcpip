@@ -72,6 +72,8 @@ module Marshal = struct
 
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
     let data_off = (sizeof_tcp / 4) + (options_len / 4) in
+    let buf = Cstruct.sub buf 0 (data_off * 4) in
+    Cstruct.memset buf 0; (* autopad *)
     set_tcp_src_port buf t.src_port;
     set_tcp_dst_port buf t.dst_port;
     set_tcp_sequence buf (Sequence.to_int32 t.sequence);
@@ -87,6 +89,9 @@ module Marshal = struct
     set_tcp_window buf t.window;
     set_tcp_checksum buf 0;
     set_tcp_urg_ptr buf 0;
+    (* it's possible we've been passed a buffer larger than the size of the header,
+     * which contains some data after the end of the header we'll write;
+     * in this case, make sure we compute the checksum properly *)
     let checksum = Tcpip_checksum.ones_complement_list [pseudoheader ; buf ;
                                                         payload] in
     set_tcp_checksum buf checksum;
