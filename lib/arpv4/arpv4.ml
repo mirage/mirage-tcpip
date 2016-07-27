@@ -43,8 +43,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   type id = t
   type error
 
-  let arp_timeout = 60. (* age entries out of cache after this many seconds *)
-  let probe_repeat_delay = 1.5 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
+  let arp_timeout = Duration.of_sec 60 (* age entries out of cache after this many seconds *)
+  let probe_repeat_delay = Duration.of_ms 1500 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
   let probe_num = 3 (* how many probes to send before giving up *)
 
   let rec tick t () =
@@ -57,7 +57,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     List.iter (fun ip ->
          Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip); Hashtbl.remove t.cache ip
       ) expired;
-    Time.sleep arp_timeout >>= tick t
+    Time.sleep_ns arp_timeout >>= tick t
 
   let to_repr t =
     let print ip entry acc =
@@ -78,7 +78,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp_hum ip)
     | false ->
       let now = Clock.time () in
-      let expire = now +. arp_timeout in
+      let expire = now +. Duration.to_f arp_timeout in
       try
         match Hashtbl.find t.cache ip with
         | Pending (_, w) ->
@@ -179,7 +179,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
         (* First request, so send a query packet *)
         output_probe t ip >>= fun () ->
         Lwt.choose [ (response >>= fun _ -> Lwt.return `Ok);
-                     (Time.sleep probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
+                     (Time.sleep_ns probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
         | `Ok -> Lwt.return_unit
         | `Timeout ->
           if n < probe_num then begin

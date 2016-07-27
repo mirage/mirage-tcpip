@@ -37,7 +37,7 @@ let testbind x y =
 let (>>=?) = testbind
 
 let slowly fn =
-  Time.sleep 0.1 >>= fun () -> fn >>= fun () -> Time.sleep 0.1
+  Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun () -> Time.sleep_ns (Duration.of_ms 100)
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
@@ -199,9 +199,9 @@ let write_errors () =
     Lwt.pick [
       icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
                           V.disconnect stack.netif);
-      Time.sleep 0.5 >>= fun () ->
+      Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
       Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload >>= fun () ->
-      Time.sleep 1.0 >>= fun () ->
+      Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
       Alcotest.fail "writing thread completed first";
     ]
   in

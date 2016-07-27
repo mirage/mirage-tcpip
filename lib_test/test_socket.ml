@@ -77,9 +77,9 @@ let icmp_echo_request () =
   in
   Lwt.pick [
     Icmpv4_socket.listen server.icmp localhost log_and_count;
-    Time.sleep 0.5 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
     Icmpv4_socket.write client.icmp ~dst:localhost echo_request >>= fun () ->
-    Time.sleep 10.0;
+    Time.sleep_ns (Duration.of_sec 10);
   ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
     !received_icmp; Lwt.return_unit
 

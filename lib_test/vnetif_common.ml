@@ -21,8 +21,8 @@ open Common
 module Time = struct
   type 'a io = 'a Lwt.t
   include Lwt_unix
+  let sleep_ns ns = sleep (Duration.to_f ns)
 end
-
 module Clock = Unix
 
 module type VNETIF_STACK =
