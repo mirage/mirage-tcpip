@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ee9e0afe6c3da9e5e1b0fb75472342f7)
+# DO NOT EDIT (digest: 865c70bb000f8ddf7f1771b483047749)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -41,6 +41,7 @@ true: annot, bin_annot
 "lib/arpv4/arpv4.cmxs": use_arpv4
 <lib/arpv4/*.ml{,i,y}>: pkg_cstruct
 <lib/arpv4/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/arpv4/*.ml{,i,y}>: pkg_duration
 <lib/arpv4/*.ml{,i,y}>: pkg_ipaddr
 <lib/arpv4/*.ml{,i,y}>: pkg_logs
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
@@ -67,6 +68,7 @@ true: annot, bin_annot
 "lib/ipv6/ipv6.cmxs": use_ipv6
 <lib/ipv6/*.ml{,i,y}>: pkg_cstruct
 <lib/ipv6/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/ipv6/*.ml{,i,y}>: pkg_duration
 <lib/ipv6/*.ml{,i,y}>: pkg_io-page
 <lib/ipv6/*.ml{,i,y}>: pkg_ipaddr
 <lib/ipv6/*.ml{,i,y}>: pkg_logs
@@ -119,6 +121,7 @@ true: annot, bin_annot
 "lib/tcp/tcp_packet.cmx": for-pack(Tcp)
 <lib/tcp/*.ml{,i,y}>: pkg_cstruct
 <lib/tcp/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/tcp/*.ml{,i,y}>: pkg_duration
 <lib/tcp/*.ml{,i,y}>: pkg_io-page
 <lib/tcp/*.ml{,i,y}>: pkg_ipaddr
 <lib/tcp/*.ml{,i,y}>: pkg_logs
@@ -132,6 +135,7 @@ true: annot, bin_annot
 "lib/dhcp/dhcpv4.cmxs": use_dhcpv4
 <lib/dhcp/*.ml{,i,y}>: pkg_cstruct
 <lib/dhcp/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/dhcp/*.ml{,i,y}>: pkg_duration
 <lib/dhcp/*.ml{,i,y}>: pkg_io-page
 <lib/dhcp/*.ml{,i,y}>: pkg_ipaddr
 <lib/dhcp/*.ml{,i,y}>: pkg_logs
@@ -146,6 +150,7 @@ true: annot, bin_annot
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib/*.ml{,i,y}>: pkg_duration
 <lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_logs
@@ -190,6 +195,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_cstruct.lwt
 <lib_test/test.{native,byte}>: pkg_cstruct.ppx
+<lib_test/test.{native,byte}>: pkg_duration
 <lib_test/test.{native,byte}>: pkg_io-page
 <lib_test/test.{native,byte}>: pkg_io-page.unix
 <lib_test/test.{native,byte}>: pkg_ipaddr
@@ -224,6 +230,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_cstruct.lwt
 <lib_test/*.ml{,i,y}>: pkg_cstruct.ppx
+<lib_test/*.ml{,i,y}>: pkg_duration
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
