@@ -43,7 +43,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
       let ctx, bufs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
       Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
-      T.sleep 1.0 >>= loop
+      T.sleep_ns (Duration.of_sec 1) >>= loop
     in
     loop ()
 

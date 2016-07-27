@@ -191,7 +191,7 @@ module Make
 
   (* Start a DHCP discovery off on an interface *)
   let start_discovery t =
-    Time.sleep 0.2
+    Time.sleep_ns (Duration.of_ms 200)
     >>= fun () ->
     let xid = Random.int32 Int32.max_int in
     let yiaddr = Ipaddr.V4.any in
@@ -212,14 +212,14 @@ module Make
     |Disabled |Request_sent _ ->
       start_discovery t
       >>= fun () ->
-      Time.sleep 10.0
+      Time.sleep_ns (Duration.of_sec 10)
       >>= fun () ->
       dhcp_thread t
     |Shutting_down ->
       Log.info (fun f -> f "DHCP thread: done"); Lwt.return_unit
     |_ ->
       (* TODO: This should be looking at the lease time *)
-      Time.sleep 3600.0
+      Time.sleep_ns (Duration.of_hour 1)
       >>= fun () ->
       dhcp_thread t
 
