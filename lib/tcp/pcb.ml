@@ -560,9 +560,9 @@ struct
   (* SYN retransmission timer *)
   let rec connecttimer t id tx_isn options window count =
     let rxtime = match count with
-      | 0 -> 3. | 1 -> 6. | 2 -> 12. | 3 -> 24. | _ -> 48.
+      | 0 -> 3 | 1 -> 6 | 2 -> 12 | 3 -> 24 | _ -> 48
     in
-    Time.sleep rxtime >>= fun () ->
+    Time.sleep_ns (Duration.of_sec rxtime) >>= fun () ->
     match hashtbl_find t.connects id with
     | None                -> Lwt.return_unit
     | Some (wakener, isn) ->

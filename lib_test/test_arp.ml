@@ -1,8 +1,8 @@
 open Lwt.Infix
 
-let time_reduction_factor = 60.
+let time_reduction_factor = 60
 
-module Time = Lwt_unix
+module Time = Vnetif_common.Time
 module Fast_clock = struct
 
   let last_read = ref (Clock.time ())
@@ -36,14 +36,14 @@ module Fast_clock = struct
 
   let time () = 
     let this_time = Clock.time () in
-    let clock_diff = ((this_time -. !last_read) *. time_reduction_factor) in
+    let clock_diff = ((this_time -. !last_read) *. (float_of_int time_reduction_factor)) in
     last_read := this_time;
     this_time +. clock_diff
 
 end
 module Fast_time = struct
   type 'a io = 'a Lwt.t
-  let sleep time = Time.sleep (time /. time_reduction_factor)
+  let sleep_ns time = Time.sleep_ns (Int64.div time (Int64.of_int time_reduction_factor))
 end
 
 module B = Basic_backend.Make
@@ -89,8 +89,8 @@ let or_error = Common.or_error
 let fail = Alcotest.fail
 
 let timeout ~time t =
-  let msg = Printf.sprintf "Timed out: didn't complete in %f seconds" time in
-  Lwt.pick [ t; Time.sleep time >>= fun () -> fail msg; ]
+  let msg = Printf.sprintf "Timed out: didn't complete in %d milliseconds" time in
+  Lwt.pick [ t; Time.sleep_ns (Duration.of_ms time) >>= fun () -> fail msg; ]
 
 let check_response expected buf =
   match Arpv4_packet.Unmarshal.of_cstruct buf with
@@ -212,7 +212,7 @@ let output_then_disconnect ~speak:speak_netif ~disconnect:listen_netif bufs =
 let not_in_cache ~listen probe arp ip =
   Lwt.pick [
     single_check listen probe;
-    Time.sleep 0.1 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.query arp ip >>= function
     | `Ok mac -> fail @@ "entry in cache when it shouldn't be " ^ (Macaddr.to_string mac)
     | `Timeout -> Lwt.return_unit
@@ -221,13 +221,13 @@ let not_in_cache ~listen probe arp ip =
 let set_ip_sends_garp () =
   two_arp () >>= fun (speak, listen) ->
   let emit_garp =
-    Time.sleep 0.1 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.set_ips speak.arp [ first_ip ] >>= fun () ->
     Alcotest.(check (list ip)) "garp emitted when setting ip" [ first_ip ] (A.get_ips speak.arp);
     Lwt.return_unit
   in
   let expected_garp = garp (V.mac speak.netif) first_ip in
-  timeout ~time:0.5 (
+  timeout ~time:500 (
   Lwt.join [
     single_check listen.netif expected_garp;
     emit_garp;
@@ -267,10 +267,10 @@ let input_single_garp () =
     A.input listen.arp arpbuf >>= fun () ->
     V.disconnect listen.netif 
   in
-  timeout ~time:0.5 (
+  timeout ~time:500 (
   Lwt.join [
     V.listen listen.netif one_and_done;
-    Time.sleep 0.1 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.set_ips speak.arp [ first_ip ];
   ])
   >>= fun () ->
@@ -279,7 +279,7 @@ let input_single_garp () =
      the cache.  An attempt to resolve via query will result in a timeout, since
      speak.arp has no listener running and therefore won't answer any arp
      who-has requests. *)
-  timeout ~time:0.5 (query_or_die listen.arp first_ip (V.mac speak.netif))
+  timeout ~time:500 (query_or_die listen.arp first_ip (V.mac speak.netif))
 
 let input_single_unicast () =
   two_arp () >>= fun (listen, speak) ->
@@ -288,10 +288,10 @@ let input_single_unicast () =
      ~from_netif:speak.netif ~to_netif:listen.netif ~from_ip:first_ip ~to_ip:second_ip
   in
   let listener = start_arp_listener listen () in
-  timeout ~time:0.5 (
+  timeout ~time:500 (
   Lwt.choose [
     V.listen listen.netif listener;
-    Time.sleep 0.1 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     V.write speak.netif for_listener >>= fun () ->
     query_or_die listen.arp first_ip (V.mac speak.netif)
   ])
@@ -310,11 +310,11 @@ let input_resolves_wait () =
     query_or_die listen.arp first_ip (V.mac speak.netif) >>= fun () ->
     V.disconnect listen.netif
   in
-  timeout ~time:5.0 (
+  timeout ~time:5000 (
     Lwt.join [
       V.listen listen.netif listener;
       query_then_disconnect;
-      Time.sleep 0.1 >>= fun () -> E.write speak.ethif for_listener;
+      Time.sleep_ns (Duration.of_ms 100) >>= fun () -> E.write speak.ethif for_listener;
     ]
   )
 
@@ -328,8 +328,8 @@ let input_replaces_old () =
   three_arp () >>= fun (listen, claimant_1, claimant_2) ->
   let listener = start_arp_listener listen () in
   Lwt.async ( fun () -> Logs.debug (fun f -> f "arp listener started"); V.listen listen.netif (fun buf -> Logs.debug (fun f -> f "packet received: %a" Cstruct.hexdump_pp buf); listener buf));
-  timeout ~time:2.0 (
-    Time.sleep 0.1 >>= fun () ->
+  timeout ~time:2000 (
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     set_and_check ~listener:listen.arp ~claimant:claimant_1 first_ip >>= fun () ->
     set_and_check ~listener:listen.arp ~claimant:claimant_2 first_ip >>= fun () ->
     V.disconnect listen.netif
@@ -347,13 +347,13 @@ let entries_expire () =
   Lwt.async (fun () -> 
       V.listen listen.netif (start_arp_listener listen ()));
   let test =
-    Time.sleep 0.1 >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     set_and_check ~listener:listen.arp ~claimant:speak first_ip >>= fun () ->
-    Time.sleep 1.0 >>= fun () ->
+    Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
     (* asking now should generate a query *)
     not_in_cache ~listen:speak.netif expected_arp_query listen.arp first_ip;
   in
-  timeout ~time:5.0 test
+  timeout ~time:5000 test
 
 (* RFC isn't strict on how many times to try, so we'll just say any number
    greater than 1 is fine *)
@@ -382,8 +382,8 @@ let query_retries () =
   in
   Lwt.pick [
     V.listen listen.netif listener;
-    Time.sleep 0.1 >>= ask;
-    Time.sleep 6.0 >>= fun () -> fail "query didn't succeed or fail within 6s"
+    Time.sleep_ns (Duration.of_ms 100) >>= ask;
+    Time.sleep_ns (Duration.of_sec 6) >>= fun () -> fail "query didn't succeed or fail within 6s"
   ]
 
 (* requests for us elicit a reply *)
@@ -408,15 +408,15 @@ let requests_are_responded_to () =
   let arp_listener =
       V.listen answerer.netif (start_arp_listener answerer ())
   in
-  timeout ~time:1.0 (
+  timeout ~time:1000 (
     Lwt.join [
       (* listen for responses and check them against an expected result *)
       V.listen inquirer.netif (listener inquirer.netif);
       (* start the usual ARP listener, which should respond to requests *)
       arp_listener;
       (* send a request for the ARP listener to respond to *)
-      Time.sleep 0.1 >>= fun () -> V.write inquirer.netif request
-      >>= fun () -> Time.sleep 0.1 >>= fun () -> V.disconnect answerer.netif
+      Time.sleep_ns (Duration.of_ms 100) >>= fun () -> V.write inquirer.netif request
+      >>= fun () -> Time.sleep_ns (Duration.of_ms 100) >>= fun () -> V.disconnect answerer.netif
     ];
   )
 
@@ -440,7 +440,7 @@ let requests_not_us () =
   Lwt.join [
     V.listen answerer.netif (start_arp_listener answerer ());
     V.listen inquirer.netif (fail_on_receipt inquirer.netif);
-    make_requests >>= fun () -> Time.sleep 0.1 >>= disconnect_listeners
+    make_requests >>= fun () -> Time.sleep_ns (Duration.of_ms 100) >>= disconnect_listeners
   ]
 
 let nonsense_requests () =
@@ -473,7 +473,7 @@ let nonsense_requests () =
   in
   Lwt.async (fun () -> 
       V.listen answerer.netif (start_arp_listener answerer ()));
-  timeout ~time:1.0 (
+  timeout ~time:1000 (
     Lwt.join [
       V.listen inquirer.netif (fail_on_receipt inquirer.netif);
       make_requests >>= fun () ->
