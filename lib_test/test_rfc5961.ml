@@ -101,7 +101,7 @@ let run backend fsm sut () =
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
   Lwt.pick [
-    (Time.sleep 5.0 >>= fun () ->
+    (Time.sleep_ns (Duration.of_sec 5) >>= fun () ->
      Lwt.return_some "timed out");
 
     (Lwt.join [
@@ -109,9 +109,9 @@ let run backend fsm sut () =
 
         (* time to let the other end connects to the network and listen.
          * Otherwise initial syn might need to be repeated slowing down the test *)
-        (Time.sleep 0.1 >>= fun () -> 
+        (Time.sleep_ns (Duration.of_ms 100) >>= fun () -> 
          sut stackv4 (Lwt_mvar.put error_mbox) >>= fun _ ->
-         Time.sleep 0.1);
+         Time.sleep_ns (Duration.of_ms 100));
       ] >>= fun () -> Lwt.return_none);
 
     (Lwt_mvar.take error_mbox >>= fun cause ->
@@ -172,7 +172,7 @@ let sut_connects_and_remains_connected stack fail_callback =
    * If after half second that remains true, assume test succeeds *)
   Lwt.pick [
     (VNETIF_STACK.Stackv4.TCPV4.read flow >>= fail_result_not_expected fail_callback);
-    Time.sleep 0.5 ]
+    Time.sleep_ns (Duration.of_ms 500) ]
 
 
 let blind_rst_on_syn_scenario =

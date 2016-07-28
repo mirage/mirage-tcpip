@@ -48,7 +48,7 @@ Library arpv4
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire, Arpv4_packet
   BuildDepends:       mirage-types,logs,ipaddr,cstruct,cstruct.ppx,lwt,
-                      result,rresult,tcpip.ethif
+                      result,rresult,tcpip.ethif, duration
 
 Library ipv4
   CompiledObject:     best
@@ -66,7 +66,7 @@ Library ipv6
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6, Ipv6_wire
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip,tcpip.ethif
+                      tcpip,tcpip.ethif, duration
 
 Library icmpv4
   CompiledObject:     best
@@ -98,7 +98,7 @@ Library tcp
                       Tcp_wire, Tcp_packet
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       io-page,
-                      tcpip
+                      tcpip, duration
 
 Library dhcpv4
   CompiledObject:     best
@@ -107,7 +107,7 @@ Library dhcpv4
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip.udp
+                      tcpip.udp, duration
 
 Library "tcpip-stack-direct"
   CompiledObject:     best
@@ -184,7 +184,7 @@ Executable test
                       mirage-clock-unix,pcap-format,
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4,
-                      tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket
+                      tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration
 
 Test test
   Run$:               flag(tests)

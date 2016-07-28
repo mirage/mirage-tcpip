@@ -39,7 +39,7 @@ module Make(Time:V1_LWT.TIME) = struct
     Log.debug (fun f -> f "timerloop");
     Stats.incr_timer ();
     let rec aux t s =
-      Time.sleep t.period >>= fun () ->
+      Time.sleep_ns (Duration.of_f t.period) >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
         Stats.decr_timer ();
