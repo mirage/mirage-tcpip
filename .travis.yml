@@ -3,8 +3,7 @@ script: bash -ex .travis-ci.sh
 sudo: required
 env:
   global:
-  - PINS="dns:git://github.com/yomimono/ocaml-dns.git#standardize_record_fields"
-  - EXTRA_REMOTES="https://github.com/yomimono/mirage-dev.git#remove-console"
+  - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
   matrix:
   - OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=unix
   - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.02 PACKAGE=tcpip MIRAGE_MODE=xen
