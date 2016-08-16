@@ -11,6 +11,25 @@ module Make(IP : V1_LWT.IPV4) = struct
     echo_reply : bool;
   }
 
+  type error = [ `Routing | `Unknown ]
+
+  type id = t
+
+  let connect ip = Lwt.return (`Ok { ip; echo_reply = true; })
+
+  let disconnect _ = Lwt.return_unit
+
+  let pp_error formatter = function
+    | `Routing -> Format.fprintf formatter "%s" "routing"
+    | `Unknown -> Format.fprintf formatter "%s" "unknown!"
+
+  let writev t ~dst bufs = 
+    let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
+    let frame = Cstruct.set_len frame header_len in
+    IP.writev t.ip frame bufs
+
+  let write t ~dst buf = writev t ~dst [buf]
+
   let input t ~src ~dst buf =
     let open Icmpv4_packet in
     let should_reply t dst =
@@ -35,44 +54,16 @@ module Make(IP : V1_LWT.IPV4) = struct
         Log.info (fun f -> f "ICMP: destination unreachable from %a" Ipaddr.V4.pp_hum src);
         Lwt.return_unit
       | Echo_request, Id_and_seq (id, seq) ->
+        Log.debug (fun f -> f "ICMP echo-request received: %a (payload %a)"  Icmpv4_packet.pp message Cstruct.hexdump_pp payload);
         if t.echo_reply && should_reply t dst then begin
-          (* get some memory to write in *)
-          let frame, header_len = IP.allocate_frame t.ip ~dst:src ~proto:`ICMP in
-          let icmp_chunk = Cstruct.shift frame header_len in
           let icmp = { code = 0x00;
 		       ty   = Icmpv4_wire.Echo_reply;
 		       subheader = Id_and_seq (id, seq);
 		     } in
-          match Marshal.into_cstruct ~payload icmp icmp_chunk with
-          | Result.Ok () ->
-            let frame = Cstruct.set_len frame header_len in
-            IP.writev t.ip frame [icmp_chunk ; payload]
-          | Result.Error s ->
-            Log.info (fun f -> f "Failed to respond to ICMP echo request from %a: %s"
-                         Ipaddr.V4.pp_hum src s);
-            Lwt.return_unit
+          writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ]
         end else Lwt.return_unit
       | ty, _ ->
         Log.info (fun f -> f "ICMP unknown ty %s from %a" (ty_to_string ty) Ipaddr.V4.pp_hum src);
         Lwt.return_unit
-
-  type error = [ `Routing | `Unknown ]
-
-  type id = t
-
-  let connect ip = Lwt.return (`Ok { ip; echo_reply = true; })
-
-  let disconnect _ = Lwt.return_unit
-
-  let pp_error formatter = function
-    | `Routing -> Format.fprintf formatter "%s" "routing"
-    | `Unknown -> Format.fprintf formatter "%s" "unknown!"
-
-  let writev t ~dst bufs = 
-    let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
-    let frame = Cstruct.set_len frame header_len in
-    IP.writev t.ip frame bufs
-
-  let write t ~dst buf = writev t ~dst [buf]
 
 end
