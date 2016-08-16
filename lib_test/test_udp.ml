@@ -39,16 +39,6 @@ let fails msg f args =
   | Result.Ok _ -> Alcotest.fail msg
   | Result.Error _ -> ()
 
-let cstruct =
-  let module M = struct
-    type t = Cstruct.t
-    let pp = Cstruct.hexdump_pp
-    let equal = Cstruct.equal
-  end in
-  (module M : Alcotest.TESTABLE with type t = M.t)
-
-let packet = (module Udp_packet : Alcotest.TESTABLE with type t = Udp_packet.t)
-
 let marshal_unmarshal () =
   let parse = Udp_packet.Unmarshal.of_cstruct in
   fails "unmarshal a 0-length packet" parse (Cstruct.create 0);
@@ -63,7 +53,7 @@ let marshal_unmarshal () =
   match Udp_packet.Unmarshal.of_cstruct with_data with
   | Result.Error s -> Alcotest.fail s
   | Result.Ok (_header, data) ->
-    Alcotest.(check cstruct) "unmarshalling gives expected data" payload data;
+    Alcotest.(check Common.cstruct) "unmarshalling gives expected data" payload data;
     Lwt.return_unit
 
 let write () =
