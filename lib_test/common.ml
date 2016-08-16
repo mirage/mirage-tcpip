@@ -17,8 +17,15 @@ let assert_string msg a b =
   let cmp a b = String.compare a b = 0 in
   OUnit.assert_equal ~msg ~printer:(fun x -> x) ~cmp a b
 
-let assert_cstruct msg a b =
-  OUnit.assert_equal ~msg ~printer:Cstruct.to_string ~cmp:Cstruct.equal a b
+let cstruct =
+  let module M = struct
+    type t = Cstruct.t
+    let pp = Cstruct.hexdump_pp
+    let equal = Cstruct.equal
+  end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
+
+let packet = (module Udp_packet : Alcotest.TESTABLE with type t = Udp_packet.t)
 
 let assert_bool msg a b =
   OUnit.assert_equal ~msg ~printer:string_of_bool a b
