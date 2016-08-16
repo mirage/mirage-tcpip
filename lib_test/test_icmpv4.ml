@@ -86,13 +86,14 @@ let short_read () =
 let echo_request () =
   let seq_no = 0x01 in
   let id_no = 0x1234 in
+  let request_payload = Cstruct.of_string "plz reply i'm so lonely" in
   get_stack () >>= configure speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                             subheader = Id_and_seq (id_no, seq_no)}) in
-  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
+  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:request_payload in
   let check buf =
     let open Icmpv4_packet in
     Printf.printf "Incoming ICMP message: ";
@@ -106,9 +107,8 @@ let echo_request () =
       Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
       Alcotest.(check int) "icmp echo-reply id" id_no id;
       Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-      match (Cstruct.len payload) with
-      | 0 -> Alcotest.fail "icmp echo-reply had a payload but request didn't"
-      | _ -> Lwt.return_unit
+      Alcotest.(check Common.cstruct) "icmp echo-reply payload" payload request_payload;
+      Lwt.return_unit
   in
   Lwt.pick [
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
