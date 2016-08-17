@@ -4,19 +4,27 @@ let time_reduction_factor = 60
 
 module Time = Vnetif_common.Time
 module Fast_clock = struct
-  let last_read = ref 0
+  type error = unit
+  type t = unit
+  type 'a io = 'a Lwt.t
+
+  let last_read = ref 0L
+
+  let connect () = Lwt.return (`Ok ())
 
   let advance_clock ns =
-    last_read := !last_read + ns
+    last_read := Int64.add !last_read ns
 
   let elapsed_ns _ = 
     !last_read
 
   let period_ns _ = None
+
+  let disconnect _ = Lwt.return_unit
 end
 module Fast_time = struct
   type 'a io = 'a Lwt.t
-  let sleep_ns time = Time.sleep_ns (Int64.div time (Int64.of_int time_reduction_factor))
+  let sleep_ns time = Time.sleep_ns Int64.(div time (of_int time_reduction_factor))
 end
 
 module B = Basic_backend.Make
@@ -135,9 +143,10 @@ let arp_request ~from_netif ~to_mac ~from_ip ~to_ip =
 
 let get_arp ?(backend = B.create ~use_async_readers:true 
                 ~yield:(fun() -> Lwt_main.yield ()) ()) () =
+  or_error "clock" Fast_clock.connect () >>= fun clock ->
   or_error "backend" V.connect backend >>= fun netif ->
   or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arp" A.connect ethif >>= fun arp ->
+  or_error "arp" (A.connect ethif) clock >>= fun arp ->
   Lwt.return { backend; netif; ethif; arp }
 
 (* we almost always want two stacks on the same backend *)

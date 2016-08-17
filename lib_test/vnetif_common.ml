@@ -23,7 +23,7 @@ module Time = struct
   include Lwt_unix
   let sleep_ns ns = sleep (Duration.to_f ns)
 end
-module Clock = Unix
+module Clock = Mclock
 
 module type VNETIF_STACK =
 sig
@@ -64,13 +64,14 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     B.create ()
 
   let create_stack backend ip netmask gw =
+    or_error "clock" Clock.connect () >>= fun clock ->
     or_error "backend" V.connect backend >>= fun netif ->
     or_error "ethif" E.connect netif >>= fun ethif ->
-    or_error "arpv4" A.connect ethif >>= fun arpv4 ->
+    or_error "arpv4" (A.connect ethif) clock >>= fun arpv4 ->
     or_error "ipv4" (Ip.connect ethif) arpv4 >>= fun ipv4 ->
     or_error "icmpv4" Icmp.connect ipv4 >>= fun icmpv4 ->
     or_error "udpv4" U.connect ipv4 >>= fun udpv4 ->
-    or_error "tcpv4" T.connect ipv4 >>= fun tcpv4 ->
+    or_error "tcpv4" (T.connect ipv4) clock >>= fun tcpv4 ->
     let config = {
       V1_LWT.name = "stack";
       interface = netif;
