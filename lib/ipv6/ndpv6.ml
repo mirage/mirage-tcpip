@@ -44,6 +44,7 @@ module Ipaddr = Ipaddr.V6
 type buffer = Cstruct.t
 type ipaddr = Ipaddr.t
 type prefix = Ipaddr.Prefix.t
+type time   = int64
 
 module BoundedMap (K : Map.OrderedType) : sig
   type 'a t
@@ -74,14 +75,14 @@ let solicited_node_prefix =
   Ipaddr.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
 
 module Defaults = struct
-  let _max_rtr_solicitation_delay = 1.0
+  let _max_rtr_solicitation_delay = Duration.of_sec 1
   let _ptr_solicitation_interval  = 4
   let _max_rtr_solicitations      = 3
   let max_multicast_solicit      = 3
   let max_unicast_solicit        = 3
   let _max_anycast_delay_time     = 1
   let _max_neighbor_advertisement = 3
-  let delay_first_probe_time     = 5.0
+  let delay_first_probe_time     = Duration.of_sec 5
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
   let min_link_mtu               = 1280
@@ -90,8 +91,8 @@ module Defaults = struct
 
   let min_random_factor          = 0.5
   let max_random_factor          = 1.5
-  let reachable_time             = 30.0
-  let retrans_timer              = 1.0
+  let reachable_time             = Duration.of_sec 30
+  let retrans_timer              = Duration.of_sec 1
 end
 
 let ipaddr_of_cstruct cs =
@@ -138,20 +139,12 @@ let multicast_mac =
     Cstruct.BE.set_uint32 pbuf 2 n;
     Macaddr.of_bytes_exn (Cstruct.to_string pbuf)
 
-(* let float_of_uint32 n = Uint32.to_float (Uint32.of_int32 n)
-   but we can't use uint on Xen. *)
-let float_of_uint32 n =
-  if n >= 0l then
-    Int32.to_float n
-  else
-    let m = Int32.logand n 0x7fffffffl in
-    Int32.to_float m +. 2. ** 31.
-
-let compute_reachable_time dt =
-  let r =
-    Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor))
+(* vary the reachable time by some random factor between 0.5 and 1.5 *)
+let compute_reachable_time reachable_time =
+  let factor =
+    Defaults.(min_random_factor +. (max_random_factor -. min_random_factor))
   in
-  r *. dt
+  Int64.of_float (factor *. Int64.to_float reachable_time)
 
 let cksum_buf =
   let pbuf = Io_page.to_cstruct (Io_page.get 1) in
@@ -270,15 +263,15 @@ type ns =
 type pfx =
   { pfx_on_link : bool;
     pfx_autonomous : bool;
-    pfx_valid_lifetime : float option;
-    pfx_preferred_lifetime : float option;
+    pfx_valid_lifetime : time option;
+    pfx_preferred_lifetime : time option;
     pfx_prefix : Ipaddr.Prefix.t }
 
 type ra =
   { ra_cur_hop_limit : int;
-    ra_router_lifetime : float;
-    ra_reachable_time : float option;
-    ra_retrans_timer : float option;
+    ra_router_lifetime : time;
+    ra_reachable_time : time option;
+    ra_retrans_timer : time option;
     ra_slla : Macaddr.t option;
     ra_prefix : pfx list }
 
@@ -299,9 +292,9 @@ type action =
 module AddressList = struct
 
   type state =
-    | TENTATIVE of (float * float option) option * int * float
-    | PREFERRED of (float * float option) option
-    | DEPRECATED of float option
+    | TENTATIVE of (time * time option) option * int * time
+    | PREFERRED of (time * time option) option
+    | DEPRECATED of time option
 
   type t =
     (Ipaddr.t * state) list
@@ -331,19 +324,19 @@ module AddressList = struct
         let timeout = match timeout with
           | None -> None
           | Some (preferred_lifetime, valid_lifetime) ->
-            Some (now +. preferred_lifetime, valid_lifetime)
+            Some (Int64.add now preferred_lifetime, valid_lifetime)
         in
         Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp_hum ip);
         Some (ip, PREFERRED timeout), []
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-        Some (ip, TENTATIVE (timeout, n+1, now +. retrans_timer)),
+        Some (ip, TENTATIVE (timeout, n+1, Int64.add now retrans_timer)),
         [SendNS (`Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
       Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp_hum ip);
       let valid_timeout = match valid_lifetime with
         | None -> None
-        | Some valid_lifetime -> Some (now +. valid_lifetime)
+        | Some valid_lifetime -> Some (Int64.add now valid_lifetime)
       in
       Some (ip, DEPRECATED valid_timeout), []
     | ip, DEPRECATED (Some t) when t <= now ->
@@ -371,7 +364,7 @@ module AddressList = struct
   let add al ~now ~retrans_timer ~lft ip =
     match List.mem_assoc ip al with
     | false ->
-      let al = (ip, TENTATIVE (lft, 0, now +. retrans_timer)) :: al in
+      let al = (ip, TENTATIVE (lft, 0, Int64.add now retrans_timer)) :: al in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
       al, [SendNS (`Unspecified, dst, ip)]
     | true ->
@@ -419,7 +412,7 @@ end
 module PrefixList = struct
 
   type t =
-    (Ipaddr.Prefix.t * float option) list
+    (Ipaddr.Prefix.t * time option) list
 
   let link_local =
     [Ipaddr.Prefix.link, None]
@@ -436,7 +429,7 @@ module PrefixList = struct
   let add pl ~now pfx ~vlft =
     let vlft = match vlft with
       | None -> None
-      | Some dt -> Some (now +. dt)
+      | Some dt -> Some (Int64.add now dt)
     in
     match List.mem_assoc pfx pl with
     | false ->
@@ -473,18 +466,18 @@ module PrefixList = struct
     Log.debug (fun f -> f "ND6: Processing PREFIX option in RA");
     if Ipaddr.Prefix.link <> pfx then
       match vlft, List.mem_assoc pfx pl with
-      | Some 0.0, true ->
+      | Some 0L, true ->
         Log.debug (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp_hum pfx);
         List.remove_assoc pfx pl, []
-      | Some 0.0, false ->
+      | Some 0L, false ->
         pl, []
       | Some dt, true ->
-        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
+        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp_hum pfx dt);
         let pl = List.remove_assoc pfx pl in
-        (pfx, Some (now +. dt)) :: pl, []
+        (pfx, Some (Int64.add now dt)) :: pl, []
       | Some dt, false ->
-        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%f" Ipaddr.Prefix.pp_hum pfx dt);
-        (pfx, Some (now +. dt)) :: pl, []
+        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp_hum pfx dt);
+        (pfx, Some (Int64.add now dt)) :: pl, []
       | None, true ->
         Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
         let pl = List.remove_assoc pfx pl in
@@ -494,30 +487,16 @@ module PrefixList = struct
         (pfx, None) :: pl, []
     else
       pl, []
-    (* TODO check for 0 (this is checked in update_prefix currently), infinity *)
-    (* if vlft >= plft && Ipaddr.Prefix.link <> pfx then *)
-    (*   let pl, acts = *)
-    (*     if on_link then *)
-    (*       update pl ~now ~valid:vlft pfx *)
-    (*     else *)
-    (*       pl, [] *)
-    (*   in *)
-    (*   if aut && (vlft :> float) > 0.0 then *)
-    (*     pl, acts, Some (pfx, plft, vlft) *)
-    (*   else *)
-    (*     pl, acts, None *)
-    (* else *)
-    (*   pl, [], None *)
 end
 
 module NeighborCache = struct
 
   type state =
-    | INCOMPLETE of float * int
-    | REACHABLE of float * Macaddr.t
+    | INCOMPLETE of time * int
+    | REACHABLE of time * Macaddr.t
     | STALE of Macaddr.t
-    | DELAY of float * Macaddr.t
-    | PROBE of float * int * Macaddr.t
+    | DELAY of time * Macaddr.t
+    | PROBE of time * int * Macaddr.t
 
   type info =
     { state : state;
@@ -537,7 +516,7 @@ module NeighborCache = struct
       if tn < Defaults.max_multicast_solicit then begin
         Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp_hum ip);
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-        IpMap.add ip {nb with state = INCOMPLETE (now +. retrans_timer, tn+1)} nc,
+        IpMap.add ip {nb with state = INCOMPLETE ((Int64.add now retrans_timer), tn+1)} nc,
         [SendNS (`Specified, dst, ip)]
       end else begin
         Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
@@ -549,12 +528,12 @@ module NeighborCache = struct
       IpMap.add ip {nb with state = STALE mac} nc, []
     | DELAY (t, dmac) when t <= now ->
       Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp_hum ip);
-      IpMap.add ip {nb with state = PROBE (now +. retrans_timer, 0, dmac)} nc,
+      IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), 0, dmac)} nc,
       [SendNS (`Specified, ip, ip)]
     | PROBE (t, tn, dmac) when t <= now ->
       if tn < Defaults.max_unicast_solicit then begin
         Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp_hum ip);
-        IpMap.add ip {nb with state = PROBE (now +. retrans_timer, tn+1, dmac)} nc,
+        IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), tn+1, dmac)} nc,
         [SendNS (`Specified, ip, ip)]
       end else begin
         Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
@@ -616,7 +595,7 @@ module NeighborCache = struct
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, Some new_mac, true, _ ->
         Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
-        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, None, _, _ ->
         let nc =
@@ -628,11 +607,11 @@ module NeighborCache = struct
         nc, []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
         Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
-        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, []
       | PROBE (_, _, mac), None, true, false ->
         Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
-        let nb = {nb with state = REACHABLE (now +. reachable_time, mac)} in
+        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
         let nc =
@@ -648,7 +627,7 @@ module NeighborCache = struct
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
         Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
-        let nb = {nb with state = REACHABLE (now +. reachable_time, new_mac)} in
+        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
@@ -675,11 +654,11 @@ module NeighborCache = struct
         nc, Some dmac, []
       | STALE dmac ->
         let dt = Defaults.delay_first_probe_time in
-        let nc = IpMap.add ip {nb with state = DELAY (now +. dt, dmac)} nc in
+        let nc = IpMap.add ip {nb with state = DELAY (Int64.add now dt, dmac)} nc in
         nc, Some dmac, []
     with
     | Not_found ->
-      let nb  = {state = INCOMPLETE (now +. reachable_time, 0); is_router = false} in
+      let nb  = {state = INCOMPLETE (Int64.add now reachable_time, 0); is_router = false} in
       let nc  = IpMap.add ip nb nc in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
       nc, None, [SendNS (`Specified, dst, ip)]
@@ -697,7 +676,7 @@ end
 module RouterList = struct
 
   type t =
-    (Ipaddr.t * float) list
+    (Ipaddr.t * time) list
 
   let empty =
     []
@@ -705,10 +684,11 @@ module RouterList = struct
   let to_list rl =
     List.map fst rl
 
-  let add rl ~now ?(lifetime = max_float) ip =
+  let add rl ~now ?(lifetime = Duration.of_year 1) ip =
     (* FIXME *)
     (* yomimono 2016-06-30: fix what? *)
-    (ip, now +. lifetime) :: rl
+    (* yomimono 2016-08-17: maybe fix this default lifetime. *)
+    (ip, Int64.add now lifetime) :: rl
 
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
   let tick rl ~now =
@@ -718,15 +698,15 @@ module RouterList = struct
     match List.mem_assoc src rl with
     | true ->
       let rl = List.remove_assoc src rl in
-      if lft > 0.0 then begin
-        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%f" Ipaddr.pp_hum src lft);
-        (src, now +. lft) :: rl, []
+      if lft > 0L then begin
+        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%Lu" Ipaddr.pp_hum src lft);
+        (src, Int64.add now lft) :: rl, []
       end else begin
         Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp_hum src);
         rl, []
       end
     | false ->
-      if lft > 0.0 then begin
+      if lft > 0L then begin
 	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
         (add rl ~now ~lifetime:lft src), []
       end else
@@ -735,7 +715,7 @@ module RouterList = struct
   let add rl ~now:_ ip =
     match List.mem_assoc ip rl with
     | true -> rl
-    | false -> (ip, max_float) :: rl
+    | false -> (ip, Duration.of_year 1) :: rl
 
   let select rl reachable ip =
     let rec loop = function
@@ -793,13 +773,13 @@ module Parser = struct
           let n = Ipv6_wire.get_opt_prefix_valid_lifetime opt in
           match n with
           | 0xffffffffl -> None
-          | n -> Some (float_of_uint32 n)
+          | n -> Some (Int64.of_int32 n)
         in
         let pfx_preferred_lifetime =
           let n = Ipv6_wire.get_opt_prefix_preferred_lifetime opt in
           match n with
           | 0xffffffffl -> None
-          | n -> Some (float_of_uint32 n)
+          | n -> Some (Int64.of_int32 n)
         in
         let pfx =
           {pfx_on_link; pfx_autonomous; pfx_valid_lifetime; pfx_preferred_lifetime; pfx_prefix}
@@ -814,20 +794,20 @@ module Parser = struct
   let parse_ra buf =
     let ra_cur_hop_limit = Ipv6_wire.get_ra_cur_hop_limit buf in
     let ra_router_lifetime =
-      float_of_int (Ipv6_wire.get_ra_router_lifetime buf)
+      Int64.of_int (Ipv6_wire.get_ra_router_lifetime buf)
     in
     let ra_reachable_time =
       let n = Ipv6_wire.get_ra_reachable_time buf in
       if n = 0l then None
       else
-        let dt = (float_of_uint32 n) /. 1000.0 in
+        let dt = Int64.of_int32 @@ Int32.div n 1000l in
         Some dt
     in
     let ra_retrans_timer =
       let n = Ipv6_wire.get_ra_retrans_timer buf in
       if n = 0l then None
       else
-        let dt = (float_of_uint32 n) /. 1000.0 in
+        let dt = Int64.of_int32 @@ Int32.div n 1000l in
         Some dt
     in
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
@@ -1063,9 +1043,9 @@ type context =
     address_list : AddressList.t;
     link_mtu : int;
     cur_hop_limit : int;
-    base_reachable_time : float;
-    reachable_time : float;
-    retrans_timer : float;
+    base_reachable_time : time;
+    reachable_time : time;
+    retrans_timer : time;
     packet_queue : (Macaddr.t -> Cstruct.t list) PacketQueue.t }
 
 let next_hop ctx ip =
@@ -1216,7 +1196,7 @@ let handle_ra ~now ctx ~src ~dst ra =
          let vlft = pfx.pfx_valid_lifetime in
          let prefix_list, acts = PrefixList.handle_ra state.prefix_list ~now ~vlft pfx.pfx_prefix in
          match pfx.pfx_autonomous, vlft with
-         | _, Some 0.0 ->
+         | _, Some 0L ->
            {state with prefix_list}, acts
          | true, Some _ ->
            let plft = pfx.pfx_preferred_lifetime in

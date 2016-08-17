@@ -23,7 +23,7 @@ exception Refused
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
+module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1.RANDOM) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
@@ -83,7 +83,7 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) = struct
   let writev t views = Pcb.writev t views >|= err_rewrite
   let write_nodelay t view = Pcb.write_nodelay t view >>= err_raise
   let writev_nodelay t views = Pcb.writev_nodelay t views >>= err_raise
-  let connect ipv4 = ok (Pcb.create ipv4)
+  let connect ipv4 clock = ok (Pcb.create ipv4 clock)
   let disconnect _ = Lwt.return_unit
 
   let create_connection tcp (daddr, dport) =

@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Make(E : V1_LWT.ETHIF)(Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
   module A = Arpv4.Make(E)(Clock)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
@@ -34,7 +34,7 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
   let pp fmt repr =
     Format.fprintf fmt "%s" repr
   
-  let connect e = A.connect e >>= function
+  let connect e clock = A.connect e clock >>= function
     | `Ok base -> Lwt.return (`Ok { base; table = (Hashtbl.create 7) })
     | `Error e -> Lwt.return (`Error e)
   

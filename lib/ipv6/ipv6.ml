@@ -21,7 +21,7 @@ module I = Ipaddr
 
 open Lwt.Infix
 
-module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
+module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
   type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
@@ -31,6 +31,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   type t =
     { ethif : E.t;
+      clock : C.t;
       mutable ctx : Ndpv6.context }
 
   type error =
@@ -39,7 +40,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
 
   let start_ticking t =
     let rec loop () =
-      let now = C.time () in
+      let now = C.elapsed_ns t.clock in
       let ctx, bufs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
       Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
@@ -51,7 +52,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     Ndpv6.allocate_frame t.ctx dst proto
 
   let writev t frame bufs =
-    let now = C.time () in
+    let now = C.elapsed_ns t.clock in
     let dst =
       Ndpv6.ipaddr_of_cstruct
         (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethif_wire.sizeof_ethernet))
@@ -64,7 +65,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     writev t frame [buf]
 
   let input t ~tcp ~udp ~default buf =
-    let now = C.time () in
+    let now = C.elapsed_ns t.clock in
     let _, bufs, actions = Ndpv6.handle ~now t.ctx buf in
     Lwt_list.iter_s (function
         | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
@@ -81,7 +82,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
   let src t ~dst = Ndpv6.select_source t.ctx dst
 
   let set_ip t ip =
-    let now = C.time () in
+    let now = C.elapsed_ns t.clock in
     let ctx, bufs = Ndpv6.add_ip ~now t.ctx ip in
     t.ctx <- ctx;
     Lwt_list.iter_s (E.writev t.ethif) bufs
@@ -90,7 +91,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     Ndpv6.get_ip t.ctx
 
   let set_ip_gateways t ips =
-    let now = C.time () in
+    let now = C.elapsed_ns t.clock in
     let ctx = Ndpv6.add_routers ~now t.ctx ips in
     t.ctx <- ctx;
     Lwt.return_unit
@@ -102,7 +103,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     Ndpv6.get_prefix t.ctx
 
   let set_ip_netmask t pfx =
-    let now = C.time () in
+    let now = C.elapsed_ns t.clock in
     let ctx = Ndpv6.add_prefix ~now t.ctx pfx in
     t.ctx <- ctx;
     Lwt.return_unit
@@ -127,11 +128,11 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) = struct
     | Some x -> f x >>= g
     | None -> g ()
 
-  let connect ?ip ?netmask ?gateways ethif =
+  let connect ?ip ?netmask ?gateways ethif clock =
     Log.info (fun f -> f "IP6: Starting");
-    let now = C.time () in
+    let now = C.elapsed_ns clock in
     let ctx, bufs = Ndpv6.local ~now (E.mac ethif) in
-    let t = {ctx; ethif} in
+    let t = {ctx; clock; ethif} in
     Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
     (ip, set_ip t) >>=? fun () ->
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
