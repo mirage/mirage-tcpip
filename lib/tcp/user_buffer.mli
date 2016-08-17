@@ -26,7 +26,7 @@ module Rx : sig
   val monitor: t -> int32 Lwt_mvar.t -> unit
 end
 
-module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
+module Tx(Time:V1_LWT.TIME)(Clock:V1.MCLOCK) : sig
 
   type t
 

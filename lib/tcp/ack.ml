@@ -105,7 +105,7 @@ module Delayed (Time:V1_LWT.TIME) : M = struct
     let delayedack = last in
     let r = {send_ack; delayedack; delayed; pushpending} in
     let expire = ontimer r in
-    let period = 0.1 in
+    let period = (Duration.of_f 0.1) in
     let timer = TT.t ~period ~expire in
     {r; timer}
 

@@ -55,7 +55,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
+module Tx (Time:V1_LWT.TIME)(Clock:V1.MCLOCK) : sig
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t -> unit Lwt.t
@@ -64,7 +64,7 @@ module Tx (Time:V1_LWT.TIME)(Clock:V1.CLOCK) : sig
   (** Queue of pre-transmission segments *)
 
   val create:
-    xmit:xmit -> wnd:Window.t -> state:State.t ->
+    clock:Clock.t -> xmit:xmit -> wnd:Window.t -> state:State.t ->
     rx_ack:Sequence.t Lwt_mvar.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->
     tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t

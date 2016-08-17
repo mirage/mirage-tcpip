@@ -109,7 +109,7 @@ end
    to decide how to throttle or breakup its data production with this
    information.
 *)
-module Tx(Time:V1_LWT.TIME)(Clock:V1.CLOCK) = struct
+module Tx(Time:V1_LWT.TIME)(Clock:V1.MCLOCK) = struct
 
   module TXS = Segment.Tx(Time)(Clock)
 

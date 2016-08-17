@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : sig
+module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1.RANDOM) : sig
 
   (** Overall state of the TCP stack *)
   type t
@@ -57,5 +57,5 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) : 
   val write_nodelay: pcb -> Cstruct.t -> (unit, string) Result.result Lwt.t
   val writev_nodelay: pcb -> Cstruct.t list -> (unit, string) Result.result Lwt.t
 
-  val create: Ip.t -> t
+  val create: Ip.t -> Clock.t -> t
 end

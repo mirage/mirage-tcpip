@@ -20,16 +20,17 @@ open Lwt.Infix
 let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = struct
+module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
 
   type result = [ `Ok of Macaddr.t | `Timeout ]
 
   type entry =
     | Pending of result Lwt.t * result Lwt.u
-    | Confirmed of float * Macaddr.t
+    | Confirmed of int64 * Macaddr.t
 
   type t = {
     ethif : Ethif.t;
+    clock : Clock.t;
     cache: (Ipaddr.V4.t, entry) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
@@ -48,15 +49,19 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
   let probe_num = 3 (* how many probes to send before giving up *)
 
   let rec tick t () =
-    let now = Clock.time () in
-    let expired = Hashtbl.fold (fun ip entry expired ->
+    let now = Clock.elapsed_ns t.clock in
+    let remove_expired ip entry =
         match entry with
-        | Pending _ -> expired
-        | Confirmed (t, _) -> if t >= now then ip :: expired else expired) t.cache []
+        | Pending _ -> Some entry
+        | Confirmed (expiry, _) ->
+          if Int64.compare expiry now > -1
+          then Some entry
+          else begin
+            Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip);
+            None
+          end
     in
-    List.iter (fun ip ->
-         Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip); Hashtbl.remove t.cache ip
-      ) expired;
+    Hashtbl.filter_map_inplace remove_expired t.cache;
     Time.sleep_ns arp_timeout >>= tick t
 
   let to_repr t =
@@ -64,7 +69,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       let key = Ipaddr.V4.to_string ip in
       match entry with
        | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending" 
-       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %f)\n%!" 
+       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %Lu)\n%!" 
                                     acc key (Macaddr.to_string mac) time
     in
     Lwt.return (Hashtbl.fold print t.cache "")
@@ -77,8 +82,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
     match Ipaddr.V4.is_multicast ip || (Ipaddr.V4.compare ip Ipaddr.V4.any = 0) with
     | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp_hum ip)
     | false ->
-      let now = Clock.time () in
-      let expire = now +. Duration.to_f arp_timeout in
+      let now = Clock.elapsed_ns t.clock in
+      let expire = Int64.add now arp_timeout in
       try
         match Hashtbl.find t.cache ip with
         | Pending (_, w) ->
@@ -197,10 +202,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.CLOCK) (Time : V1_LWT.TIME) = str
       Lwt.async (retry 0);
       response
 
-  let connect ethif =
+  let connect ethif clock =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
-    let t = { ethif; cache; bound_ips } in
+    let t = { clock; ethif; cache; bound_ips } in
     Lwt.async (tick t);
     Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
                Ethif.mac t.ethif)));
