@@ -292,6 +292,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
           | true ->
             if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
+              Log.debug (fun f -> f "Max retransmits reached: %a" Window.pp wnd);
               Log.info (fun fmt -> fmt "Max retransmits reached for connection - terminating");
               StateTick.tick st State.Timeout;
               Lwt.return Tcptimer.Stoptimer
@@ -304,6 +305,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
               Lwt.async
                 (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
               Window.backoff_rto wnd;
+              Log.debug (fun fmt -> fmt "Backed off! %a" Window.pp wnd);
               Log.debug (fun fmt ->
                   fmt "PUSHING TIMER - new time = %Lu, new seq = %a"
                     (Window.rto wnd) Sequence.pp rexmit_seg.seq);

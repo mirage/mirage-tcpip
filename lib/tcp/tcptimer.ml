@@ -41,6 +41,7 @@ module Make(Time:V1_LWT.TIME) = struct
     Log.debug (fun f -> f "timerloop");
     Stats.incr_timer ();
     let rec aux t s =
+      Log.debug (fun f -> f "timerloop: sleeping for %Lu ns" t.period);
       Time.sleep_ns t.period >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
@@ -52,7 +53,7 @@ module Make(Time:V1_LWT.TIME) = struct
         Log.debug (fun f -> f "timerloop: continuer");
         aux t d
       | ContinueSetPeriod (p, d) ->
-        Log.debug (fun f -> f "timerloop: coontinuesetperiod");
+        Log.debug (fun f -> f "timerloop: continuesetperiod (new period: %Lu)" p);
         t.period <- p;
         aux t d
     in

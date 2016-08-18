@@ -67,12 +67,13 @@ let beta = 0.25    (* see RFC 2988 *)
 (* To string for debugging *)
 let pp fmt t =
   Format.fprintf fmt
-    "rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a"
+    "Window: rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a backoffs=%d rto=%Lu"
     Sequence.pp t.rx_nxt
     Sequence.pp t.rx_nxt_inseq
     Sequence.pp t.tx_nxt
     t.rx_wnd t.tx_wnd
     Sequence.pp t.snd_una
+    t.backoff_count t.rto
 
 (* Initialise the sequence space *)
 let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
