@@ -24,7 +24,7 @@ type tr =
   | ContinueSetPeriod of (time * Sequence.t)
 
 module Make(T:V1_LWT.TIME) : sig
-  val t : period: time -> expire: (Sequence.t -> tr Lwt.t) -> t
+  val t : period_ns: time -> expire: (Sequence.t -> tr Lwt.t) -> t
 
   val start : t -> ?p:time -> Sequence.t -> unit Lwt.t
 end

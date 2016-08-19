@@ -399,8 +399,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
     let segs = Lwt_sequence.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
-    let period = Window.rto wnd in
-    let rexmit_timer = TT.t ~period ~expire in
+    let period_ns = Window.rto wnd in
+    let rexmit_timer = TT.t ~period_ns ~expire in
     let q =
       { clock; xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
     in

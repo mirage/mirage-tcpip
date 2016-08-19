@@ -102,7 +102,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rtt_timer_starttime = 0L in
   let srtt = 1L in
   let rttvar = 0L in
-  let rto = 3L in
+  let rto = (Duration.of_sec 3) in
   let backoff_count = 0 in
   { tx_isn; rx_isn; max_rx_wnd; max_tx_wnd;
     ack_serviced; ack_seq; ack_win;
