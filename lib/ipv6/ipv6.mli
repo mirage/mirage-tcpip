@@ -14,11 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.CLOCK) : sig
+module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (Clock : V1.MCLOCK) : sig
   include V1_LWT.IPV6 with type ethif = E.t
   val connect :
     ?ip:Ipaddr.V6.t ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
-    ethif -> [> `Ok of t | `Error of error ] Lwt.t
+    ethif -> Clock.t -> [> `Ok of t | `Error of error ] Lwt.t
 end

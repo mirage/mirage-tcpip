@@ -17,6 +17,8 @@
 let src = Logs.Src.create "window" ~doc:"Mirage TCP Window module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+type time = int64
+
 type t = {
   tx_mss: int;
   tx_isn: Sequence.t;
@@ -47,10 +49,10 @@ type t = {
   mutable rtt_timer_on: bool;
   mutable rtt_timer_reset: bool;
   mutable rtt_timer_seq: Sequence.t;
-  mutable rtt_timer_starttime: float;
-  mutable srtt: float;
-  mutable rttvar: float;
-  mutable rto: float;
+  mutable rtt_timer_starttime: time;
+  mutable srtt: time;
+  mutable rttvar: time;
+  mutable rto: int64;
   mutable backoff_count: int;
 }
 
@@ -65,12 +67,13 @@ let beta = 0.25    (* see RFC 2988 *)
 (* To string for debugging *)
 let pp fmt t =
   Format.fprintf fmt
-    "rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a"
+    "Window: rx_nxt=%a rx_nxt_inseq=%a tx_nxt=%a rx_wnd=%lu tx_wnd=%lu snd_una=%a backoffs=%d rto=%Lu"
     Sequence.pp t.rx_nxt
     Sequence.pp t.rx_nxt_inseq
     Sequence.pp t.tx_nxt
     t.rx_wnd t.tx_wnd
     Sequence.pp t.snd_una
+    t.backoff_count t.rto
 
 (* Initialise the sequence space *)
 let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
@@ -96,10 +99,10 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rtt_timer_on = false in
   let rtt_timer_reset = true in
   let rtt_timer_seq = tx_nxt in
-  let rtt_timer_starttime = 0.0 in
-  let srtt = 1.0 in
-  let rttvar = 0.0 in
-  let rto = 3.0 in
+  let rtt_timer_starttime = 0L in
+  let srtt = 1L in
+  let rttvar = 0L in
+  let rto = (Duration.of_sec 3) in
   let backoff_count = 0 in
   { tx_isn; rx_isn; max_rx_wnd; max_tx_wnd;
     ack_serviced; ack_seq; ack_win;
@@ -158,18 +161,18 @@ let set_tx_wnd t sz =
 let tx_mss t =
   t.tx_mss
 
-module Make(Clock:V1.CLOCK) = struct
+module Make(Clock:V1.MCLOCK) = struct
   (* Advance transmitted packet sequence number *)
-  let tx_advance t b =
+  let tx_advance clock t b =
     if not t.rtt_timer_on && not t.fast_recovery then begin
       t.rtt_timer_on <- true;
       t.rtt_timer_seq <- t.tx_nxt;
-      t.rtt_timer_starttime <- Clock.time ();
+      t.rtt_timer_starttime <- Clock.elapsed_ns clock;
     end;
     t.tx_nxt <- Sequence.add t.tx_nxt b
 
   (* An ACK was received - use it to adjust cwnd *)
-  let tx_ack t r win =
+  let tx_ack clock t r win =
     set_tx_wnd t win;
     if t.fast_recovery then begin
       if Sequence.gt r t.snd_una then
@@ -187,16 +190,20 @@ module Make(Clock:V1.CLOCK) = struct
         t.snd_una <- r;
         if t.rtt_timer_on && Sequence.gt r t.rtt_timer_seq then begin
           t.rtt_timer_on <- false;
-          let rtt_m = Clock.time () -. t.rtt_timer_starttime in
+          let rtt_m = Int64.sub (Clock.elapsed_ns clock) t.rtt_timer_starttime in
           if t.rtt_timer_reset then begin
             t.rtt_timer_reset <- false;
-            t.rttvar <- (0.5 *. rtt_m);
+            t.rttvar <- Int64.div rtt_m 2L;
             t.srtt <- rtt_m;
           end else begin
-            t.rttvar <- (((1.0 -. beta) *. t.rttvar) +. (beta *. (abs_float (t.srtt -. rtt_m))));
-            t.srtt <- (((1.0 -. alpha) *. t.srtt) +. (alpha *. rtt_m));
+            let adjusted_rttvar = (1.0 -. beta) *. (Int64.to_float t.rttvar) in
+            let rttvar_addition = beta *. Int64.(sub t.srtt rtt_m |> abs |> to_float) in
+            let adjusted_srtt = (1.0 -. alpha) *. (Int64.to_float t.srtt) in
+            let srtt_addition = alpha *. (Int64.to_float rtt_m) in
+            t.rttvar <- Int64.of_float (adjusted_rttvar +. rttvar_addition);
+            t.srtt <- Int64.of_float (adjusted_srtt +. srtt_addition);
           end;
-          t.rto <- (max 1.0 (t.srtt +. (4.0 *. t.rttvar)));
+          t.rto <- (max 1L (Int64.add t.srtt (Int64.mul 4L t.rttvar)));
         end;
       end;
       let cwnd_incr = match t.cwnd < t.ssthresh with
@@ -244,7 +251,7 @@ let alert_fast_rexmit t _ =
 let rto t =
   match t.backoff_count with
   | 0 -> t.rto
-  | _ -> t.rto *. (2. ** (float_of_int t.backoff_count))
+  | _ -> Int64.(mul t.rto (shift_left 2L t.backoff_count))
 
 let backoff_rto t =
   t.backoff_count <- t.backoff_count + 1;

@@ -4,7 +4,7 @@ module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
-module Static_arp = Static_arp.Make(E)(Clock)(Time)
+module Static_arp = Static_arp.Make(E)(Mclock)(Time)
 
 open Lwt.Infix
 
@@ -42,9 +42,10 @@ let slowly fn =
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
   let or_error = Common.or_error in
+  or_error "clock" Mclock.connect () >>= fun clock ->
   or_error "backend" V.connect backend >>= fun netif ->
   or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arp" Static_arp.connect ethif >>= fun arp ->
+  or_error "arp" (Static_arp.connect ethif) clock >>= fun arp ->
   or_error "ipv4" (Ip.connect ethif) arp >>= fun ip ->
   or_error "icmpv4" Icmp.connect ip >>= fun icmp ->
   or_error "udp" Udp.connect ip >>= fun udp ->
