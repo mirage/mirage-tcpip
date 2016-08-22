@@ -19,27 +19,30 @@ open Lwt.Infix
 let src = Logs.Src.create "tcptimer" ~doc:"Mirage TCP Tcptimer module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+type time = int64
+
 type tr =
   | Stoptimer
   | Continue of Sequence.t
-  | ContinueSetPeriod of (float * Sequence.t)
+  | ContinueSetPeriod of (time * Sequence.t)
 
 type t = {
   expire: (Sequence.t -> tr Lwt.t);
-  mutable period: float;
+  mutable period_ns: time;
   mutable running: bool;
 }
 
 module Make(Time:V1_LWT.TIME) = struct
-  let t ~period ~expire =
+  let t ~period_ns ~expire =
     let running = false in
-    {period; expire; running}
+    {period_ns; expire; running}
 
   let timerloop t s =
     Log.debug (fun f -> f "timerloop");
     Stats.incr_timer ();
     let rec aux t s =
-      Time.sleep_ns (Duration.of_f t.period) >>= fun () ->
+      Log.debug (fun f -> f "timerloop: sleeping for %Lu ns" t.period_ns);
+      Time.sleep_ns t.period_ns >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
         Stats.decr_timer ();
@@ -50,17 +53,17 @@ module Make(Time:V1_LWT.TIME) = struct
         Log.debug (fun f -> f "timerloop: continuer");
         aux t d
       | ContinueSetPeriod (p, d) ->
-        Log.debug (fun f -> f "timerloop: coontinuesetperiod");
-        t.period <- p;
+        Log.debug (fun f -> f "timerloop: continuesetperiod (new period: %Lu ns)" p);
+        t.period_ns <- p;
         aux t d
     in
     aux t s
 
-  let period t = t.period
+  let period_ns t = t.period_ns
 
-  let start t ?(p=(period t)) s =
+  let start t ?(p=(period_ns t)) s =
     if not t.running then begin
-      t.period <- p;
+      t.period_ns <- p;
       t.running <- true;
       Lwt.async (fun () -> timerloop t s);
       Lwt.return_unit

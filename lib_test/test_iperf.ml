@@ -36,8 +36,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     mutable packets: int64;
     mutable bin_bytes:int64;
     mutable bin_packets: int64;
-    mutable start_time: float;
-    mutable last_time: float;
+    mutable start_time: int64;
+    mutable last_time: int64;
   }
 
   let msg =
@@ -79,6 +79,12 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let err = V.Stackv4.TCPV4.error_message e in
     fail "Error in server while reading: %s" err
 
+  let get_clock () =
+    Mclock.connect () >>= function
+    | `Error _ -> Lwt.fail (Failure "clock initialization failed")
+    | `Ok clock -> Lwt.return clock
+
+
   let write_and_check flow buf =
     V.Stackv4.TCPV4.write flow buf >>= function
     | `Ok ()   -> Lwt.return_unit
@@ -111,23 +117,23 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.return_unit
 
   let print_data st ts_now =
-    let server = ts_now -. st.start_time in
+    let server = Int64.sub ts_now st.start_time in
     let rate =
-      (Int64.to_float st.bin_bytes /. (ts_now -. st.last_time)) /. 125.
+      Int64.(div (div st.bin_bytes (sub ts_now st.last_time))) 125L
     in
     let live_words = Gc.((stat()).live_words) in
-    Logs.debug (fun f -> f  "Iperf server: t = %.0f, rate = %.0fd KBits/s, totbytes = %Ld, \
+    Logs.debug (fun f -> f  "Iperf server: t = %.0Lu, rate = %.0Lu KBits/ns, totbytes = %Ld, \
              live_words = %d" server rate st.bytes live_words);
     st.last_time <- ts_now;
     st.bin_bytes <- 0L;
     st.bin_packets <- 0L;
     Lwt.return_unit
 
-  let iperf _s server_done_u flow =
+  let iperf clock _s server_done_u flow =
     (* debug is too much for us here *)
     Logs.set_level ~all:true (Some Logs.Info);
     Logs.info (fun f -> f  "Iperf server: Received connection.");
-    let t0 = Clock.time () in
+    let t0 = Clock.elapsed_ns clock in
     let st = {
       bytes=0L; packets=0L; bin_bytes=0L; bin_packets=0L; start_time = t0;
       last_time = t0
@@ -137,7 +143,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       match f with
       | `Error e -> err_read e ()
       | `Eof ->
-        let ts_now = (Clock.time ()) in
+        let ts_now = Clock.elapsed_ns clock in
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
@@ -152,8 +158,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
           st.bin_packets <- (Int64.add st.bin_packets 1L);
-          let ts_now = (Clock.time ()) in
-          (if ((ts_now -. st.last_time) >= 1.0) then
+          let ts_now = Clock.elapsed_ns clock in
+          (if (Int64.sub ts_now st.last_time >= 1L) then
              print_data st ts_now
            else
              Lwt.return_unit) >>= fun () ->
@@ -176,7 +182,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
        fail "iperf test timed out after %f seconds" timeout);
 
       (server_ready >>= fun () ->
-       Lwt_unix.sleep 0.1 >>= fun() -> (* Give server 0.1 s to call listen *)
+       Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
        Logs.info (fun f -> f  "I am client with IP %s, trying to connect to server @ %s:%d"
          (Ipaddr.V4.to_string client_ip)
        (Ipaddr.V4.to_string server_ip) port);
@@ -186,7 +192,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
          (Ipaddr.V4.to_string server_ip) port);
        V.create_stack backend server_ip netmask [gw] >>= fun server_s ->
-       V.Stackv4.listen_tcpv4 server_s ~port (iperf server_s server_done_u);
+       get_clock () >>= fun clock ->
+       V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->
 

@@ -18,10 +18,10 @@ exception Refused
 (** {b NOTE}: to be removed in favor of a proper result type in
     V1.write_nodelay and V1.writev_nodelay.*)
 
-module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.CLOCK)(R:V1.RANDOM) : sig
+module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1.RANDOM) : sig
   include V1_LWT.TCP
     with type ip = IP.t
      and type ipaddr = IP.ipaddr
      and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
-  val connect : ip -> [> `Ok of t | `Error of error ] Lwt.t
+  val connect : ip -> C.t -> [> `Ok of t | `Error of error ] Lwt.t
 end

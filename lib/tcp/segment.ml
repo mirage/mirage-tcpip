@@ -230,7 +230,7 @@ type tx_flags = (* At most one of Syn/Fin/Rst/Psh allowed *)
   | Rst
   | Psh
 
-module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
+module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)
@@ -263,6 +263,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
                                       with this queue *)
     tx_wnd_update: int Lwt_mvar.t; (* Received updates to the transmit window *)
     rexmit_timer: Tcptimer.t;      (* Retransmission timer for this connection *)
+    clock: Clock.t;                (* whom to ask for the time *)
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
@@ -282,7 +283,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           match rexmit_seg.seq = seq with
           | false ->
             Log.debug (fun fmt ->
-                fmt "PUSHING TIMER - new time=%f, new seq=%a"
+                fmt "PUSHING TIMER - new time=%Lu, new seq=%a"
                   (Window.rto wnd) Sequence.pp rexmit_seg.seq);
             let ret =
               Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
@@ -291,6 +292,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
           | true ->
             if (Window.max_rexmits_done wnd) then (
               (* TODO - include more in log msg like ipaddrs *)
+              Log.debug (fun f -> f "Max retransmits reached: %a" Window.pp wnd);
               Log.info (fun fmt -> fmt "Max retransmits reached for connection - terminating");
               StateTick.tick st State.Timeout;
               Lwt.return Tcptimer.Stoptimer
@@ -303,8 +305,9 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
               Lwt.async
                 (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
               Window.backoff_rto wnd;
+              Log.debug (fun fmt -> fmt "Backed off! %a" Window.pp wnd);
               Log.debug (fun fmt ->
-                  fmt "PUSHING TIMER - new time = %f, new seq = %a"
+                  fmt "PUSHING TIMER - new time = %Lu, new seq = %a"
                     (Window.rto wnd) Sequence.pp rexmit_seg.seq);
               let ret =
                 Tcptimer.ContinueSetPeriod (Window.rto wnd, rexmit_seg.seq)
@@ -341,7 +344,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     let rec tx_ack_t () =
       let serviceack dupack ack_len seq win =
         let partleft = clearsegs q ack_len q.segs in
-        TX.tx_ack q.wnd (Sequence.sub seq partleft) win;
+        TX.tx_ack q.clock q.wnd (Sequence.sub seq partleft) win;
         match dupack || Window.fast_rec q.wnd with
         | true ->
           q.dup_acks <- q.dup_acks + 1;
@@ -392,14 +395,14 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     in
     tx_ack_t ()
 
-  let create ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
+  let create ~clock ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
     let segs = Lwt_sequence.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
-    let period = Window.rto wnd in
-    let rexmit_timer = TT.t ~period ~expire in
+    let period_ns = Window.rto wnd in
+    let rexmit_timer = TT.t ~period_ns ~expire in
     let q =
-      { xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
+      { clock; xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
     in
     let t = rto_t q tx_ack in
     q, t
@@ -418,7 +421,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.CLOCK) = struct
     let seq = Window.tx_nxt wnd in
     let seg = { data; flags; seq } in
     let seq_len = len seg in
-    TX.tx_advance q.wnd seq_len;
+    TX.tx_advance q.clock q.wnd seq_len;
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match Sequence.(gt seq_len zero) with

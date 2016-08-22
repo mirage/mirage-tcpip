@@ -47,9 +47,10 @@ let create_sut_stack backend =
   VNETIF_STACK.create_stack backend sut_ip netmask [gw]
 
 let create_raw_stack backend =
+  or_error "clock" Mclock.connect () >>= fun clock ->
   or_error "backend" V.connect backend >>= fun netif ->
   or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arpv4" A.connect ethif >>= fun arpv4 ->
+  or_error "arpv4" (A.connect ethif) clock >>= fun arpv4 ->
   or_error "ipv4" (I.connect ethif) arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 

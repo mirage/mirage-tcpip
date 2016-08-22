@@ -28,9 +28,9 @@ val rx_advance_inseq : t -> Sequence.t -> unit
 val rx_nxt : t -> Sequence.t
 val rx_nxt_inseq : t -> Sequence.t
 
-module Make(C:V1.CLOCK) : sig
-  val tx_advance : t -> Sequence.t -> unit
-  val tx_ack: t -> Sequence.t -> int -> unit
+module Make(C:V1.MCLOCK) : sig
+  val tx_advance : C.t -> t -> Sequence.t -> unit
+  val tx_ack: C.t -> t -> Sequence.t -> int -> unit
 end
 
 val tx_nxt : t -> Sequence.t
@@ -63,7 +63,7 @@ val max_tx_wnd : t -> int32
 
 val alert_fast_rexmit : t -> Sequence.t -> unit
 
-val rto : t -> float
+val rto : t -> int64
 val backoff_rto : t -> unit
 val max_rexmits_done : t -> bool
 

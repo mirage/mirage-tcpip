@@ -4,46 +4,27 @@ let time_reduction_factor = 60
 
 module Time = Vnetif_common.Time
 module Fast_clock = struct
+  type error = unit
+  type t = unit
+  type 'a io = 'a Lwt.t
 
-  let last_read = ref (Clock.time ())
+  let last_read = ref 0L
 
-  (* from mirage/types/V1.mli module type CLOCK *)
-  type tm =
-    { tm_sec: int;               (** Seconds 0..60 *)
-      tm_min: int;               (** Minutes 0..59 *)
-      tm_hour: int;              (** Hours 0..23 *)
-      tm_mday: int;              (** Day of month 1..31 *)
-      tm_mon: int;               (** Month of year 0..11 *)
-      tm_year: int;              (** Year - 1900 *)
-      tm_wday: int;              (** Day of week (Sunday is 0) *)
-      tm_yday: int;              (** Day of year 0..365 *)
-      tm_isdst: bool;            (** Daylight time savings in effect *)
-    }
+  let connect () = Lwt.return (`Ok ())
 
-  let gmtime time = 
-    let tm = Clock.gmtime time in
-    { 
-      tm_sec = tm.Clock.tm_sec;
-      tm_min = tm.Clock.tm_min;
-      tm_hour = tm.Clock.tm_hour;
-      tm_mday = tm.Clock.tm_mday;
-      tm_mon = tm.Clock.tm_mon;
-      tm_year = tm.Clock.tm_year;
-      tm_wday = tm.Clock.tm_wday;
-      tm_yday = tm.Clock.tm_yday;
-      tm_isdst = tm.Clock.tm_isdst;
-    }
+  let advance_clock ns =
+    last_read := Int64.add !last_read ns
 
-  let time () = 
-    let this_time = Clock.time () in
-    let clock_diff = ((this_time -. !last_read) *. (float_of_int time_reduction_factor)) in
-    last_read := this_time;
-    this_time +. clock_diff
+  let elapsed_ns _ = 
+    !last_read
 
+  let period_ns _ = None
+
+  let disconnect _ = Lwt.return_unit
 end
 module Fast_time = struct
   type 'a io = 'a Lwt.t
-  let sleep_ns time = Time.sleep_ns (Int64.div time (Int64.of_int time_reduction_factor))
+  let sleep_ns time = Time.sleep_ns Int64.(div time (of_int time_reduction_factor))
 end
 
 module B = Basic_backend.Make
@@ -162,9 +143,10 @@ let arp_request ~from_netif ~to_mac ~from_ip ~to_ip =
 
 let get_arp ?(backend = B.create ~use_async_readers:true 
                 ~yield:(fun() -> Lwt_main.yield ()) ()) () =
+  or_error "clock" Fast_clock.connect () >>= fun clock ->
   or_error "backend" V.connect backend >>= fun netif ->
   or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arp" A.connect ethif >>= fun arp ->
+  or_error "arp" (A.connect ethif) clock >>= fun arp ->
   Lwt.return { backend; netif; ethif; arp }
 
 (* we almost always want two stacks on the same backend *)
@@ -349,6 +331,9 @@ let entries_expire () =
   let test =
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     set_and_check ~listener:listen.arp ~claimant:speak first_ip >>= fun () ->
+    (* our custom clock requires some manual time-travel *)
+    Fast_clock.advance_clock (Duration.of_sec 90);
+    (* sleep for 1s to make sure we hit `tick` *)
     Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
     (* asking now should generate a query *)
     not_in_cache ~listen:speak.netif expected_arp_query listen.arp first_ip;

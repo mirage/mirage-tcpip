@@ -20,7 +20,7 @@ open Lwt.Infix
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.CLOCK)(Random:V1.RANDOM) =
+module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1.RANDOM) =
 struct
 
   module RXS = Segment.Rx(Time)
@@ -47,6 +47,7 @@ struct
 
   type t = {
     ip : Ip.t;
+    clock : Clock.t;
     mutable localport : int;
     channels: (WIRE.id, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
@@ -284,7 +285,7 @@ struct
     let on_close () = clearpcb t id tx_isn in
     let state = State.t ~on_close in
     let txq, _tx_t =
-      TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
+      TXS.create ~clock:t.clock ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
     (* The user application transmit buffer *)
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
@@ -600,12 +601,12 @@ struct
     th
 
   (* Construct the main TCP thread *)
-  let create ip =
+  let create ip clock =
     Random.self_init ();
     let localport = 10000 + (Random.int 10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { ip; localport; channels; listens; connects }
+    { clock; ip; localport; channels; listens; connects }
 
 end
