@@ -50,25 +50,29 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
 
   let rec tick t () =
     let now = Clock.elapsed_ns t.clock in
-    let remove_expired ip entry =
+    let expired = Hashtbl.fold (fun ip entry expired ->
         match entry with
-        | Pending _ -> Some entry
-        | Confirmed (expiry, _) ->
-          if Int64.compare expiry now > -1
-          then Some entry
+        | Pending _ -> expired
+        | Confirmed (t, _) ->
+          if Int64.compare t now > -1 then
+            expired
           else begin
             Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip);
-            None
-          end
+            ip :: expired
+          end)
+        t.cache []
     in
-    Hashtbl.filter_map_inplace remove_expired t.cache;
+    List.iter (fun ip ->
+        Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip);
+        Hashtbl.remove t.cache ip)
+      expired;
     Time.sleep_ns arp_timeout >>= tick t
 
   let to_repr t =
     let print ip entry acc =
       let key = Ipaddr.V4.to_string ip in
       match entry with
-       | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending" 
+       | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending"
        | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %Lu)\n%!" 
                                     acc key (Macaddr.to_string mac) time
     in
