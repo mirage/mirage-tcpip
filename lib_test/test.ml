@@ -19,6 +19,7 @@ let suite = [
   "socket"         , Test_socket.suite      ;
   "icmpv4"         , Test_icmpv4.suite      ;
   "tcp_options"    , Test_tcp_options.suite ;
+  "ip_options"     , Test_ip_options.suite ;
   "rfc5961"        , Test_rfc5961.suite     ;
   "arp"            , Test_arp.suite         ;
   "connect"        , Test_connect.suite     ;
