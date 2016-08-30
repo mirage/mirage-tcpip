@@ -61,7 +61,7 @@ module Unmarshal = struct
       let proto = get_ipv4_proto buf in
       let ttl = get_ipv4_ttl buf in
       let options =
-        if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 options_end)
+        if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
       in
       let payload = Cstruct.sub buf options_end payload_len in
