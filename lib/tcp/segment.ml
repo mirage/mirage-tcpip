@@ -304,7 +304,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
                     (Sequence.to_int rexmit_seg.seq));
               Lwt.async
                 (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
-              Window.alert_fast_rexmit wnd rexmit_seg.seq;
+              Window.alert_fast_rexmit wnd;
               Window.backoff_rto wnd;
               Log.debug (fun fmt -> fmt "Backed off! %a" Window.pp wnd);
               Log.debug (fun fmt ->
@@ -352,7 +352,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
           if q.dup_acks = 3 ||
             (Sequence.to_int32 ack_len > 0l) then begin
             (* alert window module to fall into fast recovery *)
-            Window.alert_fast_rexmit q.wnd seq;
+            Window.alert_fast_rexmit q.wnd;
             (* retransmit the bottom of the unacked list of packets *)
             let rexmit_seg = peek_l q.segs in
             Log.debug (fun fmt ->

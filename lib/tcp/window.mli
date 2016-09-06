@@ -61,7 +61,7 @@ val tx_inflight : t -> bool
 val set_tx_wnd : t -> int -> unit
 val max_tx_wnd : t -> int32
 
-val alert_fast_rexmit : t -> Sequence.t -> unit
+val alert_fast_rexmit : t -> unit
 
 val rto : t -> int64
 val backoff_rto : t -> unit
