@@ -265,4 +265,4 @@ let tx_totalbytes t =
   Sequence.(to_int (sub t.tx_nxt t.tx_isn))
 
 let rx_totalbytes t =
-  Sequence.(to_int (sub t.rx_nxt t.rx_isn))
+  (-) Sequence.(to_int (sub t.rx_nxt t.rx_isn)) 1
