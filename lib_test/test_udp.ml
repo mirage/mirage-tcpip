@@ -3,7 +3,7 @@ module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
-module Ip = Ipv4.Make(E)(Static_arp)
+module Ip = Ipv4.Make(E)(Static_arp)(Time)
 module Udp = Udp.Make(Ip)
 
 type stack = {

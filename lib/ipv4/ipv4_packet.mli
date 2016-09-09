@@ -1,9 +1,12 @@
 type t = {
-  src     : Ipaddr.V4.t;
-  dst     : Ipaddr.V4.t;
-  proto   : Cstruct.uint8;
-  ttl     : Cstruct.uint8;
-  options : Cstruct.t;
+  src           : Ipaddr.V4.t;
+  dst           : Ipaddr.V4.t;
+  proto         : Cstruct.uint8;
+  ttl           : Cstruct.uint8;
+  id            : Cstruct.uint16;
+  more_frags    : bool;
+  frag_offset   : Cstruct.uint16;
+  options       : Cstruct.t;
 }
 
 val pp : Format.formatter -> t -> unit

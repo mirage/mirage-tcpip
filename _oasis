@@ -55,9 +55,9 @@ Library ipv4
   Path:               lib/ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
-  Modules:            Ipv4, Ipv4_wire, Ipv4_packet
+  Modules:            Ipv4, Ipv4_wire, Ipv4_packet 
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
-                      tcpip,tcpip.ethif
+                      tcpip,tcpip.ethif, duration
 
 Library ipv6
   CompiledObject:     best

@@ -15,15 +15,16 @@
  *)
 
 let suite = [
-  "udp"            , Test_udp.suite         ;
-  "socket"         , Test_socket.suite      ;
-  "icmpv4"         , Test_icmpv4.suite      ;
-  "tcp_options"    , Test_tcp_options.suite ;
-  "ip_options"     , Test_ip_options.suite ;
-  "rfc5961"        , Test_rfc5961.suite     ;
-  "arp"            , Test_arp.suite         ;
-  "connect"        , Test_connect.suite     ;
-  "iperf"          , Test_iperf.suite       ;
+  "udp"            , Test_udp.suite            ;
+  "socket"         , Test_socket.suite         ;
+  "icmpv4"         , Test_icmpv4.suite         ;
+  "tcp_options"    , Test_tcp_options.suite    ;
+  "ip_options"     , Test_ip_options.suite     ;
+  "ip_fragmentation",  Test_ip_fragmentation.suite  ;
+  "rfc5961"        , Test_rfc5961.suite        ;
+  "arp"            , Test_arp.suite            ;
+  "connect"        , Test_connect.suite        ;
+  "iperf"          , Test_iperf.suite          ; 
 ]
 
 let run test () =

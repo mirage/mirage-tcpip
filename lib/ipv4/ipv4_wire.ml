@@ -12,3 +12,10 @@ type ipv4 = {
     dst:          uint32_t;
   } [@@big_endian]
 ]
+
+(* more fragments flag *)
+let get_more_frags buf = (get_ipv4_off buf) land (1 lsl 13) > 0
+
+(* offset *)
+let get_frag_offset buf = (get_ipv4_off buf) land 0x1FFF
+

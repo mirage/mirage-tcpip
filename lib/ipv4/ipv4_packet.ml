@@ -1,9 +1,12 @@
 type t = {
-  src     : Ipaddr.V4.t;
-  dst     : Ipaddr.V4.t;
-  proto   : Cstruct.uint8;
-  ttl     : Cstruct.uint8;
-  options : Cstruct.t;
+  src           : Ipaddr.V4.t;
+  dst           : Ipaddr.V4.t;
+  proto         : Cstruct.uint8;
+  ttl           : Cstruct.uint8;
+  id            : Cstruct.uint16;
+  more_frags    : bool;
+  frag_offset   : Cstruct.uint16;
+  options       : Cstruct.t;
 }
 
 type protocol = [
@@ -12,8 +15,8 @@ type protocol = [
   | `UDP ]
 
 let pp fmt t =
-  Format.fprintf fmt "IPv4 packet %a -> %a: proto %d, ttl %d, options %a"
-    Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.proto t.ttl Cstruct.hexdump_pp t.options
+  Format.fprintf fmt "IPv4 packet %a -> %a: proto %d, ttl %d, options %a, id %d, more: %B, offset: %d"
+    Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.proto t.ttl Cstruct.hexdump_pp t.options t.id t.more_frags t.frag_offset
 
 let equal p q = (p = q)
 
@@ -65,7 +68,10 @@ module Unmarshal = struct
         else (Cstruct.create 0)
       in
       let payload = Cstruct.sub buf options_end payload_len in
-      Result.Ok ({src; dst; proto; ttl; options;}, payload)
+      let more_frags = get_more_frags buf in
+      let frag_offset = get_frag_offset buf in
+      let id = get_ipv4_id buf in
+      Result.Ok ({src; dst; proto; ttl; options; id; more_frags; frag_offset}, payload)
     in
     size_check buf >>= check_version >>= get_header_length >>= parse buf
 end

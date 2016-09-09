@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
+module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) (Time: V1_LWT.TIME) : sig
   module Routing : sig
     (* this exception can be thrown by `write` or `writev` when the destination
        IP address's link-layer address can't be found by ARP *)

@@ -15,7 +15,7 @@ type decomposed = {
   ethernet_header : Ethif_packet.t;
 }
 
-module Ip = Ipv4.Make(E)(Static_arp)
+module Ip = Ipv4.Make(E)(Static_arp)(Time)
 module Icmp = Icmpv4.Make(Ip)
 
 module Udp = Udp.Make(Ip)
