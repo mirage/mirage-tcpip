@@ -15,6 +15,7 @@
  *)
 
 let suite = [
+  "tcp_window"     , Test_tcp_window.suite   ;
   "udp"            , Test_udp.suite         ;
   "socket"         , Test_socket.suite      ;
   "icmpv4"         , Test_icmpv4.suite      ;
