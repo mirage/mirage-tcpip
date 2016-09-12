@@ -1,3 +1,8 @@
+### 2.8.1 (2016-09-12
+
+* Set the TCP congestion window correctly when going into fast-recovery mode. (#244, by @balrajsingh)
+* When TCP packet loss is discovered by timeout, allow transition into fast-recovery mode. (#244, by @balrajsingh) 
+
 ### 2.8.0 (2016-04-04)
 
 * Provide an implementation for the ICMPV4 module type defined in mirage-types 2.8.0.  Remove default ICMP handling from the IPv4 module, but preserve it in tcpip-stack-direct. (#195 by @yomimono)
