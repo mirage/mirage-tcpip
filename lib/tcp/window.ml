@@ -236,7 +236,7 @@ let alert_fast_rexmit t _ =
   if not t.fast_recovery then begin
     let inflight = Sequence.to_int32 (Sequence.sub t.tx_nxt t.snd_una) in
     let newssthresh = max (Int32.div inflight 2l) (Int32.of_int (t.tx_mss * 2)) in
-    let newcwnd = Int32.add newssthresh (Int32.of_int (t.tx_mss * 2)) in
+    let newcwnd = Int32.add inflight (Int32.of_int (t.tx_mss * 2)) in
     Log.debug (fun fmt ->
         fmt "ENTERING fast recovery inflight=%ld, ssthresh=%ld -> %ld, \
                     cwnd=%ld -> %ld"
@@ -265,4 +265,4 @@ let tx_totalbytes t =
   Sequence.(to_int (sub t.tx_nxt t.tx_isn))
 
 let rx_totalbytes t =
-  Sequence.(to_int (sub t.rx_nxt t.rx_isn))
+  (-) Sequence.(to_int (sub t.rx_nxt t.rx_isn)) 1

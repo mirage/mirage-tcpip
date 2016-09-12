@@ -27,6 +27,14 @@ let cstruct =
 
 let packet = (module Udp_packet : Alcotest.TESTABLE with type t = Udp_packet.t)
 
+let sequence =
+  let module M = struct
+    type t = Tcp.Sequence.t
+    let pp = Tcp.Sequence.pp
+    let equal x y = (=) 0 @@ Tcp.Sequence.compare x y
+  end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
+
 let assert_bool msg a b =
   OUnit.assert_equal ~msg ~printer:string_of_bool a b
 
