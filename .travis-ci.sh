@@ -1,6 +1,6 @@
 # default tests
 
-set -x
+unset EXTRA_DEPS
 opam repo set-url default git://github.com/mirage/opam-repository#minios-xen
 uname -m
 opam update
