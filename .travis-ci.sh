@@ -2,6 +2,8 @@
 
 set -x
 opam repo set-url default git://github.com/mirage/opam-repository#minios-xen
+uname -m
+opam update
 opam install -y mirage
 git clone -b mirage-dev git://github.com/mirage/mirage-skeleton
 cd mirage-skeleton
