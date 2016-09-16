@@ -1,16 +1,14 @@
 # default tests
 
-wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
-bash -ex .travis-opam.sh
-
-# try building mirage-www in Unix and Xen modes
-
-export OPAMYES=1
-eval `opam config env`
-
-git clone -b mirage-dev git://github.com/mirage/mirage-www
-cd mirage-www
-
-opam install mirage
-make MODE=$MIRAGE_MODE configure
-make MODE=$MIRAGE_MODE build
+unset EXTRA_DEPS
+opam repo set-url default git://github.com/mirage/opam-repository#minios-xen
+uname -m
+opam update
+echo XX minios
+opam install -v minios-xen
+opam install -y mirage
+git clone -b mirage-dev git://github.com/mirage/mirage-skeleton
+cd mirage-skeleton
+export MINIOS_COMPILE_ARCH=x86_64
+make MODE=xen && make clean
+make MODE=unix && make clean
