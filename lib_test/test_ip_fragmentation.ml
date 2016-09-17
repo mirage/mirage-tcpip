@@ -26,6 +26,7 @@ module UDP =  Udp.Make(I)
 
 open Lwt.Infix
 let or_error = Common.or_error
+let cstruct = Common.cstruct
 
 
 (* addresses used by test cases *)
@@ -46,6 +47,13 @@ let create_ip_stack backend address netmask gw=
   Lwt.return (netif, ethif, arpv4, ip)
 
 
+let ipaddr =
+  let module M = struct
+    type t = Ipaddr.V4.t
+    let pp fmt t = Format.fprintf fmt "%s" (Ipaddr.V4.to_string t)
+    let equal p q = (Ipaddr.V4.compare p q) = 0
+  end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
 
 
 (* Sends a udp packet of the given size, check that it is received *)
@@ -65,10 +73,10 @@ let test_udp_packet n () =
     let data = Cstruct.create_unsafe n in
     VNETIF_STACK.Stackv4.UDPV4.write  ~src_port:1000 ~dst:receiver_address ~dst_port:2000 sender_udpv4 data >>= fun () ->
     Lwt_stream.next recv_stream >>= fun (src,dst,port,buf) ->
-    assert(Ipaddr.V4.compare src sender_address == 0);
-    assert(Ipaddr.V4.compare dst receiver_address == 0);
-    assert(port == 1000);
-    assert(Cstruct.equal buf data);
+    Alcotest.(check ipaddr) "Sender address is wrong" sender_address src;
+    Alcotest.(check ipaddr) "Receiver address is wrong" receiver_address dst;
+    Alcotest.(check int) "Source port is not the expecting one" 1000 port;
+    Alcotest.(check cstruct) "Assambled packet is not the expected one" data buf;
     Lwt.return_unit
 
 
@@ -121,12 +129,14 @@ let rec permutations l =
       let subperms = permutations (sub e l) in
       let t = List.map (fun a -> e::a) subperms in
       if k < n-1 then List.rev_append t (aux (k+1)) else t in
-   aux 0;; 
+   aux 0
+
+
+
 
 (* Test a list of fragments, in different permutations. Checks that the complete packet
  * is assembled, acording to is_complete true|false *)
-let test_frags is_complete frags () =
-    let sample_packet = Cstruct.create_unsafe 1500 in
+let test_frags is_complete expected_packet cases () =
     let test_fragments fragments is_complete =
         let backend = VNETIF_STACK.create_backend () in
         create_ip_stack backend receiver_address netmask [gw] >>= fun (receiver_netif, receiver_ethif, receiver_arpv4, receiver_ip) ->
@@ -146,30 +156,38 @@ let test_frags is_complete frags () =
         Lwt.pick [
             (
             Lwt_stream.next recv_stream >>= fun (_proto,src,dst,buf) ->
-            assert(Ipaddr.V4.compare src sender_address == 0);
-            assert(Ipaddr.V4.compare dst receiver_address == 0);
-            assert(Cstruct.equal buf sample_packet);
+            Alcotest.(check ipaddr) "Sender address is wrong" sender_address src;
+            Alcotest.(check ipaddr) "Receiver address is wrong" receiver_address dst;
+            Alcotest.(check cstruct) "Assambled packet is not the expected one" expected_packet buf;
             Lwt.return_true
             ) ;
 
             Time.sleep_ns (Duration.of_ms 100) >>= fun () -> Lwt.return_false
         ] >>= fun r ->
-        assert (r == is_complete);
+        Alcotest.(check bool) "Packet assembly failed" is_complete r;
         Lwt.return_unit in
 
-    let rec process_defs = function
-        | [] -> []
-        | (start,eend) :: rest ->
-                let data = Cstruct.sub sample_packet start (eend - start) in
-                (start,data, rest == []) :: process_defs rest in
 
-    (* actually do the test on each permutation *)
-    Lwt_list.iter_s (fun permutation -> 
-                test_fragments permutation is_complete 
-    ) (permutations (process_defs frags))
-    
+    (* actually do the test on each case *)
+    Lwt_list.iter_s (fun permutation ->
+                test_fragments permutation is_complete
+    ) cases
 
-let suite = [
+let rec process_defs = function
+    | [] -> []
+    | (start,eend, base_packet) :: rest ->
+            let data = Cstruct.sub base_packet start (eend - start) in
+            (start,data, rest == []) :: process_defs rest
+
+
+let suite =
+    (* Two buffers.  Buffer s is the correct, expected one.  buffer a (attacker) are fragments injected
+     * that must be latter overriden by newly arriving fragments *)
+    let s = Cstruct.create_unsafe 1500 in
+    let a = Cstruct.create_unsafe 1500 in
+    Cstruct.memset s 0;
+    Cstruct.memset a 1;
+    [
         "udp len 10", `Quick, test_udp_packet 10;
         "udp len 1000", `Quick, test_udp_packet 1000;
         "udp len 1500", `Quick, test_udp_packet 1500;
@@ -177,17 +195,21 @@ let suite = [
         "udp len 2501", `Quick, test_udp_packet 2501;
         "udp len 52501", `Quick, test_udp_packet 52501;
 
-                (* test do the fragment just as requested here, so must be sure that all but the last one
-                 * had a length that is multiple of 8 bytes *)
-        "frag normal", `Quick, test_frags true [(0,200); (200,504); (504,1500)];
-        "frag included", `Quick, test_frags true [(0,504); (16,504); (504,1500)];
-        "frag included2", `Quick, test_frags true [(0,504); (800,1000); (504,1500)];
-        "frag repeated", `Quick, test_frags true [(0,504); (504,1500); (504,1500)];
-        "frag overlaping", `Quick, test_frags true [(0,504); (200,600); (504,1500)];
-        "frag overlaping2", `Quick, test_frags true [(0,504); (200,600); (600,1500)];
-        "frag overlaping3", `Quick, test_frags true [(0,504); (504,1000); (600,1500)];
+        (* test do the fragment just as requested here, so must be sure that all but the last one
+         * had a length that is multiple of 8 bytes *)
+        "frag normal", `Quick, test_frags true s (permutations (process_defs [(0,200,s); (200,504,s); (504,1500,s)]));
+        "frag included", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (16,504,s); (504,1500,s)]));
+        "frag included 2", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (800,1000,s); (504,1500,s)]));
+        "frag repeated", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (504,1500,s); (504,1500,s)]));
+        "empty frag", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (504,504,s); (504,1500,s)]));
+        "frag overlaping", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (200,600,s); (504,1500,s)]));
+        "frag overlaping 2", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (200,600,s); (600,1500,s)]));
+        "frag overlaping 3", `Quick, test_frags true s (permutations (process_defs [(0,504,s); (504,1000,s); (600,1500,s)]));
 
-        "missing fragment", `Quick, test_frags false [(0,200); (600,1500)];
-        
+        (* New fragments must override already receiced ones *)
+        "frag overlap exploiting(ntp attack)", `Quick, test_frags true s [ process_defs [(0,504,a); (600,608,a); (0,600,s); (504, 1500,s)] ] ;
+        "frag overlap exploiting(ntp attack) 2", `Quick, test_frags true s [ process_defs [(0,504,a); (600,608,a); (64,128,s); (0, 800,s); (504, 1500,s)] ] ;
+        "frag overlap exploiting(ntp attack) 3", `Quick, test_frags true s [ process_defs [(0,64,a); (600,608,a); (0, 128,s); (24,504,s); (504, 1500,s)] ] ;
+
+        "missing fragment", `Quick, test_frags false s (permutations (process_defs [(0,200,s); (600,1500,s)]));
 ]
-

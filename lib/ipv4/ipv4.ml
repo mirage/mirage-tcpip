@@ -27,10 +27,17 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Data_interval = struct
   type t = (Cstruct.uint16 * Cstruct.uint16 * Cstruct.t) list
 
+
+
   (* intervals is an already orderered list of (start, end, data)
    * Add the new interval to the list, resolving overlapping data.
    * returns the amount of data really added (can be less than original
-   * payload if there was overlaping) and the new list *)
+   * payload if there was overlaping) and the new list
+   *
+   * New fragments override data already received that overlaps with it.
+   * See http://www.cs.bu.edu/~goldbe/papers/NTPattack.pdf for a discussion
+   * 'Exploiting overlapping IPv4 fragments'
+   * *)
   let rec merge_interval intervals i_offset i_end i_payload =
       match intervals with
       | [] ->
@@ -45,35 +52,26 @@ module Data_interval = struct
       | (offset, _eend, _payload) :: _rest when i_end <= offset  ->
            Cstruct.len i_payload, (i_offset, i_end, i_payload) :: intervals
 
-           (*   [(10,20)|_]   (5,15) *)
-           (*   [(10,20)|_]   (5,25) *)
-      | (offset, eend, payload) :: rest when i_offset < offset ->
-           let keep = (offset - i_offset) in
-           let i_payload1 = Cstruct.sub i_payload 0 keep in
-           if eend < i_end then (
-             let i_payload2 = Cstruct.sub i_payload (eend - i_offset) (i_end - eend) in
-             let increment, merged = merge_interval rest eend i_end i_payload2 in
-             keep + increment, (i_offset, i_offset + keep, i_payload1) :: (offset, eend, payload) :: merged
-           ) else
-             keep, (i_offset, i_offset + keep, i_payload1) :: intervals
+           (*   [(10,20)|_]   (15,40) *)
+           (*   [(10,20)|_]   (15,18) *)
+      | (offset, eend, payload) :: rest when offset < i_offset ->
+              let to_keep = i_offset - offset in
+              let cut_before,cut_after = Cstruct.split payload to_keep in
+              let incr, rest2 = merge_interval ((i_offset, eend, cut_after) ::rest) i_offset i_end i_payload in
+              incr ,  (offset, i_offset, cut_before) :: rest2
 
-           (*   [(10,20)|_]   (15, 25) *)
-      | (offset, eend, payload) :: rest when i_offset < eend && i_end > eend ->
-          let keep = (i_end - eend) in
-          let i_payload = Cstruct.sub i_payload (eend - i_offset) keep in
-          let increment, merged = merge_interval rest eend i_end i_payload in
-          increment, (offset, eend, payload) :: merged
+           (*   [(10,20)|_]   (10,18) *)
+      | (_offset, eend, payload) :: rest when eend > i_end ->
+              let to_keep = eend - i_end in
+              let cutoff = Cstruct.len payload - to_keep in
+              let cut_after = Cstruct.sub payload  cutoff to_keep in
+              Cstruct.len i_payload - cutoff,  (i_offset, i_end, i_payload) :: (i_end, i_end + cutoff, cut_after) :: rest
 
-           (*   have all data from this fragment already *)
-           (*   [(10,20)|_]   (10, 20) *)
-           (*   [(10,20)|_]   (10, 18) *)
-           (*   [(10,20)|_]   (15, 20) *)
-           (*   [(10,20)|_]   (15, 18) *)
-      | (offset, eend, _payload) :: _  when offset <= i_offset && eend >= i_end ->
-          0, intervals
-      | _ :: _   ->
-          (* shouldn't be possible *)
-          0, intervals
+              (*old fragment completely overlap into new one, discard the old *)
+      | (_offset, _eend, payload) :: rest ->
+              let incr, rest2 = merge_interval rest i_offset i_end i_payload in
+              incr - (Cstruct.len payload),  rest2
+
 
     (* Split given buffer list into N buffer list of capped size*)
     let split_in length bufs =
@@ -332,6 +330,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) (Time:V1_LWT.TIME) = struc
       ) else
         Lwt.return_unit
 
+    
 
   (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
   let input t ~tcp ~udp ~default buf =
