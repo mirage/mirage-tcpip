@@ -93,6 +93,19 @@ let test_tcp_connect_two_stacks_basic () =
     "tests/pcap/tcp_connect_two_stacks_basic.pcap"
     Test.test_tcp_connect_two_stacks
 
+let test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss () =
+  let rec loop = function
+      | 0 -> Lwt.return_unit
+      | n -> Logs.info (fun f -> f "%d/100" (101-n));
+             let module Test = Test_connect(Vnetif_backends.Uniform_no_payload_packet_loss) in
+             Test.record_pcap
+               (Printf.sprintf
+               "tests/pcap/tcp_connect_two_stacks_no_payload_packet_loss_%d_of_100.pcap" n)
+               Test.test_tcp_connect_two_stacks >>= fun () ->
+             loop (n - 1) 
+  in
+  loop 100
+
 let test_tcp_connect_two_stacks_trailing_bytes () =
   let module Test = Test_connect(Vnetif_backends.Trailing_bytes) in
   Test.record_pcap
@@ -103,6 +116,9 @@ let suite = [
 
   "connect two stacks, basic test", `Quick,
   test_tcp_connect_two_stacks_basic;
+
+  "connect two stacks, uniform packet loss of packets with no payload x 100", `Slow,
+  test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss;
 
   "connect two stacks, with trailing bytes", `Quick,
   test_tcp_connect_two_stacks_trailing_bytes;
