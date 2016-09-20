@@ -39,7 +39,7 @@ sig
   (** Add a listener function to the backend *)
   val create_backend_listener : backend -> (buffer -> unit io) -> id
   (** Disable a listener function *)
-  val disable_backend_listener : backend -> id -> unit
+  val disable_backend_listener : backend -> id -> unit io
   (** Records pcap data from the backend while running the specified function. Disables the pcap recorder when the function exits. *)
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
@@ -85,7 +85,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     | `Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =
-    B.set_listen_fn backend id (fun _buf -> Lwt.return_unit)
+    B.unregister_and_flush backend id
 
   let create_pcap_recorder backend channel =
     let header_buf = Cstruct.create Pcap.sizeof_pcap_header in
@@ -122,7 +122,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
         Lwt_io.with_file ~mode:Lwt_io.output pcap_file (fun oc ->
         create_pcap_recorder backend oc >>= fun recorder_id ->
         fn () >>= fun () ->
-        disable_backend_listener backend recorder_id;
+        disable_backend_listener backend recorder_id >>= fun () ->
         Lwt.return_unit
         )
       )
