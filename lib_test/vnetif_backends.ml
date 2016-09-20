@@ -72,6 +72,39 @@ module Uniform_packet_loss : Backend = struct
 
 end 
 
+(** This backend uniformly drops packets with no payload *)
+module Uniform_no_payload_packet_loss : Backend = struct
+  module X = Basic_backend.Make
+  include X
+
+  (* We assume that packets with payload are usually filled. We could make the
+   * payload check more accurate by parsing the packet properly. *)
+  let no_payload_len = 100
+  (* Drop probability, if no payload *)
+  let drop_p = 0.10
+
+  let write t id buffer =
+    if Cstruct.len buffer <= no_payload_len && Random.float 1.0 < drop_p then
+    begin
+        MProf.Trace.label "pkt_drop";
+        Lwt.return_unit (* drop packet *)
+    end else
+        X.write t id buffer (* pass to real write *)
+
+  let writev t id buffers =
+    let total_len bufs = List.fold_left (fun a b -> a + Cstruct.len b) 0 bufs in
+    if total_len buffers <= no_payload_len && Random.float 1.0 < drop_p then
+    begin
+        MProf.Trace.label "pkt_drop";
+        Lwt.return_unit (* drop packet *)
+    end else
+        X.writev t id buffers (* pass to real writev *)
+
+  let create () =
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+
+end
+
 (** This backend delivers all packets unmodified *)
 module Basic : Backend = struct
   module X = Basic_backend.Make
