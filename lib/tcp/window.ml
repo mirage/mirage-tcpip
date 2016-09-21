@@ -100,9 +100,9 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rtt_timer_reset = true in
   let rtt_timer_seq = tx_nxt in
   let rtt_timer_starttime = 0L in
-  let srtt = 1L in
+  let srtt = (Duration.of_ms 667) in
   let rttvar = 0L in
-  let rto = (Duration.of_sec 3) in
+  let rto = (Duration.of_ms 667) in
   let backoff_count = 0 in
   { tx_isn; rx_isn; max_rx_wnd; max_tx_wnd;
     ack_serviced; ack_seq; ack_win;
@@ -203,7 +203,7 @@ module Make(Clock:V1.MCLOCK) = struct
             t.rttvar <- Int64.of_float (adjusted_rttvar +. rttvar_addition);
             t.srtt <- Int64.of_float (adjusted_srtt +. srtt_addition);
           end;
-          t.rto <- (max 1L (Int64.add t.srtt (Int64.mul 4L t.rttvar)));
+          t.rto <- (max (Duration.of_ms 667) (Int64.add t.srtt (Int64.mul 4L t.rttvar)));
         end;
       end;
       let cwnd_incr = match t.cwnd < t.ssthresh with
