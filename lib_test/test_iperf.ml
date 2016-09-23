@@ -170,12 +170,11 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.wakeup server_done_u ();
     Lwt.return_unit
 
-  let tcp_iperf amt () =
+  let tcp_iperf amt timeout () =
     let port = 5001 in
 
     let server_ready, server_ready_u = Lwt.wait () in
     let server_done, server_done_u = Lwt.wait () in
-    let timeout = 120.0 in
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
@@ -205,23 +204,29 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     V.record_pcap backend
 end
 
-let test_tcp_iperf_two_stacks_basic amt () =
+let test_tcp_iperf_two_stacks_basic amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Basic) in
   Test.record_pcap
-    "tests/pcap/tcp_iperf_two_stacks_basic.pcap"
-    (Test.tcp_iperf amt)
+    (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_basic_%d.pcap" amt)
+    (Test.tcp_iperf amt timeout)
 
-let test_tcp_iperf_two_stacks_trailing_bytes amt () =
+let test_tcp_iperf_two_stacks_trailing_bytes amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Trailing_bytes) in
   Test.record_pcap
-    "tests/pcap/tcp_iperf_two_stacks_trailing_bytes.pcap"
-    (Test.tcp_iperf amt)
+    (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_trailing_bytes_%d.pcap" amt)
+    (Test.tcp_iperf amt timeout)
 
-let test_tcp_iperf_two_stacks_uniform_packet_loss amt () =
+let test_tcp_iperf_two_stacks_uniform_packet_loss amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Uniform_packet_loss) in
   Test.record_pcap
-    "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss.pcap"
-    (Test.tcp_iperf amt)
+    (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss_%d.pcap" amt)
+    (Test.tcp_iperf amt timeout)
+
+let test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt timeout () =
+  let module Test = Test_iperf (Vnetif_backends.Uniform_no_payload_packet_loss) in
+  Test.record_pcap
+    (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss_no_payload_%d.pcap" amt)
+    (Test.tcp_iperf amt timeout)
 
 let amt_quick = 10_000_000
 let amt_slow  = amt_quick * 100
@@ -229,18 +234,24 @@ let amt_slow  = amt_quick * 100
 let suite = [
 
   "iperf with two stacks, basic tests", `Quick,
-  test_tcp_iperf_two_stacks_basic amt_quick;
+  test_tcp_iperf_two_stacks_basic amt_quick 120.0;
 
   "iperf with two stacks, testing trailing_bytes", `Quick,
-  test_tcp_iperf_two_stacks_trailing_bytes amt_quick;
+  test_tcp_iperf_two_stacks_trailing_bytes amt_quick 120.0;
 
   "iperf with two stacks and uniform packet loss", `Quick,
-  test_tcp_iperf_two_stacks_uniform_packet_loss amt_quick;
+  test_tcp_iperf_two_stacks_uniform_packet_loss amt_quick 120.0;
+
+  "iperf with two stacks and uniform packet loss of packets with no payload", `Quick,
+  test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt_quick 120.0;
+
+  "iperf with two stacks and uniform packet loss of packets with no payload, longer", `Slow,
+  test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt_slow 240.0;
 
   "iperf with two stacks, basic tests, longer", `Slow,
-  test_tcp_iperf_two_stacks_basic amt_slow;
+  test_tcp_iperf_two_stacks_basic amt_slow 240.0;
 
   "iperf with two stacks and uniform packet loss, longer", `Slow,
-  test_tcp_iperf_two_stacks_uniform_packet_loss amt_slow;
+  test_tcp_iperf_two_stacks_uniform_packet_loss amt_slow 240.0;
 
 ]
