@@ -24,7 +24,7 @@ let fresh_window () =
   Alcotest.(check int) "no traffic received yet" 0 @@ Tcp.Window.rx_totalbytes window;
   Alcotest.(check int32) "should be able to send 65535 <<= 2 bytes" Int32.(mul 65535l 4l) @@ Tcp.Window.tx_wnd window;
   Alcotest.(check int32) "should be able to receive 65535 <<= 2 bytes" Int32.(mul 65535l 4l) @@ Tcp.Window.rx_wnd window;
-  Alcotest.(check int64) "initial rto is 3 seconds" (Duration.of_sec 3) @@ Tcp.Window.rto window;
+  Alcotest.(check int64) "initial rto is 2/3 second" (Duration.of_ms 667) @@ Tcp.Window.rto window;
   Lwt.return_unit
 
 let increase_congestion_window clock window goal =
