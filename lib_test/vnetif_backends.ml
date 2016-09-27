@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2015 Magnus Skjegstad <magnus@skjegstad.com>
+ * Copyright (c) 2015-16 Magnus Skjegstad <magnus@skjegstad.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+let (>>=) = Lwt.(>>=)
 
 module type Backend = sig
   include Vnetif.BACKEND
@@ -53,19 +55,19 @@ module Uniform_packet_loss : Backend = struct
 
   let write t id buffer =
     if Random.float 1.0 < drop_p then
-    begin
+      begin
         MProf.Trace.label "pkt_drop";
         Lwt.return_unit (* drop packet *)
-    end else
-        X.write t id buffer (* pass to real write *)
+      end else
+      X.write t id buffer (* pass to real write *)
 
   let writev t id buffers =
     if Random.float 1.0 < drop_p then
-    begin
+      begin
         MProf.Trace.label "pkt_drop";
         Lwt.return_unit (* drop packet *)
-    end else
-        X.writev t id buffers (* pass to real writev *)
+      end else
+      X.writev t id buffers (* pass to real writev *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
@@ -85,23 +87,101 @@ module Uniform_no_payload_packet_loss : Backend = struct
 
   let write t id buffer =
     if Cstruct.len buffer <= no_payload_len && Random.float 1.0 < drop_p then
-    begin
+      begin
         MProf.Trace.label "pkt_drop";
         Lwt.return_unit (* drop packet *)
-    end else
-        X.write t id buffer (* pass to real write *)
+      end else
+      X.write t id buffer (* pass to real write *)
 
   let writev t id buffers =
     let total_len bufs = List.fold_left (fun a b -> a + Cstruct.len b) 0 bufs in
     if total_len buffers <= no_payload_len && Random.float 1.0 < drop_p then
-    begin
+      begin
         MProf.Trace.label "pkt_drop";
         Lwt.return_unit (* drop packet *)
-    end else
-        X.writev t id buffers (* pass to real writev *)
+      end else
+      X.writev t id buffers (* pass to real writev *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+end
+
+(** This backend drops packets for 1 second after 1 megabyte has been
+ * transferred *)
+module Drop_1_second_after_1_megabyte : Backend = struct
+  module X = Basic_backend.Make
+  type t = {
+    xt : X.t;
+    mutable sent_bytes : int;
+    mutable is_dropping : bool;
+    mutable done_dropping : bool;
+  }
+
+  type error = X.error
+  type macaddr = X.macaddr
+  type 'a io = 'a X.io
+  type buffer = X.buffer
+  type id = X.id
+
+  let byte_limit : int = 1_000_000
+  let time_to_sleep : float = 1.0
+
+  let register t =
+    X.register t.xt
+
+  let unregister t id = 
+    X.unregister t.xt id
+
+  let mac t id =
+    X.mac t.xt id
+
+  let set_listen_fn t id buf =
+    X.set_listen_fn t.xt id buf
+
+  let unregister_and_flush t id =
+    X.unregister_and_flush t.xt id
+
+  let should_drop t =
+    if (t.sent_bytes > byte_limit) && 
+       (t.is_dropping = false) && 
+       (t.done_dropping = false) then
+      begin
+        Logs.info (fun f -> f  "Backend dropping packets for %f sec" time_to_sleep);
+        t.is_dropping <- true;
+        Lwt.async(fun () ->
+            Lwt_unix.sleep time_to_sleep >>= fun () ->
+            t.done_dropping <- true;
+            t.is_dropping <- false;
+            Logs.info (fun f -> f  "Stopped dropping");
+            Lwt.return_unit
+          );
+        true
+      end else
+      begin
+        if t.is_dropping = true then
+          true
+        else
+          false
+      end
+
+  let write t id buffer =
+    t.sent_bytes <- t.sent_bytes + (Cstruct.len buffer);
+    if should_drop t then
+      Lwt.return_unit
+    else
+      X.write t.xt id buffer (* pass to real write *)
+
+  let writev t id buffers =
+    let total_len = List.fold_left (fun a b -> a + Cstruct.len b) 0 buffers in
+    t.sent_bytes <- t.sent_bytes + total_len;
+    if should_drop t then
+      Lwt.return_unit
+    else
+      X.writev t.xt id buffers (* pass to real writev *)
+
+  let create () =
+    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield ()) () in
+    { xt ; done_dropping = false; is_dropping = false; sent_bytes = 0 }
 
 end
 
