@@ -98,7 +98,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let iperfclient s amt dest_ip dport =
     let iperftx flow =
-    Logs.info (fun f -> f  "Iperf client: Made connection to server.");
+      Logs.info (fun f -> f  "Iperf client: Made connection to server.");
       let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
       Cstruct.blit_from_string msg 0 a 0 mlen;
       let rec loop = function
@@ -123,7 +123,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     in
     let live_words = Gc.((stat()).live_words) in
     Logs.debug (fun f -> f  "Iperf server: t = %.0Lu, rate = %.0Lu KBits/ns, totbytes = %Ld, \
-             live_words = %d" server rate st.bytes live_words);
+                             live_words = %d" server rate st.bytes live_words);
     st.last_time <- ts_now;
     st.bin_bytes <- 0L;
     st.bin_packets <- 0L;
@@ -183,20 +183,20 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
        Logs.info (fun f -> f  "I am client with IP %s, trying to connect to server @ %s:%d"
-         (Ipaddr.V4.to_string client_ip)
-       (Ipaddr.V4.to_string server_ip) port);
+                     (Ipaddr.V4.to_string client_ip)
+                     (Ipaddr.V4.to_string server_ip) port);
        V.create_stack backend client_ip netmask [gw] >>= fun client_s ->
        iperfclient client_s amt server_ip port);
 
       (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
-         (Ipaddr.V4.to_string server_ip) port);
+                     (Ipaddr.V4.to_string server_ip) port);
        V.create_stack backend server_ip netmask [gw] >>= fun server_s ->
        get_clock () >>= fun clock ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->
 
-       Logs.info (fun f -> f  "Waiting for server_done...");
+    Logs.info (fun f -> f  "Waiting for server_done...");
     server_done >>= fun () ->
     Lwt.return_unit (* exit cleanly *)
 
@@ -228,6 +228,12 @@ let test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt timeout () =
     (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss_no_payload_%d.pcap" amt)
     (Test.tcp_iperf amt timeout)
 
+let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
+  let module Test = Test_iperf (Vnetif_backends.Drop_1_second_after_1_megabyte) in
+  Test.record_pcap
+    "tests/pcap/tcp_iperf_two_stacks_drop_1sec_after_1mb.pcap"
+    (Test.tcp_iperf amt timeout)
+
 let amt_quick = 10_000_000
 let amt_slow  = amt_quick * 100
 
@@ -253,5 +259,8 @@ let suite = [
 
   "iperf with two stacks and uniform packet loss, longer", `Slow,
   test_tcp_iperf_two_stacks_uniform_packet_loss amt_slow 240.0;
+
+  "iperf with two stacks drop 1 sec after 1 mb", `Quick,
+  test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt_quick 120.0;
 
 ]
