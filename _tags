@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 865c70bb000f8ddf7f1771b483047749)
+# DO NOT EDIT (digest: bb445ce5e2101b5879bf9a10a8602530)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -128,6 +128,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
+<lib/tcp/*.ml{,i,y}>: pkg_randomconv
 <lib/tcp/*.ml{,i,y}>: pkg_result
 <lib/tcp/*.ml{,i,y}>: pkg_rresult
 <lib/tcp/*.ml{,i,y}>: use_tcpip
@@ -142,6 +143,7 @@ true: annot, bin_annot
 <lib/dhcp/*.ml{,i,y}>: pkg_lwt
 <lib/dhcp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/dhcp/*.ml{,i,y}>: pkg_mirage-types
+<lib/dhcp/*.ml{,i,y}>: pkg_randomconv
 <lib/dhcp/*.ml{,i,y}>: pkg_result
 <lib/dhcp/*.ml{,i,y}>: pkg_rresult
 <lib/dhcp/*.ml{,i,y}>: use_tcpip
@@ -157,6 +159,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
+<lib/*.ml{,i,y}>: pkg_randomconv
 <lib/*.ml{,i,y}>: pkg_result
 <lib/*.ml{,i,y}>: pkg_rresult
 <lib/*.ml{,i,y}>: use_dhcpv4
@@ -212,6 +215,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mirage-vnetif
 <lib_test/test.{native,byte}>: pkg_oUnit
 <lib_test/test.{native,byte}>: pkg_pcap-format
+<lib_test/test.{native,byte}>: pkg_randomconv
 <lib_test/test.{native,byte}>: pkg_result
 <lib_test/test.{native,byte}>: pkg_rresult
 <lib_test/test.{native,byte}>: use_arpv4
@@ -247,6 +251,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mirage-vnetif
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: pkg_pcap-format
+<lib_test/*.ml{,i,y}>: pkg_randomconv
 <lib_test/*.ml{,i,y}>: pkg_result
 <lib_test/*.ml{,i,y}>: pkg_rresult
 <lib_test/*.ml{,i,y}>: use_arpv4

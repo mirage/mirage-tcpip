@@ -98,7 +98,7 @@ Library tcp
                       Tcp_wire, Tcp_packet
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       io-page,
-                      tcpip, duration
+                      tcpip, duration, randomconv
 
 Library dhcpv4
   CompiledObject:     best
@@ -107,7 +107,7 @@ Library dhcpv4
   Findlibname:        dhcpv4
   Modules:            Dhcpv4_option,Dhcp_clientv4
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip.udp, duration
+                      tcpip.udp, duration, randomconv
 
 Library "tcpip-stack-direct"
   CompiledObject:     best

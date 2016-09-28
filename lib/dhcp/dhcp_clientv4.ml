@@ -22,7 +22,7 @@ open Lwt.Infix
 
 module Make
     (Time : V1_LWT.TIME)
-    (Random : V1.RANDOM)
+    (Random : V1_LWT.RANDOM)
     (Udp : V1_LWT.UDPV4) = struct
 
   type offer = {
@@ -193,7 +193,7 @@ module Make
   let start_discovery t =
     Time.sleep_ns (Duration.of_ms 200)
     >>= fun () ->
-    let xid = Random.int32 Int32.max_int in
+    let xid = Randomconv.int32 Random.generate in
     let yiaddr = Ipaddr.V4.any in
     let siaddr = Ipaddr.V4.any in
     let options = { Dhcpv4_option.Packet.op=`Discover; opts= [
