@@ -73,7 +73,6 @@ module Marshal = struct
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
     let data_off = (sizeof_tcp / 4) + (options_len / 4) in
     let buf = Cstruct.sub buf 0 (data_off * 4) in
-    Cstruct.memset buf 0; (* autopad *)
     set_tcp_src_port buf t.src_port;
     set_tcp_dst_port buf t.dst_port;
     set_tcp_sequence buf (Sequence.to_int32 t.sequence);
