@@ -138,7 +138,7 @@ let test_marshal_unknown () =
   check ~msg:"canary" 255 (Cstruct.get_uint8 buf 4); (* unwritten region *)
   Lwt.return_unit
 
-let test_marshal_padding () =
+let test_options_marshal_padding () =
   let buf = Cstruct.create 8 in
   Cstruct.memset buf 255;
   let extract = Cstruct.get_uint8 buf in
@@ -158,6 +158,39 @@ let test_marshal_empty () =
   check 255 (Cstruct.get_uint8 buf 0);
   Lwt.return_unit
 
+let test_marshal_into_cstruct () =
+  let options = [ Tcp.Options.MSS 1460; Tcp.Options.SACK_ok; Tcp.Options.Window_size_shift 2 ] in
+  let options_size = 12 in (* MSS is 4 bytes, SACK_OK is 4 bytes, window_size_shift is 3, plus 1 for padding *)
+  let buf = Cstruct.create (Tcp.Tcp_wire.sizeof_tcp + options_size) in
+  Cstruct.memset buf 255;
+  let pseudoheader = Cstruct.create 8 in
+  let packet =
+    Tcp.Tcp_packet.{
+      urg = false;
+      ack = true;
+      psh = false;
+      rst = false;
+      syn = true;
+      fin = false;
+      window = 0;
+      options;
+      sequence = Tcp.Sequence.of_int 255;
+      ack_number = Tcp.Sequence.of_int 1024;
+      src_port = 3000;
+      dst_port = 6667;
+    }
+  in
+  match Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload:(Cstruct.create 0) packet buf with
+  | Error e -> Alcotest.fail e
+  | Ok n ->
+    Alcotest.check Alcotest.int "correct size written" (Cstruct.len buf) n;
+    let just_options = Cstruct.create options_size in
+    let generated_options = Cstruct.shift buf Tcp.Tcp_wire.sizeof_tcp in
+    Alcotest.check Alcotest.int "size of options buf" options_size @@ Tcp.Options.marshal just_options options;
+    (* expecting the result of Options.Marshal to be here *)
+    Alcotest.check Common.cstruct "marshalled options are as expected" just_options generated_options;
+    Lwt.return_unit
+
 let suite = [
   "unmarshal broken mss", `Quick, test_unmarshal_bad_mss;
   "unmarshal option with bogus length", `Quick, test_unmarshal_bogus_length;
@@ -166,7 +199,8 @@ let suite = [
   "unmarshal stops at eof", `Quick, test_unmarshal_stops_at_eof;
   "unmarshal non-broken tcp options", `Quick, test_unmarshal_ok_options;
   "unmarshalling random data returns", `Quick, test_unmarshal_random_data;
+  "test marshalling into a cstruct", `Quick, test_marshal_into_cstruct;
   "test marshalling an unknown value", `Quick, test_marshal_unknown;
-  "test marshalling when padding is needed", `Quick, test_marshal_padding;
+  "test options marshalling when padding is needed", `Quick, test_options_marshal_padding;
   "test marshalling the empty list", `Quick, test_marshal_empty;
 ]
