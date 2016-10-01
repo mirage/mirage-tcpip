@@ -64,20 +64,20 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     B.create ()
 
   let create_stack backend ip netmask gw =
-    or_error "clock" Clock.connect () >>= fun clock ->
-    or_error "backend" V.connect backend >>= fun netif ->
-    or_error "ethif" E.connect netif >>= fun ethif ->
-    or_error "arpv4" (A.connect ethif) clock >>= fun arpv4 ->
-    or_error "ipv4" (Ip.connect ethif) arpv4 >>= fun ipv4 ->
-    or_error "icmpv4" Icmp.connect ipv4 >>= fun icmpv4 ->
-    or_error "udpv4" U.connect ipv4 >>= fun udpv4 ->
-    or_error "tcpv4" (T.connect ipv4) clock >>= fun tcpv4 ->
+    Clock.connect () >>= fun clock ->
+    V.connect backend >>= fun netif ->
+    E.connect netif >>= fun ethif ->
+    A.connect ethif clock >>= fun arpv4 ->
+    Ip.connect ethif arpv4 >>= fun ipv4 ->
+    Icmp.connect ipv4 >>= fun icmpv4 ->
+    U.connect ipv4 >>= fun udpv4 ->
+    T.connect ipv4 clock >>= fun tcpv4 ->
     let config = {
       V1_LWT.name = "stack";
       interface = netif;
       mode = `IPv4 (ip, netmask, gw);
     } in
-    or_error "stack" (Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4) tcpv4
+    Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
 
   let create_backend_listener backend listenf =
     match (B.register backend) with

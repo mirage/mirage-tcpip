@@ -79,11 +79,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let err = V.Stackv4.TCPV4.error_message e in
     fail "Error in server while reading: %s" err
 
-  let get_clock () =
-    Mclock.connect () >>= function
-    | `Error _ -> Lwt.fail (Failure "clock initialization failed")
-    | `Ok clock -> Lwt.return clock
-
 
   let write_and_check flow buf =
     V.Stackv4.TCPV4.write flow buf >>= function
@@ -191,7 +186,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
                      (Ipaddr.V4.to_string server_ip) port);
        V.create_stack backend server_ip netmask [gw] >>= fun server_s ->
-       get_clock () >>= fun clock ->
+       Mclock.connect () >>= fun clock ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->

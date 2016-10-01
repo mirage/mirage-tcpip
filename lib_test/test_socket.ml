@@ -10,11 +10,6 @@ type stack_stack = {
   tcp   : Tcpv4_socket.t;
 }
 
-let or_fail f args =
-  f args >>= function
-  | `Ok p -> Lwt.return p
-  | `Error s -> Alcotest.fail s
-
 let or_fail_str ~str f args =
   f args >>= function
   | `Ok p -> Lwt.return p
@@ -25,8 +20,8 @@ let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
 let make_stack ~name ~ip =
   (* define a config record, which should match the type expected of
      V1_LWT.stackv4_config *)
-  or_fail_str ~str:"error initializing TCP socket" Tcpv4_socket.connect (Some ip) >>= fun tcp ->
-  or_fail Udpv4_socket.connect (Some ip) >>= fun udp ->
+  Tcpv4_socket.connect (Some ip) >>= fun tcp ->
+  Udpv4_socket.connect (Some ip) >>= fun udp ->
   let open V1_LWT in
   let config = {
     name;
@@ -34,7 +29,7 @@ let make_stack ~name ~ip =
     mode = ();
   } in
   Icmpv4_socket.connect () >>= fun icmp ->
-  or_fail_str ~str:"stack initialization failed" (Stack.connect config udp) tcp >>= fun stack ->
+  Stack.connect config udp tcp >>= fun stack ->
   Lwt.return { stack; icmp; udp; tcp }
 
 let two_connect_tcp () =

@@ -175,7 +175,7 @@ struct
        application stack that the IP address has changed (perhaps via a control
        Lwt_stream that the application can ignore if it doesn't care). *)
     Log.info (fun f -> f "Manager: configuration done");
-    Lwt.return (`Ok t)
+    Lwt.return t
 
   let disconnect _t =
     (* TODO: kill the listening thread *)

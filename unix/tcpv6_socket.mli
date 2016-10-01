@@ -20,4 +20,4 @@ include V1_LWT.TCP with type ip = Ipaddr.V6.t option
                     and type ipinput = unit Lwt.t
 		    and type flow = Lwt_unix.file_descr
 
-val connect : ip -> [ `Ok of t ] io
+val connect : ip -> t io

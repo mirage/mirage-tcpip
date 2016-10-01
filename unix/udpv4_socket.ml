@@ -51,7 +51,7 @@ let connect (id:ip) =
       | None -> Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any
       | Some ip -> Ipaddr_unix.V4.to_inet_addr ip
     in { interface; listen_fds }
-  in return (`Ok t)
+  in return t
 
 let disconnect _ =
   return_unit

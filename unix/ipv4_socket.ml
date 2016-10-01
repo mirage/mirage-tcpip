@@ -32,7 +32,7 @@ let of_uipaddr = Ipaddr.to_v4
 
 let id _ = ()
 let disconnect _ = return_unit
-let connect _ = return (`Ok None)
+let connect _ = return_unit
 
 let input_arpv4 _ _ = fail (Failure "Not implemented")
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit

@@ -33,7 +33,7 @@ let of_uipaddr ip = Some (Ipaddr.to_v6 ip)
 
 let id _ = ()
 let disconnect () = return_unit
-let connect () = return (`Ok ())
+let connect () = return_unit
 
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
 let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
