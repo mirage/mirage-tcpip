@@ -143,6 +143,6 @@ let connect id udpv4 tcpv4 =
   Log.info (fun f -> f "Manager: configuring");
   configure t interface
   >>= fun () ->
-  return (`Ok t)
+  return t
 
 let disconnect _ = return_unit

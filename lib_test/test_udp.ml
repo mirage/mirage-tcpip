@@ -19,13 +19,12 @@ type stack = {
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
   let open Lwt.Infix in
-  let or_error = Common.or_error in
-  or_error "clock" Mclock.connect () >>= fun clock ->
-  or_error "backend" V.connect backend >>= fun netif ->
-  or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arp" (Static_arp.connect ethif) clock >>= fun arp ->
-  or_error "ipv4" (Ip.connect ethif) arp >>= fun ip ->
-  or_error "udp" Udp.connect ip >>= fun udp ->
+  Mclock.connect () >>= fun clock ->
+  V.connect backend >>= fun netif ->
+  E.connect netif >>= fun ethif ->
+  Static_arp.connect ethif clock >>= fun arp ->
+  Ip.connect ethif arp >>= fun ip ->
+  Udp.connect ip >>= fun udp ->
   Lwt.return { clock; backend; netif; ethif; arp; ip; udp }
 
 (* assume a class C network with no default gateway *)

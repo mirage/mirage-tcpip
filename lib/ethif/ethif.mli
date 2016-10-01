@@ -17,5 +17,5 @@
 
 module Make ( N:V1_LWT.NETWORK ) : sig
   include V1_LWT.ETHIF with type netif = N.t
-  val connect : netif -> [> `Ok of t | `Error of error ] Lwt.t
+  val connect : netif -> t Lwt.t
 end

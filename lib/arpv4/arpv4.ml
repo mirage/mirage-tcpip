@@ -213,7 +213,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
     Lwt.async (tick t);
     Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
                Ethif.mac t.ethif)));
-    Lwt.return (`Ok t)
+    Lwt.return t
 
   let disconnect t =
     Log.info (fun f -> f "Disconnected arpv4 device on %s" (Macaddr.to_string (
