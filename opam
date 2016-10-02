@@ -57,6 +57,7 @@ depends: [
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
   "duration"
+  "randomconv"
 ]
 depopts: [
   "mirage-xen"
