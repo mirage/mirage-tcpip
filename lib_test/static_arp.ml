@@ -34,9 +34,8 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
   let pp fmt repr =
     Format.fprintf fmt "%s" repr
   
-  let connect e clock = A.connect e clock >>= function
-    | `Ok base -> Lwt.return (`Ok { base; table = (Hashtbl.create 7) })
-    | `Error e -> Lwt.return (`Error e)
+  let connect e clock = A.connect e clock >>= fun base ->
+    Lwt.return ({ base; table = (Hashtbl.create 7) })
   
   let disconnect t = A.disconnect t.base
   

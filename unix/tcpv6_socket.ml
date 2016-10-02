@@ -47,7 +47,7 @@ let connect addr =
     | None -> { interface=None }
     | Some ip -> { interface=Some (Ipaddr_unix.V6.to_inet_addr ip) }
   in
-  return (`Ok t)
+  return t
 
 let disconnect _ =
   return_unit

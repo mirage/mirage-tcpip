@@ -25,7 +25,7 @@ module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
     ?ip:Ipaddr.V4.t ->
     ?netmask:Ipaddr.V4.t ->
     ?gateways:Ipaddr.V4.t list ->
-    ethif -> A.t -> [> `Ok of t | `Error of error ] Lwt.t
+    ethif -> A.t -> t Lwt.t
     (** Connect to an ipv4 device.
         Default ip is {!Ipaddr.V4.any}
         Default netmask is {!Ipaddr.V4.any}

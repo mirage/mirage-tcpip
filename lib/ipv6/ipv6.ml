@@ -138,6 +138,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
     (gateways, set_ip_gateways t) >>=? fun () ->
     Lwt.async (fun () -> start_ticking t);
-    Lwt.return (`Ok t)
+    Lwt.return t
 
 end

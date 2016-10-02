@@ -20,5 +20,5 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (Clock : V1.MCLOCK) : sig
     ?ip:Ipaddr.V6.t ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
-    ethif -> Clock.t -> [> `Ok of t | `Error of error ] Lwt.t
+    ethif -> Clock.t -> t Lwt.t
 end

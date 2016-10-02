@@ -54,8 +54,6 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
           Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
     Lwt.return (`Error `Refused)
 
-  let ok x = Lwt.return (`Ok x)
-
   let error_message = function
     | `Unknown msg -> msg
     | `Timeout -> "Timeout while attempting to connect"
@@ -83,13 +81,13 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
   let writev t views = Pcb.writev t views >|= err_rewrite
   let write_nodelay t view = Pcb.write_nodelay t view >>= err_raise
   let writev_nodelay t views = Pcb.writev_nodelay t views >>= err_raise
-  let connect ipv4 clock = ok (Pcb.create ipv4 clock)
+  let connect ipv4 clock = Lwt.return (Pcb.create ipv4 clock)
   let disconnect _ = Lwt.return_unit
 
   let create_connection tcp (daddr, dport) =
     Pcb.connect tcp ~dst:daddr ~dst_port:dport >>= function
     | `Timeout    -> err_timeout daddr dport
     | `Rst        -> err_refused daddr dport
-    | `Ok (fl, _) -> ok fl
+    | `Ok (fl, _) -> Lwt.return (`Ok fl)
 
 end
