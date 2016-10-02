@@ -70,7 +70,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     MProf.Trace.label "ethif.connect";
     let t = { netif } in
     Log.info (fun f -> f "Connected Ethernet interface %s" (Macaddr.to_string (mac t)));
-    Lwt.return (`Ok t)
+    Lwt.return t
 
   let disconnect t =
     Log.info (fun f -> f "Disconnected Ethernet interface %s" (Macaddr.to_string (mac t)));

@@ -165,7 +165,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       ?(netmask=Ipaddr.V4.any)
       ?(gateways=[]) ethif arp =
     let t = { ethif; arp; ip; netmask; gateways } in
-    Lwt.return (`Ok t)
+    Lwt.return t
 
   let disconnect _ = Lwt.return_unit
 

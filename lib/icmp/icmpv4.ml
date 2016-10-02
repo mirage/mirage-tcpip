@@ -15,7 +15,9 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   type id = t
 
-  let connect ip = Lwt.return (`Ok { ip; echo_reply = true; })
+  let connect ip =
+    let t = { ip; echo_reply = true } in
+    Lwt.return t
 
   let disconnect _ = Lwt.return_unit
 

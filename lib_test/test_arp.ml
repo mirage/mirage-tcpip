@@ -10,7 +10,7 @@ module Fast_clock = struct
 
   let last_read = ref 0L
 
-  let connect () = Lwt.return (`Ok ())
+  let connect () = Lwt.return_unit
 
   let advance_clock ns =
     last_read := Int64.add !last_read ns
@@ -66,7 +66,6 @@ let macaddr =
 let check_header ~message expected actual =
   Alcotest.(check packet) message expected actual
 
-let or_error = Common.or_error
 let fail = Alcotest.fail
 
 let timeout ~time t =
@@ -143,10 +142,10 @@ let arp_request ~from_netif ~to_mac ~from_ip ~to_ip =
 
 let get_arp ?(backend = B.create ~use_async_readers:true 
                 ~yield:(fun() -> Lwt_main.yield ()) ()) () =
-  or_error "clock" Fast_clock.connect () >>= fun clock ->
-  or_error "backend" V.connect backend >>= fun netif ->
-  or_error "ethif" E.connect netif >>= fun ethif ->
-  or_error "arp" (A.connect ethif) clock >>= fun arp ->
+  Fast_clock.connect () >>= fun clock ->
+  V.connect backend >>= fun netif ->
+  E.connect netif >>= fun ethif ->
+  A.connect ethif clock >>= fun arp ->
   Lwt.return { backend; netif; ethif; arp }
 
 (* we almost always want two stacks on the same backend *)

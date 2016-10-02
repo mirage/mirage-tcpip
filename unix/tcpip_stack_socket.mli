@@ -24,4 +24,4 @@ include V1_LWT.STACKV4
    and module TCPV4 = Tcpv4_socket
    and module IPV4  = Ipv4_socket
 val connect : (netif, mode) V1_LWT.stackv4_config ->
-  Udpv4_socket.t -> Tcpv4_socket.t -> [> `Ok of t | `Error of error ] Lwt.t
+  Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
