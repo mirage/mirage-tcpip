@@ -54,6 +54,7 @@ depends: [
   "alcotest" {test}
   "pcap-format" {test}
   "fmt" {test}
+  "mirage-stdlib-random" {test}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
   "duration"
