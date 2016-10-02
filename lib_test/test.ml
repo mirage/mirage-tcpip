@@ -31,6 +31,8 @@ let run test () =
   Lwt_main.run (test ())
 
 let () =
+  (* someone has to call Stdlibrandom.initialize () *)
+  Stdlibrandom.initialize ();
   (* enable logging to stdout for all modules *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Debug);
