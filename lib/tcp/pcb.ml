@@ -20,7 +20,7 @@ open Lwt.Infix
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1.RANDOM) =
+module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDOM) =
 struct
 
   module RXS = Segment.Rx(Time)
@@ -416,7 +416,7 @@ struct
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.src_port_of_id id with
     | Some pushf ->
-      let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1AFE0000) in
+      let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -581,7 +581,7 @@ struct
 
   let connect t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    let tx_isn = Sequence.of_int ((Random.int 65535) + 0x1BCD0000) in
+    let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
@@ -602,8 +602,8 @@ struct
 
   (* Construct the main TCP thread *)
   let create ip clock =
-    Random.self_init ();
-    let localport = 10000 + (Random.int 10000) in
+    (* XXX: I've no clue why this is the way it is (10000 + Random ~bound:10000) -- hannes *)
+    let localport = 10000 + (Randomconv.int Random.generate ~bound:10000) in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in

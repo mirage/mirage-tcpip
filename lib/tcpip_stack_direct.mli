@@ -23,7 +23,7 @@ module type TCPV4_DIRECT = V1_LWT.TCPV4
 
 module Make
     (Time    : V1_LWT.TIME)
-    (Random  : V1.RANDOM)
+    (Random  : V1_LWT.RANDOM)
     (Netif   : V1_LWT.NETWORK)
     (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
     (Arpv4   : V1_LWT.ARP)
