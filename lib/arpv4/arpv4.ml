@@ -41,7 +41,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   type macaddr = Macaddr.t
   type ethif = Ethif.t
   type repr = string
-  type id = t
   type error
 
   let arp_timeout = Duration.of_sec 60 (* age entries out of cache after this many seconds *)

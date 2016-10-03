@@ -6,8 +6,6 @@ type 'a io = 'a Lwt.t
 
 type t = unit
 
-type id = t
-
 type error = string
 
 let pp_error fmt err = Format.fprintf fmt "%s" err
