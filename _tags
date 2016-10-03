@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: bb445ce5e2101b5879bf9a10a8602530)
+# DO NOT EDIT (digest: 932c2d4a28d84c22430fe4df82d8b59a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -210,6 +210,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mirage-clock-unix
 <lib_test/test.{native,byte}>: pkg_mirage-flow
 <lib_test/test.{native,byte}>: pkg_mirage-profile
+<lib_test/test.{native,byte}>: pkg_mirage-stdlib-random
 <lib_test/test.{native,byte}>: pkg_mirage-types
 <lib_test/test.{native,byte}>: pkg_mirage-types.lwt
 <lib_test/test.{native,byte}>: pkg_mirage-vnetif
@@ -246,6 +247,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
+<lib_test/*.ml{,i,y}>: pkg_mirage-stdlib-random
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
 <lib_test/*.ml{,i,y}>: pkg_mirage-types.lwt
 <lib_test/*.ml{,i,y}>: pkg_mirage-vnetif

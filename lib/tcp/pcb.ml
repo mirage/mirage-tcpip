@@ -416,7 +416,8 @@ struct
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.src_port_of_id id with
     | Some pushf ->
-      let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+      (* XXX: I've no clue why this is the way it is, static 16 bits plus some random -- hannes *)
+      let tx_isn = Sequence.of_int ((Randomconv.int ~bound:65535 Random.generate) + 0x1AFE0000) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -581,7 +582,8 @@ struct
 
   let connect t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+    (* XXX: I've no clue why this is the way it is, static 16 bits plus some random -- hannes *)
+    let tx_isn = Sequence.of_int ((Randomconv.int ~bound:65535 Random.generate) + 0x1BCD0000) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =

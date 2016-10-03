@@ -184,7 +184,8 @@ Executable test
                       mirage-clock-unix,pcap-format,
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4,
-                      tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration
+                      tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration,
+                      mirage-stdlib-random
 
 Test test
   Run$:               flag(tests)
