@@ -13,8 +13,6 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   type error = [ `Routing | `Unknown ]
 
-  type id = t
-
   let connect ip =
     let t = { ip; echo_reply = true } in
     Lwt.return t
