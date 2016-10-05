@@ -41,7 +41,6 @@ let slowly fn =
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) () =
-  let or_error = Common.or_error in
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->

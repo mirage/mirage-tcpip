@@ -10,7 +10,6 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
   type macaddr = Macaddr.t
   type result = A.result
   type ipaddr = Ipaddr.V4.t
-  type id = A.id
   type repr = string
   
   type t = {
