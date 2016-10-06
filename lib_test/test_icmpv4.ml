@@ -59,13 +59,13 @@ let configure ip stack =
 
 let icmp_listen stack fn =
   let noop = fun ~src:_ ~dst:_ _buf -> Lwt.return_unit in
-  V.listen stack.netif (* some buffer -> unit io *)
+  V.listen stack.netif (* some buffer -> (unit, error) result io *)
     ( E.input stack.ethif ~arpv4:(Static_arp.input stack.arp)
         ~ipv6:(fun _ -> Lwt.return_unit)
         ~ipv4:
           ( Ip.input stack.ip
               ~tcp:noop ~udp:noop
-              ~default:(fun ~proto -> match proto with | 1 -> fn | _ -> noop)))
+              ~default:(fun ~proto -> match proto with | 1 -> fn | _ -> noop))) >|= fun _ -> ()
 
 (* some default addresses which will be on the same class C *)
 let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
@@ -174,7 +174,7 @@ let write_errors () =
         let open Ipv4_packet in
         Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload
     in
-    V.listen stack.netif reject
+    V.listen stack.netif reject >|= fun _ -> ()
   in
   let check_packet buf : unit Lwt.t =
     let aux buf =
