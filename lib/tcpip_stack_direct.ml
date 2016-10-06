@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -149,13 +150,24 @@ struct
                     ~listeners:(tcpv4_listeners t))
             ~udp:(Udpv4.input t.udpv4
                     ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto ~src ~dst buf -> 
+            ~default:(fun ~proto ~src ~dst buf ->
                 match proto with
                 | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
                 | _ -> Lwt.return_unit)
             t.ipv4)
         ~ipv6:(fun _ -> Lwt.return_unit)
-        t.ethif)
+        t.ethif) >>= function
+    | Ok () ->
+      let nstat = Netif.get_stats_counters t.netif in
+      Log.info (fun f -> f "listening loop of interface %s terminated regularly:@ %Lu bytes (%lu packets) received, %Lu bytes (%lu packets) sent@ "
+                   (Macaddr.to_string (Netif.mac t.netif))
+                   nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
+                   nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
+      Lwt.return_unit
+    | Error e ->
+      Log.warn (fun p -> p "%a" M_pp.pp_network_error e) ;
+      (* XXX: error should be passed to the caller *)
+      Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let { V1_LWT.interface = netif; mode; _ } = id in
