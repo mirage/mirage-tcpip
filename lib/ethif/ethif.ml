@@ -16,6 +16,7 @@
  *
  *)
 open Result
+open Lwt.Infix
 
 let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -58,13 +59,23 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     | Error s -> Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
       Lwt.return_unit
 
+  (* XXX the error handling should be removed, and passed to the layer above *)
   let write t frame =
     MProf.Trace.label "ethif.write";
-    Netif.write t.netif frame
+    Netif.write t.netif frame >|= function
+    | Ok () -> ()
+    | Error e ->
+      Log.warn (fun f -> f "netif write errored %a" M_pp.pp_network_error e) ;
+      ()
 
+  (* XXX the error handling should be removed, and passed to the layer above *)
   let writev t bufs =
     MProf.Trace.label "ethif.writev";
-    Netif.writev t.netif bufs
+    Netif.writev t.netif bufs >|= function
+    | Ok () -> ()
+    | Error e ->
+      Log.warn (fun f -> f "netif writev errored %a" M_pp.pp_network_error e) ;
+      ()
 
   let connect netif =
     MProf.Trace.label "ethif.connect";
