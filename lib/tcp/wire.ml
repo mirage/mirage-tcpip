@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
 let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -59,8 +60,9 @@ module Make (Ip:V1_LWT.IP) = struct
       (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
-      Log.info (fun fmt -> fmt "Error transmitting TCP packet: %s" s);
-      Lwt.return_unit
+      let s = "Error constructing TCP packet: " ^ s in
+      Log.info (fun fmt -> fmt "%s" s);
+      Lwt.return (Error (`Msg s)) (* possibly should just throw invalid_argument here *)
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip (Cstruct.len payload + (if syn then 1 else 0));

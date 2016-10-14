@@ -24,10 +24,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
   exception No_route_to_destination_address of Ipaddr.V4.t
   (** IO operation errors *)
-  type error = [
-    | `Unknown of string (** an undiagnosed error *)
-    | `Unimplemented     (** operation not yet implemented in the code *)
-  ]
+  type error = V1.Ip.error
 
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
@@ -57,7 +54,11 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
             Macaddr.to_bytes >>= fun dmac ->
     let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethif_wire.sizeof_ethernet in
     adjust_output_header ~dmac ~tlen frame;
-    Ethif.writev t.ethif (frame :: bufs)
+    Ethif.writev t.ethif (frame :: bufs) >|= function
+    | Ok () -> Ok ()
+    | Error e ->
+      Log.warn (fun f -> f "ethif write errored %a" Mirage_pp.pp_ethif_error e);
+      Error e
 
   let write t frame buf =
     writev t frame [buf]

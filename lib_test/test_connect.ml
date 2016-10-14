@@ -36,20 +36,20 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   let err_write_eof () = fail "client tried to write, got EOF"
 
   let err_read e =
-    let err = V.Stackv4.TCPV4.error_message e in
+    let err = Format.asprintf "%a" Mirage_pp.pp_flow_error e in
     fail "Error while reading: %s" err
 
   let err_write e =
-    let err = V.Stackv4.TCPV4.error_message e in
+    let err = Format.asprintf "%a" Mirage_pp.pp_flow_write_error e in
     fail "client tried to write, got %s" err
 
   let accept flow expected =
     let ip, port = V.Stackv4.TCPV4.dst flow in
     Logs.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
     V.Stackv4.TCPV4.read flow >>= function
-    | `Eof     -> err_read_eof ()
-    | `Error e -> err_read e
-    | `Ok b    ->
+    | Error e      -> err_read e
+    | Ok `Eof      -> err_read_eof ()
+    | Ok (`Data b) ->
       Lwt_unix.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
       assert_string "accept" expected (Cstruct.to_string b);
@@ -74,9 +74,9 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
        or_error "connect" conn (server_ip, 80) >>= fun flow ->
        Logs.debug (fun f -> f "Connected to other end...");
        V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function
-       | `Error e -> err_write e
-       | `Eof     -> err_write_eof ()
-       | `Ok ()   ->
+       | Error `Closed -> err_write_eof ()
+       | Error e -> err_write e
+       | Ok ()   ->
          Logs.debug (fun f -> f "wrote hello world");
          V.Stackv4.TCPV4.close flow >>= fun () ->
          Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)

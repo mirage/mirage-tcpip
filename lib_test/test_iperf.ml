@@ -18,7 +18,7 @@
 
 open Common
 open Vnetif_common
-let (>>=) = Lwt.(>>=)
+open Lwt.Infix
 
 module Test_iperf (B : Vnetif_backends.Backend) = struct
 
@@ -67,29 +67,28 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let err_eof () = fail "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
-    let err = V.Stackv4.TCPV4.error_message e in
+    let err = Format.asprintf "%a" Mirage_pp.pp_tcp_error e in
     let ip  = Ipaddr.V4.to_string ip in
     fail "Unable to connect to %s:%d: %s" ip port err
 
   let err_write e () =
-    let err = V.Stackv4.TCPV4.error_message e in
+    let err = Format.asprintf "%a" Mirage_pp.pp_flow_write_error e in
     fail "Error while writing to TCP flow: %s" err
 
   let err_read e () =
-    let err = V.Stackv4.TCPV4.error_message e in
+    let err = Format.asprintf "%a" Mirage_pp.pp_tcp_error e in
     fail "Error in server while reading: %s" err
-
 
   let write_and_check flow buf =
     V.Stackv4.TCPV4.write flow buf >>= function
-    | `Ok ()   -> Lwt.return_unit
-    | `Eof     -> V.Stackv4.TCPV4.close flow >>= err_eof
-    | `Error e -> V.Stackv4.TCPV4.close flow >>= err_write e
+    | Ok ()          -> Lwt.return_unit
+    | Error `Closed -> V.Stackv4.TCPV4.close flow >>= err_eof
+    | Error e -> V.Stackv4.TCPV4.close flow >>= err_write e
 
   let tcp_connect t (ip, port) =
     V.Stackv4.TCPV4.create_connection t (ip, port) >>= function
-    | `Error e -> err_connect e ip port ()
-    | `Ok f    -> Lwt.return f
+    | Error e -> err_connect e ip port ()
+    | Ok f    -> Lwt.return f
 
   let iperfclient s amt dest_ip dport =
     let iperftx flow =
@@ -134,9 +133,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       last_time = t0
     } in
     let rec iperf_h flow =
-      V.Stackv4.TCPV4.read flow >>= fun f ->
-      match f with
-      | `Error e -> err_read e ()
+      V.Stackv4.TCPV4.read flow >|= Rresult.R.get_ok >>= function
       | `Eof ->
         let ts_now = Clock.elapsed_ns clock in
         st.bin_bytes <- st.bytes;
@@ -146,7 +143,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
         V.Stackv4.TCPV4.close flow >>= fun () ->
         Logs.info (fun f -> f  "Iperf server: Done - closed connection.");
         Lwt.return_unit
-      | `Ok data ->
+      | `Data data ->
         begin
           let l = Cstruct.len data in
           st.bytes <- (Int64.add st.bytes (Int64.of_int l));

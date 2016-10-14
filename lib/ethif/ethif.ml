@@ -28,11 +28,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   type macaddr = Macaddr.t
   type netif = Netif.t
 
-  type error = [
-    | `Unknown of string
-    | `Unimplemented
-    | `Disconnected
-  ]
+  type error = V1.Network.error
 
   type t = {
     netif: Netif.t;
@@ -56,26 +52,25 @@ module Make(Netif : V1_LWT.NETWORK) = struct
         | IPv6 -> ipv6 payload
       end
     | Ok _ -> Lwt.return_unit
-    | Error s -> Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
+    | Error s ->
+      Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
       Lwt.return_unit
 
-  (* XXX the error handling should be removed, and passed to the layer above *)
   let write t frame =
     MProf.Trace.label "ethif.write";
     Netif.write t.netif frame >|= function
-    | Ok () -> ()
+    | Ok () -> Ok ()
     | Error e ->
       Log.warn (fun f -> f "netif write errored %a" Mirage_pp.pp_network_error e) ;
-      ()
+      Error e
 
-  (* XXX the error handling should be removed, and passed to the layer above *)
   let writev t bufs =
     MProf.Trace.label "ethif.writev";
     Netif.writev t.netif bufs >|= function
-    | Ok () -> ()
+    | Ok () -> Ok ()
     | Error e ->
       Log.warn (fun f -> f "netif writev errored %a" Mirage_pp.pp_network_error e) ;
-      ()
+      Error e
 
   let connect netif =
     MProf.Trace.label "ethif.connect";

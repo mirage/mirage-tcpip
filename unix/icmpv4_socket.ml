@@ -6,9 +6,7 @@ type 'a io = 'a Lwt.t
 
 type t = unit
 
-type error = string
-
-let pp_error fmt err = Format.fprintf fmt "%s" err
+type error = V1.Icmp.error
 
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 let port = 0 (* port isn't meaningful in this context *)
@@ -35,12 +33,15 @@ let write _t ~dst buf =
   let sockaddr = ADDR_INET (in_addr, port) in
   Lwt_cstruct.sendto fd buf flags sockaddr >>= fun sent ->
           Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Cstruct.len buf));
-  Lwt_unix.close fd
+  Lwt_unix.close fd |> Lwt_result.ok
 
 let input t ~src ~dst:_ buf =
   (* some default logic -- respond to echo requests with echo replies *)
   match Icmpv4_packet.Unmarshal.of_cstruct buf with
-  | Result.Error s -> Logs.debug (fun f -> f "Error decomposing an ICMP packet: %s" s); Lwt.return_unit
+  | Result.Error s ->
+    let s = "Error decomposing an ICMP packet: " ^ s in
+    Logs.debug (fun f -> f "%s" s);
+    Lwt.return_unit
   | Result.Ok (icmp, payload) ->
     let open Icmpv4_packet in
     match icmp.ty, icmp.subheader with
@@ -49,7 +50,9 @@ let input t ~src ~dst:_ buf =
           { ty = Icmpv4_wire.Echo_reply;
             code = 0x00;
             subheader = Id_and_seq (id, seq); } in
-      write t ~dst:src (Marshal.make_cstruct response ~payload)
+      (* TODO: if `write` above were more robust, it would be sensible not to discard the
+       * value returned here, but as it is we can only get Ok () *)
+      write t ~dst:src (Marshal.make_cstruct response ~payload) >>= fun _ -> Lwt.return_unit
     | _, _ -> Lwt.return_unit
 
 let listen _t addr fn =

@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -11,7 +13,7 @@ module Make(IP : V1_LWT.IPV4) = struct
     echo_reply : bool;
   }
 
-  type error = [ `Routing | `Unknown ]
+  type error = V1.Icmp.error
 
   let connect ip =
     let t = { ip; echo_reply = true } in
@@ -19,14 +21,10 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   let disconnect _ = Lwt.return_unit
 
-  let pp_error formatter = function
-    | `Routing -> Format.fprintf formatter "%s" "routing"
-    | `Unknown -> Format.fprintf formatter "%s" "unknown!"
-
-  let writev t ~dst bufs = 
+  let writev t ~dst bufs : (unit, error) result Lwt.t = 
     let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
     let frame = Cstruct.set_len frame header_len in
-    IP.writev t.ip frame bufs
+    IP.writev t.ip frame bufs >|= Mirage_pp.reduce
 
   let write t ~dst buf = writev t ~dst [buf]
 
@@ -60,7 +58,12 @@ module Make(IP : V1_LWT.IPV4) = struct
 		       ty   = Icmpv4_wire.Echo_reply;
 		       subheader = Id_and_seq (id, seq);
 		     } in
-          writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ]
+          writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ] >|= function
+            (* this handler will change when input gets a richer type that can return error *)
+            | Ok () -> ()
+            | Error e ->
+              Log.warn (fun f -> f "Unable to send ICMP echo-reply: %a" Mirage_pp.pp_icmp_error e);
+              ()
         end else Lwt.return_unit
       | ty, _ ->
         Log.info (fun f -> f "ICMP unknown ty %s from %a" (ty_to_string ty) Ipaddr.V4.pp_hum src);

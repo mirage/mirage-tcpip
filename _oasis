@@ -76,7 +76,7 @@ Library icmpv4
   Findlibname:        icmpv4
   Modules:            Icmpv4, Icmpv4_packet, Icmpv4_wire
   BuildDepends:       logs,mirage-types,cstruct,cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
-                      tcpip
+                      tcpip,mirage-runtime
 
 Library udp
   CompiledObject:     best
@@ -85,7 +85,7 @@ Library udp
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_packet
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
-                      tcpip
+                      tcpip,mirage-runtime
 
 Library tcp
   CompiledObject:     best
@@ -99,7 +99,7 @@ Library tcp
                       Tcp_wire, Tcp_packet
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       io-page,
-                      tcpip, duration, randomconv
+                      tcpip, duration, randomconv, mirage-runtime
 
 Library "tcpip-stack-direct"
   CompiledObject:     best
@@ -120,7 +120,8 @@ Library "icmpv4-socket"
                       ipaddr.unix,
                       cstruct.lwt,
                       io-page.unix,
-                      tcpip.icmpv4
+                      tcpip.icmpv4,
+                      mirage-runtime
 
 Library "udpv4-socket"
   CompiledObject:     best
@@ -176,7 +177,7 @@ Executable test
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4,
                       tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration,
-                      mirage-stdlib-random, result
+                      mirage-stdlib-random, result, rresult
 
 Test test
   Run$:               flag(tests)
