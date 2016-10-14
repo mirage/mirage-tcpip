@@ -30,16 +30,7 @@ type t = {
 }
 
 (** IO operation errors *)
-type error = [
-  | `Unknown of string (** an undiagnosed error *)
-  | `Timeout
-  | `Refused
-]
-
-let error_message = function
-  | `Unknown msg -> msg
-  | `Timeout -> "Timeout while attempting to connect"
-  | `Refused -> "Connection refused"
+type error = V1.Tcp.error
 
 let connect addr =
   let t =
@@ -48,9 +39,6 @@ let connect addr =
     | Some ip -> { interface=Some (Ipaddr_unix.V6.to_inet_addr ip) }
   in
   return t
-
-let disconnect _ =
-  return_unit
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -68,56 +56,7 @@ let create_connection _t (dst,dst_port) =
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
       >>= fun () ->
-      return (`Ok fd))
-    (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))
+      return (Ok fd))
+    (fun exn -> return (Error (`Msg (Printexc.to_string exn))))
 
-let read fd =
-  let buflen = 4096 in
-  let buf = Cstruct.create buflen in
-  Lwt.catch (fun () ->
-      Lwt_cstruct.read fd buf
-      >>= function
-      | 0 -> return `Eof
-      | n when n = buflen -> return (`Ok buf)
-      | n -> return (`Ok (Cstruct.sub buf 0 n)))
-    (fun exn -> return (`Error (`Unknown (Printexc.to_string exn))))
-
-let rec write fd buf =
-  Lwt.catch
-    (fun () ->
-      Lwt_cstruct.write fd buf
-      >>= function
-      | n when n = Cstruct.len buf -> return (`Ok ())
-      | 0 -> return `Eof
-      | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
-    ) (function
-      | Unix.Unix_error(Unix.EPIPE, _, _) -> return `Eof
-      | e -> Lwt.fail e)
-
-let writev fd bufs =
-  Lwt_list.fold_left_s
-    (fun res buf ->
-       match res with
-       |`Error _ as e -> return e
-       |`Eof as e -> return e
-       |`Ok () -> write fd buf
-    ) (`Ok ()) bufs
-
-(* TODO make nodelay a flow option *)
-let write_nodelay fd buf =
-  write fd buf
-  >>= fun _ -> return_unit
-
-(* TODO make nodelay a flow option *)
-let writev_nodelay fd bufs =
-  writev fd bufs
-  >>= fun _ -> return_unit
-
-let close fd =
-  Lwt_unix.close fd
-
-(* FIXME: how does this work at all ?? *)
-let input _t ~listeners:_ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
+include Tcp_socket

@@ -16,10 +16,6 @@
 
 open Lwt.Infix
 
-(* TODO: modify V1.TCP to have a proper return type *)
-
-exception Refused
-
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -36,36 +32,21 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
   type t = Pcb.t
   type callback = flow -> unit Lwt.t
 
-  type error = [
-    | `Unknown of string
-    | `Timeout
-    | `Refused
-  ]
+  type error = V1.Tcp.error
 
-  let err_timeout daddr dport =
-    Log.debug (fun fmt ->
-        fmt "Failed to connect to %a:%d\n%!"
-          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
-    Lwt.return (`Error `Timeout)
-
-  let err_refused daddr dport =
-    Log.debug (fun fmt ->
+  let log_failure daddr dport = function
+    | `Timeout ->
+      Log.debug (fun fmt ->
+        fmt "Timeout attempting to connect to %a:%d\n%!"
+          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
+    | `Refused ->
+      Log.debug (fun fmt ->
         fmt "Refused connection to %a:%d\n%!"
-          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport);
-    Lwt.return (`Error `Refused)
-
-  let error_message = function
-    | `Unknown msg -> msg
-    | `Timeout -> "Timeout while attempting to connect"
-    | `Refused -> "Connection refused"
-
-  let err_rewrite = function
-    | Result.Error _ -> `Error `Refused
-    | Result.Ok ()   -> `Ok ()
-
-  let err_raise = function
-    | Result.Error _ -> Lwt.fail Refused
-    | Result.Ok ()   -> Lwt.return_unit
+          Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
+    | (`Msg s) ->
+      Log.debug (fun fmt ->
+        fmt "%s error connecting to %a:%d\n%!"
+          s Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
 
   let dst = Pcb.dst
   let close t = Pcb.close t
@@ -74,20 +55,19 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
   let read t =
     (* TODO better error interface in Pcb *)
     Pcb.read t >>= function
-    | None   -> Lwt.return `Eof
-    | Some t -> Lwt.return (`Ok t)
+    | None   -> Lwt.return @@ Ok `Eof
+    | Some t -> Lwt.return @@ Ok (`Data t)
 
-  let write t view = Pcb.write t view >|= err_rewrite
-  let writev t views = Pcb.writev t views >|= err_rewrite
-  let write_nodelay t view = Pcb.write_nodelay t view >>= err_raise
-  let writev_nodelay t views = Pcb.writev_nodelay t views >>= err_raise
+  let write t view = Pcb.write t view
+  let writev t views = Pcb.writev t views
+  let write_nodelay t view = Pcb.write_nodelay t view
+  let writev_nodelay t views = Pcb.writev_nodelay t views
   let connect ipv4 clock = Lwt.return (Pcb.create ipv4 clock)
   let disconnect _ = Lwt.return_unit
 
   let create_connection tcp (daddr, dport) =
     Pcb.connect tcp ~dst:daddr ~dst_port:dport >>= function
-    | `Timeout    -> err_timeout daddr dport
-    | `Rst        -> err_refused daddr dport
-    | `Ok (fl, _) -> Lwt.return (`Ok fl)
+    | Error e -> log_failure daddr dport e; Lwt.return @@ Error e
+    | Ok (fl, _) -> Lwt.return (Ok fl)
 
 end

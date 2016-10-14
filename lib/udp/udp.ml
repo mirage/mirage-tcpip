@@ -32,9 +32,7 @@ module Make(Ip: V1_LWT.IP) = struct
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
   (** IO operation errors *)
-  type error = [
-    | `Unknown of string (** an undiagnosed error *)
-  ]
+  type error = V1.Udp.error
 
   type t = {
     ip : Ip.t;
@@ -63,7 +61,7 @@ module Make(Ip: V1_LWT.IP) = struct
     let udp_header = Udp_packet.({ src_port; dst_port; }) in
     let udp_buf = Udp_packet.Marshal.make_cstruct udp_header ~pseudoheader:ph
             ~payload:(Cstruct.concat bufs) in
-    Ip.writev t.ip frame (udp_buf :: bufs)
+    Ip.writev t.ip frame (udp_buf :: bufs) >|= Mirage_pp.reduce
 
   let write ?src_port ~dst ~dst_port t buf =
     writev ?src_port ~dst ~dst_port t [buf]

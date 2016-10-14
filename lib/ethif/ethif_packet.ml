@@ -6,6 +6,8 @@ type t = {
   ethertype : Ethif_wire.ethertype;
 }
 
+type error = string
+
 let pp fmt t =
   Format.fprintf fmt "%s -> %s: %s" (Macaddr.to_string t.source)
     (Macaddr.to_string t.destination) (Ethif_wire.ethertype_to_string t.ethertype)
@@ -13,8 +15,6 @@ let pp fmt t =
 let equal p q = (p = q)
 
 module Unmarshal = struct
-
-  type error = string
 
   let of_cstruct frame =
     if Cstruct.len frame >= sizeof_ethernet then
@@ -33,8 +33,6 @@ end
 
 module Marshal = struct
   open Rresult
-
-  type error = string
 
   let check_len buf =
     if sizeof_ethernet > Cstruct.len buf then

@@ -34,9 +34,9 @@ let make_stack ~name ~ip =
 let two_connect_tcp () =
   let announce flow =
     Tcpv4_socket.read flow >>= function
-    | `Eof -> Printf.printf "EOF!"; Lwt.return_unit
-    | `Error _ -> Printf.printf "Error reading!"; Alcotest.fail "Error reading TCP flow"
-    | `Ok buf -> Printf.printf "Buffer received: %s\n%!" (Cstruct.to_string buf);
+    | Error _ -> Printf.printf "Error reading!"; Alcotest.fail "Error reading TCP flow"
+    | Ok `Eof -> Printf.printf "EOF!"; Lwt.return_unit
+    | Ok (`Data buf) -> Printf.printf "Buffer received: %s\n%!" (Cstruct.to_string buf);
       Lwt.return_unit
   in
   let server_port = 14041 in
@@ -46,12 +46,10 @@ let two_connect_tcp () =
   Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
     Stack.listen server.stack;
-    or_fail_str ~str:"couldn't create connection from client to server for TCP socket test"
-      (Stack.TCPV4.create_connection client.tcp) (localhost, server_port) >>= fun flow ->
+    Stack.TCPV4.create_connection client.tcp (localhost, server_port) >|= Rresult.R.get_ok >>= fun flow ->
     Stack.TCPV4.write flow (Cstruct.of_string "test!") >>= function
-    | `Ok () -> Stack.TCPV4.close flow
-    | `Error _ -> Alcotest.fail "Error writing to socket for TCP test"
-    | `Eof -> Alcotest.fail "premature EOF - client couldn't write to TCP socket"
+    | Ok () -> Stack.TCPV4.close flow
+    | Error _ -> Alcotest.fail "Error writing to socket for TCP test"
   ]
 
 let icmp_echo_request () =
@@ -72,7 +70,7 @@ let icmp_echo_request () =
   Lwt.pick [
     Icmpv4_socket.listen server.icmp localhost log_and_count;
     Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
-    Icmpv4_socket.write client.icmp ~dst:localhost echo_request >>= fun () ->
+    Icmpv4_socket.write client.icmp ~dst:localhost echo_request >|= Rresult.R.get_ok >>= fun () ->
     Time.sleep_ns (Duration.of_sec 10);
   ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
     !received_icmp; Lwt.return_unit
