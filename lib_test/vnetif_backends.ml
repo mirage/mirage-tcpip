@@ -57,7 +57,7 @@ module Uniform_packet_loss : Backend = struct
     if Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
-        Lwt.return_unit (* drop packet *)
+        Lwt.return (Ok ()) (* drop packet *)
       end else
       X.write t id buffer (* pass to real write *)
 
@@ -65,7 +65,7 @@ module Uniform_packet_loss : Backend = struct
     if Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
-        Lwt.return_unit (* drop packet *)
+        Lwt.return (Ok ()) (* drop packet *)
       end else
       X.writev t id buffers (* pass to real writev *)
 
@@ -89,7 +89,7 @@ module Uniform_no_payload_packet_loss : Backend = struct
     if Cstruct.len buffer <= no_payload_len && Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
-        Lwt.return_unit (* drop packet *)
+        Lwt.return (Ok ()) (* drop packet *)
       end else
       X.write t id buffer (* pass to real write *)
 
@@ -98,7 +98,7 @@ module Uniform_no_payload_packet_loss : Backend = struct
     if total_len buffers <= no_payload_len && Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
-        Lwt.return_unit (* drop packet *)
+        Lwt.return (Ok ()) (* drop packet *)
       end else
       X.writev t id buffers (* pass to real writev *)
 
@@ -117,7 +117,6 @@ module Drop_1_second_after_1_megabyte : Backend = struct
     mutable done_dropping : bool;
   }
 
-  type error = X.error
   type macaddr = X.macaddr
   type 'a io = 'a X.io
   type buffer = X.buffer
@@ -167,7 +166,7 @@ module Drop_1_second_after_1_megabyte : Backend = struct
   let write t id buffer =
     t.sent_bytes <- t.sent_bytes + (Cstruct.len buffer);
     if should_drop t then
-      Lwt.return_unit
+      Lwt.return (Ok ())
     else
       X.write t.xt id buffer (* pass to real write *)
 
@@ -175,7 +174,7 @@ module Drop_1_second_after_1_megabyte : Backend = struct
     let total_len = List.fold_left (fun a b -> a + Cstruct.len b) 0 buffers in
     t.sent_bytes <- t.sent_bytes + total_len;
     if should_drop t then
-      Lwt.return_unit
+      Lwt.return (Ok ())
     else
       X.writev t.xt id buffers (* pass to real writev *)
 

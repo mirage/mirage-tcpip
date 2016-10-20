@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6a8a6d795abb6ec056a6784efaf0d74f)
+# DO NOT EDIT (digest: 0289584629c88bb3ad579364942336e4)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -112,7 +112,7 @@ package "stack-direct" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "logs mirage-types ipaddr lwt tcpip.dhcpv4"
+ requires = "logs mirage-types ipaddr lwt tcpip.dhcpv4 result"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"

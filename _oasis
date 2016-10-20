@@ -116,7 +116,7 @@ Library "tcpip-stack-direct"
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
   BuildDepends:       logs,mirage-types,ipaddr,lwt,
-                      tcpip.dhcpv4
+                      tcpip.dhcpv4, result
 
 Library "icmpv4-socket"
   CompiledObject:     best
