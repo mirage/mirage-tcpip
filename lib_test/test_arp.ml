@@ -1,4 +1,5 @@
 open Lwt.Infix
+open Result
 
 let time_reduction_factor = 60
 
@@ -104,9 +105,9 @@ let fail_on_receipt netif buf =
 let single_check netif expected =
   V.listen netif (fun buf ->
       match Ethif_packet.Unmarshal.of_cstruct buf with
-      | Result.Error _ -> failwith "sad face"
-      | Result.Ok (_, payload) ->
-        check_response expected payload; V.disconnect netif)
+      | Error _ -> failwith "sad face"
+      | Ok (_, payload) ->
+        check_response expected payload; V.disconnect netif) >|= fun _ -> ()
 
 let wrap_arp arp =
   let open Arpv4_packet in
@@ -168,7 +169,6 @@ let query_or_die arp ip expected_mac =
     A.to_repr arp >>= fun repr ->
     Logs.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
-    Lwt.return_unit
   | `Ok mac -> 
     Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
     Lwt.return_unit
@@ -186,7 +186,7 @@ let start_arp_listener stack () =
   E.input ~arpv4:(fun frame -> Logs.debug (fun f -> f "frame received for arpv4"); A.input stack.arp frame) ~ipv4:noop ~ipv6:noop stack.ethif
 
 let output_then_disconnect ~speak:speak_netif ~disconnect:listen_netif bufs =
-  Lwt.join (List.map (V.write speak_netif) bufs) >>= fun () ->
+  Lwt.join (List.map (fun b -> V.write speak_netif b >|= fun _ -> ()) bufs) >>= fun () ->
   Lwt_unix.sleep 0.1 >>= fun () ->
   V.disconnect listen_netif
 
@@ -250,7 +250,7 @@ let input_single_garp () =
   in
   timeout ~time:500 (
   Lwt.join [
-    V.listen listen.netif one_and_done;
+    (V.listen listen.netif one_and_done >|= fun _ -> ());
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.set_ips speak.arp [ first_ip ];
   ])
@@ -271,9 +271,9 @@ let input_single_unicast () =
   let listener = start_arp_listener listen () in
   timeout ~time:500 (
   Lwt.choose [
-    V.listen listen.netif listener;
+    (V.listen listen.netif listener >|= fun _ -> ());
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
-    V.write speak.netif for_listener >>= fun () ->
+    V.write speak.netif for_listener >>= fun _ ->
     query_or_die listen.arp first_ip (V.mac speak.netif)
   ])
 
@@ -293,7 +293,7 @@ let input_resolves_wait () =
   in
   timeout ~time:5000 (
     Lwt.join [
-      V.listen listen.netif listener;
+      (V.listen listen.netif listener >|= fun _ -> ());
       query_then_disconnect;
       Time.sleep_ns (Duration.of_ms 100) >>= fun () -> E.write speak.ethif for_listener;
     ]
@@ -360,12 +360,10 @@ let query_retries () =
   let ask () = 
     A.query speak.arp first_ip >>= function
     | `Timeout -> fail "Received `Timeout before >1 query";
-      Lwt.return_unit
     | `Ok mac -> fail(Printf.sprintf"got result from query for %s, erroneously" (Macaddr.to_string mac));
-      Lwt.return_unit
   in
   Lwt.pick [
-    V.listen listen.netif listener;
+    (V.listen listen.netif listener >|= fun _ -> ());
     Time.sleep_ns (Duration.of_ms 100) >>= ask;
     Time.sleep_ns (Duration.of_sec 6) >>= fun () -> fail "query didn't succeed or fail within 6s"
   ]
@@ -390,17 +388,19 @@ let requests_are_responded_to () =
     V.disconnect close_netif
   in
   let arp_listener =
-      V.listen answerer.netif (start_arp_listener answerer ())
+    V.listen answerer.netif (start_arp_listener answerer ()) >|= fun _ -> ()
   in
   timeout ~time:1000 (
     Lwt.join [
       (* listen for responses and check them against an expected result *)
-      V.listen inquirer.netif (listener inquirer.netif);
+      (V.listen inquirer.netif (listener inquirer.netif) >|= fun _ -> ());
       (* start the usual ARP listener, which should respond to requests *)
       arp_listener;
       (* send a request for the ARP listener to respond to *)
-      Time.sleep_ns (Duration.of_ms 100) >>= fun () -> V.write inquirer.netif request
-      >>= fun () -> Time.sleep_ns (Duration.of_ms 100) >>= fun () -> V.disconnect answerer.netif
+      Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
+      V.write inquirer.netif request >>= fun _ ->
+      Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
+      V.disconnect answerer.netif
     ];
   )
 
@@ -417,14 +417,16 @@ let requests_not_us () =
   in
   let requests = List.map ask [ inquirer_ip; Ipaddr.V4.any;
                                 Ipaddr.V4.of_string_exn "255.255.255.255" ] in
-  let make_requests = Lwt_list.iter_s (V.write inquirer.netif) requests in
+  let make_requests = Lwt_list.iter_s (fun b -> V.write inquirer.netif b >|= fun _ -> ()) requests in
   let disconnect_listeners () = 
     Lwt_list.iter_s (V.disconnect) [answerer.netif; inquirer.netif]
   in
   Lwt.join [
-    V.listen answerer.netif (start_arp_listener answerer ());
-    V.listen inquirer.netif (fail_on_receipt inquirer.netif);
-    make_requests >>= fun () -> Time.sleep_ns (Duration.of_ms 100) >>= disconnect_listeners
+    (V.listen answerer.netif (start_arp_listener answerer ()) >|= fun _ -> ());
+    (V.listen inquirer.netif (fail_on_receipt inquirer.netif) >|= fun _ -> ());
+    make_requests >>= fun _ ->
+    Time.sleep_ns (Duration.of_ms 100) >>=
+    disconnect_listeners
   ]
 
 let nonsense_requests () =
@@ -447,19 +449,17 @@ let nonsense_requests () =
     Cstruct.concat [ Ethif_packet.Marshal.make_cstruct eth_header; buf ]
   in
   let requests = List.map request [0; 3; -1; 255; 256; 257; 65536] in
-  let make_requests = Lwt_list.iter_s (fun l ->
-      V.write inquirer.netif l) requests in
+  let make_requests = Lwt_list.iter_s (fun l -> V.write inquirer.netif l >|= fun _ -> ()) requests in
   let expected_probe = { Arpv4_packet.op = Arpv4_wire.Request;
                          sha = V.mac answerer.netif;
                          spa = answerer_ip;
                          tha = Macaddr.broadcast;
                          tpa = inquirer_ip; }
   in
-  Lwt.async (fun () -> 
-      V.listen answerer.netif (start_arp_listener answerer ()));
+  Lwt.async (fun () -> V.listen answerer.netif (start_arp_listener answerer ()));
   timeout ~time:1000 (
     Lwt.join [
-      V.listen inquirer.netif (fail_on_receipt inquirer.netif);
+      (V.listen inquirer.netif (fail_on_receipt inquirer.netif) >|= fun _ -> ());
       make_requests >>= fun () ->
       V.disconnect inquirer.netif >>= fun () ->
       (* not sufficient to just check to see whether we've replied; it's equally
