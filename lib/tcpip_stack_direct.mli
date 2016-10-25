@@ -33,14 +33,13 @@ module Make
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
   include V1_LWT.STACKV4
     with type netif   = Netif.t
-     and type mode    = V1_LWT.direct_stack_config
      and type udpv4   = Udpv4.t
      and type tcpv4   = Tcpv4.t
      and type ipv4    = Ipv4.t
      and module IPV4 = Ipv4
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
-  val connect : (netif, mode) V1_LWT.stackv4_config ->
+  val connect : netif V1_LWT.stackv4_config ->
     Ethif.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t -> Udpv4.t -> Tcpv4.t ->
     t Lwt.t
 end

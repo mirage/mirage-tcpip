@@ -27,8 +27,8 @@ module Make
 
   type offer = {
     ip_addr: Ipaddr.V4.t;
-    netmask: Ipaddr.V4.t option;
-    gateways: Ipaddr.V4.t list;
+    network: Ipaddr.V4.Prefix.t;
+    gateway: Ipaddr.V4.t option;
     dns: Ipaddr.V4.t list;
     lease: int32;
     xid: int32;
@@ -135,21 +135,34 @@ module Make
     | Request_sent xid -> begin
         (* we are expecting an offer *)
         match packet.op, xid with
-        |`Offer, offer_xid when offer_xid=xid ->  begin
+        |`Offer, offer_xid when offer_xid=xid -> begin
             Log.info (fun f -> f 
               "DHCP: offer received: %a@\n\
                DHCP options: %s"
               Ipaddr.V4.pp_hum yiaddr
               (prettyprint packet)
             );
-            let netmask = find packet
-                (function `Subnet_mask addr -> Some addr |_ -> None) in
             let gateways = findl packet
                 (function `Router addrs -> Some addrs |_ -> None) in
             let dns = findl packet
                 (function `DNS_server addrs -> Some addrs |_ -> None) in
+            let netmask = find packet
+                (function `Subnet_mask addr -> Some addr |_ -> None) in
+            let network =
+              match netmask with
+              | Some nm ->
+                Ipaddr.V4.Prefix.of_netmask nm yiaddr
+              | None -> (* if no network given, assume /0 *)
+                Ipaddr.V4.Prefix.make 0 yiaddr
+            in
+            (* don't accept gateways that aren't in the network -- we won't be able to reach them *)
+            let usable = List.filter (fun ip -> Ipaddr.V4.Prefix.mem ip network) gateways in
+            let gateway = match usable with
+            | [] -> None
+            | hd::_ -> Some hd
+            in
             let lease = 0l in
-            let offer = { ip_addr=yiaddr; netmask; gateways; dns; lease; xid } in
+            let offer = { ip_addr=yiaddr; network; gateway; dns; lease; xid } in
             (* RFC2131 defines the 'siaddr' as the address of the server which
                will take part in the next stage of the bootstrap process (eg
                'delivery of an operating system executable image'). This
@@ -234,10 +247,10 @@ module Make
        and shut down DHCP after. TODO: full protocol *)
     let offer_stream, offer_push = Lwt_stream.create () in
     let new_offer info =
-      Log.info (fun f -> f "DHCP: offer received@\nIPv4: %a@\nNetmask: %a\nGateways: [%s]"
+      Log.info (fun f -> f "DHCP: offer received@\nIPv4: %a@\nNetwork: %a\nGateway: %a"
                          Ipaddr.V4.pp_hum info.ip_addr
-                         (pp_opt Ipaddr.V4.pp_hum) info.netmask
-                         (String.concat ", " (List.map Ipaddr.V4.to_string info.gateways)));
+                         Ipaddr.V4.Prefix.pp_hum info.network
+                         (pp_opt Ipaddr.V4.pp_hum) info.gateway);
       offer_push (Some info);
       Lwt.return_unit
     in

@@ -23,12 +23,12 @@ module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
   include V1_LWT.IPV4 with type ethif = N.t
   val connect :
     ?ip:Ipaddr.V4.t ->
-    ?netmask:Ipaddr.V4.t ->
-    ?gateways:Ipaddr.V4.t list ->
+    ?network:Ipaddr.V4.Prefix.t ->
+    ?gateway:Ipaddr.V4.t option ->
     ethif -> A.t -> t Lwt.t
     (** Connect to an ipv4 device.
         Default ip is {!Ipaddr.V4.any}
-        Default netmask is {!Ipaddr.V4.any}
-        Default gateways are [[]]. *)
+        Default network is {!Ipaddr.V4.any}/0
+        Default gateway is None. *)
 
 end
