@@ -32,15 +32,15 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
-  type prefix = Ipaddr.V4.t
+  type prefix = Ipaddr.V4.Prefix.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
   type t = {
     ethif : Ethif.t;
     arp : Arpv4.t;
     mutable ip: Ipaddr.V4.t;
-    mutable netmask: Ipaddr.V4.t;
-    mutable gateways: Ipaddr.V4.t list;
+    network: Ipaddr.V4.Prefix.t;
+    mutable gateway: Ipaddr.V4.t option;
   }
 
   module Routing = struct
@@ -48,8 +48,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     exception No_route_to_destination_address of Ipaddr.V4.t
 
     let is_local t ip =
-      let ipand a b = Int32.logand (Ipaddr.V4.to_int32 a) (Ipaddr.V4.to_int32 b) in
-      (ipand t.ip t.netmask) = (ipand ip t.netmask)
+      Ipaddr.V4.Prefix.mem ip t.network
 
     (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
     let mac_of_multicast ip =
@@ -63,31 +62,30 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       Bytes.set macb 5 (Bytes.get ipb 3);
       Macaddr.of_bytes_exn macb
 
-    let destination_mac t =
-      function
+    let destination_mac t = function
       |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
         Lwt.return Macaddr.broadcast
+      |ip when Ipaddr.V4.is_multicast ip ->
+        Lwt.return (mac_of_multicast ip)
       |ip when is_local t ip -> (* Local *)
         Arpv4.query t.arp ip >>= begin function
           | `Ok mac -> Lwt.return mac
-          | `Timeout -> Lwt.fail (No_route_to_destination_address ip)
-        end
-      |ip when Ipaddr.V4.is_multicast ip ->
-        Lwt.return (mac_of_multicast ip)
-      |ip -> begin (* Gateway *)
-          match t.gateways with
-          |hd::_ ->
-            Arpv4.query t.arp hd >>= begin function
-              | `Ok mac -> Lwt.return mac
-              | `Timeout ->
-                Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
-                             Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum hd);
-                Lwt.fail (No_route_to_destination_address ip)
-            end
-          |[] ->
-            Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
+          | `Timeout ->
+            Log.info (fun f -> f "IP.output: could not determine link-layer address for local network (%a) ip %a" Ipaddr.V4.Prefix.pp_hum t.network Ipaddr.V4.pp_hum ip);
             Lwt.fail (No_route_to_destination_address ip)
         end
+      |ip -> (* Gateway *)
+        match t.gateway with
+        | None ->
+            Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
+            Lwt.fail (No_route_to_destination_address ip)
+        | Some gateway ->
+          Arpv4.query t.arp gateway >>= function
+            | `Ok mac -> Lwt.return mac
+            | `Timeout ->
+              Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
+                           Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum gateway);
+              Lwt.fail (No_route_to_destination_address ip)
   end
 
   let adjust_output_header ~dmac ~tlen frame =
@@ -162,10 +160,15 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
 
   let connect
       ?(ip=Ipaddr.V4.any)
-      ?(netmask=Ipaddr.V4.any)
-      ?(gateways=[]) ethif arp =
-    let t = { ethif; arp; ip; netmask; gateways } in
-    Lwt.return t
+      ?(network=Ipaddr.V4.Prefix.make 0 Ipaddr.V4.any)
+      ?(gateway=None) ethif arp =
+    match Ipaddr.V4.Prefix.mem ip network with
+    | false ->
+      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a" Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
+      Lwt.fail_with "given IP is not in the network provided"
+    | true ->
+      let t = { ethif; arp; ip; network; gateway } in
+      Lwt.return t
 
   let disconnect _ = Lwt.return_unit
 
@@ -175,18 +178,6 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     Arpv4.add_ip t.arp ip
 
   let get_ip t = [t.ip]
-
-  let set_ip_netmask t netmask =
-    t.netmask <- netmask;
-    Lwt.return_unit
-
-  let get_ip_netmasks t = [t.netmask]
-
-  let set_ip_gateways t gateways =
-    t.gateways <- gateways;
-    Lwt.return_unit
-
-  let get_ip_gateways { gateways; _ } = gateways
 
   let pseudoheader t ~dst ~proto len =
     Ipv4_packet.Marshal.pseudoheader ~src:t.ip ~dst ~proto len

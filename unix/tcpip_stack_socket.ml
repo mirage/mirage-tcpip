@@ -33,10 +33,9 @@ module Tcpv4 = Tcpv4_socket
 module Udpv4 = Udpv4_socket
 
 type +'a io = 'a Lwt.t
-type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+type 'a config = 'a V1_LWT.stackv4_config
 type netif = Ipaddr.V4.t list
-type mode = unit
-type id = (netif, mode) config
+type id = netif config
 type buffer = Cstruct.t
 type ipv4addr = Ipaddr.V4.t
 

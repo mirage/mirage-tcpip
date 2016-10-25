@@ -16,12 +16,11 @@
 
 include V1_LWT.STACKV4
   with type netif   = Ipaddr.V4.t list
-   and type mode    = unit
    and type tcpv4   = Tcpv4_socket.t
    and type udpv4   = Udpv4_socket.t
    and type ipv4    = Ipaddr.V4.t option
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
    and module IPV4  = Ipv4_socket
-val connect : (netif, mode) V1_LWT.stackv4_config ->
+val connect : netif V1_LWT.stackv4_config ->
   Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
