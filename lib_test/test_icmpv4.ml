@@ -32,8 +32,8 @@ type stack = {
 
 let testbind x y =
   match x with
-  | Result.Ok p -> y p
-  | Result.Error s -> Alcotest.fail s
+  | Ok p -> y p
+  | Error s -> Alcotest.fail s
 let (>>=?) = testbind
 
 let slowly fn =
@@ -152,17 +152,17 @@ let write_errors () =
     let open Ethif_packet in
     Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
-    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Result.Error "not an ipv4 packet"
+    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Error "not an ipv4 packet"
     | Ethif_wire.IPv4 ->
       Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
-      Result.Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
+      Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in
   (* for any incoming packet, reject it with would_fragment *)
   let reject_all stack =
     let reject buf =
       match decompose buf with
-      | Result.Error s -> Alcotest.fail s
-      | Result.Ok decomposed ->
+      | Error s -> Alcotest.fail s
+      | Ok decomposed ->
         let reply = Icmpv4_packet.({
             ty = Icmpv4_wire.Destination_unreachable;
             code = Icmpv4_wire.(unreachable_reason_to_int Would_fragment);
@@ -188,11 +188,11 @@ let write_errors () =
       | _n ->
         (* TODO: packet should have an IP header in it *)
         Alcotest.(check int) "Payload first byte" 0x45 (Cstruct.get_uint8 icmp_payload 0);
-        Result.Ok ()
+        Ok ()
     in
     match aux buf with
-    | Result.Error s -> Alcotest.fail s
-    | Result.Ok () -> Lwt.return_unit
+    | Error s -> Alcotest.fail s
+    | Ok () -> Lwt.return_unit
   in
   let check_rejection stack dst =
     let payload = Cstruct.of_string "!@#$" in

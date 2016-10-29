@@ -15,6 +15,7 @@
  *)
 
 let (>>=) = Lwt.(>>=)
+open Result
 
 module type Backend = sig
   include Vnetif.BACKEND
