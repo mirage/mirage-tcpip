@@ -22,7 +22,7 @@ let test_unmarshal_bogus_length () =
   Cstruct.blit_from_string "\x6e\x73\x73\x68\x2e\x63\x6f\x6d" 0 bogus 0 8;
   (* some unknown option (0x6e) with claimed length 0x73, longer than the buffer *)
   (* this invalidates later results, but previous ones are still valid, if any *)
-  OUnit.assert_equal (Result.Ok []) (Tcp.Options.unmarshal bogus);
+  OUnit.assert_equal (Ok []) (Tcp.Options.unmarshal bogus);
   Lwt.return_unit
 
 let test_unmarshal_zero_length () =
@@ -31,22 +31,22 @@ let test_unmarshal_zero_length () =
   Cstruct.set_uint8 bogus 0 64; (* arbitrary unknown option-kind *)
   Cstruct.set_uint8 bogus 1 0;
   (* this invalidates later results, but previous ones are still valid, if any *)
-  OUnit.assert_equal (Result.Ok []) (Tcp.Options.unmarshal bogus);
+  OUnit.assert_equal (Ok []) (Tcp.Options.unmarshal bogus);
   Lwt.return_unit
 
 let test_unmarshal_simple_options () =
   (* empty buffer should give empty list *)
-  OUnit.assert_equal (Result.Ok []) (Tcp.Options.unmarshal (Cstruct.create 0));
+  OUnit.assert_equal (Ok []) (Tcp.Options.unmarshal (Cstruct.create 0));
 
   (* buffer with just eof should give empty list *)
   let just_eof = Cstruct.create 1 in
   Cstruct.set_uint8 just_eof 0 0;
-  OUnit.assert_equal (Result.Ok []) (Tcp.Options.unmarshal just_eof);
+  OUnit.assert_equal (Ok []) (Tcp.Options.unmarshal just_eof);
 
   (* buffer with single noop should give a list with 1 noop *)
   let just_noop = Cstruct.create 1 in
   Cstruct.set_uint8 just_noop 0 1;
-  OUnit.assert_equal (Result.Ok [ Tcp.Options.Noop ]) (Tcp.Options.unmarshal just_noop); 
+  OUnit.assert_equal (Ok [ Tcp.Options.Noop ]) (Tcp.Options.unmarshal just_noop); 
 
   (* buffer with valid, but unknown, option should be correctly communicated *)
   let unknown = Cstruct.create 10 in
@@ -56,7 +56,7 @@ let test_unmarshal_simple_options () =
   Cstruct.set_uint8 unknown 0 kind;
   Cstruct.set_uint8 unknown 1 (Cstruct.len unknown);
   OUnit.assert_equal
-    (Result.Ok [Tcp.Options.Unknown (kind, data)])
+    (Ok [Tcp.Options.Unknown (kind, data)])
     (Tcp.Options.unmarshal unknown);
   Lwt.return_unit
 
@@ -77,7 +77,7 @@ let test_unmarshal_stops_at_eof () =
      timestamp or noop *)
   match Tcp.Options.unmarshal buf with
   | Error s -> Alcotest.fail s
-  | Result.Ok result ->
+  | Ok result ->
     OUnit.assert_equal ~msg:"SACK_ok missing" ~printer:string_of_bool
       true (List.mem Tcp.Options.SACK_ok result);
     OUnit.assert_equal ~msg: "noop missing" ~printer:string_of_bool

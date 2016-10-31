@@ -185,7 +185,7 @@ Executable test
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4,
                       tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration,
-                      mirage-stdlib-random
+                      mirage-stdlib-random, result
 
 Test test
   Run$:               flag(tests)

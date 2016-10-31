@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 open Common
+open Result
 
 (*
  * Connects two stacks to the same backend.
@@ -132,8 +133,8 @@ let reply_id_from ~src ~dst data =
 
 let ack_for data =
   match Tcp_unmarshal.of_cstruct data with
-  | Result.Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
-  | Result.Ok (packet, data) ->
+  | Error s -> Alcotest.fail ("attempting to ack data: " ^ s)
+  | Ok (packet, data) ->
     let open Tcp.Tcp_packet in
     let data_len =
       Sequence.of_int ((Cstruct.len data) +
