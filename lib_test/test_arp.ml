@@ -75,15 +75,15 @@ let timeout ~time t =
 
 let check_response expected buf =
   match Arpv4_packet.Unmarshal.of_cstruct buf with
-  | Result.Error s -> Alcotest.fail (Arpv4_packet.Unmarshal.string_of_error s)
-  | Result.Ok actual ->
+  | Error s -> Alcotest.fail (Arpv4_packet.Unmarshal.string_of_error s)
+  | Ok actual ->
     Alcotest.(check packet) "parsed packet comparison" expected actual
 
 let check_ethif_response expected buf =
   let open Ethif_packet in
   match Unmarshal.of_cstruct buf with
-  | Result.Error s -> Alcotest.fail s
-  | Result.Ok ({ethertype; _}, arp) ->
+  | Error s -> Alcotest.fail s
+  | Ok ({ethertype; _}, arp) ->
     match ethertype with
     | Ethif_wire.ARP -> check_response expected arp
     | _ -> Alcotest.fail "Ethernet packet with non-ARP ethertype"
@@ -479,8 +479,8 @@ let packet () =
                                       }) in
   let marshalled = Arpv4_packet.Marshal.make_cstruct example_request in
   match Arpv4_packet.Unmarshal.of_cstruct marshalled with
-  | Result.Error _ -> Alcotest.fail "couldn't unmarshal something we made ourselves"
-  | Result.Ok unmarshalled ->
+  | Error _ -> Alcotest.fail "couldn't unmarshal something we made ourselves"
+  | Ok unmarshalled ->
     Alcotest.(check packet) "serialize/deserialize" example_request unmarshalled;
     Lwt.return_unit
 

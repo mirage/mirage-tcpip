@@ -1,3 +1,5 @@
+open Result
+
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
@@ -37,8 +39,8 @@ let configure ip stack =
 
 let fails msg f args =
   match f args with
-  | Result.Ok _ -> Alcotest.fail msg
-  | Result.Error _ -> ()
+  | Ok _ -> Alcotest.fail msg
+  | Error _ -> ()
 
 let marshal_unmarshal () =
   let parse = Udp_packet.Unmarshal.of_cstruct in
@@ -52,8 +54,8 @@ let marshal_unmarshal () =
   let payload = Cstruct.of_string "abcdefgh1234" in
   let with_data = Cstruct.concat [with_data; payload] in
   match Udp_packet.Unmarshal.of_cstruct with_data with
-  | Result.Error s -> Alcotest.fail s
-  | Result.Ok (_header, data) ->
+  | Error s -> Alcotest.fail s
+  | Ok (_header, data) ->
     Alcotest.(check Common.cstruct) "unmarshalling gives expected data" payload data;
     Lwt.return_unit
 
