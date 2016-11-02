@@ -44,10 +44,10 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     mutable gateway: Ipaddr.V4.t option;
   }
 
-  let adjust_output_header = Common.adjust_output_header
+  let adjust_output_header = Ipv4_common.adjust_output_header
 
   let allocate_frame t ~(dst:ipaddr) ~(proto : [`ICMP | `TCP | `UDP]) : (buffer * int) =
-    Common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
+    Ipv4_common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
 
   let writev t frame bufs =
     let v4_frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
@@ -91,6 +91,7 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a" Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
+      Arpv4.set_ips arp [ip] >>= fun () ->
       let t = { ethif; arp; ip; network; gateway } in
       Lwt.return t
 
@@ -99,14 +100,14 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let set_ip t ip =
     t.ip <- ip;
     (* Inform ARP layer of new IP *)
-    Arpv4.add_ip t.arp ip
+    Arpv4.set_ips t.arp [ip]
 
   let get_ip t = [t.ip]
 
   let pseudoheader t ~dst ~proto len =
     Ipv4_packet.Marshal.pseudoheader ~src:t.ip ~dst ~proto len
 
-  let checksum = Common.checksum
+  let checksum = Ipv4_common.checksum
 
   let src t ~dst:_ =
     t.ip

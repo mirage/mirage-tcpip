@@ -56,7 +56,7 @@ Library ipv4
   Findlibparent:      tcpip
   Findlibname:        ipv4
   Modules:            Dhcp_ipv4, Static_ipv4, Ipv4_wire, Ipv4_packet
-  InternalModules:    Routing, Common
+  InternalModules:    Ipv4_common, Routing
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
                       tcpip,tcpip.ethif
 
@@ -101,23 +101,13 @@ Library tcp
                       io-page,
                       tcpip, duration, randomconv
 
-Library dhcpv4
-  CompiledObject:     best
-  Path:               lib/dhcp
-  Findlibparent:      tcpip
-  Findlibname:        dhcpv4
-  Modules:            Dhcpv4_option,Dhcp_clientv4
-  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip.udp, duration, randomconv
-
 Library "tcpip-stack-direct"
   CompiledObject:     best
   Path:               lib
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,ipaddr,lwt,
-                      tcpip.dhcpv4, result
+  BuildDepends:       logs,mirage-types,ipaddr,lwt,result
 
 Library "icmpv4-socket"
   CompiledObject:     best
