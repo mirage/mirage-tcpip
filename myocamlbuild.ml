@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: f498c88068b583064c148b5b42bec20d) *)
+(* DO NOT EDIT (digest: 3338242eb0462c3620e512c1a32be731) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -893,7 +893,6 @@ let package_default =
           ("icmpv4", ["lib/icmp"], []);
           ("udp", ["lib/udp"], []);
           ("tcp", ["lib/tcp"], []);
-          ("dhcpv4", ["lib/dhcp"], []);
           ("tcpip-stack-direct", ["lib"], []);
           ("icmpv4-socket", ["unix"], []);
           ("udpv4-socket", ["unix"], []);
@@ -937,9 +936,7 @@ let package_default =
           ("lib/ipv6", ["lib"; "lib/ethif"]);
           ("lib/ipv4", ["lib"; "lib/ethif"]);
           ("lib/icmp", ["lib"]);
-          ("lib/dhcp", ["lib/udp"]);
-          ("lib/arpv4", ["lib/ethif"]);
-          ("lib", ["lib/dhcp"])
+          ("lib/arpv4", ["lib/ethif"])
        ]
   }
   ;;
@@ -948,7 +945,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 952 "myocamlbuild.ml"
+# 949 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

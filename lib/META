@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0289584629c88bb3ad579364942336e4)
+# DO NOT EDIT (digest: 19248bdbc381f553626b53890e652d93)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -112,7 +112,7 @@ package "stack-direct" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "logs mirage-types ipaddr lwt tcpip.dhcpv4 result"
+ requires = "logs mirage-types ipaddr lwt result"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
@@ -182,19 +182,6 @@ package "ethif" (
  archive(native) = "ethif.cmxa"
  archive(native, plugin) = "ethif.cmxs"
  exists_if = "ethif.cma"
-)
-
-package "dhcpv4" (
- version = "2.8.0"
- description =
- "Implementations for network-related module types from MirageOS."
- requires =
- "logs io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip.udp duration randomconv"
- archive(byte) = "dhcpv4.cma"
- archive(byte, plugin) = "dhcpv4.cma"
- archive(native) = "dhcpv4.cmxa"
- archive(native, plugin) = "dhcpv4.cmxs"
- exists_if = "dhcpv4.cma"
 )
 
 package "arpv4" (

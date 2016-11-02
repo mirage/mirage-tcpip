@@ -26,7 +26,6 @@ let make_stack ~name ~ip =
   let config = {
     name;
     interface = [ip];
-    mode = ();
   } in
   Icmpv4_socket.connect () >>= fun icmp ->
   Stack.connect config udp tcp >>= fun stack ->

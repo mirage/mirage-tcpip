@@ -28,31 +28,31 @@ module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
 module E = Ethif.Make(V)
 module A = Arpv4.Make(E)(Vnetif_common.Clock)(Time)
-module I = Ipv4.Make(E)(A)
+module I = Static_ipv4.Make(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
 module Tcp_wire = Tcp.Tcp_wire
 module Tcp_unmarshal = Tcp.Tcp_packet.Unmarshal
 module Sequence = Tcp.Sequence
 
-let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
-let gw = Ipaddr.V4.of_string_exn "10.0.0.1"
 let sut_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
 let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
+let netmask = 24
+let gateway = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
 
 (* defaults when injecting packets *)
 let options = []
 let window = 5120
 
 let create_sut_stack backend =
-  VNETIF_STACK.create_stack backend sut_ip netmask [gw]
+  VNETIF_STACK.create_stack backend sut_ip netmask gateway
 
-let create_raw_stack backend =
+let create_raw_stack ip backend =
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   A.connect ethif clock >>= fun arpv4 ->
-  I.connect ethif arpv4 >>= fun ip ->
+  I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 
 type 'state fsm_result =
@@ -66,11 +66,11 @@ type 'state fsm_result =
 let run backend fsm sut () =
   let initial_state, fsm_handler = fsm in
   create_sut_stack backend >>= fun stackv4 ->
-  create_raw_stack backend >>= fun (netif, ethif, arp, rawip) ->
-  I.set_ip_netmask rawip netmask >>= fun () ->
-  I.set_ip rawip server_ip >>= fun () ->
+  create_raw_stack server_ip backend >>= fun (netif, ethif, arp, rawip) ->
   let error_mbox = Lwt_mvar.create_empty () in
   let stream, pushf = Lwt_stream.create () in
+  Lwt.pick [
+  VNETIF_STACK.Stackv4.listen stackv4;
 
   (* Consume TCP packets one by one, in sequence *)
   let rec fsm_thread state =
@@ -123,6 +123,7 @@ let run backend fsm sut () =
   | Some err ->
     Alcotest.fail err;
     Lwt.return_unit
+  ]
 
 
 (* Helper functions *)

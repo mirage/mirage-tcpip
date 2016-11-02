@@ -25,8 +25,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Test_connect (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
-  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
-  let gw = Ipaddr.V4.of_string_exn "10.0.0.1"
+  let netmask = 24
+  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
   let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
   let test_string = "Hello world from Mirage 123456789...."
@@ -62,13 +62,15 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
       (Lwt_unix.sleep timeout >>= fun () ->
        fail "connect test timedout after %f seconds" timeout) ;
 
-      (V.create_stack backend server_ip netmask [gw] >>= fun s1 ->
+      (V.create_stack backend server_ip netmask gw >>= fun s1 ->
        V.Stackv4.listen_tcpv4 s1 ~port:80 (fun f -> accept f test_string);
        V.Stackv4.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
-       V.create_stack backend client_ip netmask [gw] >>= fun s2 ->
-       let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
+       V.create_stack backend client_ip netmask gw >>= fun s2 ->
+       Lwt.pick [
+       V.Stackv4.listen s2;
+       (let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
        or_error "connect" conn (server_ip, 80) >>= fun flow ->
        Logs.debug (fun f -> f "Connected to other end...");
        V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function
@@ -78,7 +80,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
          Logs.debug (fun f -> f "wrote hello world");
          V.Stackv4.TCPV4.close flow >>= fun () ->
          Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
-         Lwt.return_unit) ] >>= fun () ->
+         Lwt.return_unit)]) ] >>= fun () ->
 
     Lwt.return_unit
 
