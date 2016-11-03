@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 932c2d4a28d84c22430fe4df82d8b59a)
+# DO NOT EDIT (digest: 61581dffdce93c14e7b62030da4e6737)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,6 +19,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: oasis_library_tcpip_ccopt
 "lib/checksum_stubs.c": oasis_library_tcpip_ccopt
 <lib/tcpip.{cma,cmxa}>: use_libtcpip_stubs
+<lib/*.ml{,i,y}>: pkg_cstruct
 "lib/checksum_stubs.c": pkg_cstruct
 "lib/checksum_stubs.c": pkg_ipaddr
 "lib/checksum_stubs.c": pkg_mirage-types
@@ -132,39 +133,13 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_result
 <lib/tcp/*.ml{,i,y}>: pkg_rresult
 <lib/tcp/*.ml{,i,y}>: use_tcpip
-# Library dhcpv4
-"lib/dhcp/dhcpv4.cmxs": use_dhcpv4
-<lib/dhcp/*.ml{,i,y}>: pkg_cstruct
-<lib/dhcp/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/dhcp/*.ml{,i,y}>: pkg_duration
-<lib/dhcp/*.ml{,i,y}>: pkg_io-page
-<lib/dhcp/*.ml{,i,y}>: pkg_ipaddr
-<lib/dhcp/*.ml{,i,y}>: pkg_logs
-<lib/dhcp/*.ml{,i,y}>: pkg_lwt
-<lib/dhcp/*.ml{,i,y}>: pkg_mirage-profile
-<lib/dhcp/*.ml{,i,y}>: pkg_mirage-types
-<lib/dhcp/*.ml{,i,y}>: pkg_randomconv
-<lib/dhcp/*.ml{,i,y}>: pkg_result
-<lib/dhcp/*.ml{,i,y}>: pkg_rresult
-<lib/dhcp/*.ml{,i,y}>: use_tcpip
-<lib/dhcp/*.ml{,i,y}>: use_udp
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
-<lib/*.ml{,i,y}>: pkg_cstruct
-<lib/*.ml{,i,y}>: pkg_cstruct.ppx
-<lib/*.ml{,i,y}>: pkg_duration
-<lib/*.ml{,i,y}>: pkg_io-page
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
-<lib/*.ml{,i,y}>: pkg_mirage-profile
 <lib/*.ml{,i,y}>: pkg_mirage-types
-<lib/*.ml{,i,y}>: pkg_randomconv
 <lib/*.ml{,i,y}>: pkg_result
-<lib/*.ml{,i,y}>: pkg_rresult
-<lib/*.ml{,i,y}>: use_dhcpv4
-<lib/*.ml{,i,y}>: use_tcpip
-<lib/*.ml{,i,y}>: use_udp
 # Library icmpv4-socket
 "unix/icmpv4-socket.cmxs": use_icmpv4-socket
 <unix/*.ml{,i,y}>: pkg_cstruct
@@ -220,7 +195,6 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_result
 <lib_test/test.{native,byte}>: pkg_rresult
 <lib_test/test.{native,byte}>: use_arpv4
-<lib_test/test.{native,byte}>: use_dhcpv4
 <lib_test/test.{native,byte}>: use_ethif
 <lib_test/test.{native,byte}>: use_icmpv4
 <lib_test/test.{native,byte}>: use_ipv4
@@ -257,7 +231,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_result
 <lib_test/*.ml{,i,y}>: pkg_rresult
 <lib_test/*.ml{,i,y}>: use_arpv4
-<lib_test/*.ml{,i,y}>: use_dhcpv4
 <lib_test/*.ml{,i,y}>: use_ethif
 <lib_test/*.ml{,i,y}>: use_icmpv4
 <lib_test/*.ml{,i,y}>: use_ipv4
