@@ -35,7 +35,7 @@ sig
   (** Create a new backend *)
   val create_backend : unit -> backend
   (** Create a new stack connected to an existing backend *)
-  val create_stack : backend -> Ipaddr.V4.t -> Ipaddr.V4.t -> Ipaddr.V4.t list -> Stackv4.t Lwt.t
+  val create_stack : backend -> Ipaddr.V4.t -> int -> Ipaddr.V4.t option -> Stackv4.t Lwt.t
   (** Add a listener function to the backend *)
   val create_backend_listener : backend -> (buffer -> unit io) -> id
   (** Disable a listener function *)
@@ -53,7 +53,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
   module A = Arpv4.Make(E)(Clock)(Time)
-  module Ip = Ipv4.Make(E)(A)
+  module Ip = Static_ipv4.Make(E)(A)
   module Icmp = Icmpv4.Make(Ip)
   module U = Udp.Make(Ip)
   module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Stdlibrandom)
@@ -64,18 +64,18 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     B.create ()
 
   let create_stack backend ip netmask gw =
+    let network = Ipaddr.V4.Prefix.make netmask ip in
     Clock.connect () >>= fun clock ->
     V.connect backend >>= fun netif ->
     E.connect netif >>= fun ethif ->
     A.connect ethif clock >>= fun arpv4 ->
-    Ip.connect ethif arpv4 >>= fun ipv4 ->
+    Ip.connect ~ip ~network ~gateway:gw ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
     let config = {
       V1_LWT.name = "stack";
       interface = netif;
-      mode = `IPv4 (ip, netmask, gw);
     } in
     Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
 

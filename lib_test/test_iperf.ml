@@ -26,8 +26,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let backend = V.create_backend ()
 
-  let netmask = Ipaddr.V4.of_string_exn "255.255.255.0"
-  let gw = Ipaddr.V4.of_string_exn "10.0.0.1"
+  let netmask = 24
+  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
   let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
 
@@ -175,17 +175,19 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
        fail "iperf test timed out after %f seconds" timeout);
 
+
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
        Logs.info (fun f -> f  "I am client with IP %s, trying to connect to server @ %s:%d"
                      (Ipaddr.V4.to_string client_ip)
                      (Ipaddr.V4.to_string server_ip) port);
-       V.create_stack backend client_ip netmask [gw] >>= fun client_s ->
+       V.create_stack backend client_ip netmask gw >>= fun client_s ->
+       Lwt.async (fun () -> V.Stackv4.listen client_s);
        iperfclient client_s amt server_ip port);
 
       (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
                      (Ipaddr.V4.to_string server_ip) port);
-       V.create_stack backend server_ip netmask [gw] >>= fun server_s ->
+       V.create_stack backend server_ip netmask gw >>= fun server_s ->
        Mclock.connect () >>= fun clock ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
        Lwt.wakeup server_ready_u ();

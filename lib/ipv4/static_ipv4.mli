@@ -15,20 +15,16 @@
  *)
 
 module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
-  module Routing : sig
-    (* this exception can be thrown by `write` or `writev` when the destination
-       IP address's link-layer address can't be found by ARP *)
-    exception No_route_to_destination_address of Ipaddr.V4.t
-  end
   include V1_LWT.IPV4 with type ethif = N.t
+  exception No_route_to_destination_address of Ipaddr.V4.t
   val connect :
     ?ip:Ipaddr.V4.t ->
-    ?netmask:Ipaddr.V4.t ->
-    ?gateways:Ipaddr.V4.t list ->
+    ?network:Ipaddr.V4.Prefix.t ->
+    ?gateway:Ipaddr.V4.t option ->
     ethif -> A.t -> t Lwt.t
     (** Connect to an ipv4 device.
         Default ip is {!Ipaddr.V4.any}
-        Default netmask is {!Ipaddr.V4.any}
-        Default gateways are [[]]. *)
+        Default network is {!Ipaddr.V4.any}/0
+        Default gateway is None. *)
 
 end

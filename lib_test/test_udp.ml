@@ -5,7 +5,7 @@ module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
-module Ip = Ipv4.Make(E)(Static_arp)
+module Ip = Static_ipv4.Make(E)(Static_arp)
 module Udp = Udp.Make(Ip)
 
 type stack = {
@@ -19,23 +19,17 @@ type stack = {
 }
 
 let get_stack ?(backend = B.create ~use_async_readers:true
-                  ~yield:(fun() -> Lwt_main.yield ()) ()) () =
+                  ~yield:(fun() -> Lwt_main.yield ()) ()) ip =
   let open Lwt.Infix in
+  let network = Ipaddr.V4.Prefix.make 24 ip in
+  let gateway = None in
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif clock >>= fun arp ->
-  Ip.connect ethif arp >>= fun ip ->
+  Ip.connect ~ip ~network ~gateway ethif arp >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { clock; backend; netif; ethif; arp; ip; udp }
-
-(* assume a class C network with no default gateway *)
-let configure ip stack =
-  let open Lwt.Infix in
-  Ip.set_ip stack.ip ip >>= fun () ->
-  Ip.set_ip_netmask stack.ip (Ipaddr.V4.of_string_exn "255.255.255.0") >>= fun
-    () ->
-  Lwt.return stack
 
 let fails msg f args =
   match f args with
@@ -62,7 +56,7 @@ let marshal_unmarshal () =
 let write () =
   let open Lwt.Infix in
   let dst = Ipaddr.V4.of_string_exn "192.168.4.20" in
-  get_stack () >>= configure (Ipaddr.V4.of_string_exn "192.168.4.20") >>= fun stack ->
+  get_stack dst >>= fun stack ->
   Static_arp.add_entry stack.arp dst (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
   Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >>= fun () -> Lwt.return_unit
 

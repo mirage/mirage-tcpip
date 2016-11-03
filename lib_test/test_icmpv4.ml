@@ -15,7 +15,7 @@ type decomposed = {
   ethernet_header : Ethif_packet.t;
 }
 
-module Ip = Ipv4.Make(E)(Static_arp)
+module Ip = Static_ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
 
 module Udp = Udp.Make(Ip)
@@ -36,26 +36,26 @@ let testbind x y =
   | Error s -> Alcotest.fail s
 let (>>=?) = testbind
 
+(* some default addresses which will be on the same class C *)
+let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
+let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
+
 let slowly fn =
   Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun () -> Time.sleep_ns (Duration.of_ms 100)
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
-                  ~yield:(fun() -> Lwt_main.yield ()) ()) () =
+                  ~yield:(fun() -> Lwt_main.yield ()) ()) 
+                  ip =
+  let network = Ipaddr.V4.Prefix.make 24 listener_address in
+  let gateway = None in
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif clock >>= fun arp ->
-  Ip.connect ethif arp >>= fun ip ->
+  Ip.connect ~ip ~network ~gateway ethif arp >>= fun ip ->
   Icmp.connect ip >>= fun icmp ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }
-
-(* assume a class C network with no default gateway *)
-let configure ip stack =
-  Ip.set_ip stack.ip ip >>= fun () ->
-  Ip.set_ip_netmask stack.ip (Ipaddr.V4.of_string_exn "255.255.255.0") >>= fun
-    () ->
-  Lwt.return stack
 
 let icmp_listen stack fn =
   let noop = fun ~src:_ ~dst:_ _buf -> Lwt.return_unit in
@@ -67,9 +67,6 @@ let icmp_listen stack fn =
               ~tcp:noop ~udp:noop
               ~default:(fun ~proto -> match proto with | 1 -> fn | _ -> noop))) >|= fun _ -> ()
 
-(* some default addresses which will be on the same class C *)
-let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
-let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
 let inform_arp stack = Static_arp.add_entry stack.arp
 let mac_of_stack stack = E.mac stack.ethif
@@ -87,8 +84,8 @@ let echo_request () =
   let seq_no = 0x01 in
   let id_no = 0x1234 in
   let request_payload = Cstruct.of_string "plz reply i'm so lonely" in
-  get_stack () >>= configure speaker_address >>= fun speaker ->
-  get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
+  get_stack speaker_address >>= fun speaker ->
+  get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
@@ -119,8 +116,8 @@ let echo_request () =
 
 let echo_silent () =
   let open Icmpv4_packet in
-  get_stack () >>= configure speaker_address >>= fun speaker ->
-  get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
+  get_stack speaker_address >>= fun speaker ->
+  get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   let req = ({code = 0x00; ty = Icmpv4_wire.Echo_request;
 	      subheader = Id_and_seq (0xff, 0x4341)}) in
   let echo_request = Marshal.make_cstruct req ~payload:Cstruct.(create 0) in
@@ -205,8 +202,8 @@ let write_errors () =
       Alcotest.fail "writing thread completed first";
     ]
   in
-  get_stack () >>= configure speaker_address >>= fun speaker ->
-  get_stack ~backend:speaker.backend () >>= configure listener_address >>= fun listener ->
+  get_stack speaker_address >>= fun speaker ->
+  get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);
   Lwt.pick [

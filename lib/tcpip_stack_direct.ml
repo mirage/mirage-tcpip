@@ -40,10 +40,9 @@ module Make
 struct
 
   type +'a io = 'a Lwt.t
-  type ('a,'b) config = ('a,'b) V1_LWT.stackv4_config
+  type 'a config = 'a V1_LWT.stackv4_config
   type netif = Netif.t
-  type mode = V1_LWT.direct_stack_config
-  type id = (netif, mode) config
+  type id = netif config
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
   type tcpv4 = Tcpv4.t
@@ -53,11 +52,9 @@ struct
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4
   module IPV4  = Ipv4
-  module Dhcp = Dhcp_clientv4.Make(Time)(Random)(Udpv4)
 
   type t = {
     id    : id;
-    mode  : mode;
     netif : Netif.t;
     ethif : Ethif.t;
     arpv4 : Arpv4.t;
@@ -93,44 +90,6 @@ struct
   let pp_opt pp f = function
     | None -> Format.pp_print_string f "None"
     | Some x -> pp f x
-
-  let configure_dhcp t info =
-    Ipv4.set_ip t.ipv4 info.Dhcp.ip_addr
-    >>= fun () ->
-    (match info.Dhcp.netmask with
-     | Some nm -> Ipv4.set_ip_netmask t.ipv4 nm
-     | None    -> Lwt.return_unit)
-    >>= fun () ->
-    Ipv4.set_ip_gateways t.ipv4 info.Dhcp.gateways
-    >|= fun () ->
-    Log.info (fun f -> f "DHCP offer received and bound to %a nm %a gw [%s]"
-      Ipaddr.V4.pp_hum info.Dhcp.ip_addr
-      (pp_opt Ipaddr.V4.pp_hum) info.Dhcp.netmask
-      (String.concat ", " (List.map Ipaddr.V4.to_string info.Dhcp.gateways))
-    )
-
-  let configure t config =
-    match config with
-    | `DHCP -> begin
-        (* TODO: spawn a background thread to reconfigure the interface
-           when future offers are received. *)
-        let dhcp, offers = Dhcp.create (Ethif.mac t.ethif) t.udpv4 in
-        listen_udpv4 t ~port:68 (Dhcp.input dhcp);
-        (* TODO: stop listening to this port when done with DHCP. *)
-        Lwt_stream.get offers >>= function
-        | None -> Log.info (fun f -> f "No DHCP offer received"); Lwt.return ()
-        | Some offer -> configure_dhcp t offer
-      end
-    | `IPv4 (addr, netmask, gateways) ->
-      Log.info (fun f -> f "Manager: Interface to %a nm %a gw [%s]"
-                           Ipaddr.V4.pp_hum addr
-                           Ipaddr.V4.pp_hum netmask
-                           (String.concat ", " (List.map Ipaddr.V4.to_string gateways)));
-      Ipv4.set_ip t.ipv4 addr
-      >>= fun () ->
-      Ipv4.set_ip_netmask t.ipv4 netmask
-      >>= fun () ->
-      Ipv4.set_ip_gateways t.ipv4 gateways
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
@@ -170,23 +129,13 @@ struct
       Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
-    let { V1_LWT.interface = netif; mode; _ } = id in
+    let { V1_LWT.interface = netif; _ } = id in
     Log.info (fun f -> f "Manager: connect");
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; mode; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
+    let t = { id; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
-    Log.info (fun f -> f "Manager: configuring");
-    let _ = listen t in
-    configure t t.mode
-    >>= fun () ->
-    (* TODO: this is fine for now, because the DHCP state machine isn't fully
-       implemented and its thread will terminate after one successful lease
-       transaction.  For a DHCP thread that runs forever, `configure` will need
-       to spawn a background thread, but we need to consider how to inform the
-       application stack that the IP address has changed (perhaps via a control
-       Lwt_stream that the application can ignore if it doesn't care). *)
-    Log.info (fun f -> f "Manager: configuration done");
+    Log.info (fun f -> f "Manager: stack assembled!");
     Lwt.return t
 
   let disconnect _t =
