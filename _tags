@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 61581dffdce93c14e7b62030da4e6737)
+# DO NOT EDIT (digest: 9e4f1f5c6da73848344490e4dd0eb5f3)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -135,6 +135,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: use_tcpip
 # Library tcpip-stack-direct
 "lib/tcpip-stack-direct.cmxs": use_tcpip-stack-direct
+<lib/*.ml{,i,y}>: pkg_fmt
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
@@ -174,6 +175,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_cstruct.lwt
 <lib_test/test.{native,byte}>: pkg_cstruct.ppx
 <lib_test/test.{native,byte}>: pkg_duration
+<lib_test/test.{native,byte}>: pkg_fmt
 <lib_test/test.{native,byte}>: pkg_io-page
 <lib_test/test.{native,byte}>: pkg_io-page.unix
 <lib_test/test.{native,byte}>: pkg_ipaddr
@@ -210,6 +212,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_cstruct.lwt
 <lib_test/*.ml{,i,y}>: pkg_cstruct.ppx
 <lib_test/*.ml{,i,y}>: pkg_duration
+<lib_test/*.ml{,i,y}>: pkg_fmt
 <lib_test/*.ml{,i,y}>: pkg_io-page
 <lib_test/*.ml{,i,y}>: pkg_io-page.unix
 <lib_test/*.ml{,i,y}>: pkg_ipaddr
