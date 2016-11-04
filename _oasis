@@ -107,7 +107,7 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,ipaddr,lwt,result
+  BuildDepends:       logs,mirage-types,ipaddr,lwt,result,fmt
 
 Library "icmpv4-socket"
   CompiledObject:     best
