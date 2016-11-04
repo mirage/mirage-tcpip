@@ -66,6 +66,10 @@ struct
     tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
   }
 
+  let pp fmt t =
+    Format.fprintf fmt "mac=%s,ip=%a" (Macaddr.to_string (Ethif.mac t.ethif))
+      (Fmt.list Ipaddr.V4.pp_hum) (Ipv4.get_ip t.ipv4)
+
   type error = [
       `Unknown of string
   ]
@@ -100,6 +104,7 @@ struct
     with Not_found -> None
 
   let listen t =
+    Logs.debug (fun f -> f "Initializing listener for stack %a" pp t);
     Netif.listen t.netif (
       Ethif.input
         ~arpv4:(Arpv4.input t.arpv4)
@@ -130,16 +135,15 @@ struct
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let { V1_LWT.interface = netif; _ } = id in
-    Log.info (fun f -> f "Manager: connect");
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
-    Log.info (fun f -> f "Manager: stack assembled!");
+    Log.info (fun f -> f "stack assembled: %a" pp t);
     Lwt.return t
 
-  let disconnect _t =
+  let disconnect t =
     (* TODO: kill the listening thread *)
-    Log.info (fun f -> f "Manager: disconnect");
+    Log.info (fun f -> f "disconnect called (currently a noop): %a" pp t);
     Lwt.return_unit
 end

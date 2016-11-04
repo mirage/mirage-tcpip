@@ -53,7 +53,7 @@ depends: [
   "mirage-vnetif" {test & >= "0.2.0"}
   "alcotest" {test}
   "pcap-format" {test}
-  "fmt" {test}
+  "fmt"
   "mirage-stdlib-random" {test}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
