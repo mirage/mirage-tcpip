@@ -39,7 +39,13 @@ module Make
      and module IPV4 = Ipv4
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
+
   val connect : netif V1_LWT.stackv4_config ->
     Ethif.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t -> Udpv4.t -> Tcpv4.t ->
     t Lwt.t
+  (** [connect] assembles the arguments into a network stack, then calls
+      `listen` on the assembled stack before returning it to the caller.  The
+      initial `listen` functions to ensure that the lower-level layers (e.g.
+      ARP) are functioning, so that if the user wishes to establish outbound
+      connections, they will be able to do so. *)
 end
