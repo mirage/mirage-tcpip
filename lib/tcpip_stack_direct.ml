@@ -104,7 +104,7 @@ struct
     with Not_found -> None
 
   let listen t =
-    Logs.debug (fun f -> f "Initializing listener for stack %a" pp t);
+    Logs.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
     Netif.listen t.netif (
       Ethif.input
         ~arpv4:(Arpv4.input t.arpv4)
@@ -140,6 +140,7 @@ struct
     let t = { id; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
+    Lwt.ignore_result (listen t);
     Lwt.return t
 
   let disconnect t =
