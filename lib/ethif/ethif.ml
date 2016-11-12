@@ -65,7 +65,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     Netif.write t.netif frame >|= function
     | Ok () -> ()
     | Error e ->
-      Log.warn (fun f -> f "netif write errored %a" M_pp.pp_network_error e) ;
+      Log.warn (fun f -> f "netif write errored %a" M_util.pp_network_error e) ;
       ()
 
   (* XXX the error handling should be removed, and passed to the layer above *)
@@ -74,7 +74,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     Netif.writev t.netif bufs >|= function
     | Ok () -> ()
     | Error e ->
-      Log.warn (fun f -> f "netif writev errored %a" M_pp.pp_network_error e) ;
+      Log.warn (fun f -> f "netif writev errored %a" M_util.pp_network_error e) ;
       ()
 
   let connect netif =
