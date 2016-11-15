@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 512cb7b9bddc2452ecc7f1e83ddb0c22)
+# DO NOT EDIT (digest: 905c9921359732eaded4a9e161fc3588)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -112,7 +112,7 @@ package "stack-direct" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "logs mirage-types ipaddr lwt result fmt"
+ requires = "logs mirage-types ipaddr lwt result fmt mirage-runtime"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
@@ -176,7 +176,7 @@ package "ethif" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types ipaddr cstruct lwt mirage-profile result rresult"
+ "logs mirage-types ipaddr cstruct lwt mirage-profile result rresult mirage-runtime"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"
