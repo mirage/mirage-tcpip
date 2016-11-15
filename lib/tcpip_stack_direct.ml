@@ -129,7 +129,7 @@ struct
                    nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
       Lwt.return_unit
     | Error e ->
-      Log.warn (fun p -> p "%a" M_util.pp_network_error e) ;
+      Log.warn (fun p -> p "%a" Mirage_pp.pp_network_error e) ;
       (* XXX: error should be passed to the caller *)
       Lwt.return_unit
 
