@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9e4f1f5c6da73848344490e4dd0eb5f3)
+# DO NOT EDIT (digest: 7379f2148e599f2ba68b634c9cc4f868)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -35,6 +35,7 @@ true: annot, bin_annot
 <lib/ethif/*.ml{,i,y}>: pkg_logs
 <lib/ethif/*.ml{,i,y}>: pkg_lwt
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-profile
+<lib/ethif/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/ethif/*.ml{,i,y}>: pkg_mirage-types
 <lib/ethif/*.ml{,i,y}>: pkg_result
 <lib/ethif/*.ml{,i,y}>: pkg_rresult
@@ -47,6 +48,7 @@ true: annot, bin_annot
 <lib/arpv4/*.ml{,i,y}>: pkg_logs
 <lib/arpv4/*.ml{,i,y}>: pkg_lwt
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-profile
+<lib/arpv4/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/arpv4/*.ml{,i,y}>: pkg_mirage-types
 <lib/arpv4/*.ml{,i,y}>: pkg_result
 <lib/arpv4/*.ml{,i,y}>: pkg_rresult
@@ -60,6 +62,7 @@ true: annot, bin_annot
 <lib/ipv4/*.ml{,i,y}>: pkg_logs
 <lib/ipv4/*.ml{,i,y}>: pkg_lwt
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-profile
+<lib/ipv4/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/ipv4/*.ml{,i,y}>: pkg_mirage-types
 <lib/ipv4/*.ml{,i,y}>: pkg_result
 <lib/ipv4/*.ml{,i,y}>: pkg_rresult
@@ -75,6 +78,7 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_logs
 <lib/ipv6/*.ml{,i,y}>: pkg_lwt
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
+<lib/ipv6/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-types
 <lib/ipv6/*.ml{,i,y}>: pkg_result
 <lib/ipv6/*.ml{,i,y}>: pkg_rresult
@@ -139,6 +143,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: pkg_result
 # Library icmpv4-socket
@@ -187,6 +192,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mirage-clock-unix
 <lib_test/test.{native,byte}>: pkg_mirage-flow
 <lib_test/test.{native,byte}>: pkg_mirage-profile
+<lib_test/test.{native,byte}>: pkg_mirage-runtime
 <lib_test/test.{native,byte}>: pkg_mirage-stdlib-random
 <lib_test/test.{native,byte}>: pkg_mirage-types
 <lib_test/test.{native,byte}>: pkg_mirage-types.lwt
@@ -224,6 +230,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
+<lib_test/*.ml{,i,y}>: pkg_mirage-runtime
 <lib_test/*.ml{,i,y}>: pkg_mirage-stdlib-random
 <lib_test/*.ml{,i,y}>: pkg_mirage-types
 <lib_test/*.ml{,i,y}>: pkg_mirage-types.lwt

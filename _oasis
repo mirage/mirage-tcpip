@@ -39,7 +39,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_packet
-  BuildDepends:       logs,mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult
+  BuildDepends:       logs,mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-runtime
 
 Library arpv4
   CompiledObject:     best
@@ -107,7 +107,7 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,ipaddr,lwt,result,fmt
+  BuildDepends:       logs,mirage-types,ipaddr,lwt,result,fmt,mirage-runtime
 
 Library "icmpv4-socket"
   CompiledObject:     best
