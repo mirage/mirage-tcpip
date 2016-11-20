@@ -58,7 +58,7 @@ let write () =
   let dst = Ipaddr.V4.of_string_exn "192.168.4.20" in
   get_stack dst >>= fun stack ->
   Static_arp.add_entry stack.arp dst (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
-  Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >>= fun () -> Lwt.return_unit
+  Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >|= Rresult.R.get_ok
 
 let suite = [
   "marshal/unmarshal", `Quick, marshal_unmarshal;

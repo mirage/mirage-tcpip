@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7379f2148e599f2ba68b634c9cc4f868)
+# DO NOT EDIT (digest: 983c963bd13f755bb0fcadf13b37f43f)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -92,6 +92,7 @@ true: annot, bin_annot
 <lib/icmp/*.ml{,i,y}>: pkg_logs
 <lib/icmp/*.ml{,i,y}>: pkg_lwt
 <lib/icmp/*.ml{,i,y}>: pkg_mirage-profile
+<lib/icmp/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/icmp/*.ml{,i,y}>: pkg_mirage-types
 <lib/icmp/*.ml{,i,y}>: pkg_result
 <lib/icmp/*.ml{,i,y}>: pkg_rresult
@@ -104,6 +105,7 @@ true: annot, bin_annot
 <lib/udp/*.ml{,i,y}>: pkg_logs
 <lib/udp/*.ml{,i,y}>: pkg_lwt
 <lib/udp/*.ml{,i,y}>: pkg_mirage-profile
+<lib/udp/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/udp/*.ml{,i,y}>: pkg_mirage-types
 <lib/udp/*.ml{,i,y}>: pkg_result
 <lib/udp/*.ml{,i,y}>: pkg_rresult
@@ -132,6 +134,7 @@ true: annot, bin_annot
 <lib/tcp/*.ml{,i,y}>: pkg_logs
 <lib/tcp/*.ml{,i,y}>: pkg_lwt
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-profile
+<lib/tcp/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/tcp/*.ml{,i,y}>: pkg_mirage-types
 <lib/tcp/*.ml{,i,y}>: pkg_randomconv
 <lib/tcp/*.ml{,i,y}>: pkg_result
@@ -152,6 +155,7 @@ true: annot, bin_annot
 <unix/*.ml{,i,y}>: pkg_cstruct.ppx
 <unix/*.ml{,i,y}>: pkg_ipaddr
 <unix/*.ml{,i,y}>: pkg_mirage-profile
+<unix/*.ml{,i,y}>: pkg_mirage-runtime
 <unix/*.ml{,i,y}>: pkg_result
 <unix/*.ml{,i,y}>: pkg_rresult
 <unix/*.ml{,i,y}>: use_icmpv4

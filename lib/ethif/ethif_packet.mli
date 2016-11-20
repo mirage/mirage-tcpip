@@ -4,17 +4,15 @@ type t = {
   ethertype : Ethif_wire.ethertype;
 }
 
+type error = string
+
 val pp : Format.formatter -> t -> unit
 val equal : t -> t -> bool
 
 module Unmarshal : sig
-  type error = string
-
   val of_cstruct : Cstruct.t -> ((t * Cstruct.t), error) Result.result
 end
 module Marshal : sig
-  type error = string
-
   (** [into_cstruct t buf] writes a 14-byte ethernet header representing
       [t.ethertype], [t.src_mac], and [t.dst_mac] to [buf] at offset 0.
       Return Result.Ok () on success and Result.Error error on failure.

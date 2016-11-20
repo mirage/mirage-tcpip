@@ -43,6 +43,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   type repr = string
   type error
 
+  let report_ethif_error s e =
+    Logs.debug (fun f -> f "error on underlying ethernet interface when attempting to %s : %a" s Mirage_pp.pp_ethif_error e)
+
   let arp_timeout = Duration.of_sec 60 (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = Duration.of_ms 1500 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
   let probe_num = 3 (* how many probes to send before giving up *)
@@ -72,7 +75,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
       let key = Ipaddr.V4.to_string ip in
       match entry with
        | Pending _ -> acc ^ "\n" ^ key ^ " -> " ^ "Pending"
-       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %Lu)\n%!" 
+       | Confirmed (time, mac) -> Printf.sprintf "%s\n%s -> Confirmed (%s) (expires %Lu)\n%!"
                                     acc key (Macaddr.to_string mac) time
     in
     Lwt.return (Hashtbl.fold print t.cache "")
@@ -105,7 +108,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
         destination;
         ethertype = Ethif_wire.ARP;
       }) in
-    Ethif.writev t.ethif [ethif_packet ; payload]
+    Ethif.writev t.ethif [ethif_packet ; payload] >>= fun e ->
+      Lwt.return @@ Rresult.R.ignore_error ~use:(report_ethif_error "write") e
 
   (* Input handler for an ARP packet *)
   let input t frame =

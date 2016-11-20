@@ -91,10 +91,6 @@ struct
     then raise (Invalid_argument (err_invalid_port port))
     else Hashtbl.replace t.tcpv4_listeners port callback
 
-  let pp_opt pp f = function
-    | None -> Format.pp_print_string f "None"
-    | Some x -> pp f x
-
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)
     with Not_found -> None
@@ -105,8 +101,7 @@ struct
 
   let listen t =
     Logs.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-    Netif.listen t.netif (
-      Ethif.input
+    let ethif_listener = Ethif.input
         ~arpv4:(Arpv4.input t.arpv4)
         ~ipv4:(
           Ipv4.input
@@ -120,18 +115,21 @@ struct
                 | _ -> Lwt.return_unit)
             t.ipv4)
         ~ipv6:(fun _ -> Lwt.return_unit)
-        t.ethif) >>= function
-    | Ok () ->
-      let nstat = Netif.get_stats_counters t.netif in
-      Log.info (fun f -> f "listening loop of interface %s terminated regularly:@ %Lu bytes (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-                   (Macaddr.to_string (Netif.mac t.netif))
-                   nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
-                   nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
-      Lwt.return_unit
+        t.ethif
+    in
+    Netif.listen t.netif ethif_listener
+    >>= function
     | Error e ->
       Log.warn (fun p -> p "%a" Mirage_pp.pp_network_error e) ;
       (* XXX: error should be passed to the caller *)
       Lwt.return_unit
+    | Ok _res ->
+        let nstat = Netif.get_stats_counters t.netif in
+        Log.info (fun f -> f "listening loop of interface %s terminated regularly:@ %Lu bytes (%lu packets) received, %Lu bytes (%lu packets) sent@ "
+                   (Macaddr.to_string (Netif.mac t.netif))
+                   nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
+                   nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
+        Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let { V1_LWT.interface = netif; _ } = id in
