@@ -295,7 +295,8 @@ let input_resolves_wait () =
     Lwt.join [
       (V.listen listen.netif listener >|= fun _ -> ());
       query_then_disconnect;
-      Time.sleep_ns (Duration.of_ms 100) >>= fun () -> E.write speak.ethif for_listener;
+      Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
+        E.write speak.ethif for_listener >|= Rresult.R.get_ok
     ]
   )
 

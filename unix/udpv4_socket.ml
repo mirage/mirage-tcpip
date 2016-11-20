@@ -38,10 +38,7 @@ let get_udpv4_listening_fd {listen_fds;interface} port =
     Hashtbl.add listen_fds (interface, port) fd;
     fd
 
-(** IO operation errors *)
-type error = [
-  | `Unknown of string (** an undiagnosed error *)
-]
+type error = V1.Udp.error
 
 let connect (id:ip) =
   let t =
@@ -65,13 +62,18 @@ let id { interface; _ } =
   let t, _ = Lwt.task () in
   t
 
-let write ?src_port ~dst ~dst_port t buf =
+let rec write ?src_port ~dst ~dst_port t buf =
   let open Lwt_unix in
+  let rec write_to_fd fd buf = 
+    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
+    >>= function
+    | n when n = Cstruct.len buf -> return @@ Ok ()
+    | 0 -> return @@ Error (`Msg "sendto failed to write any bytes")
+    | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
+  in
   let fd =
     match src_port with
     | None -> get_udpv4_listening_fd t 0
     | Some port -> get_udpv4_listening_fd t port
   in
-  Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
-  >>= fun _ ->
-  return_unit
+  write_to_fd fd buf

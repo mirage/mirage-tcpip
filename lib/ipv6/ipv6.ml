@@ -43,7 +43,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
       let now = C.elapsed_ns t.clock in
       let ctx, bufs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
-      Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
+      Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs (* MCP: replace with propagation *) >>= fun () ->
       T.sleep_ns (Duration.of_sec 1) >>= loop
     in
     loop ()
@@ -59,7 +59,14 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     in
     let ctx, bufs = Ndpv6.send ~now t.ctx dst frame bufs in
     t.ctx <- ctx;
-    Lwt_list.iter_s (E.writev t.ethif) bufs
+    let fail_any progress buf =
+      let id = function | Ok () -> Ok () | Error e -> Error e in
+      match progress with
+      | Ok () -> E.writev t.ethif buf >|= id
+      | Error e -> Lwt.return @@ Error e
+    in
+    (* MCP - it's not totally clear to me that this the right behavior for writev. *)
+    Lwt_list.fold_left_s fail_any (Ok ()) bufs
 
   let write t frame buf =
     writev t frame [buf]
@@ -72,7 +79,8 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
         | `Udp (src, dst, buf) -> udp ~src ~dst buf
         | `Default (proto, src, dst, buf) -> default ~proto ~src ~dst buf
       ) actions >>= fun () ->
-    Lwt_list.iter_s (E.writev t.ethif) bufs
+    (* MCP: replace below w/proper error propagation *)
+    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs
 
   let disconnect _ = (* TODO *)
     Lwt.return_unit
@@ -85,7 +93,8 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let now = C.elapsed_ns t.clock in
     let ctx, bufs = Ndpv6.add_ip ~now t.ctx ip in
     t.ctx <- ctx;
-    Lwt_list.iter_s (E.writev t.ethif) bufs
+    (* MCP: replace the below *)
+    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs
 
   let get_ip t =
     Ndpv6.get_ip t.ctx
@@ -133,7 +142,8 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let now = C.elapsed_ns clock in
     let ctx, bufs = Ndpv6.local ~now (E.mac ethif) in
     let t = {ctx; clock; ethif} in
-    Lwt_list.iter_s (E.writev t.ethif) bufs >>= fun () ->
+    (* MCP: replace this error swallowing with proper propagation *)
+    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs >>= fun () ->
     (ip, set_ip t) >>=? fun () ->
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
     (gateways, set_ip_gateways t) >>=? fun () ->

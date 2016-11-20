@@ -58,7 +58,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 module Tx (Time:V1_LWT.TIME)(Clock:V1.MCLOCK) : sig
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> unit Lwt.t
+    seq:Sequence.t -> Cstruct.t -> (unit, V1.Ip.error) result Lwt.t
 
   type t
   (** Queue of pre-transmission segments *)

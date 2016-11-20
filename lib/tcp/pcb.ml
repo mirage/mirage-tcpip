@@ -43,8 +43,6 @@ struct
 
   type connection = pcb * unit Lwt.t
 
-  type connection_result = [ `Ok of connection | `Rst | `Timeout ]
-
   type t = {
     ip : Ip.t;
     clock : Clock.t;
@@ -55,7 +53,7 @@ struct
     listens: (WIRE.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (WIRE.id, (connection_result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (WIRE.id, ((connection, V1.Tcp.error) result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   let pp_pcb fmt pcb =
@@ -128,7 +126,10 @@ struct
         let options = [] in
         let seq = Window.tx_nxt wnd in
         ACK.transmit ack ack_number >>= fun () ->
-        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>= fun () ->
+        xmit_pcb t.ip pcb.id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>=
+        fun _ -> (* TODO: what to do if sending failed.  Ignoring
+                  * errors gives us the same behavior as if the packet
+                  * was lost in transit *)
         send_empty_ack () in
       (* When something transmits an ACK, tell the delayed ACK thread *)
       let rec notify () =
@@ -366,7 +367,7 @@ struct
           if is_correct_ack ~tx_isn ~ack_number then begin
             Hashtbl.remove t.connects id;
             Stats.decr_connect ();
-            Lwt.wakeup wakener `Rst;
+            Lwt.wakeup wakener (Error `Refused);
             Lwt.return_unit
           end else
             Lwt.return_unit
@@ -400,7 +401,7 @@ struct
           { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
           id ack_number
         >>= fun (pcb, th) ->
-        Lwt.wakeup wakener (`Ok (pcb, th));
+        Lwt.wakeup wakener (Ok (pcb, th));
         Lwt.return_unit
       ) else
         (* Normally sending a RST reply to a random pkt would be in
@@ -408,9 +409,10 @@ struct
            to connect this id *)
         Lwt.return_unit
     | None ->
-      (* Incomming SYN-ACK with no pending connect and no matching pcb
+      (* Incoming SYN-ACK with no pending connect and no matching pcb
          - send RST *)
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+      >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
 
   let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
@@ -428,6 +430,7 @@ struct
       Lwt.return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+      >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
 
   let process_ack t id ~pkt =
     let open RXS in
@@ -456,6 +459,7 @@ struct
         let { sequence; Tcp_packet.ack_number; syn; fin; _ } = pkt.header in
         (* ACK but no matching pcb and no listen - send RST *)
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
+        >>= fun _ -> Lwt.return_unit (* if send fails, who cares *)
 
   let input_no_pcb t listeners (parsed, payload) id =
     let { sequence; Tcp_packet.ack_number; window; options; syn; fin; rst; ack; _ } = parsed in
@@ -518,7 +522,7 @@ struct
         | Result.Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
         | Result.Error _ as e -> Lwt.return e
       end
-    | _ -> Lwt.return (Result.Error "attempted to send data before connection was ready")
+    | _ -> Lwt.return (Result.Error (`Msg "attempted to send data before connection was ready"))
 
   let rec iter_s f = function
     | [] -> Lwt.return (Result.Ok ())
@@ -572,11 +576,15 @@ struct
         if count > 3 then (
           Hashtbl.remove t.connects id;
           Stats.decr_connect ();
-          Lwt.wakeup wakener `Timeout;
+          Lwt.wakeup wakener (Error `Timeout);
           Lwt.return_unit
         ) else (
-          Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
-          connecttimer t id tx_isn options window (count + 1)
+          Tx.send_syn t id ~tx_isn ~options ~window >|= Mirage_pp.reduce >>= function
+          | Ok () -> connecttimer t id tx_isn options window (count + 1)
+          | Error (`Msg s) ->
+            (* TODO: possibly the more sensible thing to do is give up *)
+            Log.warn (fun f -> f "Error sending initial SYN in TCP connection: %s" s);
+            connecttimer t id tx_isn options window (count + 1)
         )
       else Lwt.return_unit
 
@@ -598,9 +606,13 @@ struct
     );
     Hashtbl.add t.connects id (wakener, tx_isn);
     Stats.incr_connect ();
-    Tx.send_syn t id ~tx_isn ~options ~window >>= fun () ->
-    Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
-    th
+    Tx.send_syn t id ~tx_isn ~options ~window >|= Mirage_pp.reduce >>= function
+    | Ok () ->
+      Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
+      th
+    | Error (`Msg s) ->
+      Log.warn (fun f -> f "Failure sending initial SYN in outgoing connection: %s" s);
+      Lwt.return @@ Error (`Msg s)
 
   (* Construct the main TCP thread *)
   let create ip clock =

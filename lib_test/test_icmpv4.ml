@@ -41,7 +41,7 @@ let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
 let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
 let slowly fn =
-  Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun () -> Time.sleep_ns (Duration.of_ms 100)
+  Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
 
 let get_stack ?(backend = B.create ~use_async_readers:true 
                   ~yield:(fun() -> Lwt_main.yield ()) ()) 
@@ -169,7 +169,7 @@ let write_errors () =
             ~payload:decomposed.ethernet_payload in
         let header_and_payload = Cstruct.concat ([header ; decomposed.ethernet_payload]) in
         let open Ipv4_packet in
-        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload
+        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload >|= Rresult.R.get_ok
     in
     V.listen stack.netif reject >|= fun _ -> ()
   in
@@ -197,8 +197,9 @@ let write_errors () =
       icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
                           V.disconnect stack.netif);
       Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
-      Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload >>= fun () ->
-      Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
+      Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload
+        >|= Rresult.R.get_ok >>= fun () ->
+        Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
       Alcotest.fail "writing thread completed first";
     ]
   in

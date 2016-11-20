@@ -237,7 +237,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
   module TX = Window.Make(Clock)
 
   type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> unit Lwt.t
+    seq:Sequence.t -> Cstruct.t -> (unit, V1.Ip.error) result Lwt.t
 
   type seg = {
     data: Cstruct.t;

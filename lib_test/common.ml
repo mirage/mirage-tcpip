@@ -4,13 +4,12 @@ let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
 
 let or_error name fn t =
   fn t >>= function
-  | `Error _ -> fail "or_error starting %s" name
-  | `Ok t    -> Lwt.return t
+  | Error _ -> fail "or_error starting %s" name
+  | Ok t    -> Lwt.return t
 
 let expect_error error name fn t =
   fn t >>= function
-  | `Error error2 when error2 = error ->
-          Lwt.return t
+  | Error error2 when error2 = error -> Lwt.return t
   | _    -> fail "expected error on %s" name
 
 let assert_string msg a b =
