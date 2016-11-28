@@ -60,9 +60,18 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let ctx, bufs = Ndpv6.send ~now t.ctx dst frame bufs in
     t.ctx <- ctx;
     let fail_any progress buf =
-      let id = function | Ok () -> Ok () | Error e -> Error e in
+      let squeal = function
+      | Ok () as ok -> Lwt.return ok
+      | Error `Unimplemented ->
+        Lwt.fail (Invalid_argument "Unimplemented code path when trying to write to ethernet device")
+      | Error `Disconnected ->
+        Lwt.fail (Invalid_argument "Tried to write to a disconnected Ethernet interface")
+      | Error (`Msg s) ->
+        Log.warn (fun f -> f "ethif write errored: %s" s);
+        Lwt.return @@ Error (`Msg s)
+      in
       match progress with
-      | Ok () -> E.writev t.ethif buf >|= id
+      | Ok () -> E.writev t.ethif buf >>= squeal
       | Error e -> Lwt.return @@ Error e
     in
     (* MCP - it's not totally clear to me that this the right behavior for writev. *)

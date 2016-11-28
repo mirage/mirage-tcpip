@@ -13,7 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-
+open Lwt.Infix
 
 let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -66,6 +66,9 @@ module Make (Ip:V1_LWT.IP) = struct
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip (Cstruct.len payload + (if syn then 1 else 0));
-      Ip.write ip frame payload
+      Ip.write ip frame payload >|= function
+      | Error `No_route (* swallow this error so normal recovery mechanisms can be used *)
+      | Ok () -> Ok ()
+      | Error e -> Error e
 
 end

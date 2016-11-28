@@ -164,12 +164,12 @@ let three_arp () =
 
 let query_or_die arp ip expected_mac = 
   A.query arp ip >>= function
-  | `Timeout ->
+  | Error `Timeout ->
     let pp_ip = Ipaddr.V4.pp_hum in
     A.to_repr arp >>= fun repr ->
     Logs.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
-  | `Ok mac -> 
+  | Ok mac -> 
     Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
     Lwt.return_unit
 
@@ -195,8 +195,8 @@ let not_in_cache ~listen probe arp ip =
     single_check listen probe;
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.query arp ip >>= function
-    | `Ok mac -> fail @@ "entry in cache when it shouldn't be " ^ (Macaddr.to_string mac)
-    | `Timeout -> Lwt.return_unit
+    | Ok mac -> fail @@ "entry in cache when it shouldn't be " ^ (Macaddr.to_string mac)
+    | Error `Timeout -> Lwt.return_unit
   ]
 
 let set_ip_sends_garp () =
@@ -303,8 +303,8 @@ let input_resolves_wait () =
 let unreachable_times_out () =
   get_arp () >>= fun speak ->
   A.query speak.arp first_ip >>= function
-  | `Ok mac -> fail @@ "query claimed success when impossible for " ^ (Macaddr.to_string mac)
-  | `Timeout -> Lwt.return_unit
+  | Ok mac -> fail @@ "query claimed success when impossible for " ^ (Macaddr.to_string mac)
+  | Error `Timeout -> Lwt.return_unit
 
 let input_replaces_old () =
   three_arp () >>= fun (listen, claimant_1, claimant_2) ->
@@ -360,8 +360,8 @@ let query_retries () =
   in
   let ask () = 
     A.query speak.arp first_ip >>= function
-    | `Timeout -> fail "Received `Timeout before >1 query";
-    | `Ok mac -> fail(Printf.sprintf"got result from query for %s, erroneously" (Macaddr.to_string mac));
+    | Error `Timeout -> fail "Received error before >1 query";
+    | Ok mac -> fail(Printf.sprintf"got result from query for %s, erroneously" (Macaddr.to_string mac));
   in
   Lwt.pick [
     (V.listen listen.netif listener >|= fun _ -> ());

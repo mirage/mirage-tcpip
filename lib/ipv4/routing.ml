@@ -10,33 +10,33 @@ let mac_of_multicast ip =
   Bytes.set macb 5 (Bytes.get ipb 3);
   Macaddr.of_bytes_exn macb
 
-exception No_route_to_destination_address of Ipaddr.V4.t
+type routing_error = [ `Local | `Gateway ]
 
 module Make(Log : Logs.LOG) (A : V1_LWT.ARP) = struct
   open Lwt.Infix
 
   let destination_mac network gateway arp = function
     |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
-      Lwt.return Macaddr.broadcast
+      Lwt.return @@ Ok Macaddr.broadcast
     |ip when Ipaddr.V4.is_multicast ip ->
-      Lwt.return (mac_of_multicast ip)
+      Lwt.return @@ Ok (mac_of_multicast ip)
     |ip when Ipaddr.V4.Prefix.mem ip network -> (* Local *)
       A.query arp ip >>= begin function
-        | `Ok mac -> Lwt.return mac
-        | `Timeout ->
+        | Ok mac -> Lwt.return (Ok mac)
+        | Error `Timeout ->
           Log.info (fun f -> f "IP.output: could not determine link-layer address for local network (%a) ip %a" Ipaddr.V4.Prefix.pp_hum network Ipaddr.V4.pp_hum ip);
-          Lwt.fail (No_route_to_destination_address ip)
+          Lwt.return @@ Error `Local
       end
     |ip -> (* Gateway *)
       match gateway with
       | None ->
           Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
-          Lwt.fail (No_route_to_destination_address ip)
+          Lwt.return (Error `Gateway)
       | Some gateway ->
         A.query arp gateway >>= function
-          | `Ok mac -> Lwt.return mac
-          | `Timeout ->
+          | Ok mac -> Lwt.return (Ok mac)
+          | Error `Timeout ->
             Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
                          Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum gateway);
-            Lwt.fail (No_route_to_destination_address ip)
+            Lwt.return (Error `Gateway)
 end
