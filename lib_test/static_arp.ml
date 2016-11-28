@@ -4,11 +4,10 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
   module A = Arpv4.Make(E)(Clock)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
-  type error = A.error
+  type error = V1.Arp.error
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type macaddr = Macaddr.t
-  type result = A.result
   type ipaddr = Ipaddr.V4.t
   type repr = string
   
@@ -40,8 +39,8 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
   
   let query t ip =
     match Hashtbl.mem t.table ip with
-    | false -> Lwt.return `Timeout
-    | true -> Lwt.return (`Ok (Hashtbl.find t.table ip))
+    | false -> Lwt.return @@ Error `Timeout
+    | true -> Lwt.return (Ok (Hashtbl.find t.table ip))
   
   let input t buffer =
     (* disregard responses, but reply to queries *)

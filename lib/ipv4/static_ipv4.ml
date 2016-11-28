@@ -22,7 +22,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
-  exception No_route_to_destination_address of Ipaddr.V4.t
   (** IO operation errors *)
   type error = V1.Ip.error
 
@@ -50,15 +49,30 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
     let v4_frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
     let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst v4_frame) in
     (* Something of a layer violation here, but ARP is awkward *)
-    Routing.destination_mac t.network t.gateway t.arp dst >|=
-            Macaddr.to_bytes >>= fun dmac ->
-    let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethif_wire.sizeof_ethernet in
-    adjust_output_header ~dmac ~tlen frame;
-    Ethif.writev t.ethif (frame :: bufs) >|= function
-    | Ok () -> Ok ()
-    | Error e ->
-      Log.warn (fun f -> f "ethif write errored %a" Mirage_pp.pp_ethif_error e);
-      Error e
+    Routing.destination_mac t.network t.gateway t.arp dst >>= function
+    | Error `Local ->
+      Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp_hum dst);
+      Lwt.return @@ Error `No_route
+    | Error `Gateway when t.gateway = None ->
+      Log.warn (fun f -> f "Write to %a would require an external route, which was not provided" Ipaddr.V4.pp_hum dst);
+      Lwt.return @@ Ok ()
+    | Error `Gateway ->
+      Log.warn (fun f -> f "Write to %a requires an external route, and the provided %a was not reachable" Ipaddr.V4.pp_hum dst (Fmt.option Ipaddr.V4.pp_hum) t.gateway);
+      (* when a gateway is specified the user likely expects their traffic to be passed to it *)
+      Lwt.return @@ Error `No_route
+    | Ok mac ->
+      let dmac = Macaddr.to_bytes mac in
+      let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethif_wire.sizeof_ethernet in
+      adjust_output_header ~dmac ~tlen frame;
+      Ethif.writev t.ethif (frame :: bufs) >>= function
+      | Ok () as ok -> Lwt.return ok
+      | Error `Unimplemented ->
+        Lwt.fail (Invalid_argument "Unimplemented code path when trying to write to ethernet device")
+      | Error `Disconnected ->
+        Lwt.fail (Invalid_argument "Tried to write to a disconnected Ethernet interface")
+      | Error (`Msg s) ->
+        Log.warn (fun f -> f "ethif write errored: %s" s);
+        Lwt.return @@ Error (`Msg s) 
 
   let write t frame buf =
     writev t frame [buf]
