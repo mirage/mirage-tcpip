@@ -144,7 +144,7 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let t = {ctx; clock; ethif} in
     (* MCP: replace this error swallowing with proper propagation *)
     Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs >>= fun () ->
-    (ip, set_ip t) >>=? fun () ->
+    (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
     (gateways, set_ip_gateways t) >>=? fun () ->
     Lwt.async (fun () -> start_ticking t);
