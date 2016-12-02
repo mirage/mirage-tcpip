@@ -16,7 +16,6 @@
 
 module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
   include V1_LWT.IPV4 with type ethif = N.t
-  exception No_route_to_destination_address of Ipaddr.V4.t
   val connect :
     ?ip:Ipaddr.V4.t ->
     ?network:Ipaddr.V4.Prefix.t ->

@@ -24,7 +24,11 @@ module Make(IP : V1_LWT.IPV4) = struct
   let writev t ~dst bufs : (unit, error) result Lwt.t = 
     let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
     let frame = Cstruct.set_len frame header_len in
-    IP.writev t.ip frame bufs >|= Mirage_pp.reduce
+    IP.writev t.ip frame bufs >|= function
+    | Ok () as ok -> ok
+    | Error `No_route -> Error (`Routing (Format.asprintf "no route to %a" Ipaddr.V4.pp_hum dst))
+    | Error `Disconnected | Error `Unimplemented as e -> Mirage_pp.reduce e
+    | Error (`Msg _) as s -> s
 
   let write t ~dst buf = writev t ~dst [buf]
 

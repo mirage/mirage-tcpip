@@ -579,12 +579,17 @@ struct
           Lwt.wakeup wakener (Error `Timeout);
           Lwt.return_unit
         ) else (
-          Tx.send_syn t id ~tx_isn ~options ~window >|= Mirage_pp.reduce >>= function
+          Tx.send_syn t id ~tx_isn ~options ~window >>= function
           | Ok () -> connecttimer t id tx_isn options window (count + 1)
+          | Error `No_route ->
+            (* normal mechanism for recovery is fine *)
+            connecttimer t id tx_isn options window (count + 1)
           | Error (`Msg s) ->
             (* TODO: possibly the more sensible thing to do is give up *)
             Log.warn (fun f -> f "Error sending initial SYN in TCP connection: %s" s);
             connecttimer t id tx_isn options window (count + 1)
+          | Error `Unimplemented -> Lwt.fail (Invalid_argument "Unimplemented code path when sending SYN")
+          | Error `Disconnected -> Lwt.fail (Invalid_argument "Tried to send SYN, but underlying interface was disconnected")
         )
       else Lwt.return_unit
 
@@ -606,13 +611,15 @@ struct
     );
     Hashtbl.add t.connects id (wakener, tx_isn);
     Stats.incr_connect ();
-    Tx.send_syn t id ~tx_isn ~options ~window >|= Mirage_pp.reduce >>= function
-    | Ok () ->
+    Tx.send_syn t id ~tx_isn ~options ~window >>= function
+    | Ok () | Error `No_route (* keep trying *) ->
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
     | Error (`Msg s) ->
       Log.warn (fun f -> f "Failure sending initial SYN in outgoing connection: %s" s);
       Lwt.return @@ Error (`Msg s)
+    | Error `Unimplemented -> Lwt.fail (Invalid_argument "Unimplemented code path when sending SYN")
+    | Error `Disconnected -> Lwt.fail (Invalid_argument "Tried to send SYN, but underlying interface was disconnected")
 
   (* Construct the main TCP thread *)
   let create ip clock =

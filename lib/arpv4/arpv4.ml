@@ -22,10 +22,16 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
 
-  type result = [ `Ok of Macaddr.t | `Timeout ]
+  type 'a io = 'a Lwt.t
+  type buffer = Cstruct.t
+  type ipaddr = Ipaddr.V4.t
+  type macaddr = Macaddr.t
+  type ethif = Ethif.t
+  type repr = string
+  type error = [ `Timeout ]
 
   type entry =
-    | Pending of result Lwt.t * result Lwt.u
+    | Pending of (macaddr, error) result Lwt.t * (macaddr, error) result Lwt.u
     | Confirmed of int64 * Macaddr.t
 
   type t = {
@@ -34,14 +40,6 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
     cache: (Ipaddr.V4.t, entry) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
-
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type ipaddr = Ipaddr.V4.t
-  type macaddr = Macaddr.t
-  type ethif = Ethif.t
-  type repr = string
-  type error
 
   let report_ethif_error s e =
     Logs.debug (fun f -> f "error on underlying ethernet interface when attempting to %s : %a" s Mirage_pp.pp_ethif_error e)
@@ -94,7 +92,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
         match Hashtbl.find t.cache ip with
         | Pending (_, w) ->
           Hashtbl.replace t.cache ip (Confirmed (expire, mac));
-          Lwt.wakeup w (`Ok mac)
+          Lwt.wakeup w (Ok mac)
         | Confirmed _ ->
           Hashtbl.replace t.cache ip (Confirmed (expire, mac))
       with
@@ -182,7 +180,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   let query t ip =
     try match Hashtbl.find t.cache ip with
       | Pending (t, _) -> t
-      | Confirmed (_, mac) -> Lwt.return (`Ok mac)
+      | Confirmed (_, mac) -> Lwt.return (Ok mac)
     with
     | Not_found ->
       let response, waker = MProf.Trace.named_wait "ARP response" in
@@ -190,10 +188,10 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
       let rec retry n () =
         (* First request, so send a query packet *)
         output_probe t ip >>= fun () ->
-        Lwt.choose [ (response >>= fun _ -> Lwt.return `Ok);
-                     (Time.sleep_ns probe_repeat_delay >>= fun () -> Lwt.return `Timeout) ] >>= function
-        | `Ok -> Lwt.return_unit
-        | `Timeout ->
+        Lwt.choose [ response ;
+                     (Time.sleep_ns probe_repeat_delay >>= fun () -> Lwt.return (Error `Timeout)) ] >>= function
+        | Ok mac -> Lwt.return_unit
+        | Error `Timeout ->
           if n < probe_num then begin
             let n = n+1 in
             Log.info (fun f -> f "ARP: retrying %a (n=%d)" Ipaddr.V4.pp_hum ip n);
@@ -202,7 +200,7 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
             Hashtbl.remove t.cache ip;
             Log.info (fun f -> f "ARP: giving up on resolution of %a after %d attempts"
                                Ipaddr.V4.pp_hum ip n);
-            Lwt.wakeup waker `Timeout;
+            Lwt.wakeup waker (Error `Timeout);
             Lwt.return_unit
           end
       in
