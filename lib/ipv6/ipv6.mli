@@ -17,7 +17,7 @@
 module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (Clock : V1.MCLOCK) : sig
   include V1_LWT.IPV6 with type ethif = E.t
   val connect :
-    ?ip:Ipaddr.V6.t ->
+    ?ip:Ipaddr.V6.t list ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
     ethif -> Clock.t -> t Lwt.t
