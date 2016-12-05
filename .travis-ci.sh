@@ -14,4 +14,5 @@ git log --oneline |head -5
 
 opam install mirage
 make MODE=$MIRAGE_MODE configure
+make MODE=$MIRAGE_MODE depend
 make MODE=$MIRAGE_MODE build
