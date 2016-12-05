@@ -145,6 +145,7 @@ Library "tcpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        tcpv4-socket
   Modules:            Tcpv4_socket
+  InternalModules:    Tcp_socket
   BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,mirage-types.lwt,mirage-types
 
 Library "tcpv6-socket"
@@ -152,6 +153,7 @@ Library "tcpv6-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        tcpv6-socket
+  InternalModules:    Tcp_socket
   Modules:            Tcpv6_socket
   BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix
 
@@ -160,6 +162,7 @@ Library "tcpip-stack-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-socket
+  InternalModules:    Tcp_socket
   Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
   BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs
 
