@@ -47,8 +47,8 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDO
   val write_wait_for : pcb -> int -> unit Lwt.t
 
   (* write - blocks if the write buffer is full *)
-  val write: pcb -> Cstruct.t -> (unit, [> `Msg of string]) Result.result Lwt.t
-  val writev: pcb -> Cstruct.t list -> (unit, [> `Msg of string]) Result.result Lwt.t
+  val write: pcb -> Cstruct.t -> (unit, V1.Flow.write_error) Result.result Lwt.t
+  val writev: pcb -> Cstruct.t list -> (unit, V1.Flow.write_error) Result.result Lwt.t
 
   (* version of write with Nagle disabled - will block if write
      buffer is full *)

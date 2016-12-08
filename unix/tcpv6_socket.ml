@@ -30,8 +30,6 @@ type t = {
 }
 
 (** IO operation errors *)
-type error = V1.Tcp.error
-
 let connect addr =
   let t =
     match addr with
