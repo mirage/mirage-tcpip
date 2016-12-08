@@ -52,8 +52,8 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDO
 
   (* version of write with Nagle disabled - will block if write
      buffer is full *)
-  val write_nodelay: pcb -> Cstruct.t -> (unit, [> `Msg of string]) Result.result Lwt.t
-  val writev_nodelay: pcb -> Cstruct.t list -> (unit, [> `Msg of string]) Result.result Lwt.t
+  val write_nodelay: pcb -> Cstruct.t -> (unit, V1.Flow.write_error) Result.result Lwt.t
+  val writev_nodelay: pcb -> Cstruct.t list -> (unit, V1.Flow.write_error) Result.result Lwt.t
 
   val create: Ip.t -> Clock.t -> t
 end
