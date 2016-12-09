@@ -18,7 +18,7 @@ type decomposed = {
 module Ip = Static_ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
 
-module Udp = Udp.Make(Ip)
+module Udp = Udp.Make(Ip)(Stdlibrandom)
 
 type stack = {
   backend : B.t;
