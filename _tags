@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 983c963bd13f755bb0fcadf13b37f43f)
+# DO NOT EDIT (digest: 018764c975f59a1134689446adac77ef)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -107,6 +107,7 @@ true: annot, bin_annot
 <lib/udp/*.ml{,i,y}>: pkg_mirage-profile
 <lib/udp/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/udp/*.ml{,i,y}>: pkg_mirage-types
+<lib/udp/*.ml{,i,y}>: pkg_randomconv
 <lib/udp/*.ml{,i,y}>: pkg_result
 <lib/udp/*.ml{,i,y}>: pkg_rresult
 <lib/udp/*.ml{,i,y}>: use_tcpip
