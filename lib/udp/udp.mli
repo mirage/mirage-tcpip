@@ -15,7 +15,7 @@
  *)
 
 
-module Make ( IP:V1_LWT.IP ) : sig
+module Make (IP:V1_LWT.IP)(R:V1_LWT.RANDOM) : sig
   include V1_LWT.UDP
     with type ip = IP.t
      and type ipaddr = IP.ipaddr
