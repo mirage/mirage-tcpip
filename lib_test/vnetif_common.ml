@@ -55,7 +55,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
   module A = Arpv4.Make(E)(Clock)(Time)
   module Ip = Static_ipv4.Make(E)(A)
   module Icmp = Icmpv4.Make(Ip)
-  module U = Udp.Make(Ip)
+  module U = Udp.Make(Ip)(Stdlibrandom)
   module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Stdlibrandom)
   module Stackv4 =
     Tcpip_stack_direct.Make(Time)(Stdlibrandom)(V)(E)(A)(Ip)(Icmp)(U)(T)

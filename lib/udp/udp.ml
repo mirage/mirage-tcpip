@@ -22,7 +22,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let pp_ips = Format.pp_print_list Ipaddr.pp_hum
 
-module Make(Ip: V1_LWT.IP) = struct
+module Make(Ip: V1_LWT.IP)(Random:V1_LWT.RANDOM) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -50,10 +50,10 @@ module Make(Ip: V1_LWT.IP) = struct
         fn ~src ~dst ~src_port payload
 
   let writev ?src_port ~dst ~dst_port t bufs =
-    begin match src_port with
-      | None   -> Lwt.fail (Failure "TODO; random source port")
-      | Some p -> Lwt.return p
-    end >>= fun src_port ->
+    let src_port = match src_port with
+      | None   -> Randomconv.int ~bound:65535 Random.generate
+      | Some p -> p
+    in
     let payload_size = Cstruct.lenv bufs in
     let frame, header_len = Ip.allocate_frame t.ip ~dst:dst ~proto:`UDP in
     let frame = Cstruct.set_len frame header_len in
