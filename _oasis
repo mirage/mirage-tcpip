@@ -85,7 +85,7 @@ Library udp
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_packet
   BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
-                      tcpip,mirage-runtime
+                      tcpip,mirage-runtime,randomconv
 
 Library tcp
   CompiledObject:     best
