@@ -39,7 +39,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_packet
-  BuildDepends:       logs,mirage-types,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-runtime
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-runtime
 
 Library arpv4
   CompiledObject:     best
@@ -75,7 +75,7 @@ Library icmpv4
   Findlibparent:      tcpip
   Findlibname:        icmpv4
   Modules:            Icmpv4, Icmpv4_packet, Icmpv4_wire
-  BuildDepends:       logs,mirage-types,cstruct,cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,cstruct,cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
                       tcpip,mirage-runtime
 
 Library udp
@@ -84,7 +84,7 @@ Library udp
   Findlibparent:      tcpip
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_packet
-  BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       tcpip,mirage-runtime,randomconv
 
 Library tcp
@@ -97,7 +97,7 @@ Library tcp
                       Window,Segment,User_buffer,Pcb,Flow,
                       Stats, Wire,
                       Tcp_wire, Tcp_packet
-  BuildDepends:       logs,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,cstruct.ppx,lwt,result,rresult,mirage-profile,
                       io-page,
                       tcpip, duration, randomconv, mirage-runtime
 
@@ -107,7 +107,7 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,ipaddr,lwt,result,fmt,mirage-runtime
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,lwt,result,fmt,mirage-runtime
 
 Library "icmpv4-socket"
   CompiledObject:     best
@@ -146,7 +146,7 @@ Library "tcpv4-socket"
   Findlibname:        tcpv4-socket
   Modules:            Tcpv4_socket
   InternalModules:    Tcp_socket
-  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,mirage-types.lwt,mirage-types
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,mirage-types-lwt,mirage-types
 
 Library "tcpv6-socket"
   CompiledObject:     best
@@ -162,7 +162,6 @@ Library "tcpip-stack-socket"
   Path:               unix
   Findlibparent:      tcpip
   Findlibname:        stack-socket
-  InternalModules:    Tcp_socket
   Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
   BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs
 

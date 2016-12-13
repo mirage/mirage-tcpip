@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0f8969113a7db0f9f9e60fe459190d1d)
+# DO NOT EDIT (digest: fc63dbb16a6bbb54b52cd5efb8ca7596)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -50,7 +50,7 @@ package "udp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile tcpip mirage-runtime randomconv"
+ "logs mirage-types mirage-types-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile tcpip mirage-runtime randomconv"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
@@ -75,7 +75,7 @@ package "tcpv4-socket" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-types.lwt mirage-types"
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-types-lwt mirage-types"
  archive(byte) = "tcpv4-socket.cma"
  archive(byte, plugin) = "tcpv4-socket.cma"
  archive(native) = "tcpv4-socket.cmxa"
@@ -88,7 +88,7 @@ package "tcp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile io-page tcpip duration randomconv mirage-runtime"
+ "logs mirage-types mirage-types-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile io-page tcpip duration randomconv mirage-runtime"
  archive(byte) = "tcp.cma"
  archive(byte, plugin) = "tcp.cma"
  archive(native) = "tcp.cmxa"
@@ -112,7 +112,8 @@ package "stack-direct" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "logs mirage-types ipaddr lwt result fmt mirage-runtime"
+ requires =
+ "logs mirage-types mirage-types-lwt ipaddr lwt result fmt mirage-runtime"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
@@ -164,7 +165,7 @@ package "icmpv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types cstruct cstruct.ppx lwt ipaddr result rresult mirage-profile tcpip mirage-runtime"
+ "logs mirage-types mirage-types-lwt cstruct cstruct.ppx lwt ipaddr result rresult mirage-profile tcpip mirage-runtime"
  archive(byte) = "icmpv4.cma"
  archive(byte, plugin) = "icmpv4.cma"
  archive(native) = "icmpv4.cmxa"
@@ -177,7 +178,7 @@ package "ethif" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types ipaddr cstruct lwt mirage-profile result rresult mirage-runtime"
+ "logs mirage-types mirage-types-lwt ipaddr cstruct lwt mirage-profile result rresult mirage-runtime"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"
