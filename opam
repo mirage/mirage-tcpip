@@ -45,7 +45,8 @@ depends: [
   "rresult"
   "cstruct" {>= "2.1.0"}
   "ppx_tools" {build}
-  "mirage-types" {>= "2.8.0"}
+  "mirage-types" {>= "3.0.0"}
+  "mirage-types-lwt" {>= "3.0.0"}
   "mirage-clock-unix" {test & >= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile" {>= "0.5"}
