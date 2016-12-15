@@ -28,8 +28,6 @@ type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)
 }
 
-type error = V1.Tcp.error
-
 include Tcp_socket
 
 let connect id =

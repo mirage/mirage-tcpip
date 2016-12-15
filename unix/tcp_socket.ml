@@ -1,5 +1,11 @@
 open Lwt
 
+type error = V1.Tcp.error
+type write_error = V1.Flow.write_error
+
+let pp_error = Mirage_pp.pp_tcp_error
+let pp_write_error = Mirage_pp.pp_flow_write_error
+
 let disconnect _ =
   return_unit
 

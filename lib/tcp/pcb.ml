@@ -506,9 +506,10 @@ struct
     UTX.wait_for pcb.utx (Int32.of_int sz)
 
   let rec writefn pcb wfn data =
-    match State.state pcb.state with
+    let open State in
+    match state pcb.state with
     (* but it's only appropriate to send data if the connection is ready for it *)
-    | State.Established | State.Close_wait -> begin
+    | Established | Close_wait -> begin
       let len = Cstruct.len data in
       match write_available pcb with
       | 0 -> (* no room at all; we must wait *)
@@ -522,6 +523,8 @@ struct
         | Result.Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
         | Result.Error _ as e -> Lwt.return e
       end
+    | Last_ack _ | Fin_wait_1 _ | Fin_wait_2 _ | Closing _ | Time_wait | Closed ->
+      Lwt.return @@ Result.Error `Closed
     | _ -> Lwt.return (Result.Error (`Msg "attempted to send data before connection was ready"))
 
   let rec iter_s f = function
