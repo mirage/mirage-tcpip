@@ -58,7 +58,9 @@ Library ipv4
   Modules:            Static_ipv4, Ipv4_wire, Ipv4_packet
   InternalModules:    Ipv4_common, Routing
   BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
-                      tcpip,tcpip.ethif,mirage-runtime
+                      mirage-runtime,
+                      tcpip,tcpip.ethif,
+                      tcpip.udp, tcpip.tcp
 
 Library ipv6
   CompiledObject:     best
