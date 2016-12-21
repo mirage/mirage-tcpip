@@ -28,7 +28,8 @@ module Make(Netif : V1_LWT.NETWORK) = struct
   type macaddr = Macaddr.t
   type netif = Netif.t
 
-  type error = V1.Network.error
+  type error = Netif.error
+  let pp_error = Netif.pp_error
 
   type t = {
     netif: Netif.t;
@@ -61,7 +62,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     Netif.write t.netif frame >|= function
     | Ok () -> Ok ()
     | Error e ->
-      Log.warn (fun f -> f "netif write errored %a" Mirage_pp.pp_network_error e) ;
+      Log.warn (fun f -> f "netif write errored %a" Netif.pp_error e) ;
       Error e
 
   let writev t bufs =
@@ -69,7 +70,7 @@ module Make(Netif : V1_LWT.NETWORK) = struct
     Netif.writev t.netif bufs >|= function
     | Ok () -> Ok ()
     | Error e ->
-      Log.warn (fun f -> f "netif writev errored %a" Mirage_pp.pp_network_error e) ;
+      Log.warn (fun f -> f "netif writev errored %a" Netif.pp_error e) ;
       Error e
 
   let connect netif =

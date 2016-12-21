@@ -14,11 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open !Result
+
 module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDOM) : sig
 
   (** Overall state of the TCP stack *)
   type t
   type pcb
+  type error = private [> V1.Tcp.error]
+  type write_error = [`Not_ready]
+
+  val pp_error: error Fmt.t
+  val pp_write_error: write_error Fmt.t
 
   (** State for an individual connection *)
   type connection = pcb * unit Lwt.t
@@ -32,7 +39,7 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDO
     -> src:Ip.ipaddr -> dst:Ip.ipaddr -> Cstruct.t -> unit Lwt.t
 
   val connect: t -> dst:Ip.ipaddr -> dst_port:int ->
-          (connection, V1.Tcp.error) result Lwt.t
+    (connection, error) result Lwt.t
 
   val close: pcb -> unit Lwt.t
 
@@ -47,13 +54,13 @@ module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDO
   val write_wait_for : pcb -> int -> unit Lwt.t
 
   (* write - blocks if the write buffer is full *)
-  val write: pcb -> Cstruct.t -> (unit, [> `Msg of string]) Result.result Lwt.t
-  val writev: pcb -> Cstruct.t list -> (unit, [> `Msg of string]) Result.result Lwt.t
+  val write: pcb -> Cstruct.t -> (unit, write_error) result Lwt.t
+  val writev: pcb -> Cstruct.t list -> (unit, write_error) result Lwt.t
 
   (* version of write with Nagle disabled - will block if write
      buffer is full *)
-  val write_nodelay: pcb -> Cstruct.t -> (unit, [> `Msg of string]) Result.result Lwt.t
-  val writev_nodelay: pcb -> Cstruct.t list -> (unit, [> `Msg of string]) Result.result Lwt.t
+  val write_nodelay: pcb -> Cstruct.t -> (unit, write_error) result Lwt.t
+  val writev_nodelay: pcb -> Cstruct.t list -> (unit, write_error) result Lwt.t
 
   val create: Ip.t -> Clock.t -> t
 end

@@ -16,6 +16,7 @@
  *)
 
 open Lwt.Infix
+open !Result
 
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -29,6 +30,18 @@ struct
   module UTX = User_buffer.Tx(Time)(Clock)
   module WIRE = Wire.Make(Ip)
   module STATE = State.Make(Time)
+
+  type error = [ V1.Tcp.error | `Ip of WIRE.error]
+
+  let pp_error ppf = function
+    | #V1.Tcp.error as e -> Mirage_pp.pp_tcp_error ppf e
+    | `Ip e -> WIRE.pp_error ppf e
+
+  type write_error = [`Not_ready]
+
+  let pp_write_error ppf = function
+    | `Not_ready ->
+      Fmt.string ppf "attempted to send data before connection was ready"
 
   type pcb = {
     id: WIRE.id;
@@ -53,7 +66,7 @@ struct
     listens: (WIRE.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (WIRE.id, ((connection, V1.Tcp.error) result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (WIRE.id, ((connection, error) result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   let pp_pcb fmt pcb =
@@ -418,8 +431,13 @@ struct
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.src_port_of_id id with
     | Some pushf ->
-      (* XXX: I've no clue why this is the way it is, static 16 bits plus some random -- hannes *)
-      let tx_isn = Sequence.of_int ((Randomconv.int ~bound:65535 Random.generate) + 0x1AFE0000) in
+      (* XXX: I've no clue why this is the way it is, static 16 bits
+         plus some random -- hannes *)
+      let tx_isn =
+        Sequence.of_int
+          ((Randomconv.int ~bound:65535 (fun x -> Random.generate x))
+           + 0x1AFE0000)
+      in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -480,9 +498,9 @@ struct
   let input t ~listeners ~src ~dst data =
     let open Tcp_packet in
     match Unmarshal.of_cstruct data with
-    | Result.Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
+    | Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
-    | Result.Ok (pkt, payload) ->
+    | Ok (pkt, payload) ->
       let id = WIRE.wire ~src_port:pkt.dst_port ~dst_port:pkt.src_port ~dst:src ~src:dst in
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
@@ -515,19 +533,19 @@ struct
         write_wait_for pcb 1 >>= fun () ->
         writefn pcb wfn data
       | av_len when av_len >= len -> (* we have enough room for the whole packet *)
-        wfn [data] >>= fun n -> Lwt.return (Result.Ok n)
+        wfn [data] >>= fun n -> Lwt.return (Ok n)
       | av_len -> (* partial send is possible *)
         let sendable = Cstruct.sub data 0 av_len in
         writefn pcb wfn sendable >>= function
-        | Result.Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
-        | Result.Error _ as e -> Lwt.return e
+        | Ok () -> writefn pcb wfn @@ Cstruct.sub data av_len (len - av_len)
+        | Error _ as e -> Lwt.return e
       end
-    | _ -> Lwt.return (Result.Error (`Msg "attempted to send data before connection was ready"))
+    | _ -> Lwt.return (Error `Not_ready)
 
   let rec iter_s f = function
-    | [] -> Lwt.return (Result.Ok ())
+    | [] -> Lwt.return (Ok ())
     | h :: t -> f h >>= function
-      | Result.Ok () -> iter_s f t
+      | Ok () -> iter_s f t
       | e -> Lwt.return e
 
   (* Blocking write on a PCB *)
@@ -584,19 +602,28 @@ struct
           | Error `No_route ->
             (* normal mechanism for recovery is fine *)
             connecttimer t id tx_isn options window (count + 1)
-          | Error (`Msg s) ->
+          | Error `Unimplemented ->
+            Lwt.fail_invalid_arg "Unimplemented code path when sending SYN"
+          | Error `Disconnected ->
+            Lwt.fail_invalid_arg
+              "Tried to send SYN, but underlying interface was disconnected"
+          | Error e ->
             (* TODO: possibly the more sensible thing to do is give up *)
-            Log.warn (fun f -> f "Error sending initial SYN in TCP connection: %s" s);
+            Log.warn (fun f ->
+                f "Error sending initial SYN in TCP connection: %a"
+                  WIRE.pp_error e);
             connecttimer t id tx_isn options window (count + 1)
-          | Error `Unimplemented -> Lwt.fail (Invalid_argument "Unimplemented code path when sending SYN")
-          | Error `Disconnected -> Lwt.fail (Invalid_argument "Tried to send SYN, but underlying interface was disconnected")
         )
       else Lwt.return_unit
 
   let connect t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    (* XXX: I've no clue why this is the way it is, static 16 bits plus some random -- hannes *)
-    let tx_isn = Sequence.of_int ((Randomconv.int ~bound:65535 Random.generate) + 0x1BCD0000) in
+    (* XXX: I've no clue why this is the way it is, static 16 bits
+       plus some random -- hannes *)
+    let tx_isn =
+      Sequence.of_int (
+        (Randomconv.int ~bound:65535 (fun x -> Random.generate x)) + 0x1BCD0000
+      ) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
@@ -605,7 +632,10 @@ struct
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
     if Hashtbl.mem t.connects id then (
-      Log.debug (fun f -> f "duplicate attempt to make a connection: [%a] . Removing the old state and replacing with new attempt" WIRE.pp_id id);
+      Log.debug (fun f ->
+          f "duplicate attempt to make a connection: [%a]. \
+             Removing the old state and replacing with new attempt"
+            WIRE.pp_id id);
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
     );
@@ -615,16 +645,24 @@ struct
     | Ok () | Error `No_route (* keep trying *) ->
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
-    | Error (`Msg s) ->
-      Log.warn (fun f -> f "Failure sending initial SYN in outgoing connection: %s" s);
-      Lwt.return @@ Error (`Msg s)
-    | Error `Unimplemented -> Lwt.fail (Invalid_argument "Unimplemented code path when sending SYN")
-    | Error `Disconnected -> Lwt.fail (Invalid_argument "Tried to send SYN, but underlying interface was disconnected")
+    | Error `Unimplemented ->
+      Lwt.fail_invalid_arg "Unimplemented code path when sending SYN"
+    | Error `Disconnected ->
+      Lwt.fail_invalid_arg
+        "Tried to send SYN, but underlying interface was disconnected"
+    | Error e ->
+      Log.warn (fun f ->
+          f "Failure sending initial SYN in outgoing connection: %a"
+            WIRE.pp_error e);
+      Lwt.return @@ Error (`Ip e :> error)
 
   (* Construct the main TCP thread *)
   let create ip clock =
-    (* XXX: I've no clue why this is the way it is (10000 + Random ~bound:10000) -- hannes *)
-    let localport = 10000 + (Randomconv.int Random.generate ~bound:10000) in
+    (* XXX: I've no clue why this is the way it is (10000 + Random
+       ~bound:10000) -- hannes *)
+    let localport =
+      10000 + (Randomconv.int (fun x -> Random.generate x) ~bound:10000)
+    in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in

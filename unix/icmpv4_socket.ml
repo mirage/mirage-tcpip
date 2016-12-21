@@ -7,6 +7,7 @@ type 'a io = 'a Lwt.t
 type t = unit
 
 type error = V1.Icmp.error
+let pp_error = Mirage_pp.pp_icmp_error
 
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 let port = 0 (* port isn't meaningful in this context *)
@@ -60,7 +61,7 @@ let listen _t addr fn =
   let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
   let () = Lwt_unix.bind fd sa in
   Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
-  let aux fn = 
+  let aux fn =
     let receive_buffer = Cstruct.create 4096 in
     Lwt_cstruct.recvfrom fd receive_buffer [] >>= fun (len, _sockaddr) ->
     (* trim the buffer to the amount of data actually received *)
@@ -68,4 +69,3 @@ let listen _t addr fn =
     fn receive_buffer
   in
   aux fn >>= fun () -> Lwt_unix.close fd
-

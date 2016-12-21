@@ -55,9 +55,8 @@ type t = {
   tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
 }
 
-type error = [
-    `Unknown of string
-]
+type error
+let pp_error _ (_:error) = assert false
 
 let udpv4 { udpv4; _ } = udpv4
 let tcpv4 { tcpv4; _ } = tcpv4

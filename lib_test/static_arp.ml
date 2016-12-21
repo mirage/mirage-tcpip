@@ -16,6 +16,7 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
     table : (Ipaddr.V4.t, macaddr) Hashtbl.t;
   }
 
+  let pp_error = Mirage_pp.pp_arp_error
   let add_ip t = A.add_ip t.base
   let remove_ip t = A.remove_ip t.base
   let set_ips t = A.set_ips t.base

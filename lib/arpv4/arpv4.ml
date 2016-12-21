@@ -30,6 +30,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   type repr = string
   type error = [ `Timeout ]
 
+  let pp_error ppf = function
+    | `Timeout -> Fmt.string ppf "Dynamic ARP timed out"
+
   type entry =
     | Pending of (macaddr, error) result Lwt.t * (macaddr, error) result Lwt.u
     | Confirmed of int64 * Macaddr.t
@@ -42,7 +45,9 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   }
 
   let report_ethif_error s e =
-    Logs.debug (fun f -> f "error on underlying ethernet interface when attempting to %s : %a" s Mirage_pp.pp_ethif_error e)
+    Logs.debug (fun f ->
+        f "error on underlying ethernet interface when attempting to %s : %a"
+          s Ethif.pp_error e)
 
   let arp_timeout = Duration.of_sec 60 (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = Duration.of_ms 1500 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
@@ -102,12 +107,12 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   let output t ~source ~destination arp =
     let payload = Arpv4_packet.Marshal.make_cstruct arp in
     let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
-	source;
+        source;
         destination;
         ethertype = Ethif_wire.ARP;
       }) in
     Ethif.writev t.ethif [ethif_packet ; payload] >>= fun e ->
-      Lwt.return @@ Rresult.R.ignore_error ~use:(report_ethif_error "write") e
+    Lwt.return @@ Rresult.R.ignore_error ~use:(report_ethif_error "write") e
 
   (* Input handler for an ARP packet *)
   let input t frame =
@@ -188,9 +193,11 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
       let rec retry n () =
         (* First request, so send a query packet *)
         output_probe t ip >>= fun () ->
-        Lwt.choose [ response ;
-                     (Time.sleep_ns probe_repeat_delay >>= fun () -> Lwt.return (Error `Timeout)) ] >>= function
-        | Ok mac -> Lwt.return_unit
+        Lwt.choose [
+          response ;
+          (Time.sleep_ns probe_repeat_delay >|= fun () -> Error `Timeout)
+        ] >>= function
+        | Ok _mac -> Lwt.return_unit
         | Error `Timeout ->
           if n < probe_num then begin
             let n = n+1 in

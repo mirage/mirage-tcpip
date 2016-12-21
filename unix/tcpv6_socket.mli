@@ -18,6 +18,6 @@
 include V1_LWT.TCP with type ip = Ipaddr.V6.t option
                     and type ipaddr = Ipaddr.V6.t
                     and type ipinput = unit Lwt.t
-		    and type flow = Lwt_unix.file_descr
+                    and type flow = Lwt_unix.file_descr
 
 val connect : ip -> t io
