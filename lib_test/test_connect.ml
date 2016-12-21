@@ -36,11 +36,11 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   let err_write_eof () = fail "client tried to write, got EOF"
 
   let err_read e =
-    let err = Format.asprintf "%a" Mirage_pp.pp_flow_error e in
+    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
     fail "Error while reading: %s" err
 
   let err_write e =
-    let err = Format.asprintf "%a" Mirage_pp.pp_flow_write_error e in
+    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
     fail "client tried to write, got %s" err
 
   let accept flow expected =
@@ -104,7 +104,7 @@ let test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss () =
                (Printf.sprintf
                "tests/pcap/tcp_connect_two_stacks_no_payload_packet_loss_%d_of_100.pcap" n)
                Test.test_tcp_connect_two_stacks >>= fun () ->
-             loop (n - 1) 
+             loop (n - 1)
   in
   loop 100
 

@@ -21,6 +21,14 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
 module Make (Ip:V1_LWT.IP) = struct
+
+  type error = [ V1.Ip.error | `Marshal of string | `Ip of Ip.error ]
+
+  let pp_error ppf = function
+    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
+    | `Marshal s        -> Fmt.pf ppf "Error constructing TCP packet: %s" s
+    | `Ip e             -> Ip.pp_error ppf e
+
   type id = {
     dst_port: int;             (* Remote TCP port *)
     dst: Ip.ipaddr;            (* Remote IP address *)
@@ -40,8 +48,10 @@ module Make (Ip:V1_LWT.IP) = struct
     Format.fprintf fmt "remote %a,%d to local %a, %d"
       Ipaddr.pp_hum (uip id.dst) id.dst_port Ipaddr.pp_hum (uip id.src) id.src_port
 
-  let xmit ~ip ~id:{ src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false) ?(fin=false) ?(psh=false)
-      ~rx_ack ~seq ~window ~options payload =
+  let xmit ~ip ~id:{ src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false)
+      ?(fin=false) ?(psh=false)
+      ~rx_ack ~seq ~window ~options payload
+    =
     let (ack, ack_number) = match rx_ack with
       | None -> (false, Sequence.zero)
       | Some n -> (true, n)
@@ -60,15 +70,19 @@ module Make (Ip:V1_LWT.IP) = struct
       (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
-      let s = "Error constructing TCP packet: " ^ s in
-      Log.info (fun fmt -> fmt "%s" s);
-      Lwt.return (Error (`Msg s)) (* possibly should just throw invalid_argument here *)
+      Log.info (fun l -> l "%a" pp_error (`Marshal s));
+      (* possibly should just throw invalid_argument here *)
+      Lwt.return (Error (`Marshal s))
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
-      MProf.Counter.increase count_tcp_to_ip (Cstruct.len payload + (if syn then 1 else 0));
+      MProf.Counter.increase count_tcp_to_ip
+        (Cstruct.len payload + if syn then 1 else 0);
       Ip.write ip frame payload >|= function
-      | Error `No_route (* swallow this error so normal recovery mechanisms can be used *)
+      | Error `No_route
+      (* swallow this error so normal recovery mechanisms can be
+         used *)
       | Ok () -> Ok ()
-      | Error e -> Error e
+      | Error (#V1.Ip.error as e) -> Error e
+      | Error e -> Error (`Ip e)
 
 end

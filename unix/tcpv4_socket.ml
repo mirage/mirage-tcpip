@@ -28,8 +28,6 @@ type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)
 }
 
-type error = V1.Tcp.error
-
 include Tcp_socket
 
 let connect id =
@@ -57,4 +55,4 @@ let create_connection _t (dst,dst_port) =
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
       >>= fun () ->
       return (Ok fd))
-    (fun exn -> return (Error (`Msg (Printexc.to_string exn))))
+    (fun exn -> return (Error (`Exn exn)))

@@ -29,9 +29,6 @@ type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)
 }
 
-(** IO operation errors *)
-type error = V1.Tcp.error
-
 let connect addr =
   let t =
     match addr with
@@ -57,6 +54,6 @@ let create_connection _t (dst,dst_port) =
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
       >>= fun () ->
       return (Ok fd))
-    (fun exn -> return (Error (`Msg (Printexc.to_string exn))))
+    (fun exn -> return (Error (`Exn exn)))
 
 include Tcp_socket

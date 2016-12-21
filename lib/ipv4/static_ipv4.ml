@@ -22,8 +22,13 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
+
   (** IO operation errors *)
-  type error = V1.Ip.error
+  type error = [ V1.Ip.error | `Ethif of Ethif.error ]
+
+  let pp_error ppf = function
+    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
+    | `Ethif e          -> Ethif.pp_error ppf e
 
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
@@ -67,12 +72,14 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
       Ethif.writev t.ethif (frame :: bufs) >>= function
       | Ok () as ok -> Lwt.return ok
       | Error `Unimplemented ->
-        Lwt.fail (Invalid_argument "Unimplemented code path when trying to write to ethernet device")
+        Lwt.fail_invalid_arg
+          "Unimplemented code path when trying to write to ethernet device"
       | Error `Disconnected ->
-        Lwt.fail (Invalid_argument "Tried to write to a disconnected Ethernet interface")
-      | Error (`Msg s) ->
-        Log.warn (fun f -> f "ethif write errored: %s" s);
-        Lwt.return @@ Error (`Msg s) 
+        Lwt.fail_invalid_arg
+          "Tried to write to a disconnected Ethernet interface"
+      | Error e ->
+        Log.warn (fun f -> f "ethif write errored: %a" Ethif.pp_error e);
+        Lwt.return @@ Error (`Ethif e)
 
   let write t frame buf =
     writev t frame [buf]

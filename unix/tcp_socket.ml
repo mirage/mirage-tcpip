@@ -1,5 +1,14 @@
 open Lwt
 
+type error = [ V1.Tcp.error | `Exn of exn ]
+type write_error = V1.Tcp.write_error
+
+let pp_error ppf = function
+  | #V1.Tcp.error as e -> Mirage_pp.pp_tcp_error ppf e
+  | `Exn e -> Fmt.pf ppf "%a" Fmt.exn e
+
+let pp_write_error = Mirage_pp.pp_tcp_write_error
+
 let disconnect _ =
   return_unit
 
@@ -13,7 +22,7 @@ let read fd =
       | n when n = buflen -> return (Ok (`Data buf))
       | n -> return @@ Ok (`Data (Cstruct.sub buf 0 n))
     )
-    (fun exn -> return (Error (`Msg (Printexc.to_string exn))))
+    (fun exn -> return (Error (`Exn exn)))
 
 let rec write fd buf =
   Lwt.catch
