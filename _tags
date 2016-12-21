@@ -266,4 +266,4 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_udpv4-socket
 <lib_test/test.{native,byte}>: custom
 # OASIS_STOP
-true: annot, bin_annot, principal, strict_sequence, debug, warn(A-4-50)
+true: annot, bin_annot, principal, strict_sequence, debug, warn(A-4-50-44)
