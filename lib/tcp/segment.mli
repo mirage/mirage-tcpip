@@ -23,6 +23,9 @@
     It also looks for control messages and dispatches them to
     the Rtx queue to ack messages or close channels.
 *)
+
+open Result
+
 module Rx (T:V1_LWT.TIME) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }

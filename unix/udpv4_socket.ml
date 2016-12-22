@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Result
 
 type buffer = Cstruct.t
 type ipaddr = Ipaddr.V4.t

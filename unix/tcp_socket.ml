@@ -1,4 +1,5 @@
 open Lwt
+open Result
 
 type error = [ V1.Tcp.error | `Exn of exn ]
 type write_error = V1.Tcp.write_error
