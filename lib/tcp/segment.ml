@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "segment" ~doc:"Mirage TCP Segment module"
 module Log = (val Logs.src_log src : Logs.LOG)

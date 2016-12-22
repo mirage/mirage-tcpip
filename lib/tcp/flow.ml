@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)

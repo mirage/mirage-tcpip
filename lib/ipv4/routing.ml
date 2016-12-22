@@ -1,3 +1,5 @@
+open Result
+
 (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
 let mac_of_multicast ip =
   let ipb = Ipaddr.V4.to_bytes ip in

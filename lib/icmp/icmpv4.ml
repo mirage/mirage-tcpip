@@ -1,4 +1,5 @@
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)

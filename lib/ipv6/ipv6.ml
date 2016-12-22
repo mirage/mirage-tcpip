@@ -20,6 +20,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module I = Ipaddr
 
 open Lwt.Infix
+open Result
 
 module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
   type ethif    = E.t

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Result
+
 module Make(Ip:V1_LWT.IP) : sig
 
   type error = private [> V1.Ip.error]
