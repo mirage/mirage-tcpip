@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: fc63dbb16a6bbb54b52cd5efb8ca7596)
+# DO NOT EDIT (digest: f265c6f969c2fcf83aed7b6343ecca09)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -75,7 +75,7 @@ package "tcpv4-socket" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-types-lwt mirage-types"
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-types-lwt mirage-types mirage-runtime"
  archive(byte) = "tcpv4-socket.cma"
  archive(byte, plugin) = "tcpv4-socket.cma"
  archive(native) = "tcpv4-socket.cmxa"
@@ -100,7 +100,7 @@ package "stack-socket" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "lwt lwt.unix ipaddr.unix io-page.unix logs"
+ requires = "lwt lwt.unix ipaddr.unix io-page.unix logs mirage-runtime"
  archive(byte) = "tcpip-stack-socket.cma"
  archive(byte, plugin) = "tcpip-stack-socket.cma"
  archive(native) = "tcpip-stack-socket.cmxa"
@@ -126,7 +126,7 @@ package "ipv6" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration"
+ "logs io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration mirage-runtime"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
@@ -139,7 +139,7 @@ package "ipv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-types ipaddr cstruct.ppx lwt result rresult tcpip tcpip.ethif"
+ "logs io-page mirage-types ipaddr cstruct.ppx lwt result rresult tcpip tcpip.ethif mirage-runtime"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
