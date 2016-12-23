@@ -20,6 +20,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module I = Ipaddr
 
 open Lwt.Infix
+open Result
 
 module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
   type ethif    = E.t
@@ -34,16 +35,21 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
       clock : C.t;
       mutable ctx : Ndpv6.context }
 
-  type error =
-    [ `Unimplemented
-    | `Unknown of string ]
+  type error =  [ V1.Ip.error | `Ethif of E.error]
+
+  let pp_error ppf = function
+    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
+    | `Ethif e          -> E.pp_error ppf e
 
   let start_ticking t =
     let rec loop () =
       let now = C.elapsed_ns t.clock in
       let ctx, bufs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
-      Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs (* MCP: replace with propagation *) >>= fun () ->
+      Lwt_list.iter_s (fun buf ->
+          E.writev t.ethif buf >>= fun _ ->
+          Lwt.return_unit
+        ) bufs (* MCP: replace with propagation *) >>= fun () ->
       T.sleep_ns (Duration.of_sec 1) >>= loop
     in
     loop ()
@@ -63,18 +69,21 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
       let squeal = function
       | Ok () as ok -> Lwt.return ok
       | Error `Unimplemented ->
-        Lwt.fail (Invalid_argument "Unimplemented code path when trying to write to ethernet device")
+        Lwt.fail_invalid_arg
+          "Unimplemented code path when trying to write to ethernet device"
       | Error `Disconnected ->
-        Lwt.fail (Invalid_argument "Tried to write to a disconnected Ethernet interface")
-      | Error (`Msg s) ->
-        Log.warn (fun f -> f "ethif write errored: %s" s);
-        Lwt.return @@ Error (`Msg s)
+        Lwt.fail_invalid_arg
+          "Tried to write to a disconnected Ethernet interface"
+      | Error e ->
+        Log.warn (fun f -> f "ethif write errored: %a" E.pp_error e);
+        Lwt.return @@ Error (`Ethif e)
       in
       match progress with
       | Ok () -> E.writev t.ethif buf >>= squeal
       | Error e -> Lwt.return @@ Error e
     in
-    (* MCP - it's not totally clear to me that this the right behavior for writev. *)
+    (* MCP - it's not totally clear to me that this the right behavior
+       for writev. *)
     Lwt_list.fold_left_s fail_any (Ok ()) bufs
 
   let write t frame buf =
@@ -89,7 +98,10 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
         | `Default (proto, src, dst, buf) -> default ~proto ~src ~dst buf
       ) actions >>= fun () ->
     (* MCP: replace below w/proper error propagation *)
-    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs
+    Lwt_list.iter_s (fun buf ->
+        E.writev t.ethif buf >>= fun _ ->
+        Lwt.return_unit
+      ) bufs
 
   let disconnect _ = (* TODO *)
     Lwt.return_unit
@@ -103,7 +115,10 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let ctx, bufs = Ndpv6.add_ip ~now t.ctx ip in
     t.ctx <- ctx;
     (* MCP: replace the below *)
-    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs
+    Lwt_list.iter_s (fun buf ->
+        E.writev t.ethif buf >>= fun _ ->
+        Lwt.return_unit
+      ) bufs
 
   let get_ip t =
     Ndpv6.get_ip t.ctx
@@ -113,12 +128,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let ctx = Ndpv6.add_routers ~now t.ctx ips in
     t.ctx <- ctx;
     Lwt.return_unit
-
-  let get_ip_gateways t =
-    Ndpv6.get_routers t.ctx
-
-  let get_ip_netmasks t =
-    Ndpv6.get_prefix t.ctx
 
   let set_ip_netmask t pfx =
     let now = C.elapsed_ns t.clock in
@@ -152,7 +161,10 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let ctx, bufs = Ndpv6.local ~now (E.mac ethif) in
     let t = {ctx; clock; ethif} in
     (* MCP: replace this error swallowing with proper propagation *)
-    Lwt_list.iter_s (fun buf -> E.writev t.ethif buf >>= fun _ -> Lwt.return_unit) bufs >>= fun () ->
+    Lwt_list.iter_s (fun buf ->
+        E.writev t.ethif buf >>= fun _ ->
+        Lwt.return_unit
+      ) bufs >>= fun () ->
     (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->
     (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
     (gateways, set_ip_gateways t) >>=? fun () ->

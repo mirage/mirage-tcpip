@@ -19,13 +19,15 @@ open Lwt
 type id = string
 type t = Ipaddr.V4.t option
 type +'a io = 'a Lwt.t
-type error = [ `Unimplemented | `Unknown of string ]
+type error = V1.Ip.error
 type ipaddr = Ipaddr.V4.t
 type prefix = Ipaddr.V4.t (* FIXME *)
 type ethif = unit
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
 type uipaddr = Ipaddr.t
+
+let pp_error = Mirage_pp.pp_ip_error
 
 let to_uipaddr ip = Ipaddr.V4 ip
 let of_uipaddr = Ipaddr.to_v4

@@ -1,3 +1,5 @@
+open Result
+
 (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
 let mac_of_multicast ip =
   let ipb = Ipaddr.V4.to_bytes ip in
@@ -13,6 +15,7 @@ let mac_of_multicast ip =
 type routing_error = [ `Local | `Gateway ]
 
 module Make(Log : Logs.LOG) (A : V1_LWT.ARP) = struct
+
   open Lwt.Infix
 
   let destination_mac network gateway arp = function
@@ -21,22 +24,34 @@ module Make(Log : Logs.LOG) (A : V1_LWT.ARP) = struct
     |ip when Ipaddr.V4.is_multicast ip ->
       Lwt.return @@ Ok (mac_of_multicast ip)
     |ip when Ipaddr.V4.Prefix.mem ip network -> (* Local *)
-      A.query arp ip >>= begin function
-        | Ok mac -> Lwt.return (Ok mac)
+      A.query arp ip >|= begin function
+        | Ok mac -> Ok mac
         | Error `Timeout ->
-          Log.info (fun f -> f "IP.output: could not determine link-layer address for local network (%a) ip %a" Ipaddr.V4.Prefix.pp_hum network Ipaddr.V4.pp_hum ip);
-          Lwt.return @@ Error `Local
+          Log.info (fun f ->
+              f "IP.output: could not determine link-layer address for local \
+                 network (%a) ip %a" Ipaddr.V4.Prefix.pp_hum network
+                Ipaddr.V4.pp_hum ip);
+          Error `Local
+        | Error e ->
+          Log.info (fun f -> f "IP.output: %a" A.pp_error e);
+          Error `Local
       end
     |ip -> (* Gateway *)
       match gateway with
       | None ->
-          Log.info (fun f -> f "IP.output: no route to %a (no default gateway is configured)" Ipaddr.V4.pp_hum ip);
-          Lwt.return (Error `Gateway)
+        Log.info (fun f ->
+            f "IP.output: no route to %a (no default gateway is configured)"
+              Ipaddr.V4.pp_hum ip);
+        Lwt.return (Error `Gateway)
       | Some gateway ->
-        A.query arp gateway >>= function
-          | Ok mac -> Lwt.return (Ok mac)
-          | Error `Timeout ->
-            Log.info (fun f -> f "IP.output: could not send to %a: failed to contact gateway %a"
-                         Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum gateway);
-            Lwt.return (Error `Gateway)
+        A.query arp gateway >|= function
+        | Ok mac -> Ok mac
+        | Error `Timeout ->
+          Log.info (fun f ->
+              f "IP.output: could not send to %a: failed to contact gateway %a"
+                Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum gateway);
+          Error `Gateway
+        | Error e ->
+          Log.info (fun f -> f "IP.output: %a" A.pp_error e);
+          Error `Gateway
 end

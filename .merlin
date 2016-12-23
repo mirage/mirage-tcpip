@@ -1,6 +1,7 @@
-PKG lwt ipaddr lwt mirage-types cstruct cstruct.ppx io-page uint mirage-flow oUnit alcotest
+PKG lwt ipaddr lwt mirage-types cstruct cstruct.ppx io-page uint mirage-flow
+PKG oUnit alcotest mirage-types-lwt mirage-profile
 PKG mirage-vnetif pcap-format mirage-console.unix logs
-PKG duration mirage-runtime
+PKG duration mirage-runtime rresult randomconv mirage-clock-unix
 
 B _build/**
 S lib/

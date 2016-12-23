@@ -16,7 +16,7 @@ module Fast_clock = struct
   let advance_clock ns =
     last_read := Int64.add !last_read ns
 
-  let elapsed_ns _ = 
+  let elapsed_ns _ =
     !last_read
 
   let period_ns _ = None
@@ -68,6 +68,7 @@ let check_header ~message expected actual =
   Alcotest.(check packet) message expected actual
 
 let fail = Alcotest.fail
+let failf fmt = Fmt.kstrf Alcotest.fail fmt
 
 let timeout ~time t =
   let msg = Printf.sprintf "Timed out: didn't complete in %d milliseconds" time in
@@ -98,7 +99,7 @@ let garp src_mac src_ip =
     tpa = src_ip;
   }
 
-let fail_on_receipt netif buf = 
+let fail_on_receipt netif buf =
   Alcotest.fail (Format.asprintf "received traffic when none was expected on interface %s: %a"
 	  (Macaddr.to_string (V.mac netif)) Cstruct.hexdump_pp buf)
 
@@ -111,7 +112,7 @@ let single_check netif expected =
 
 let wrap_arp arp =
   let open Arpv4_packet in
-  let e = 
+  let e =
     { Ethif_packet.source = arp.sha;
       destination = arp.tha;
       ethertype = Ethif_wire.ARP;
@@ -122,26 +123,26 @@ let wrap_arp arp =
   p
 
 let arp_reply ~from_netif ~to_netif ~from_ip ~to_ip =
-  let a = 
-    { Arpv4_packet.op = Arpv4_wire.Reply; 
-      sha = (V.mac from_netif); 
+  let a =
+    { Arpv4_packet.op = Arpv4_wire.Reply;
+      sha = (V.mac from_netif);
       tha = (V.mac to_netif);
       spa = from_ip;
-      tpa = to_ip} 
+      tpa = to_ip}
   in
   Cstruct.concat [wrap_arp a; Arpv4_packet.Marshal.make_cstruct a]
 
 let arp_request ~from_netif ~to_mac ~from_ip ~to_ip =
   let a =
-    { Arpv4_packet.op = Arpv4_wire.Request; 
-      sha = (V.mac from_netif); 
+    { Arpv4_packet.op = Arpv4_wire.Request;
+      sha = (V.mac from_netif);
       tha = to_mac;
       spa = from_ip;
-      tpa = to_ip} 
+      tpa = to_ip}
   in
   Cstruct.concat [wrap_arp a; Arpv4_packet.Marshal.make_cstruct a]
 
-let get_arp ?(backend = B.create ~use_async_readers:true 
+let get_arp ?(backend = B.create ~use_async_readers:true
                 ~yield:(fun() -> Lwt_main.yield ()) ()) () =
   Fast_clock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
@@ -162,16 +163,17 @@ let three_arp () =
   get_arp ~backend:first.backend () >>= fun third ->
   Lwt.return (first, second, third)
 
-let query_or_die arp ip expected_mac = 
+let query_or_die arp ip expected_mac =
   A.query arp ip >>= function
   | Error `Timeout ->
     let pp_ip = Ipaddr.V4.pp_hum in
     A.to_repr arp >>= fun repr ->
     Logs.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
-  | Ok mac -> 
+  | Ok mac ->
     Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
     Lwt.return_unit
+  | Error e -> failf "ARP query failed with %a" A.pp_error e
 
 let set_and_check ~listener ~claimant ip =
   A.set_ips claimant.arp [ ip ] >>= fun () ->
@@ -195,8 +197,9 @@ let not_in_cache ~listen probe arp ip =
     single_check listen probe;
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     A.query arp ip >>= function
-    | Ok mac -> fail @@ "entry in cache when it shouldn't be " ^ (Macaddr.to_string mac)
+    | Ok mac -> failf "entry in cache when it shouldn't be %s" (Macaddr.to_string mac)
     | Error `Timeout -> Lwt.return_unit
+    | Error e -> failf "error while reading the cache: %a" A.pp_error e
   ]
 
 let set_ip_sends_garp () =
@@ -246,7 +249,7 @@ let input_single_garp () =
   let one_and_done buf =
     let arpbuf = Cstruct.shift buf 14 in
     A.input listen.arp arpbuf >>= fun () ->
-    V.disconnect listen.netif 
+    V.disconnect listen.netif
   in
   timeout ~time:500 (
   Lwt.join [
@@ -265,7 +268,7 @@ let input_single_garp () =
 let input_single_unicast () =
   two_arp () >>= fun (listen, speak) ->
   (* contrive to make a reply packet for the listener to hear *)
-  let for_listener = arp_reply 
+  let for_listener = arp_reply
      ~from_netif:speak.netif ~to_netif:listen.netif ~from_ip:first_ip ~to_ip:second_ip
   in
   let listener = start_arp_listener listen () in
@@ -284,10 +287,10 @@ let input_resolves_wait () =
                          ~from_ip:first_ip ~to_ip:second_ip in
   (* initiate query when the cache is empty.  On resolution, fail for a timeout
      and test the MAC if resolution was successful, then disconnect the
-     listening interface to ensure the test terminates.  
+     listening interface to ensure the test terminates.
      Fail with a timeout message if the whole thing takes more than 5s. *)
   let listener = start_arp_listener listen () in
-  let query_then_disconnect = 
+  let query_then_disconnect =
     query_or_die listen.arp first_ip (V.mac speak.netif) >>= fun () ->
     V.disconnect listen.netif
   in
@@ -303,8 +306,9 @@ let input_resolves_wait () =
 let unreachable_times_out () =
   get_arp () >>= fun speak ->
   A.query speak.arp first_ip >>= function
-  | Ok mac -> fail @@ "query claimed success when impossible for " ^ (Macaddr.to_string mac)
+  | Ok mac -> failf "query claimed success when impossible for " (Macaddr.to_string mac)
   | Error `Timeout -> Lwt.return_unit
+  | Error e -> failf "error waiting for a timeout: %a" A.pp_error e
 
 let input_replaces_old () =
   three_arp () >>= fun (listen, claimant_1, claimant_2) ->
@@ -326,7 +330,7 @@ let entries_expire () =
                    sha = (V.mac listen.netif); tha = Macaddr.broadcast;
                    spa = second_ip; tpa = first_ip})
   in
-  Lwt.async (fun () -> 
+  Lwt.async (fun () ->
       V.listen listen.netif (start_arp_listener listen ()));
   let test =
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
@@ -358,9 +362,9 @@ let query_retries () =
       Lwt.return_unit
     end else V.disconnect listen.netif
   in
-  let ask () = 
+  let ask () =
     A.query speak.arp first_ip >>= function
-    | Error `Timeout -> fail "Received error before >1 query";
+    | Error e -> failf "Received error before >1 query: %a" A.pp_error e;
     | Ok mac -> fail(Printf.sprintf"got result from query for %s, erroneously" (Macaddr.to_string mac));
   in
   Lwt.pick [
@@ -419,7 +423,7 @@ let requests_not_us () =
   let requests = List.map ask [ inquirer_ip; Ipaddr.V4.any;
                                 Ipaddr.V4.of_string_exn "255.255.255.255" ] in
   let make_requests = Lwt_list.iter_s (fun b -> V.write inquirer.netif b >|= fun _ -> ()) requests in
-  let disconnect_listeners () = 
+  let disconnect_listeners () =
     Lwt_list.iter_s (V.disconnect) [answerer.netif; inquirer.netif]
   in
   Lwt.join [
@@ -444,7 +448,7 @@ let nonsense_requests () =
 	tpa = answerer_ip } in
     Arpv4_wire.set_arp_op buf number;
     let eth_header = { Ethif_packet.source = (V.mac inquirer.netif);
-                       destination = Macaddr.broadcast; 
+                       destination = Macaddr.broadcast;
                        ethertype = Ethif_wire.ARP;
                        } in
     Cstruct.concat [ Ethif_packet.Marshal.make_cstruct eth_header; buf ]

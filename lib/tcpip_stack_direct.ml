@@ -70,9 +70,8 @@ struct
     Format.fprintf fmt "mac=%s,ip=%a" (Macaddr.to_string (Ethif.mac t.ethif))
       (Fmt.list Ipaddr.V4.pp_hum) (Ipv4.get_ip t.ipv4)
 
-  type error = [
-      `Unknown of string
-  ]
+  type error
+  let pp_error ppf (_:error) = Fmt.string ppf "Tcpip_stack_diret.error"
 
   let tcpv4 { tcpv4; _ } = tcpv4
   let udpv4 { udpv4; _ } = udpv4
@@ -120,16 +119,18 @@ struct
     Netif.listen t.netif ethif_listener
     >>= function
     | Error e ->
-      Log.warn (fun p -> p "%a" Mirage_pp.pp_network_error e) ;
+      Log.warn (fun p -> p "%a" Netif.pp_error e) ;
       (* XXX: error should be passed to the caller *)
       Lwt.return_unit
     | Ok _res ->
-        let nstat = Netif.get_stats_counters t.netif in
-        Log.info (fun f -> f "listening loop of interface %s terminated regularly:@ %Lu bytes (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-                   (Macaddr.to_string (Netif.mac t.netif))
-                   nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
-                   nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
-        Lwt.return_unit
+      let nstat = Netif.get_stats_counters t.netif in
+      Log.info (fun f ->
+          f "listening loop of interface %s terminated regularly:@ %Lu bytes \
+             (%lu packets) received, %Lu bytes (%lu packets) sent@ "
+            (Macaddr.to_string (Netif.mac t.netif))
+            nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
+            nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
+      Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let { V1_LWT.interface = netif; _ } = id in

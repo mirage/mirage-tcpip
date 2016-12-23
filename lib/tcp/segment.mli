@@ -23,6 +23,9 @@
     It also looks for control messages and dispatches them to
     the Rtx queue to ack messages or close channels.
 *)
+
+open Result
+
 module Rx (T:V1_LWT.TIME) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }
@@ -57,14 +60,14 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Pre-transmission queue *)
 module Tx (Time:V1_LWT.TIME)(Clock:V1.MCLOCK) : sig
 
-  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> (unit, V1.Ip.error) result Lwt.t
+  type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
+    seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
 
   type t
   (** Queue of pre-transmission segments *)
 
   val create:
-    clock:Clock.t -> xmit:xmit -> wnd:Window.t -> state:State.t ->
+    clock:Clock.t -> xmit:('a, 'b) xmit -> wnd:Window.t -> state:State.t ->
     rx_ack:Sequence.t Lwt_mvar.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->
     tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t
