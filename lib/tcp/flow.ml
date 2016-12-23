@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -32,7 +33,13 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
   type t = Pcb.t
   type callback = flow -> unit Lwt.t
 
-  type error = V1.Tcp.error
+  type error = Pcb.error
+  let pp_error = Pcb.pp_error
+  type write_error = [V1.Tcp.write_error | Pcb.write_error]
+
+  let pp_write_error ppf = function
+    | #V1.Tcp.write_error as e -> Mirage_pp.pp_tcp_write_error ppf e
+    | #Pcb.write_error as e    -> Pcb.pp_write_error ppf e
 
   let log_failure daddr dport = function
     | `Timeout ->
@@ -43,10 +50,10 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
       Log.debug (fun fmt ->
         fmt "Refused connection to %a:%d\n%!"
           Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
-    | (`Msg s) ->
+    | e ->
       Log.debug (fun fmt ->
-        fmt "%s error connecting to %a:%d\n%!"
-          s Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
+        fmt "%a error connecting to %a:%d\n%!"
+          pp_error e Ipaddr.pp_hum (IP.to_uipaddr daddr) dport)
 
   let dst = Pcb.dst
   let close t = Pcb.close t
@@ -58,10 +65,11 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
     | None   -> Lwt.return @@ Ok `Eof
     | Some t -> Lwt.return @@ Ok (`Data t)
 
-  let write t view = Pcb.write t view
-  let writev t views = Pcb.writev t views
-  let write_nodelay t view = Pcb.write_nodelay t view
-  let writev_nodelay t views = Pcb.writev_nodelay t views
+  let cast x = (x :> (unit, write_error) result Lwt.t)
+  let write t view = Pcb.write t view |> cast
+  let writev t views = Pcb.writev t views |> cast
+  let write_nodelay t view = Pcb.write_nodelay t view |> cast
+  let writev_nodelay t views = Pcb.writev_nodelay t views |> cast
   let connect ipv4 clock = Lwt.return (Pcb.create ipv4 clock)
   let disconnect _ = Lwt.return_unit
 

@@ -14,7 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Result
+
 module Make(Ip:V1_LWT.IP) : sig
+
+  type error = private [> V1.Ip.error]
+
+  val pp_error: error Fmt.t
+
   type id
 
   val src_port_of_id : id -> int
@@ -29,5 +36,6 @@ module Make(Ip:V1_LWT.IP) : sig
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
     options:Options.t list ->
-    Cstruct.t -> (unit, V1.Ip.error) result Lwt.t
+    Cstruct.t -> (unit, error) result Lwt.t
+
 end

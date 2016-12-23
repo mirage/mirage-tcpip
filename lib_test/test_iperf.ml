@@ -67,16 +67,16 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let err_eof () = fail "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
-    let err = Format.asprintf "%a" Mirage_pp.pp_tcp_error e in
+    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
     let ip  = Ipaddr.V4.to_string ip in
     fail "Unable to connect to %s:%d: %s" ip port err
 
   let err_write e () =
-    let err = Format.asprintf "%a" Mirage_pp.pp_flow_write_error e in
+    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
     fail "Error while writing to TCP flow: %s" err
 
   let err_read e () =
-    let err = Format.asprintf "%a" Mirage_pp.pp_tcp_error e in
+    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
     fail "Error in server while reading: %s" err
 
   let write_and_check flow buf =

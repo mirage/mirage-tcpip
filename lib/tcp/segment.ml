@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Result
 
 let src = Logs.Src.create "segment" ~doc:"Mirage TCP Segment module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -236,8 +237,9 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
   module TT = Tcptimer.Make(Time)
   module TX = Window.Make(Clock)
 
-  type xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> (unit, V1.Ip.error) result Lwt.t
+  type ('a, 'b) xmit =
+    flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
+    seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
 
   type seg = {
     data: Cstruct.t;
@@ -254,9 +256,9 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
     (Cstruct.len seg.data))
 
   (* Queue of pre-transmission segments *)
-  type t = {
+  type ('a, 'b) q = {
     segs: seg Lwt_sequence.t;      (* Retransmitted segment queue *)
-    xmit: xmit;                    (* Transmit packet to the wire *)
+    xmit: ('a, 'b) xmit;           (* Transmit packet to the wire *)
     rx_ack: Sequence.t Lwt_mvar.t; (* RX Ack thread that we've sent one *)
     wnd: Window.t;                 (* TCP Window information *)
     state: State.t;                (* state of the TCP connection associated
@@ -266,6 +268,8 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
     clock: Clock.t;                (* whom to ask for the time *)
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
+
+  type t = T: ('a, 'b) q -> t
 
   let ack_segment _ _ = ()
   (* Take any action to the user transmit queue due to this being
@@ -403,10 +407,11 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
     let period_ns = Window.rto wnd in
     let rexmit_timer = TT.t ~period_ns ~expire in
     let q =
-      { clock; xmit; wnd; state; rx_ack; segs; tx_wnd_update; rexmit_timer; dup_acks }
+      { clock; xmit; wnd; state; rx_ack; segs; tx_wnd_update;
+        rexmit_timer; dup_acks }
     in
     let t = rto_t q tx_ack in
-    q, t
+    T q, t
 
   (* Queue a segment for transmission. May block if:
        - There is no transmit window available.
@@ -414,7 +419,7 @@ module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
      The transmitter should check that the segment size will
      will not be greater than the transmit window.
   *)
-  let output ?(flags=No_flags) ?(options=[]) q data =
+  let output ?(flags=No_flags) ?(options=[]) (T q) data =
     (* Transmit the packet to the wire
          TODO: deal with transmission soft/hard errors here RFC5461 *)
     let { wnd; _ } = q in
