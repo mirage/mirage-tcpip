@@ -109,7 +109,8 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,lwt,result,fmt,mirage-runtime
+  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,lwt,result,fmt,
+                      mirage-runtime,mirage-net-lwt
 
 Library "icmpv4-socket"
   CompiledObject:     best
