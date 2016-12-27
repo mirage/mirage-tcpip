@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 785f175c6217e865768c7eac802cc625)
+# DO NOT EDIT (digest: ea93b1247c81a923c5d4a356c985a73e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -158,6 +158,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_ipaddr
 <lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_mirage-net-lwt
 <lib/*.ml{,i,y}>: pkg_mirage-runtime
 <lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: pkg_mirage-types-lwt
@@ -209,6 +210,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_lwt.unix
 <lib_test/test.{native,byte}>: pkg_mirage-clock-unix
 <lib_test/test.{native,byte}>: pkg_mirage-flow
+<lib_test/test.{native,byte}>: pkg_mirage-net-lwt
 <lib_test/test.{native,byte}>: pkg_mirage-profile
 <lib_test/test.{native,byte}>: pkg_mirage-runtime
 <lib_test/test.{native,byte}>: pkg_mirage-stdlib-random
@@ -247,6 +249,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-clock-unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-flow
+<lib_test/*.ml{,i,y}>: pkg_mirage-net-lwt
 <lib_test/*.ml{,i,y}>: pkg_mirage-profile
 <lib_test/*.ml{,i,y}>: pkg_mirage-runtime
 <lib_test/*.ml{,i,y}>: pkg_mirage-stdlib-random
