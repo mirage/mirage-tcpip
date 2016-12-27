@@ -124,12 +124,13 @@ struct
       Lwt.return_unit
     | Ok _res ->
       let nstat = Netif.get_stats_counters t.netif in
+      let open Mirage_net in
       Log.info (fun f ->
           f "listening loop of interface %s terminated regularly:@ %Lu bytes \
              (%lu packets) received, %Lu bytes (%lu packets) sent@ "
             (Macaddr.to_string (Netif.mac t.netif))
-            nstat.V1.Network.rx_bytes nstat.V1.Network.rx_pkts
-            nstat.V1.Network.tx_bytes nstat.V1.Network.tx_pkts) ;
+            nstat.rx_bytes nstat.rx_pkts
+            nstat.tx_bytes nstat.tx_pkts) ;
       Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
