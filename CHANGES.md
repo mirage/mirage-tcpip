@@ -1,3 +1,29 @@
+### 3.0.0 (2017-soon!)
+
+* adapt to MirageOS 3 API changes (*many* PRs, from @hannesm, @samoht, and @yomimono):
+  - replace error polyvars in many functions with result types
+  - define and use error types
+  - `connect` in various modules now returns the device directly or raises an exception
+* if no UDP source port is given to UDP.write, choose a random one (#272, by @hannesm)
+* remove Ipv4.Routing.No\_route\_to\_destination\_address exception; treat routing failures as normal packet loss in TCP (#269, by @yomimono)
+* Ipv6.connect takes a list of IPs (#268, by @yomimono)
+* remove exception "Refused" in TCP (#267, by @yomimono)
+* remove DHCP module. Users may be interested in the replacement charrua-core (#260, by @yomimono)
+* move Ipv4 to Static\_ipv4, which can be used by other IPv4 modules with their own configuration logic (#260, by @yomimono)
+* remove `mode` from STACKV4 record and configuration; Ipv4.connect now requires address parameters and the module exposes no methods for modifying them. (#260, by @yomimono)
+* remove unused `id` types no longer required by mirage-types (#255, by @yomimono)
+* overhaul how `random` is used and handled (#254 and others, by @hannesm)
+* fix redundant `memset` that zeroed out options in Tcp\_packet.Marshal.into\_cstruct (#250, by @balrajsingh)
+* add vnetif backend for triggering fast retransmit in iperf tests (#248, by @magnuss)
+* fixes for incorrect timer values (#247, by @balrajsingh)
+* add vnetif backend that drops packets with no payload (#246, by @magnuss)
+* fix a race when closing test pcap files (#246, by @magnuss)
+
+### 2.8.1 (2016-09-12)
+
+* Set the TCP congestion window correctly when going into fast-recovery mode. (#244, by @balrajsingh)
+* When TCP packet loss is discovered by timeout, allow transition into fast-recovery mode. (#244, by @balrajsingh) 
+
 ### 2.8.0 (2016-04-04)
 
 * Provide an implementation for the ICMPV4 module type defined in mirage-types 2.8.0.  Remove default ICMP handling from the IPv4 module, but preserve it in tcpip-stack-direct. (#195 by @yomimono)
@@ -5,7 +31,7 @@
 * Explicitly depend on `result`. (#195 by @yomimono)
 
 ### 2.7.0 (2016-03-20)
-* Raise Invalid_argument if given an invalid port number in listen_{tcp,udp}v4
+* Raise Invalid\_argument if given an invalid port number in listen_{tcp,udp}v4
   (#173 by @matildah and #175 by @hannesm)
 * Improve TCP options marshalling/unmarshalling (#174 by @yomimono)
 * Add state tests and fixes for closure conditions (#177 #176 by @yomimono)
