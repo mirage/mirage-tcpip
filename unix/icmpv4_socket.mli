@@ -1,6 +1,4 @@
-include V1_LWT.ICMP with type ipaddr = Ipaddr.V4.t
-                     and type buffer = Cstruct.t
-                     and type 'a io = 'a Lwt.t
+include Mirage_protocols_lwt.ICMPV4
 
 val connect : unit -> t io
 

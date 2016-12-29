@@ -45,17 +45,23 @@ depends: [
   "rresult"
   "cstruct" {>= "2.1.0"}
   "ppx_tools" {build}
-  "mirage-types" {>= "3.0.0"}
-  "mirage-types-lwt" {>= "3.0.0"}
-  "mirage-clock-unix" {test & >= "1.0.0"}
+  "mirage-net" {>= "1.0.0"}
+  "mirage-net-lwt" {>= "1.0.0"}
+  "mirage-clock" {>= "1.2.0" }
+  "mirage-random"
+  "mirage-clock-lwt"
+  "mirage-stack-lwt"
+  "mirage-protocols"
+  "mirage-protocols-lwt"
+  "mirage-time-lwt"
   "ipaddr" {>= "2.2.0"}
   "mirage-profile" {>= "0.5"}
   "mirage-flow" {test}
   "mirage-vnetif" {test & >= "0.2.0"}
   "alcotest" {test}
   "pcap-format" {test}
+  "mirage-clock-unix" {test}
   "fmt"
-  "mirage-runtime"
   "mirage-stdlib-random" {test}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}

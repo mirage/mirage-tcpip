@@ -22,7 +22,9 @@ module I = Ipaddr
 open Lwt.Infix
 open Result
 
-module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
+module Make (E : Mirage_protocols_lwt.ETHIF)
+            (T : Mirage_time_lwt.S)
+            (C : Mirage_clock_lwt.MCLOCK) = struct
   type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
@@ -35,11 +37,11 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
       clock : C.t;
       mutable ctx : Ndpv6.context }
 
-  type error =  [ V1.Ip.error | `Ethif of E.error]
+  type error = [ Mirage_protocols.Ip.error | `Ethif of E.error ]
 
   let pp_error ppf = function
-    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
-    | `Ethif e          -> E.pp_error ppf e
+    | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+    | `Ethif e -> E.pp_error ppf e
 
   let start_ticking t =
     let rec loop () =
@@ -68,12 +70,6 @@ module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (C : V1.MCLOCK) = struct
     let fail_any progress buf =
       let squeal = function
       | Ok () as ok -> Lwt.return ok
-      | Error `Unimplemented ->
-        Lwt.fail_invalid_arg
-          "Unimplemented code path when trying to write to ethernet device"
-      | Error `Disconnected ->
-        Lwt.fail_invalid_arg
-          "Tried to write to a disconnected Ethernet interface"
       | Error e ->
         Log.warn (fun f -> f "ethif write errored: %a" E.pp_error e);
         Lwt.return @@ Error (`Ethif e)

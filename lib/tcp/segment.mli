@@ -26,7 +26,7 @@
 
 open Result
 
-module Rx (T:V1_LWT.TIME) : sig
+module Rx (T:Mirage_time_lwt.S) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }
   (** Individual received TCP segment *)
@@ -58,7 +58,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Time:V1_LWT.TIME)(Clock:V1.MCLOCK) : sig
+module Tx (Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) : sig
 
   type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t

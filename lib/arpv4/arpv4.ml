@@ -21,7 +21,9 @@ open Result
 let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
+module Make (Ethif : Mirage_protocols_lwt.ETHIF)
+  (Clock : Mirage_clock.MCLOCK)
+  (Time : Mirage_time_lwt.S) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -29,10 +31,8 @@ module Make (Ethif : V1_LWT.ETHIF) (Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = st
   type macaddr = Macaddr.t
   type ethif = Ethif.t
   type repr = string
-  type error = [ `Timeout ]
-
-  let pp_error ppf = function
-    | `Timeout -> Fmt.string ppf "Dynamic ARP timed out"
+  type error = Mirage_protocols.Arp.error
+  let pp_error = Mirage_protocols.Arp.pp_error
 
   type entry =
     | Pending of (macaddr, error) result Lwt.t * (macaddr, error) result Lwt.u

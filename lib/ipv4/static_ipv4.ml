@@ -20,15 +20,14 @@ open Result
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
+module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
-  type error = [ V1.Ip.error | `Ethif of Ethif.error ]
-
+  type error = [ Mirage_protocols.Ip.error | `Ethif of Ethif.error ]
   let pp_error ppf = function
-    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
-    | `Ethif e          -> Ethif.pp_error ppf e
+  | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+  | `Ethif e -> Ethif.pp_error ppf e
 
   type ethif = Ethif.t
   type 'a io = 'a Lwt.t
@@ -50,36 +49,29 @@ module Make(Ethif: V1_LWT.ETHIF) (Arpv4 : V1_LWT.ARP) = struct
   let allocate_frame t ~(dst:ipaddr) ~(proto : [`ICMP | `TCP | `UDP]) : (buffer * int) =
     Ipv4_common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
 
-  let writev t frame bufs =
+  let writev t frame bufs : (unit, error) result Lwt.t =
     let v4_frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
     let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst v4_frame) in
-    (* Something of a layer violation here, but ARP is awkward *)
     Routing.destination_mac t.network t.gateway t.arp dst >>= function
     | Error `Local ->
       Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp_hum dst);
-      Lwt.return @@ Error `No_route
+      Lwt.return @@ Error (`No_route "no response for IP on local network")
     | Error `Gateway when t.gateway = None ->
       Log.warn (fun f -> f "Write to %a would require an external route, which was not provided" Ipaddr.V4.pp_hum dst);
       Lwt.return @@ Ok ()
     | Error `Gateway ->
       Log.warn (fun f -> f "Write to %a requires an external route, and the provided %a was not reachable" Ipaddr.V4.pp_hum dst (Fmt.option Ipaddr.V4.pp_hum) t.gateway);
       (* when a gateway is specified the user likely expects their traffic to be passed to it *)
-      Lwt.return @@ Error `No_route
+      Lwt.return @@ Error (`No_route "no route to default gateway to outside world")
     | Ok mac ->
       let dmac = Macaddr.to_bytes mac in
       let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethif_wire.sizeof_ethernet in
       adjust_output_header ~dmac ~tlen frame;
-      Ethif.writev t.ethif (frame :: bufs) >>= function
-      | Ok () as ok -> Lwt.return ok
-      | Error `Unimplemented ->
-        Lwt.fail_invalid_arg
-          "Unimplemented code path when trying to write to ethernet device"
-      | Error `Disconnected ->
-        Lwt.fail_invalid_arg
-          "Tried to write to a disconnected Ethernet interface"
+      Ethif.writev t.ethif (frame :: bufs) >|= function
       | Error e ->
-        Log.warn (fun f -> f "ethif write errored: %a" Ethif.pp_error e);
-        Lwt.return @@ Error (`Ethif e)
+        Log.warn (fun f -> f "Error sending Ethernet frame: %a" Ethif.pp_error e);
+        Error (`Ethif e)
+      | Ok () -> Ok ()
 
   let write t frame buf =
     writev t frame [buf]

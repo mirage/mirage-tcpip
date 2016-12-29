@@ -54,7 +54,7 @@ val t : on_close:close_cb -> t
 
 val pp: Format.formatter -> t -> unit
 
-module Make(Time : V1_LWT.TIME) : sig
+module Make(Time : Mirage_time_lwt.S) : sig
   val fin_wait_2_time : int64
   val time_wait_time : int64
   val finwait2timer : t -> int -> int64 -> unit Lwt.t

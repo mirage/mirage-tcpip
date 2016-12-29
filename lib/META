@@ -1,9 +1,10 @@
 # OASIS_START
-# DO NOT EDIT (digest: bf264be3ca47d19f155f60298bbb98b7)
+# DO NOT EDIT (digest: 6bb06794c9232812349eca8e8e13b629)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
-requires = "mirage-types ipaddr cstruct"
+requires =
+"mirage-net-lwt mirage-protocols mirage-protocols-lwt ipaddr cstruct"
 archive(byte) = "tcpip.cma"
 archive(byte, plugin) = "tcpip.cma"
 archive(native) = "tcpip.cmxa"
@@ -25,7 +26,8 @@ package "udpv6-socket" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
+ requires =
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-protocols mirage-protocols-lwt"
  archive(byte) = "udpv6-socket.cma"
  archive(byte, plugin) = "udpv6-socket.cma"
  archive(native) = "udpv6-socket.cmxa"
@@ -37,7 +39,8 @@ package "udpv4-socket" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "lwt ipaddr.unix cstruct.lwt fmt"
+ requires =
+ "lwt ipaddr.unix cstruct.lwt fmt mirage-protocols mirage-protocols-lwt"
  archive(byte) = "udpv4-socket.cma"
  archive(byte, plugin) = "udpv4-socket.cma"
  archive(native) = "udpv4-socket.cmxa"
@@ -50,7 +53,7 @@ package "udp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types mirage-types-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile tcpip mirage-runtime randomconv fmt"
+ "logs ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile tcpip randomconv fmt mirage-protocols mirage-protocols-lwt mirage-random"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
@@ -62,7 +65,8 @@ package "tcpv6-socket" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix"
+ requires =
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-protocols mirage-protocols-lwt"
  archive(byte) = "tcpv6-socket.cma"
  archive(byte, plugin) = "tcpv6-socket.cma"
  archive(native) = "tcpv6-socket.cmxa"
@@ -75,7 +79,7 @@ package "tcpv4-socket" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix mirage-types-lwt mirage-types mirage-runtime fmt"
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix fmt mirage-protocols mirage-protocols-lwt"
  archive(byte) = "tcpv4-socket.cma"
  archive(byte, plugin) = "tcpv4-socket.cma"
  archive(native) = "tcpv4-socket.cmxa"
@@ -88,7 +92,7 @@ package "tcp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types mirage-types-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile io-page tcpip duration randomconv mirage-runtime fmt"
+ "logs mirage-protocols mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile io-page tcpip duration randomconv fmt mirage-time-lwt mirage-clock mirage-random"
  archive(byte) = "tcp.cma"
  archive(byte, plugin) = "tcp.cma"
  archive(native) = "tcp.cmxa"
@@ -100,7 +104,8 @@ package "stack-socket" (
  version = "2.8.0"
  description =
  "Implementations for network-related module types from MirageOS."
- requires = "lwt lwt.unix ipaddr.unix io-page.unix logs mirage-runtime"
+ requires =
+ "lwt lwt.unix ipaddr.unix io-page.unix logs mirage-protocols mirage-protocols-lwt mirage-stack-lwt"
  archive(byte) = "tcpip-stack-socket.cma"
  archive(byte, plugin) = "tcpip-stack-socket.cma"
  archive(native) = "tcpip-stack-socket.cmxa"
@@ -113,7 +118,7 @@ package "stack-direct" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types mirage-types-lwt ipaddr lwt result fmt mirage-runtime mirage-net-lwt"
+ "logs ipaddr lwt result fmt mirage-protocols mirage-protocols-lwt mirage-stack-lwt mirage-net-lwt mirage-time mirage-random mirage-device"
  archive(byte) = "tcpip-stack-direct.cma"
  archive(byte, plugin) = "tcpip-stack-direct.cma"
  archive(native) = "tcpip-stack-direct.cmxa"
@@ -126,7 +131,7 @@ package "ipv6" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-types ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration mirage-runtime"
+ "logs io-page mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration mirage-time-lwt mirage-clock-lwt"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
@@ -139,7 +144,7 @@ package "ipv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-types ipaddr cstruct.ppx lwt result rresult mirage-runtime tcpip tcpip.ethif tcpip.udp tcpip.tcp"
+ "logs io-page mirage-protocols ipaddr cstruct.ppx lwt result rresult tcpip tcpip.ethif tcpip.udp tcpip.tcp"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
@@ -152,7 +157,7 @@ package "icmpv4-socket" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix tcpip.icmpv4 mirage-runtime"
+ "lwt lwt.unix ipaddr.unix cstruct.lwt io-page.unix tcpip.icmpv4 mirage-protocols mirage-protocols-lwt"
  archive(byte) = "icmpv4-socket.cma"
  archive(byte, plugin) = "icmpv4-socket.cma"
  archive(native) = "icmpv4-socket.cmxa"
@@ -165,7 +170,7 @@ package "icmpv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types mirage-types-lwt cstruct cstruct.ppx lwt ipaddr result rresult mirage-profile tcpip mirage-runtime fmt"
+ "logs mirage-protocols mirage-protocols-lwt cstruct cstruct.ppx lwt ipaddr result rresult mirage-profile tcpip fmt"
  archive(byte) = "icmpv4.cma"
  archive(byte, plugin) = "icmpv4.cma"
  archive(native) = "icmpv4.cmxa"
@@ -178,7 +183,7 @@ package "ethif" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-types mirage-types-lwt ipaddr cstruct lwt mirage-profile result rresult mirage-runtime"
+ "logs mirage-protocols-lwt ipaddr cstruct lwt mirage-profile result rresult mirage-net-lwt"
  archive(byte) = "ethif.cma"
  archive(byte, plugin) = "ethif.cma"
  archive(native) = "ethif.cmxa"
@@ -191,7 +196,7 @@ package "arpv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "mirage-types logs ipaddr cstruct cstruct.ppx lwt result rresult tcpip.ethif duration fmt"
+ "mirage-protocols-lwt logs ipaddr cstruct cstruct.ppx lwt result rresult tcpip.ethif duration fmt mirage-clock-lwt mirage-time-lwt"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"

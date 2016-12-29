@@ -14,8 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (E : V1_LWT.ETHIF) (T : V1_LWT.TIME) (Clock : V1.MCLOCK) : sig
-  include V1_LWT.IPV6 with type ethif = E.t
+module Make (E : Mirage_protocols_lwt.ETHIF)
+            (T : Mirage_time_lwt.S)
+            (Clock : Mirage_clock_lwt.MCLOCK) : sig
+  include Mirage_protocols_lwt.IPV6 with type ethif = E.t
   val connect :
     ?ip:Ipaddr.V6.t list ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
