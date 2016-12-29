@@ -1,10 +1,10 @@
 open Lwt.Infix
 
-module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
+module Make(E : Mirage_protocols_lwt.ETHIF)(Clock : Mirage_clock_lwt.MCLOCK) (Time : Mirage_time_lwt.S) = struct
   module A = Arpv4.Make(E)(Clock)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
-  type error = V1.Arp.error
+  type error = Mirage_protocols.Arp.error
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type macaddr = Macaddr.t
@@ -16,7 +16,7 @@ module Make(E : V1_LWT.ETHIF)(Clock : V1.MCLOCK) (Time : V1_LWT.TIME) = struct
     table : (Ipaddr.V4.t, macaddr) Hashtbl.t;
   }
 
-  let pp_error = Mirage_pp.pp_arp_error
+  let pp_error = Mirage_protocols.Arp.pp_error
   let add_ip t = A.add_ip t.base
   let remove_ip t = A.remove_ip t.base
   let set_ips t = A.set_ips t.base

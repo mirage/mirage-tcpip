@@ -21,7 +21,7 @@ open !Result
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDOM) =
+module Make(Ip:Mirage_protocols_lwt.IP)(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S with type buffer = Cstruct.t) =
 struct
 
   module RXS = Segment.Rx(Time)
@@ -31,17 +31,18 @@ struct
   module WIRE = Wire.Make(Ip)
   module STATE = State.Make(Time)
 
-  type error = [ V1.Tcp.error | `Ip of WIRE.error]
+  type error = [ Mirage_protocols.Tcp.error | WIRE.error]
 
   let pp_error ppf = function
-    | #V1.Tcp.error as e -> Mirage_pp.pp_tcp_error ppf e
-    | `Ip e -> WIRE.pp_error ppf e
+    | #Mirage_protocols.Tcp.error as e -> Mirage_protocols.Tcp.pp_error ppf e
+    | #WIRE.error as e -> WIRE.pp_error ppf e
 
-  type write_error = [`Not_ready]
+  type write_error = [Mirage_protocols.Tcp.write_error | `Not_ready]
 
   let pp_write_error ppf = function
     | `Not_ready ->
       Fmt.string ppf "attempted to send data before connection was ready"
+    | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
   type pcb = {
     id: WIRE.id;
@@ -599,14 +600,9 @@ struct
         ) else (
           Tx.send_syn t id ~tx_isn ~options ~window >>= function
           | Ok () -> connecttimer t id tx_isn options window (count + 1)
-          | Error `No_route ->
+          | Error (`No_route _s) ->
             (* normal mechanism for recovery is fine *)
             connecttimer t id tx_isn options window (count + 1)
-          | Error `Unimplemented ->
-            Lwt.fail_invalid_arg "Unimplemented code path when sending SYN"
-          | Error `Disconnected ->
-            Lwt.fail_invalid_arg
-              "Tried to send SYN, but underlying interface was disconnected"
           | Error e ->
             (* TODO: possibly the more sensible thing to do is give up *)
             Log.warn (fun f ->
@@ -642,19 +638,14 @@ struct
     Hashtbl.add t.connects id (wakener, tx_isn);
     Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= function
-    | Ok () | Error `No_route (* keep trying *) ->
+    | Ok () | Error (`No_route _) (* keep trying *) ->
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
-    | Error `Unimplemented ->
-      Lwt.fail_invalid_arg "Unimplemented code path when sending SYN"
-    | Error `Disconnected ->
-      Lwt.fail_invalid_arg
-        "Tried to send SYN, but underlying interface was disconnected"
     | Error e ->
       Log.warn (fun f ->
           f "Failure sending initial SYN in outgoing connection: %a"
             WIRE.pp_error e);
-      Lwt.return @@ Error (`Ip e :> error)
+      Lwt.return @@ Error (e :> error)
 
   (* Construct the main TCP thread *)
   let create ip clock =

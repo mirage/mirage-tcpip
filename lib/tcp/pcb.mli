@@ -16,13 +16,13 @@
 
 open !Result
 
-module Make(Ip:V1_LWT.IP)(Time:V1_LWT.TIME)(Clock:V1.MCLOCK)(Random:V1_LWT.RANDOM) : sig
+module Make(Ip:Mirage_protocols_lwt.IP)(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S with type buffer = Cstruct.t) : sig
 
   (** Overall state of the TCP stack *)
   type t
   type pcb
-  type error = private [> V1.Tcp.error]
-  type write_error = [`Not_ready]
+  type error = private [> Mirage_protocols.Tcp.error]
+  type write_error = private [> Mirage_protocols.Tcp.write_error]
 
   val pp_error: error Fmt.t
   val pp_write_error: write_error Fmt.t

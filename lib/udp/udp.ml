@@ -22,7 +22,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let pp_ips = Format.pp_print_list Ipaddr.pp_hum
 
-module Make(Ip: V1_LWT.IP)(Random:V1_LWT.RANDOM) = struct
+module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.S with type buffer = Cstruct.t) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -31,12 +31,15 @@ module Make(Ip: V1_LWT.IP)(Random:V1_LWT.RANDOM) = struct
   type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
-  type error = Ip.error
-  let pp_error = Ip.pp_error
+  type error = [ `Ip of Ip.error ]
+  let pp_error ppf (`Ip e) = Ip.pp_error ppf e
 
   type t = {
     ip : Ip.t;
   }
+
+  let pp_ip fmt a =
+    Ipaddr.pp_hum fmt (Ip.to_uipaddr a)
 
   (* TODO: ought we to check to make sure the destination is relevant
      here?  Currently we process all incoming packets without making
@@ -52,10 +55,6 @@ module Make(Ip: V1_LWT.IP)(Random:V1_LWT.RANDOM) = struct
       | None    -> Lwt.return_unit
       | Some fn ->
         fn ~src ~dst ~src_port payload
-
-  let pp_no_route ppf dst =
-    Fmt.pf ppf "failed to send packet to %a: no route"
-      Ipaddr.pp_hum (Ip.to_uipaddr dst)
 
   let writev ?src_port ~dst ~dst_port t bufs =
     let src_port = match src_port with
@@ -74,9 +73,11 @@ module Make(Ip: V1_LWT.IP)(Random:V1_LWT.RANDOM) = struct
         ~payload:(Cstruct.concat bufs)
     in
     Ip.writev t.ip frame (udp_buf :: bufs) >|= function
-    | Ok () as ok          -> ok
-    | Error `No_route as e -> Log.warn (fun f -> f "%a" pp_no_route dst); e
-    | Error _ as e         -> e
+    | Ok () as ok         -> ok
+    | Error e -> Log.warn (fun f -> f "IP module couldn't send UDP packet to %a: %a"
+      pp_ip dst Ip.pp_error e); 
+      (* we're supposed to make our best effort, and we did *)
+      Ok ()
 
   let write ?src_port ~dst ~dst_port t buf =
     writev ?src_port ~dst ~dst_port t [buf]

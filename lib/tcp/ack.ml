@@ -61,7 +61,7 @@ end
 
 
 (* Delayed ACKs *)
-module Delayed (Time:V1_LWT.TIME) : M = struct
+module Delayed (Time:Mirage_time_lwt.S) : M = struct
 
   module TT = Tcptimer.Make(Time)
 

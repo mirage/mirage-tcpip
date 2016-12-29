@@ -89,7 +89,7 @@ let pp_tcpstate fmt = function
 
 let pp fmt t = pf fmt "{ %a }" pp_tcpstate t.state
 
-module Make(Time:V1_LWT.TIME) = struct
+module Make(Time:Mirage_time_lwt.S) = struct
 
   let fin_wait_2_time = (* 60 *) Duration.of_sec 10
   let time_wait_time = (* 30 *) Duration.of_sec 2

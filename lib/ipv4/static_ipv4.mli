@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (N:V1_LWT.ETHIF) (A: V1_LWT.ARP) : sig
-  include V1_LWT.IPV4 with type ethif = N.t
+module Make (N:Mirage_protocols_lwt.ETHIF) (A: Mirage_protocols_lwt.ARP) : sig
+  include Mirage_protocols_lwt.IPV4 with type ethif = N.t
   val connect :
     ?ip:Ipaddr.V4.t ->
     ?network:Ipaddr.V4.Prefix.t ->

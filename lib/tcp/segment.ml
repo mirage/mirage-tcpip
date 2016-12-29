@@ -54,7 +54,7 @@ let rec reset_seq segs =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
 *)
-module Rx(Time:V1_LWT.TIME) = struct
+module Rx(Time:Mirage_time_lwt.S) = struct
   open Tcp_packet
   module StateTick = State.Make(Time)
 
@@ -231,7 +231,7 @@ type tx_flags = (* At most one of Syn/Fin/Rst/Psh allowed *)
   | Rst
   | Psh
 
-module Tx (Time:V1_LWT.TIME) (Clock:V1.MCLOCK) = struct
+module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)

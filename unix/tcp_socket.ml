@@ -1,14 +1,14 @@
 open Lwt
 open Result
 
-type error = [ V1.Tcp.error | `Exn of exn ]
-type write_error = V1.Tcp.write_error
+type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
+type write_error = Mirage_protocols.Tcp.write_error
 
 let pp_error ppf = function
-  | #V1.Tcp.error as e -> Mirage_pp.pp_tcp_error ppf e
+  | #Mirage_protocols.Tcp.error as e -> Mirage_protocols.Tcp.pp_error ppf e
   | `Exn e -> Fmt.pf ppf "%a" Fmt.exn e
 
-let pp_write_error = Mirage_pp.pp_tcp_write_error
+let pp_write_error = Mirage_protocols.Tcp.pp_write_error
 
 let disconnect _ =
   return_unit

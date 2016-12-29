@@ -16,9 +16,9 @@
 
 open Result
 
-module Make(Ip:V1_LWT.IP) : sig
+module Make(Ip:Mirage_protocols_lwt.IP) : sig
 
-  type error = private [> V1.Ip.error]
+  type error = Mirage_protocols.Ip.error
 
   val pp_error: error Fmt.t
 

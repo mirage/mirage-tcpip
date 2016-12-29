@@ -3,6 +3,7 @@ PKG oUnit alcotest mirage-profile
 PKG mirage-vnetif pcap-format mirage-console-unix logs mirage-net-lwt
 PKG duration mirage-runtime rresult randomconv mirage-clock-unix
 PKG mirage-protocols mirage-protocols-lwt mirage-device
+PKG mirage-stack mirage-stack-lwt
 
 B _build/**
 S lib/
