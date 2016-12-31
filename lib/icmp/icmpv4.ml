@@ -41,14 +41,7 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   let input t ~src ~dst buf =
     let open Icmpv4_packet in
-    let should_reply t dst =
-      let aux found this =
-        match found with
-        | true -> true
-        | false -> if (Ipaddr.V4.compare dst this) = 0 then true else false
-      in
-      List.fold_left aux false (IP.get_ip t.ip)
-    in
+    let should_reply t dst = List.mem dst @@ IP.get_ip t.ip in
     MProf.Trace.label "icmp_input";
     match Unmarshal.of_cstruct buf with
     | Result.Error s ->
