@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 750319fb7d1ad0aa0cd18d6842562655)
+# DO NOT EDIT (digest: bf264be3ca47d19f155f60298bbb98b7)
 version = "2.8.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -139,7 +139,7 @@ package "ipv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-types ipaddr cstruct.ppx lwt result rresult tcpip tcpip.ethif mirage-runtime"
+ "logs io-page mirage-types ipaddr cstruct.ppx lwt result rresult mirage-runtime tcpip tcpip.ethif tcpip.udp tcpip.tcp"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
