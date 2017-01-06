@@ -15,8 +15,8 @@
  *)
 
 
-module Make (IP:V1_LWT.IP)(R:V1_LWT.RANDOM) : sig
-  include V1_LWT.UDP
+module Make (IP:Mirage_protocols_lwt.IP)(R:Mirage_random.S with type buffer = Cstruct.t) : sig
+  include Mirage_protocols_lwt.UDP
     with type ip = IP.t
      and type ipaddr = IP.ipaddr
      and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t

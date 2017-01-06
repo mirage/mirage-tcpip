@@ -31,7 +31,7 @@ sig
   type buffer
   type 'a io
   type id
-  module Stackv4 : V1_LWT.STACKV4
+  module Stackv4 : Mirage_stack_lwt.V4
   (** Create a new backend *)
   val create_backend : unit -> backend
   (** Create a new stack connected to an existing backend *)
@@ -74,7 +74,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
     let config = {
-      V1_LWT.name = "stack";
+      Mirage_stack_lwt.name = "stack";
       interface = netif;
     } in
     Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4 tcpv4

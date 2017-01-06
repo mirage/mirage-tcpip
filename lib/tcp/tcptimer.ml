@@ -32,7 +32,7 @@ type t = {
   mutable running: bool;
 }
 
-module Make(Time:V1_LWT.TIME) = struct
+module Make(Time:Mirage_time_lwt.S) = struct
   let t ~period_ns ~expire =
     let running = false in
     {period_ns; expire; running}

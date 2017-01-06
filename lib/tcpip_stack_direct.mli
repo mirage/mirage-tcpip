@@ -15,23 +15,23 @@
  *)
 
 type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
-module type UDPV4_DIRECT = V1_LWT.UDPV4
+module type UDPV4_DIRECT = Mirage_protocols_lwt.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
+module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Time    : V1_LWT.TIME)
-    (Random  : V1_LWT.RANDOM)
-    (Netif   : V1_LWT.NETWORK)
-    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
-    (Arpv4   : V1_LWT.ARP)
-    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Icmpv4  : V1_LWT.ICMPV4)
+    (Time    : Mirage_time.S)
+    (Random  : Mirage_random.S)
+    (Netif   : Mirage_net_lwt.S)
+    (Ethif   : Mirage_protocols_lwt.ETHIF with type netif = Netif.t)
+    (Arpv4   : Mirage_protocols_lwt.ARP)
+    (Ipv4    : Mirage_protocols_lwt.IPV4 with type ethif = Ethif.t)
+    (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) : sig
-  include V1_LWT.STACKV4
+  include Mirage_stack_lwt.V4
     with type netif   = Netif.t
      and type udpv4   = Udpv4.t
      and type tcpv4   = Tcpv4.t
@@ -40,7 +40,7 @@ module Make
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
 
-  val connect : netif V1_LWT.stackv4_config ->
+  val connect : netif Mirage_stack_lwt.stackv4_config ->
     Ethif.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t -> Udpv4.t -> Tcpv4.t ->
     t Lwt.t
   (** [connect] assembles the arguments into a network stack, then calls

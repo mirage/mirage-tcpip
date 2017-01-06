@@ -21,14 +21,11 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
-module Make (Ip:V1_LWT.IP) = struct
+module Make (Ip:Mirage_protocols_lwt.IP) = struct
 
-  type error = [ V1.Ip.error | `Marshal of string | `Ip of Ip.error ]
+  type error = Mirage_protocols.Ip.error
 
-  let pp_error ppf = function
-    | #V1.Ip.error as e -> Mirage_pp.pp_ip_error ppf e
-    | `Marshal s        -> Fmt.pf ppf "Error constructing TCP packet: %s" s
-    | `Ip e             -> Ip.pp_error ppf e
+  let pp_error = Mirage_protocols.Ip.pp_error
 
   type id = {
     dst_port: int;             (* Remote TCP port *)
@@ -71,19 +68,20 @@ module Make (Ip:V1_LWT.IP) = struct
       (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
     | Result.Error s ->
-      Log.info (fun l -> l "%a" pp_error (`Marshal s));
-      (* possibly should just throw invalid_argument here *)
-      Lwt.return (Error (`Marshal s))
+      Log.warn (fun l -> l "Error writing TCP packet header: %s" s);
+      Lwt.fail (Failure ("Tcp_packet.Marshal.into_cstruct: " ^ s))
     | Result.Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip
         (Cstruct.len payload + if syn then 1 else 0);
       Ip.write ip frame payload >|= function
-      | Error `No_route
-      (* swallow this error so normal recovery mechanisms can be
-         used *)
       | Ok () -> Ok ()
-      | Error (#V1.Ip.error as e) -> Error e
-      | Error e -> Error (`Ip e)
+      (* swallow errors so normal recovery mechanisms can be used *)
+      (* For errors which aren't transient, or are too long-lived for TCP to recover
+       * from, this will eventually result in a higher-level notification
+       * that communication over the TCP flow has failed *)
+      | Error e ->
+        Log.warn (fun l -> l "Error sending TCP packet via IP: %a" Ip.pp_error e);
+        Ok ()
 
 end

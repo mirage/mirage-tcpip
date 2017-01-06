@@ -21,26 +21,24 @@ let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
-module type UDPV4_DIRECT = V1_LWT.UDPV4
+module type UDPV4_DIRECT = Mirage_protocols_lwt.UDPV4
   with type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = V1_LWT.TCPV4
+module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Time    : V1_LWT.TIME)
-    (Random  : V1_LWT.RANDOM)
-    (Netif   : V1_LWT.NETWORK)
-    (Ethif   : V1_LWT.ETHIF with type netif = Netif.t)
-    (Arpv4   : V1_LWT.ARP)
-    (Ipv4    : V1_LWT.IPV4 with type ethif = Ethif.t)
-    (Icmpv4  : V1_LWT.ICMPV4)
+    (Time    : Mirage_time.S)
+    (Random  : Mirage_random.S)
+    (Netif   : Mirage_net_lwt.S)
+    (Ethif   : Mirage_protocols_lwt.ETHIF with type netif = Netif.t)
+    (Arpv4   : Mirage_protocols_lwt.ARP)
+    (Ipv4    : Mirage_protocols_lwt.IPV4 with type ethif = Ethif.t)
+    (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) =
-struct
-
+    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) = struct
   type +'a io = 'a Lwt.t
-  type 'a config = 'a V1_LWT.stackv4_config
+  type 'a config = 'a Mirage_stack_lwt.stackv4_config
   type netif = Netif.t
   type id = netif config
   type buffer = Cstruct.t
@@ -69,9 +67,6 @@ struct
   let pp fmt t =
     Format.fprintf fmt "mac=%s,ip=%a" (Macaddr.to_string (Ethif.mac t.ethif))
       (Fmt.list Ipaddr.V4.pp_hum) (Ipv4.get_ip t.ipv4)
-
-  type error
-  let pp_error ppf (_:error) = Fmt.string ppf "Tcpip_stack_diret.error"
 
   let tcpv4 { tcpv4; _ } = tcpv4
   let udpv4 { udpv4; _ } = udpv4
@@ -134,7 +129,7 @@ struct
       Lwt.return_unit
 
   let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
-    let { V1_LWT.interface = netif; _ } = id in
+    let { Mirage_stack_lwt.interface = netif; _ } = id in
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { id; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;

@@ -20,7 +20,7 @@ open Result
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
+module Make(IP:Mirage_protocols_lwt.IP)(TM:Mirage_time_lwt.S)(C:Mirage_clock.MCLOCK)(R:Mirage_random.S with type buffer = Cstruct.t) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 
@@ -34,12 +34,9 @@ module Make(IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) = struct
   type callback = flow -> unit Lwt.t
 
   type error = Pcb.error
+  type write_error = Pcb.write_error
   let pp_error = Pcb.pp_error
-  type write_error = [V1.Tcp.write_error | Pcb.write_error]
-
-  let pp_write_error ppf = function
-    | #V1.Tcp.write_error as e -> Mirage_pp.pp_tcp_write_error ppf e
-    | #Pcb.write_error as e    -> Pcb.pp_write_error ppf e
+  let pp_write_error = Pcb.pp_write_error
 
   let log_failure daddr dport = function
     | `Timeout ->
