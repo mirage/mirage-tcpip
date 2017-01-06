@@ -4,7 +4,7 @@ open Result
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP : V1_LWT.IPV4) = struct
+module Make(IP : Mirage_protocols_lwt.IPV4) = struct
 
   type buffer = Cstruct.t
   type 'a io = 'a Lwt.t
@@ -15,11 +15,8 @@ module Make(IP : V1_LWT.IPV4) = struct
     echo_reply : bool;
   }
 
-  type error = [ V1.Icmp.error | `Ip of IP.error ]
-
-  let pp_error ppf = function
-    | #V1.Icmp.error as e -> Mirage_pp.pp_icmp_error ppf e
-    | `Ip e -> IP.pp_error ppf e
+  type error = [ `Ip of IP.error ]
+  let pp_error ppf (`Ip e) = IP.pp_error ppf e
 
   let connect ip =
     let t = { ip; echo_reply = true } in
@@ -27,28 +24,20 @@ module Make(IP : V1_LWT.IPV4) = struct
 
   let disconnect _ = Lwt.return_unit
 
-  let no_route dst = `Routing (Fmt.strf "no route to %a" Ipaddr.V4.pp_hum dst)
-
-  let writev t ~dst bufs : (unit, error) result Lwt.t =
+  let writev t ~dst bufs =
     let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
     let frame = Cstruct.set_len frame header_len in
     IP.writev t.ip frame bufs >|= function
-    | Ok ()           -> Ok ()
-    | Error `No_route -> Error (no_route dst)
-    | Error e         -> Error (`Ip e)
+    | Ok () as o -> o
+    | Error e ->
+      Log.warn (fun f -> f "Error sending IP packet: %a" IP.pp_error e);
+      Error (`Ip e)
 
   let write t ~dst buf = writev t ~dst [buf]
 
   let input t ~src ~dst buf =
     let open Icmpv4_packet in
-    let should_reply t dst =
-      let aux found this =
-        match found with
-        | true -> true
-        | false -> if (Ipaddr.V4.compare dst this) = 0 then true else false
-      in
-      List.fold_left aux false (IP.get_ip t.ip)
-    in
+    let should_reply t dst = List.mem dst @@ IP.get_ip t.ip in
     MProf.Trace.label "icmp_input";
     match Unmarshal.of_cstruct buf with
     | Result.Error s ->
@@ -78,13 +67,9 @@ module Make(IP : V1_LWT.IPV4) = struct
           } in
           writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ]
           >|= function
-            (* this handler will change when input gets a richer type
-               that can return error *)
           | Ok () -> ()
-          | Error e ->
-            Log.warn (fun f ->
-                f "Unable to send ICMP echo-reply: %a" pp_error e);
-            ()
+          | Error (`Ip e) ->
+            Log.warn (fun f -> f "Unable to send ICMP echo-reply: %a" IP.pp_error e); ()
         end else Lwt.return_unit
       | ty, _ ->
         Log.info (fun f ->

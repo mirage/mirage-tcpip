@@ -15,7 +15,7 @@
  *
  *)
 
-module Make ( N:V1_LWT.NETWORK ) : sig
-  include V1_LWT.ETHIF with type netif = N.t
+module Make ( N:Mirage_net_lwt.S) : sig
+  include Mirage_protocols_lwt.ETHIF with type netif = N.t
   val connect : netif -> t Lwt.t
 end

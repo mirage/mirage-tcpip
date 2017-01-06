@@ -1,5 +1,5 @@
-module Make ( I:V1_LWT.IPV4 ) : sig
-  include V1_LWT.ICMPV4
+module Make ( I:Mirage_protocols_lwt.IPV4 ) : sig
+  include Mirage_protocols_lwt.ICMPV4
 
   val connect : I.t -> t io
 end

@@ -21,7 +21,8 @@ Library tcpip
   Modules:            Tcpip_checksum
   CSources:           checksum_stubs.c
   CCOpt:              -O2 -fno-stack-protector
-  BuildDepends:       mirage-types (>= 2.8.0),ipaddr,cstruct (>= 1.9.0)
+  BuildDepends:       mirage-net-lwt, mirage-protocols, mirage-protocols-lwt,
+                      ipaddr, cstruct (>= 1.9.0)
   XMETAExtraLines:    xen_linkopts = "-ltcpip_xen_stubs"
 
 Library tcpip_xen
@@ -39,7 +40,7 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_packet
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-runtime
+  BuildDepends:       logs,mirage-protocols-lwt,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-net-lwt
 
 Library arpv4
   CompiledObject:     best
@@ -47,8 +48,9 @@ Library arpv4
   Findlibparent:      tcpip
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire, Arpv4_packet
-  BuildDepends:       mirage-types,logs,ipaddr,cstruct,cstruct.ppx,lwt,
-                      result,rresult,tcpip.ethif,duration,fmt
+  BuildDepends:       mirage-protocols-lwt,logs,ipaddr,cstruct,cstruct.ppx,lwt,
+                      result,rresult,tcpip.ethif,duration,fmt,
+                      mirage-clock-lwt, mirage-time-lwt
 
 Library ipv4
   CompiledObject:     best
@@ -57,8 +59,7 @@ Library ipv4
   Findlibname:        ipv4
   Modules:            Static_ipv4, Ipv4_wire, Ipv4_packet
   InternalModules:    Ipv4_common, Routing
-  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct.ppx,lwt,result,rresult,
-                      mirage-runtime,
+  BuildDepends:       logs,io-page,mirage-protocols,ipaddr,cstruct.ppx,lwt,result,rresult,
                       tcpip,tcpip.ethif,
                       tcpip.udp, tcpip.tcp
 
@@ -68,8 +69,9 @@ Library ipv6
   Findlibparent:      tcpip
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6, Ipv6_wire
-  BuildDepends:       logs,io-page,mirage-types,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip,tcpip.ethif, duration,mirage-runtime
+  BuildDepends:       logs,io-page,mirage-protocols-lwt,ipaddr,cstruct,cstruct.ppx,lwt,
+                      tcpip,tcpip.ethif, duration,
+                      mirage-time-lwt, mirage-clock-lwt
 
 Library icmpv4
   CompiledObject:     best
@@ -77,9 +79,9 @@ Library icmpv4
   Findlibparent:      tcpip
   Findlibname:        icmpv4
   Modules:            Icmpv4, Icmpv4_packet, Icmpv4_wire
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,cstruct,
+  BuildDepends:       logs,mirage-protocols,mirage-protocols-lwt,cstruct,
                       cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
-                      tcpip,mirage-runtime,fmt
+                      tcpip,fmt
 
 Library udp
   CompiledObject:     best
@@ -87,9 +89,10 @@ Library udp
   Findlibparent:      tcpip
   Findlibname:        udp
   Modules:            Udp, Udp_wire, Udp_packet
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,
+  BuildDepends:       logs,ipaddr,cstruct,
                       cstruct.ppx,lwt,result,rresult,mirage-profile,
-                      tcpip,mirage-runtime,randomconv,fmt
+                      tcpip,randomconv,fmt,
+                      mirage-protocols,mirage-protocols-lwt,mirage-random
 
 Library tcp
   CompiledObject:     best
@@ -101,9 +104,10 @@ Library tcp
                       Window,Segment,User_buffer,Pcb,Flow,
                       Stats, Wire,
                       Tcp_wire, Tcp_packet
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,cstruct,
+  BuildDepends:       logs,mirage-protocols,mirage-protocols-lwt,ipaddr,cstruct,
                       cstruct.ppx,lwt,result,rresult,mirage-profile,io-page,
-                      tcpip,duration,randomconv,mirage-runtime,fmt
+                      tcpip,duration,randomconv,fmt,
+                      mirage-time-lwt,mirage-clock,mirage-random
 
 Library "tcpip-stack-direct"
   CompiledObject:     best
@@ -111,8 +115,11 @@ Library "tcpip-stack-direct"
   Findlibparent:      tcpip
   Findlibname:        stack-direct
   Modules:            Tcpip_stack_direct
-  BuildDepends:       logs,mirage-types,mirage-types-lwt,ipaddr,lwt,result,fmt,
-                      mirage-runtime,mirage-net-lwt
+  BuildDepends:       logs,ipaddr,lwt,result,fmt,
+                      mirage-protocols,mirage-protocols-lwt,
+                      mirage-stack-lwt,
+                      mirage-net-lwt,
+                      mirage-time,mirage-random,mirage-device
 
 Library "icmpv4-socket"
   CompiledObject:     best
@@ -126,7 +133,7 @@ Library "icmpv4-socket"
                       cstruct.lwt,
                       io-page.unix,
                       tcpip.icmpv4,
-                      mirage-runtime
+                      mirage-protocols,mirage-protocols-lwt
 
 Library "udpv4-socket"
   CompiledObject:     best
@@ -134,7 +141,8 @@ Library "udpv4-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv4-socket
   Modules:            Udpv4_socket
-  BuildDepends:       lwt,ipaddr.unix,cstruct.lwt,fmt
+  BuildDepends:       lwt,ipaddr.unix,cstruct.lwt,fmt,
+                      mirage-protocols,mirage-protocols-lwt
 
 Library "udpv6-socket"
   CompiledObject:     best
@@ -142,7 +150,8 @@ Library "udpv6-socket"
   Findlibparent:      tcpip
   Findlibname:        udpv6-socket
   Modules:            Udpv6_socket
-  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,
+                      mirage-protocols,mirage-protocols-lwt
 
 Library "tcpv4-socket"
   CompiledObject:     best
@@ -151,8 +160,8 @@ Library "tcpv4-socket"
   Findlibname:        tcpv4-socket
   Modules:            Tcpv4_socket
   InternalModules:    Tcp_socket
-  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,
-                      mirage-types-lwt,mirage-types,mirage-runtime,fmt
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,fmt,
+                      mirage-protocols,mirage-protocols-lwt
 
 Library "tcpv6-socket"
   CompiledObject:     best
@@ -161,7 +170,8 @@ Library "tcpv6-socket"
   Findlibname:        tcpv6-socket
   InternalModules:    Tcp_socket
   Modules:            Tcpv6_socket
-  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,cstruct.lwt,io-page.unix,
+                      mirage-protocols,mirage-protocols-lwt
 
 Library "tcpip-stack-socket"
   CompiledObject:     best
@@ -169,7 +179,9 @@ Library "tcpip-stack-socket"
   Findlibparent:      tcpip
   Findlibname:        stack-socket
   Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
-  BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs,mirage-runtime
+  BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs,
+                      mirage-protocols,mirage-protocols-lwt,
+                      mirage-stack-lwt
 
 Executable test
   CompiledObject:     best
@@ -185,7 +197,8 @@ Executable test
                       tcpip.ethif,tcpip.arpv4,tcpip.ipv4,tcpip.tcp,tcpip.udp,
                       tcpip.stack-direct,tcpip.icmpv4,
                       tcpip.udpv4-socket, tcpip.tcpv4-socket, tcpip.stack-socket, duration,
-                      mirage-stdlib-random, result, rresult
+                      mirage-stdlib-random, result, rresult,
+                      mirage-protocols, mirage-protocols-lwt,  mirage-stack-lwt
 
 Test test
   Run$:               flag(tests)

@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (IP:V1_LWT.IP)(TM:V1_LWT.TIME)(C:V1.MCLOCK)(R:V1_LWT.RANDOM) : sig
-  include V1_LWT.TCP
+module Make (IP:Mirage_protocols_lwt.IP)
+            (TM:Mirage_time_lwt.S)
+            (C:Mirage_clock.MCLOCK)
+            (R:Mirage_random.S with type buffer = Cstruct.t) : sig
+  include Mirage_protocols_lwt.TCP
     with type ip = IP.t
      and type ipaddr = IP.ipaddr
      and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t

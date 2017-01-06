@@ -21,7 +21,7 @@ open Lwt.Infix
 let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Netif : V1_LWT.NETWORK) = struct
+module Make(Netif : Mirage_net_lwt.S) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t

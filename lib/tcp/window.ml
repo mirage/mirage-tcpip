@@ -161,7 +161,7 @@ let set_tx_wnd t sz =
 let tx_mss t =
   t.tx_mss
 
-module Make(Clock:V1.MCLOCK) = struct
+module Make(Clock:Mirage_clock.MCLOCK) = struct
   (* Advance transmitted packet sequence number *)
   let tx_advance clock t b =
     if not t.rtt_timer_on && not t.fast_recovery then begin

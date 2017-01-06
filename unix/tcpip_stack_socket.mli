@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include V1_LWT.STACKV4
+include Mirage_stack_lwt.V4
   with type netif   = Ipaddr.V4.t list
    and type tcpv4   = Tcpv4_socket.t
    and type udpv4   = Udpv4_socket.t
@@ -22,5 +22,5 @@ include V1_LWT.STACKV4
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
    and module IPV4  = Ipv4_socket
-val connect : netif V1_LWT.stackv4_config ->
+val connect : netif Mirage_stack_lwt.stackv4_config ->
   Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t

@@ -19,12 +19,11 @@ let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
 
 let make_stack ~name ~ip =
   (* define a config record, which should match the type expected of
-     V1_LWT.stackv4_config *)
+     Mirage_stack_lwt.stackv4_config *)
   Tcpv4_socket.connect (Some ip) >>= fun tcp ->
   Udpv4_socket.connect (Some ip) >>= fun udp ->
-  let open V1_LWT in
   let config = {
-    name;
+    Mirage_stack_lwt.name;
     interface = [ip];
   } in
   Icmpv4_socket.connect () >>= fun icmp ->
