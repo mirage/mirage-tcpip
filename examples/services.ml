@@ -1,7 +1,7 @@
 open Lwt
-open V1_LWT
+open Mirage_types_lwt
 
-module Main (C: V1_LWT.CONSOLE) (S: V1_LWT.STACKV4) = struct
+module Main (C: Mirage_types_lwt.CONSOLE) (S: Mirage_types_lwt.STACKV4) = struct
   let report_and_close c flow message =
     C.log c message;
     S.TCPV4.close flow
