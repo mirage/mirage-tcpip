@@ -3,7 +3,7 @@ script: bash -ex .travis-ci.sh
 sudo: required
 env:
   global:
-  - EXTRA_REMOTES="https://github.com/yomimono/mirage-dev.git#split-tcpip-module-types-consistent"
+  - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
   matrix:
   - OCAML_VERSION=4.03 PACKAGE=tcpip MIRAGE_MODE=unix
   - UPDATE_GCC_BINUTILS=1 OCAML_VERSION=4.03 PACKAGE=tcpip MIRAGE_MODE=xen
