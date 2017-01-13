@@ -4,6 +4,7 @@
   - replace error polyvars in many functions with result types
   - define and use error types
   - `connect` in various modules now returns the device directly or raises an exception
+  - refer to mirage-protocols and mirage-stacks, rather than mirage-types
 * if no UDP source port is given to UDP.write, choose a random one (#272, by @hannesm)
 * remove Ipv4.Routing.No\_route\_to\_destination\_address exception; treat routing failures as normal packet loss in TCP (#269, by @yomimono)
 * Ipv6.connect takes a list of IPs (#268, by @yomimono)
