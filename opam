@@ -62,7 +62,7 @@ depends: [
   "pcap-format" {test}
   "mirage-clock-unix" {test}
   "fmt"
-  "mirage-stdlib-random" {test}
+  "mirage-random" {test}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
   "duration"
