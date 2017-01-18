@@ -47,22 +47,22 @@ depends: [
   "ppx_tools" {build}
   "mirage-net" {>= "1.0.0"}
   "mirage-net-lwt" {>= "1.0.0"}
-  "mirage-clock" {>= "1.2.0" }
-  "mirage-random"
-  "mirage-clock-lwt"
-  "mirage-stack-lwt"
-  "mirage-protocols"
-  "mirage-protocols-lwt"
-  "mirage-time-lwt"
+  "mirage-clock" {>= "1.2.0"}
+  "mirage-random" {>= "1.0.0"}
+  "mirage-clock-lwt" {>= "1.2.0"}
+  "mirage-stack-lwt" {>= "1.0.0"}
+  "mirage-protocols" {>= "1.0.0"}
+  "mirage-protocols-lwt" {>= "1.0.0"}
+  "mirage-time-lwt" {>= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile" {>= "0.5"}
-  "mirage-flow" {test}
+  "mirage-flow" {test & >= "1.2.0"}
   "mirage-vnetif" {test & >= "0.2.0"}
   "alcotest" {test}
   "pcap-format" {test}
-  "mirage-clock-unix" {test}
+  "mirage-clock-unix" {test & >= "1.2.0"}
   "fmt"
-  "mirage-random" {test}
+  "mirage-random" {test & >= "1.0.0"}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
   "duration"
