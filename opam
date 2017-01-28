@@ -41,6 +41,7 @@ install: [make "install"]
 remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
   "ocamlfind" {build}
+  "ocamlbuild" {build}
   "result"
   "rresult"
   "cstruct" {>= "2.1.0"}
@@ -62,7 +63,6 @@ depends: [
   "pcap-format" {test}
   "mirage-clock-unix" {test & >= "1.2.0"}
   "fmt"
-  "mirage-random" {test & >= "1.0.0"}
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.6.0"}
   "duration"
