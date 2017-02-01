@@ -2,8 +2,14 @@ open Lwt
 open Mirage_types_lwt
 
 module Main (C: Mirage_types_lwt.CONSOLE) (S: Mirage_types_lwt.STACKV4) = struct
-  let report_and_close c flow message =
-    C.log c message;
+  let report_and_close c flow pp e message =
+    let msg =
+      Format.fprintf Format.str_formatter
+        "closing connection due to error %a while %s"
+        pp e message;
+      Format.flush_str_formatter ()
+    in
+    C.log c msg >>= fun () ->
     S.TCPV4.close flow
 
   let rec chargen c flow how_many start_at =
@@ -18,41 +24,27 @@ module Main (C: Mirage_types_lwt.CONSOLE) (S: Mirage_types_lwt.STACKV4) = struct
     in
 
     S.TCPV4.write flow (make_chars how_many start_at) >>= function
-    | `Ok () ->
+    | Ok () ->
       chargen c flow how_many ((start_at + 1) mod (String.length charpool))
-    | `Eof ->
-      report_and_close c flow "Chargen connection closing normally."
-    | `Error _ ->
-      report_and_close c flow "Chargen connection read error; closing."
+    | Error e -> report_and_close c flow S.TCPV4.pp_write_error e "writing in Chargen"
 
   let rec discard c flow =
     S.TCPV4.read flow >>= fun result -> (
     match result with
-    | `Eof -> report_and_close c flow "Discard connection closing normally."
-    | `Error _ -> report_and_close c flow "Discard connection read error;
-      closing."
-    | _ -> discard c flow
+    | Error e -> report_and_close c flow S.TCPV4.pp_error e "reading in Discard"
+    | Ok `Eof -> report_and_close c flow Fmt.string "end of file" "reading in Discard"
+    | Ok (`Data _) -> discard c flow
   )
 
 
   let rec echo c flow =
-    S.TCPV4.read flow >>= fun result -> (
-    match result with
-    | `Eof -> report_and_close c flow "Echo connection closure initiated."
-    | `Error e ->
-      let message =
-        match e with
-        | `Timeout -> "Echo connection timed out; closing.\n"
-        | `Refused -> "Echo connection refused; closing.\n"
-        | `Unknown s -> (Printf.sprintf "Echo connection error: %s\n" s)
-      in
-      report_and_close c flow message
-    | `Ok buf ->
+    S.TCPV4.read flow >>= function
+    | Error e -> report_and_close c flow S.TCPV4.pp_error e "reading in Echo"
+    | Ok `Eof -> report_and_close c flow Fmt.string "end of file" "reading in Echo"
+    | Ok (`Data buf) ->
       S.TCPV4.write flow buf >>= function
-      | `Ok () -> echo c flow
-      | `Eof -> report_and_close c flow "Echo connection closure initated."
-      | `Error _ -> report_and_close c flow "Echo connection error during writing; closing."
-  )
+      | Ok () -> echo c flow
+      | Error e -> report_and_close c flow S.TCPV4.pp_write_error e "writing in Echo"
 
   let start c s =
     (* RFC 862 - read payloads and repeat them back *)
