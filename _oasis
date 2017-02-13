@@ -133,6 +133,8 @@ Library "icmpv4-socket"
                       cstruct.lwt,
                       io-page.unix,
                       tcpip.icmpv4,
+                      tcpip.ipv4,
+                      tcpip.ipv6,
                       mirage-protocols,mirage-protocols-lwt
 
 Library "udpv4-socket"

@@ -130,4 +130,6 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
   let to_uipaddr ip = Ipaddr.V4 ip
   let of_uipaddr = Ipaddr.to_v4
 
+  let mtu t = Ethif.mtu t.ethif - Ipv4_wire.sizeof_ipv4
+
 end

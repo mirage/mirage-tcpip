@@ -59,7 +59,6 @@ type t = {
 let count_ackd_segs = MProf.Counter.make ~name:"tcp-ackd-segs"
 
 let default_mss = 536
-let max_mss = 1460
 
 let alpha = 0.125  (* see RFC 2988 *)
 let beta = 0.25    (* see RFC 2988 *)
@@ -81,7 +80,7 @@ let t ~rx_wnd_scale ~tx_wnd_scale ~rx_wnd ~tx_wnd ~rx_isn ~tx_mss ~tx_isn =
   let rx_nxt = Sequence.incr rx_isn in
   let rx_nxt_inseq = Sequence.incr rx_isn in
   (* TODO: improve this sanity check of tx_mss *)
-  let tx_mss = match tx_mss with |None -> default_mss |Some mss -> min mss max_mss in
+  let tx_mss = match tx_mss with |None -> default_mss |Some mss -> mss in
   let snd_una = tx_nxt in
   let fast_rec_th = tx_nxt in
   let ack_serviced = true in
