@@ -31,6 +31,7 @@ let pp_error = Mirage_protocols.Ip.pp_error
 
 let to_uipaddr ip = Ipaddr.V4 ip
 let of_uipaddr = Ipaddr.to_v4
+let mtu _ = 1500 - Ipv4_wire.sizeof_ipv4
 
 let id _ = ()
 let disconnect _ = return_unit

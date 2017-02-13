@@ -59,6 +59,9 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
   let allocate_frame t ~dst ~proto =
     Ndpv6.allocate_frame t.ctx dst proto
 
+  let mtu t =
+    E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
+
   let writev t frame bufs =
     let now = C.elapsed_ns t.clock in
     let dst =

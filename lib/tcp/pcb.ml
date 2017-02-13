@@ -350,7 +350,7 @@ struct
     Hashtbl.add t.listens id (params.tx_isn, (pushf, (pcb, th)));
     Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
-    let options = Options.MSS 1460 :: opts in
+    let options = Options.MSS (Ip.mtu t.ip - Tcp_wire.sizeof_tcp) :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
@@ -623,7 +623,7 @@ struct
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
-      Options.MSS 1460 :: Options.Window_size_shift rx_wnd_scaleoffer :: []
+      Options.MSS (Ip.mtu t.ip - Tcp_wire.sizeof_tcp) :: Options.Window_size_shift rx_wnd_scaleoffer :: []
     in
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in
