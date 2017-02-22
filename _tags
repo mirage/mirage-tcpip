@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 417bae857bae4a5a1016501e56db0a47)
+# DO NOT EDIT (digest: e84d3403e01a7ec4decab72b98992f98)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -184,47 +184,47 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_result
 # Library icmpv4-socket
 "unix/icmpv4-socket.cmxs": use_icmpv4-socket
-<unix/*.ml{,i,y}>: pkg_cstruct
-<unix/*.ml{,i,y}>: pkg_cstruct.ppx
-<unix/*.ml{,i,y}>: pkg_duration
-<unix/*.ml{,i,y}>: pkg_io-page
-<unix/*.ml{,i,y}>: pkg_ipaddr
-<unix/*.ml{,i,y}>: pkg_mirage-clock
-<unix/*.ml{,i,y}>: pkg_mirage-clock-lwt
-<unix/*.ml{,i,y}>: pkg_mirage-net-lwt
-<unix/*.ml{,i,y}>: pkg_mirage-profile
-<unix/*.ml{,i,y}>: pkg_mirage-random
-<unix/*.ml{,i,y}>: pkg_mirage-time-lwt
-<unix/*.ml{,i,y}>: pkg_randomconv
-<unix/*.ml{,i,y}>: pkg_result
-<unix/*.ml{,i,y}>: pkg_rresult
-<unix/*.ml{,i,y}>: use_ethif
 <unix/*.ml{,i,y}>: use_icmpv4
-<unix/*.ml{,i,y}>: use_ipv4
-<unix/*.ml{,i,y}>: use_ipv6
-<unix/*.ml{,i,y}>: use_tcp
-<unix/*.ml{,i,y}>: use_tcpip
-<unix/*.ml{,i,y}>: use_udp
 # Library udpv4-socket
 "unix/udpv4-socket.cmxs": use_udpv4-socket
 # Library udpv6-socket
 "unix/udpv6-socket.cmxs": use_udpv6-socket
 # Library tcpv4-socket
 "unix/tcpv4-socket.cmxs": use_tcpv4-socket
-<unix/*.ml{,i,y}>: pkg_fmt
 # Library tcpv6-socket
 "unix/tcpv6-socket.cmxs": use_tcpv6-socket
 <unix/*.ml{,i,y}>: pkg_cstruct.lwt
 # Library tcpip-stack-socket
 "unix/tcpip-stack-socket.cmxs": use_tcpip-stack-socket
+<unix/*.ml{,i,y}>: pkg_cstruct
+<unix/*.ml{,i,y}>: pkg_cstruct.ppx
+<unix/*.ml{,i,y}>: pkg_duration
+<unix/*.ml{,i,y}>: pkg_fmt
+<unix/*.ml{,i,y}>: pkg_io-page
 <unix/*.ml{,i,y}>: pkg_io-page.unix
+<unix/*.ml{,i,y}>: pkg_ipaddr
 <unix/*.ml{,i,y}>: pkg_ipaddr.unix
 <unix/*.ml{,i,y}>: pkg_logs
 <unix/*.ml{,i,y}>: pkg_lwt
 <unix/*.ml{,i,y}>: pkg_lwt.unix
+<unix/*.ml{,i,y}>: pkg_mirage-clock
+<unix/*.ml{,i,y}>: pkg_mirage-clock-lwt
+<unix/*.ml{,i,y}>: pkg_mirage-net-lwt
+<unix/*.ml{,i,y}>: pkg_mirage-profile
 <unix/*.ml{,i,y}>: pkg_mirage-protocols
 <unix/*.ml{,i,y}>: pkg_mirage-protocols-lwt
+<unix/*.ml{,i,y}>: pkg_mirage-random
 <unix/*.ml{,i,y}>: pkg_mirage-stack-lwt
+<unix/*.ml{,i,y}>: pkg_mirage-time-lwt
+<unix/*.ml{,i,y}>: pkg_randomconv
+<unix/*.ml{,i,y}>: pkg_result
+<unix/*.ml{,i,y}>: pkg_rresult
+<unix/*.ml{,i,y}>: use_ethif
+<unix/*.ml{,i,y}>: use_ipv4
+<unix/*.ml{,i,y}>: use_ipv6
+<unix/*.ml{,i,y}>: use_tcp
+<unix/*.ml{,i,y}>: use_tcpip
+<unix/*.ml{,i,y}>: use_udp
 # Executable test
 <lib_test/test.{native,byte}>: pkg_alcotest
 <lib_test/test.{native,byte}>: pkg_cstruct
@@ -263,6 +263,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: use_ethif
 <lib_test/test.{native,byte}>: use_icmpv4
 <lib_test/test.{native,byte}>: use_ipv4
+<lib_test/test.{native,byte}>: use_ipv6
 <lib_test/test.{native,byte}>: use_tcp
 <lib_test/test.{native,byte}>: use_tcpip
 <lib_test/test.{native,byte}>: use_tcpip-stack-direct
@@ -307,6 +308,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_ethif
 <lib_test/*.ml{,i,y}>: use_icmpv4
 <lib_test/*.ml{,i,y}>: use_ipv4
+<lib_test/*.ml{,i,y}>: use_ipv6
 <lib_test/*.ml{,i,y}>: use_tcp
 <lib_test/*.ml{,i,y}>: use_tcpip
 <lib_test/*.ml{,i,y}>: use_tcpip-stack-direct

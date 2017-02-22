@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 514c9a0cdf340349d239ac493ed47a94)
+# DO NOT EDIT (digest: dcb10f894da854c58b0447220a8b0f5c)
 version = "3.0.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -105,7 +105,7 @@ package "stack-socket" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "lwt lwt.unix ipaddr.unix io-page.unix logs mirage-protocols mirage-protocols-lwt mirage-stack-lwt"
+ "lwt lwt.unix ipaddr.unix io-page.unix logs tcpip.ipv4 tcpip.ipv6 mirage-protocols mirage-protocols-lwt mirage-stack-lwt"
  archive(byte) = "tcpip-stack-socket.cma"
  archive(byte, plugin) = "tcpip-stack-socket.cma"
  archive(native) = "tcpip-stack-socket.cmxa"
