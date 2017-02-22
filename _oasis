@@ -182,6 +182,7 @@ Library "tcpip-stack-socket"
   Findlibname:        stack-socket
   Modules:            Tcpip_stack_socket, Ipv4_socket, Ipv6_socket
   BuildDepends:       lwt,lwt.unix,ipaddr.unix,io-page.unix,logs,
+                      tcpip.ipv4, tcpip.ipv6,
                       mirage-protocols,mirage-protocols-lwt,
                       mirage-stack-lwt
 
