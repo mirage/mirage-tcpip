@@ -60,9 +60,6 @@ let count_ackd_segs = MProf.Counter.make ~name:"tcp-ackd-segs"
 
 let default_mss = 536
 
-let alpha = 0.125  (* see RFC 2988 *)
-let beta = 0.25    (* see RFC 2988 *)
-
 (* To string for debugging *)
 let pp fmt t =
   Format.fprintf fmt
@@ -195,14 +192,14 @@ module Make(Clock:Mirage_clock.MCLOCK) = struct
             t.rttvar <- Int64.div rtt_m 2L;
             t.srtt <- rtt_m;
           end else begin
-            let adjusted_rttvar = (1.0 -. beta) *. (Int64.to_float t.rttvar) in
-            let rttvar_addition = beta *. Int64.(sub t.srtt rtt_m |> abs |> to_float) in
-            let adjusted_srtt = (1.0 -. alpha) *. (Int64.to_float t.srtt) in
-            let srtt_addition = alpha *. (Int64.to_float rtt_m) in
-            t.rttvar <- Int64.of_float (adjusted_rttvar +. rttvar_addition);
-            t.srtt <- Int64.of_float (adjusted_srtt +. srtt_addition);
+            let adjusted_rttvar = Int64.(div (mul 3L t.rttvar) 4L) in
+            let rttvar_addition = Int64.(div (sub t.srtt rtt_m |> abs) 4L) in
+            let adjusted_srtt = Int64.(div (mul 7L t.srtt) 8L) in
+            let srtt_addition = Int64.(div rtt_m 8L) in
+            t.rttvar <- Int64.add adjusted_rttvar rttvar_addition;
+            t.srtt <- Int64.add adjusted_srtt srtt_addition;
           end;
-          t.rto <- (max (Duration.of_ms 667) (Int64.add t.srtt (Int64.mul 4L t.rttvar)));
+          t.rto <- max (Duration.of_ms 667) Int64.(add t.srtt (mul t.rttvar 4L));
         end;
       end;
       let cwnd_incr = match t.cwnd < t.ssthresh with
