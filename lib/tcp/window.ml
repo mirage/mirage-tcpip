@@ -192,12 +192,13 @@ module Make(Clock:Mirage_clock.MCLOCK) = struct
             t.rttvar <- Int64.div rtt_m 2L;
             t.srtt <- rtt_m;
           end else begin
-            let adjusted_rttvar = Int64.(div (mul 3L t.rttvar) 4L) in
-            let rttvar_addition = Int64.(div (sub t.srtt rtt_m |> abs) 4L) in
-            let adjusted_srtt = Int64.(div (mul 7L t.srtt) 8L) in
-            let srtt_addition = Int64.(div rtt_m 8L) in
-            t.rttvar <- Int64.add adjusted_rttvar rttvar_addition;
-            t.srtt <- Int64.add adjusted_srtt srtt_addition;
+            let (/) = Int64.div in
+            let ( * ) = Int64.mul in
+            let (-) = Int64.sub in
+            let (+) = Int64.add in
+            (* RFC2988 2.3 *)
+            t.rttvar <- (3L * t.rttvar / 4L) + (Int64.abs (t.srtt - rtt_m) / 4L);
+            t.srtt <- (7L * t.srtt / 8L) + (rtt_m / 8L)
           end;
           t.rto <- max (Duration.of_ms 667) Int64.(add t.srtt (mul t.rttvar 4L));
         end;
