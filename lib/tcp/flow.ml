@@ -20,7 +20,7 @@ open Result
 let src = Logs.Src.create "flow" ~doc:"Mirage TCP Flow module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP:Mirage_protocols_lwt.IP)(TM:Mirage_time_lwt.S)(C:Mirage_clock.MCLOCK)(R:Mirage_random.S with type buffer = Cstruct.t) = struct
+module Make(IP:Mirage_protocols_lwt.IP)(TM:Mirage_time_lwt.S)(C:Mirage_clock.MCLOCK)(R:Mirage_random.C) = struct
 
   module Pcb = Pcb.Make(IP)(TM)(C)(R)
 

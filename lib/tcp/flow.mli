@@ -17,7 +17,7 @@
 module Make (IP:Mirage_protocols_lwt.IP)
             (TM:Mirage_time_lwt.S)
             (C:Mirage_clock.MCLOCK)
-            (R:Mirage_random.S with type buffer = Cstruct.t) : sig
+            (R:Mirage_random.C) : sig
   include Mirage_protocols_lwt.TCP
     with type ip = IP.t
      and type ipaddr = IP.ipaddr
