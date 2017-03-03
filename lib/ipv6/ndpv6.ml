@@ -142,7 +142,7 @@ let multicast_mac =
 (* vary the reachable time by some random factor between 0.5 and 1.5 *)
 let compute_reachable_time reachable_time =
   let factor =
-    Defaults.(min_random_factor +. (max_random_factor -. min_random_factor))
+    Defaults.(min_random_factor +. Random.float (max_random_factor -. min_random_factor))
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 
