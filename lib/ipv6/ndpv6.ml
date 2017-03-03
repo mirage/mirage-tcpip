@@ -140,9 +140,10 @@ let multicast_mac =
     Macaddr.of_bytes_exn (Cstruct.to_string pbuf)
 
 (* vary the reachable time by some random factor between 0.5 and 1.5 *)
-let compute_reachable_time reachable_time =
+let compute_reachable_time r reachable_time =
   let factor =
-    Defaults.(min_random_factor +. (max_random_factor -. min_random_factor))
+    Defaults.min_random_factor +.
+    Randomconv.float ~bound:Defaults.(max_random_factor -. min_random_factor) r
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 
@@ -1122,7 +1123,7 @@ and send ~now ctx dst frame datav =
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
 
-let local ~now mac =
+let local ~now ~random mac =
   let ctx =
     { neighbor_cache = NeighborCache.empty;
       prefix_list = PrefixList.link_local;
@@ -1132,7 +1133,7 @@ let local ~now mac =
       link_mtu = Defaults.link_mtu;
       cur_hop_limit = 64; (* TODO *)
       base_reachable_time  = Defaults.reachable_time;
-      reachable_time = compute_reachable_time Defaults.reachable_time;
+      reachable_time = compute_reachable_time random Defaults.reachable_time;
       retrans_timer = Defaults.retrans_timer;
       packet_queue = PacketQueue.empty 3 }
   in
@@ -1161,7 +1162,7 @@ let allocate_frame ctx dst proto =
 let select_source ctx dst =
   AddressList.select_source ctx.address_list ~dst
 
-let handle_ra ~now ctx ~src ~dst ra =
+let handle_ra ~now ~random ctx ~src ~dst ra =
   Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
   let ctx =
     if ra.ra_cur_hop_limit <> 0 then
@@ -1173,7 +1174,7 @@ let handle_ra ~now ctx ~src ~dst ra =
     | Some rt ->
       if ctx.base_reachable_time <> rt then
         {ctx with base_reachable_time = rt;
-                  reachable_time = compute_reachable_time rt}
+                  reachable_time = compute_reachable_time random rt}
       else
         ctx
   in
@@ -1255,11 +1256,11 @@ let handle_na ~now ctx ~src ~dst na =
   let ctx = {ctx with neighbor_cache; address_list} in
   ctx, actions
 
-let handle ~now ctx buf =
+let handle ~now ~random ctx buf =
   let open Parser in
   match packet (AddressList.is_my_addr ctx.address_list) buf with
   | RA (src, dst, ra) ->
-    let ctx, actions = handle_ra ~now ctx ~src ~dst ra in
+    let ctx, actions = handle_ra ~now ~random ctx ~src ~dst ra in
     let ctx, bufs = process_actions ~now ctx actions in
     ctx, bufs, []
   | NS (src, dst, ns) ->

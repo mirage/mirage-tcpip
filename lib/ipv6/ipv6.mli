@@ -15,6 +15,7 @@
  *)
 
 module Make (E : Mirage_protocols_lwt.ETHIF)
+            (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (Clock : Mirage_clock_lwt.MCLOCK) : sig
   include Mirage_protocols_lwt.IPV6 with type ethif = E.t
