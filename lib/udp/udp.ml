@@ -22,7 +22,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let pp_ips = Format.pp_print_list Ipaddr.pp_hum
 
-module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.S with type buffer = Cstruct.t) = struct
+module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
