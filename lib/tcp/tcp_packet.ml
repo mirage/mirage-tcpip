@@ -71,13 +71,13 @@ module Marshal = struct
   type error = string
 
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
-    let data_off = (sizeof_tcp / 4) + (options_len / 4) in
-    let buf = Cstruct.sub buf 0 (data_off * 4) in
+    let data_off = sizeof_tcp + options_len in
+    let buf = Cstruct.sub buf 0 data_off in
     set_tcp_src_port buf t.src_port;
     set_tcp_dst_port buf t.dst_port;
     set_tcp_sequence buf (Sequence.to_int32 t.sequence);
     set_tcp_ack_number buf (Sequence.to_int32 t.ack_number);
-    set_data_offset buf data_off;
+    set_data_offset buf (data_off / 4);
     set_tcp_flags buf 0;
     if t.urg then set_urg buf;
     if t.ack then set_ack buf;
@@ -127,12 +127,12 @@ module Marshal = struct
     Ok (sizeof_tcp + options_len)
 
   let make_cstruct ~pseudoheader ~payload t =
-    let options_buf = Cstruct.create 40 in (* more than 40 bytes of options can't
-                                              be signalled in the length field of
-                                              the tcp header *)
+    let buf = Cstruct.create (sizeof_tcp + 40) in (* more than 40 bytes of options can't
+                                                     be signalled in the length field of
+                                                     the tcp header *)
+    let options_buf = Cstruct.shift buf sizeof_tcp in
     let options_len = Options.marshal options_buf t.options in
-    let options_buf = Cstruct.set_len options_buf options_len in
-    let buf = Cstruct.create sizeof_tcp in
+    let buf = Cstruct.set_len buf (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
-    Cstruct.concat [buf; options_buf]
+    buf
 end
