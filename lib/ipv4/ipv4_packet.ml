@@ -55,7 +55,7 @@ module Marshal = struct
     set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
     set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
     Cstruct.blit t.options 0 buf sizeof_ipv4 (Cstruct.len t.options);
-    set_ipv4_len buf (sizeof_ipv4 + (options_len / 4) + payload_len);
+    set_ipv4_len buf (sizeof_ipv4 + options_len + payload_len);
     let checksum = Tcpip_checksum.ones_complement @@ Cstruct.sub buf 0 (20 + options_len) in
     set_ipv4_csum buf checksum
 
