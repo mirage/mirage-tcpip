@@ -27,7 +27,22 @@ let test_unmarshal_without_options () =
   | _ ->
       Alcotest.fail "Fail to parse ip packet with options"
 
+let test_size () =
+  let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let dst = Ipaddr.V4.of_string_exn "127.0.0.2" in
+  let ttl = 64 in
+  let ip = { Ipv4_packet.src; dst; proto = 17; ttl; options = (Cstruct.of_string "aaaa") } in
+  let tmp = Ipv4_packet.Marshal.make_cstruct ~payload_len:100 ip in
+  let tmp = Cstruct.concat [tmp; Cstruct.create 100] in
+  Printf.printf "len = %d\n" (Cstruct.len tmp);
+  match Ipv4_packet.Unmarshal.of_cstruct tmp with
+  | Error x -> failwith x
+  | Ok (loaded, _) ->
+    assert (Ipv4_packet.equal ip loaded);
+    Lwt.return_unit
+
 let suite = [
   "unmarshal ip datagram with options", `Quick, test_unmarshal_with_options;
-  "unmarshal ip datagram without options", `Quick, test_unmarshal_without_options
-  ]
+  "unmarshal ip datagram without options", `Quick, test_unmarshal_without_options;
+  "size", `Quick, test_size;
+]
