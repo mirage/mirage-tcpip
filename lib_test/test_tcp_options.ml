@@ -98,7 +98,7 @@ let test_unmarshal_ok_options () =
   match Tcp.Options.unmarshal buf with
   | Error s -> Alcotest.fail s
   | Ok l ->
-    OUnit.assert_equal (List.rev l) opts;
+    OUnit.assert_equal l opts;
     Lwt.return_unit
 
 let test_unmarshal_random_data () =
@@ -163,7 +163,11 @@ let test_marshal_into_cstruct () =
   let options_size = 12 in (* MSS is 4 bytes, SACK_OK is 4 bytes, window_size_shift is 3, plus 1 for padding *)
   let buf = Cstruct.create (Tcp.Tcp_wire.sizeof_tcp + options_size) in
   Cstruct.memset buf 255;
-  let pseudoheader = Cstruct.create 8 in
+  let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let ipv4_header = {Ipv4_packet.src; dst; proto = 6; ttl = 64; options = Cstruct.create 0} in
+  let payload = Cstruct.of_string "ab" in
+  let pseudoheader = Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`TCP (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.len payload) in
   let packet =
     Tcp.Tcp_packet.{
       urg = false;
@@ -180,16 +184,19 @@ let test_marshal_into_cstruct () =
       dst_port = 6667;
     }
   in
-  match Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload:(Cstruct.create 0) packet buf with
-  | Error e -> Alcotest.fail e
-  | Ok n ->
-    Alcotest.check Alcotest.int "correct size written" (Cstruct.len buf) n;
-    let just_options = Cstruct.create options_size in
-    let generated_options = Cstruct.shift buf Tcp.Tcp_wire.sizeof_tcp in
-    Alcotest.check Alcotest.int "size of options buf" options_size @@ Tcp.Options.marshal just_options options;
-    (* expecting the result of Options.Marshal to be here *)
-    Alcotest.check Common.cstruct "marshalled options are as expected" just_options generated_options;
-    Lwt.return_unit
+  Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload packet buf
+  |> Alcotest.(check (result int string)) "correct size written" (Ok (Cstruct.len buf));
+  let raw =Cstruct.concat [buf; payload]  in
+  Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP ~ipv4_header ~transport_packet:raw
+  |> Alcotest.(check bool) "Checksum correct" true;
+  Tcp.Tcp_packet.Unmarshal.of_cstruct raw
+  |> Alcotest.(check (result (pair Common.tcp_packet Common.cstruct) string)) "reload TCP packet" (Ok (packet, payload));
+  let just_options = Cstruct.create options_size in
+  let generated_options = Cstruct.shift buf Tcp.Tcp_wire.sizeof_tcp in
+  Alcotest.check Alcotest.int "size of options buf" options_size @@ Tcp.Options.marshal just_options options;
+  (* expecting the result of Options.Marshal to be here *)
+  Alcotest.check Common.cstruct "marshalled options are as expected" just_options generated_options;
+  Lwt.return_unit
 
 let suite = [
   "unmarshal broken mss", `Quick, test_unmarshal_bad_mss;

@@ -24,7 +24,9 @@ let cstruct =
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
 
+let ipv4_packet = (module Ipv4_packet : Alcotest.TESTABLE with type t = Ipv4_packet.t)
 let udp_packet = (module Udp_packet : Alcotest.TESTABLE with type t = Udp_packet.t)
+let tcp_packet = (module Tcp.Tcp_packet : Alcotest.TESTABLE with type t = Tcp.Tcp_packet.t)
 
 let sequence =
   let module M = struct
