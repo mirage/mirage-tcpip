@@ -196,6 +196,11 @@ let test_marshal_into_cstruct () =
   Alcotest.check Alcotest.int "size of options buf" options_size @@ Tcp.Options.marshal just_options options;
   (* expecting the result of Options.Marshal to be here *)
   Alcotest.check Common.cstruct "marshalled options are as expected" just_options generated_options;
+  (* Now try with make_cstruct *)
+  let headers = Tcp.Tcp_packet.Marshal.make_cstruct ~pseudoheader ~payload packet in
+  let raw =Cstruct.concat [headers; payload]  in
+  Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP ~ipv4_header ~transport_packet:raw
+  |> Alcotest.(check bool) "Checksum correct" true;
   Lwt.return_unit
 
 let suite = [
