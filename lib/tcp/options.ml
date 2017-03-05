@@ -27,6 +27,16 @@ type t =
   | Timestamp of int32 * int32    (* RFC1323 3.2 *)
   | Unknown of int * string       (* RFC793 *)
 
+let equal x y = match x, y with
+  | Noop, Noop -> true
+  | MSS x, MSS y -> x = y
+  | Window_size_shift x, Window_size_shift y -> x = y
+  | SACK_ok, SACK_ok -> true
+  | Timestamp (a, b), Timestamp (x, y) -> a = x && b = y
+  | SACK l1, SACK l2 -> List.for_all2 (fun x y -> x = y) l1 l2
+  | Unknown (a, s1), Unknown (b, s2) -> a = b && String.equal s1 s2
+  | _, _ -> false
+
 let report_error n =
   let error = Printf.sprintf "Invalid option %d presented" n in
   Error error

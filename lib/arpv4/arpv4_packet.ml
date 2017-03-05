@@ -8,7 +8,12 @@ type t = {
   tpa: Ipaddr.V4.t;
 }
 
-let equal s t = (s = t)
+let equal {op; sha; spa; tha; tpa} q =
+  Arpv4_wire.(compare (op_to_int op) (op_to_int q.op)) = 0 &&
+  Macaddr.compare sha q.sha = 0 &&
+  Ipaddr.V4.compare spa q.spa = 0 &&
+  Macaddr.compare tha q.tha = 0 &&
+  Ipaddr.V4.compare tpa q.tpa = 0
 
 let pp fmt t =
   Format.fprintf fmt "MAC %s (IP %a) -> MAC %s (IP %a): ARP operation %s"
