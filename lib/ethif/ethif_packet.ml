@@ -12,7 +12,10 @@ let pp fmt t =
   Format.fprintf fmt "%s -> %s: %s" (Macaddr.to_string t.source)
     (Macaddr.to_string t.destination) (Ethif_wire.ethertype_to_string t.ethertype)
 
-let equal p q = (p = q)
+let equal {source; destination; ethertype} q =
+  (Macaddr.compare source q.source) = 0 &&
+  (Macaddr.compare destination q.destination) = 0 &&
+  Ethif_wire.(compare (ethertype_to_int ethertype) (ethertype_to_int q.ethertype)) = 0
 
 module Unmarshal = struct
 
