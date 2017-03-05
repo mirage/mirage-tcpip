@@ -102,9 +102,9 @@ module Marshal = struct
       else Ok ()
     in
     let check_overall_len header_length =
-      if (Cstruct.len buf) < ((Cstruct.len payload) + header_length) then
-        Error (Printf.sprintf "Not enough space for header and payload: %d < %d"
-                 (Cstruct.len buf) (Cstruct.len payload + header_length))
+      if (Cstruct.len buf) < header_length then
+        Error (Printf.sprintf "Not enough space for TCP header: %d < %d"
+                 (Cstruct.len buf) header_length)
       else Ok ()
     in
     let insert_options options_frame =

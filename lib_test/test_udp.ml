@@ -60,7 +60,24 @@ let write () =
   Static_arp.add_entry stack.arp dst (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
   Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >|= Rresult.R.get_ok
 
+let marshal_marshal () =
+  let error_str = Alcotest.result Alcotest.reject Alcotest.string in
+  let udp = {Udp_packet.src_port = 1; dst_port = 2} in
+  let payload = Cstruct.create 100 in
+  let buffer = Cstruct.create Udp_wire.sizeof_udp in
+  let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let pseudoheader = Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`UDP (Cstruct.len buffer + Cstruct.len payload) in
+  Udp_packet.Marshal.into_cstruct ~pseudoheader ~payload udp (Cstruct.shift buffer 1)
+  |> Alcotest.check error_str "Buffer too short" (Error "Not enough space for a UDP header");
+  Udp_packet.Marshal.into_cstruct ~pseudoheader ~payload udp buffer
+  |> Alcotest.(check (result unit string)) "Buffer big enough for header" (Ok ());
+  Udp_packet.Unmarshal.of_cstruct (Cstruct.concat [buffer; payload])
+  |> Alcotest.(check (result (pair Common.udp_packet Common.cstruct) string)) "Save and reload" (Ok (udp, payload));
+  Lwt.return_unit
+
 let suite = [
+  "marshal/marshal", `Quick, marshal_marshal;
   "marshal/unmarshal", `Quick, marshal_unmarshal;
   "write packets", `Quick, write;
 ]
