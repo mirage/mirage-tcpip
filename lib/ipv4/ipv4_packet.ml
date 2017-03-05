@@ -125,8 +125,13 @@ module Unmarshal = struct
         if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
       in
-      let payload = Cstruct.sub buf options_end payload_len in
-      Result.Ok ({src; dst; proto; ttl; options;}, payload)
+      let payload_available = Cstruct.len buf - options_end in
+      if payload_available < payload_len then (
+        Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
+      ) else (
+        let payload = Cstruct.sub buf options_end payload_len in
+        Ok ({src; dst; proto; ttl; options;}, payload)
+      )
     in
     size_check buf >>= check_version >>= get_header_length >>= parse buf
 
