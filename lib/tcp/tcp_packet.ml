@@ -133,7 +133,6 @@ module Marshal = struct
     let options_len = Options.marshal options_buf t.options in
     let options_buf = Cstruct.set_len options_buf options_len in
     let buf = Cstruct.create sizeof_tcp in
-    Cstruct.memset buf 0x00; (* remove when Cstruct gives zero'd buffers by default*)
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     Cstruct.concat [buf; options_buf]
 end
