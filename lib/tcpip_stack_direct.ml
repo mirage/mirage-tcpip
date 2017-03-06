@@ -29,7 +29,7 @@ module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
 
 module Make
     (Time    : Mirage_time.S)
-    (Random  : Mirage_random.S)
+    (Random  : Mirage_random.C)
     (Netif   : Mirage_net_lwt.S)
     (Ethif   : Mirage_protocols_lwt.ETHIF with type netif = Netif.t)
     (Arpv4   : Mirage_protocols_lwt.ARP)
