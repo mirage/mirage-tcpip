@@ -41,7 +41,7 @@ module Unmarshal = struct
     in
     let options data_offset pkt =
       if data_offset > 20 then
-        Options.unmarshal (Cstruct.shift pkt sizeof_tcp)
+        Options.unmarshal (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
       else if data_offset < 20 then
         Result.Error "data offset was unreasonably short; TCP header can't be valid"
       else (Ok [])
