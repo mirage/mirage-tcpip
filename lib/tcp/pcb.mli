@@ -16,7 +16,7 @@
 
 open !Result
 
-module Make(Ip:Mirage_protocols_lwt.IP)(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S with type buffer = Cstruct.t) : sig
+module Make(Ip:Mirage_protocols_lwt.IP)(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.C) : sig
 
   (** Overall state of the TCP stack *)
   type t
