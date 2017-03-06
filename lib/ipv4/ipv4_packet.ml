@@ -15,7 +15,12 @@ let pp fmt t =
   Format.fprintf fmt "IPv4 packet %a -> %a: proto %d, ttl %d, options %a"
     Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.proto t.ttl Cstruct.hexdump_pp t.options
 
-let equal p q = (p = q)
+let equal {src; dst; proto; ttl; options} q =
+  src = q.src &&
+  dst = q.dst &&
+  proto = q.proto &&
+  ttl = q.ttl &&
+  Cstruct.equal options q.options
 
 module Marshal = struct
   open Ipv4_wire
@@ -38,7 +43,7 @@ module Marshal = struct
     Cstruct.BE.set_uint16 ph 10 len;
     ph
 
-  let unsafe_fill ~payload t buf =
+  let unsafe_fill ~payload_len t buf =
     let nearest_4 n = match n mod 4 with
       | 0 -> n
       | k -> (4 - k) + n
@@ -50,19 +55,19 @@ module Marshal = struct
     set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
     set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
     Cstruct.blit t.options 0 buf sizeof_ipv4 (Cstruct.len t.options);
-    set_ipv4_len buf (sizeof_ipv4 + (options_len / 4) + (Cstruct.len payload));
+    set_ipv4_len buf (sizeof_ipv4 + options_len + payload_len);
     let checksum = Tcpip_checksum.ones_complement @@ Cstruct.sub buf 0 (20 + options_len) in
     set_ipv4_csum buf checksum
 
 
-  let into_cstruct ~payload t buf =
+  let into_cstruct ~payload_len t buf =
     if Cstruct.len buf < (sizeof_ipv4 + Cstruct.len t.options) then
       Result.Error "Not enough space for IPv4 header"
     else begin
-      Result.Ok (unsafe_fill ~payload t buf)
+      Result.Ok (unsafe_fill ~payload_len t buf)
     end
 
-  let make_cstruct ~payload t =
+  let make_cstruct ~payload_len t =
     let nearest_4 n = match n mod 4 with
       | 0 -> n
       | k -> (4 - k) + n
@@ -70,7 +75,7 @@ module Marshal = struct
     let options_len = nearest_4 @@ Cstruct.len t.options in
     let buf = Cstruct.create (sizeof_ipv4 + options_len) in
     Cstruct.memset buf 0x00; (* should be removable in the future *)
-    unsafe_fill ~payload t buf;
+    unsafe_fill ~payload_len t buf;
     buf
 end
 module Unmarshal = struct
@@ -120,8 +125,13 @@ module Unmarshal = struct
         if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
       in
-      let payload = Cstruct.sub buf options_end payload_len in
-      Result.Ok ({src; dst; proto; ttl; options;}, payload)
+      let payload_available = Cstruct.len buf - options_end in
+      if payload_available < payload_len then (
+        Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
+      ) else (
+        let payload = Cstruct.sub buf options_end payload_len in
+        Ok ({src; dst; proto; ttl; options;}, payload)
+      )
     in
     size_check buf >>= check_version >>= get_header_length >>= parse buf
 

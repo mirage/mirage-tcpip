@@ -99,6 +99,7 @@ let unmarshal buf =
       | Ok items, Ok item -> Ok (item :: items)
       | _, Error s | Error s, _ -> Error s
     ) i (Ok [])
+  |> Rresult.R.map List.rev
 
 let size_of_option = function
   | Noop -> 1
@@ -205,8 +206,4 @@ let pp fmt = function
   | Timestamp (a,b)     -> pf fmt "Timestamp(%lu,%lu)" a b
   | Unknown (t,_)       -> pf fmt "%d?" t
 
-let pps fmt = function
-  | [] -> pf fmt "[]"
-  | x  ->
-    let ppl fmt x = Format.pp_print_list pp fmt x in
-    pf fmt "[ %a ]" ppl x
+let pps = Fmt.Dump.list pp

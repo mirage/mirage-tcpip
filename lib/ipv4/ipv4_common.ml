@@ -25,10 +25,10 @@ let allocate_frame ~src ~source ~(dst:Ipaddr.V4.t) ~(proto : [`ICMP | `TCP | `UD
     let ipv4_header = Ipv4_packet.({options = Cstruct.create 0;
                                     src; dst; ttl = 38; 
                                     proto = Ipv4_packet.Marshal.protocol_to_int proto; }) in
-    (* set the payload to 0, since we don't know what it'll be yet *)
+    (* set the payload_len to 0, since we don't know what it'll be yet *)
     (* the caller needs to then use [writev] or [write] to output the buffer;
        otherwise length, id, and checksum won't be set properly *)
-    match Ipv4_packet.Marshal.into_cstruct ~payload:(Cstruct.create 0) ipv4_header buf with
+    match Ipv4_packet.Marshal.into_cstruct ~payload_len:0 ipv4_header buf with
     | Error _s ->
       raise (Invalid_argument "writing ipv4 header to ipv4.allocate_frame failed")
     | Ok () ->
