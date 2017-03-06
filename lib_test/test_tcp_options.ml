@@ -203,6 +203,41 @@ let test_marshal_into_cstruct () =
   |> Alcotest.(check bool) "Checksum correct" true;
   Lwt.return_unit
 
+let test_marshal_without_padding () =
+  let options = [ Tcp.Options.MSS 1460 ] in
+  let options_size = 4 in (* MSS is 4 bytes *)
+  let buf = Cstruct.create (Tcp.Tcp_wire.sizeof_tcp + options_size) in
+  Cstruct.memset buf 255;
+  let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
+  let ipv4_header = {Ipv4_packet.src; dst; proto = 6; ttl = 64; options = Cstruct.create 0} in
+  let payload = Cstruct.of_string "\x02\x04\x05\xb4" in
+  let pseudoheader = Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`TCP (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.len payload) in
+  let packet =
+    Tcp.Tcp_packet.{
+      urg = false;
+      ack = true;
+      psh = false;
+      rst = false;
+      syn = true;
+      fin = false;
+      window = 0;
+      options;
+      sequence = Tcp.Sequence.of_int 255;
+      ack_number = Tcp.Sequence.of_int 1024;
+      src_port = 3000;
+      dst_port = 6667;
+    }
+  in
+  Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload packet buf
+  |> Alcotest.(check (result int string)) "correct size written" (Ok (Cstruct.len buf));
+  let raw =Cstruct.concat [buf; payload]  in
+  Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP ~ipv4_header ~transport_packet:raw
+  |> Alcotest.(check bool) "Checksum correct" true;
+  Tcp.Tcp_packet.Unmarshal.of_cstruct raw
+  |> Alcotest.(check (result (pair Common.tcp_packet Common.cstruct) string)) "reload TCP packet" (Ok (packet, payload));
+  Lwt.return_unit
+
 let suite = [
   "unmarshal broken mss", `Quick, test_unmarshal_bad_mss;
   "unmarshal option with bogus length", `Quick, test_unmarshal_bogus_length;
@@ -212,6 +247,7 @@ let suite = [
   "unmarshal non-broken tcp options", `Quick, test_unmarshal_ok_options;
   "unmarshalling random data returns", `Quick, test_unmarshal_random_data;
   "test marshalling into a cstruct", `Quick, test_marshal_into_cstruct;
+  "test marshalling without padding", `Quick, test_marshal_without_padding;
   "test marshalling an unknown value", `Quick, test_marshal_unknown;
   "test options marshalling when padding is needed", `Quick, test_options_marshal_padding;
   "test marshalling the empty list", `Quick, test_marshal_empty;
