@@ -41,7 +41,7 @@ module Unmarshal = struct
     in
     let options data_offset pkt =
       if data_offset > 20 then
-        Options.unmarshal (Cstruct.shift pkt sizeof_tcp)
+        Options.unmarshal (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
       else if data_offset < 20 then
         Result.Error "data offset was unreasonably short; TCP header can't be valid"
       else (Ok [])
@@ -71,13 +71,13 @@ module Marshal = struct
   type error = string
 
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
-    let data_off = (sizeof_tcp / 4) + (options_len / 4) in
-    let buf = Cstruct.sub buf 0 (data_off * 4) in
+    let data_off = sizeof_tcp + options_len in
+    let buf = Cstruct.sub buf 0 data_off in
     set_tcp_src_port buf t.src_port;
     set_tcp_dst_port buf t.dst_port;
     set_tcp_sequence buf (Sequence.to_int32 t.sequence);
     set_tcp_ack_number buf (Sequence.to_int32 t.ack_number);
-    set_data_offset buf data_off;
+    set_data_offset buf (data_off / 4);
     set_tcp_flags buf 0;
     if t.urg then set_urg buf;
     if t.ack then set_ack buf;
@@ -102,9 +102,9 @@ module Marshal = struct
       else Ok ()
     in
     let check_overall_len header_length =
-      if (Cstruct.len buf) < ((Cstruct.len payload) + header_length) then
-        Error (Printf.sprintf "Not enough space for header and payload: %d < %d"
-                 (Cstruct.len buf) (Cstruct.len payload + header_length))
+      if (Cstruct.len buf) < header_length then
+        Error (Printf.sprintf "Not enough space for TCP header: %d < %d"
+                 (Cstruct.len buf) header_length)
       else Ok ()
     in
     let insert_options options_frame =
@@ -127,13 +127,12 @@ module Marshal = struct
     Ok (sizeof_tcp + options_len)
 
   let make_cstruct ~pseudoheader ~payload t =
-    let options_buf = Cstruct.create 40 in (* more than 40 bytes of options can't
-                                              be signalled in the length field of
-                                              the tcp header *)
+    let buf = Cstruct.create (sizeof_tcp + 40) in (* more than 40 bytes of options can't
+                                                     be signalled in the length field of
+                                                     the tcp header *)
+    let options_buf = Cstruct.shift buf sizeof_tcp in
     let options_len = Options.marshal options_buf t.options in
-    let options_buf = Cstruct.set_len options_buf options_len in
-    let buf = Cstruct.create sizeof_tcp in
-    Cstruct.memset buf 0x00; (* remove when Cstruct gives zero'd buffers by default*)
+    let buf = Cstruct.set_len buf (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
-    Cstruct.concat [buf; options_buf]
+    buf
 end
