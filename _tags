@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e84d3403e01a7ec4decab72b98992f98)
+# DO NOT EDIT (digest: 70d7840373b3944f0395f5d9c0424602)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -72,7 +72,9 @@ true: annot, bin_annot
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-profile
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-protocols
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-protocols-lwt
+<lib/ipv6/*.ml{,i,y}>: pkg_mirage-random
 <lib/ipv6/*.ml{,i,y}>: pkg_mirage-time-lwt
+<lib/ipv6/*.ml{,i,y}>: pkg_randomconv
 <lib/ipv6/*.ml{,i,y}>: pkg_result
 <lib/ipv6/*.ml{,i,y}>: pkg_rresult
 <lib/ipv6/*.ml{,i,y}>: use_ethif
