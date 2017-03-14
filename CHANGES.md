@@ -1,4 +1,14 @@
-### 3.0.0 (2017-soon!)
+### 3.1.0 (2017-03-14)
+
+* implement MTU setting and querying in the Ethernet module (compatibility with mirage-protocols version 1.1.0), and use this value to inform TCP's MSS. (#288, by @djs55)
+* rename the ~payload argument of TCP/UDP marshallers to ~payload_len, in an attempt to clarify that the payload will not be copied to the Cstruct.t returned by these functions (#301, by @talex5)
+* functorize ipv6 over a random implementation (#298, by @olleolleolle and @hannesm)
+* add tests for sending and receiving UDP packets over IPv6 (#300, by @mattgray)
+* avoid float in TCP RTO calculations. (#295, by @olleolleolle and @mattgray)
+* numerous bugfixes in header marshallers and unmarshallers (#301, by @talex5 and @yomimono)
+* replace polymorphic equality in _packet.equals functions (#302, by @yomimono)
+
+### 3.0.0 (2017-02-23)
 
 * adapt to MirageOS 3 API changes (*many* PRs, from @hannesm, @samoht, and @yomimono):
   - replace error polyvars in many functions with result types
