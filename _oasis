@@ -70,8 +70,8 @@ Library ipv6
   Findlibname:        ipv6
   Modules:            Ipv6, Ndpv6, Ipv6_wire
   BuildDepends:       logs,io-page,mirage-protocols-lwt,ipaddr,cstruct,cstruct.ppx,lwt,
-                      tcpip,tcpip.ethif, duration,
-                      mirage-time-lwt, mirage-clock-lwt
+                      tcpip,tcpip.ethif, duration, randomconv,
+                      mirage-time-lwt, mirage-clock-lwt, mirage-random
 
 Library icmpv4
   CompiledObject:     best
