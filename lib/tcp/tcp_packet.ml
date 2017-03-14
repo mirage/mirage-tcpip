@@ -13,7 +13,15 @@ type t = {
   dst_port : Cstruct.uint16;
 }
 
-let equal p q = (p = q)
+let equal {urg; ack; psh; rst; syn; fin; window; options; sequence; ack_number;
+           src_port; dst_port} q =
+  src_port = q.src_port &&
+  dst_port = q.dst_port &&
+  window = q.window &&
+  urg = q.urg && ack = q.ack && psh = q.psh && rst = q.rst && syn = q.syn && fin = q.fin &&
+  Sequence.compare sequence q.sequence = 0 &&
+  Sequence.compare ack_number q.ack_number = 0 &&
+  List.for_all2 Options.equal options q.options
 
 let pp fmt t =
   Format.fprintf fmt

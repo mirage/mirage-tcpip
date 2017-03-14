@@ -3,7 +3,10 @@ type t = {
   dst_port : Cstruct.uint16;
 }
 
-let equal p q = (p = q)
+let equal {src_port; dst_port} q =
+  src_port = q.src_port &&
+  dst_port = q.dst_port
+
 let pp fmt t =
   Format.fprintf fmt "UDP port %d -> %d" t.src_port t.dst_port
 
