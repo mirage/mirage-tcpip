@@ -26,6 +26,7 @@ let suite = [
   "arp"            , Test_arp.suite         ;
   "connect"        , Test_connect.suite     ;
   "iperf"          , Test_iperf.suite       ;
+  "ipv6"           , Test_ipv6.suite        ;
 ]
 
 let run test () =
