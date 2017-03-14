@@ -23,6 +23,7 @@ open Lwt.Infix
 open Result
 
 module Make (E : Mirage_protocols_lwt.ETHIF)
+            (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (C : Mirage_clock_lwt.MCLOCK) = struct
   type ethif    = E.t
@@ -90,7 +91,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
 
   let input t ~tcp ~udp ~default buf =
     let now = C.elapsed_ns t.clock in
-    let _, bufs, actions = Ndpv6.handle ~now t.ctx buf in
+    let _, bufs, actions = Ndpv6.handle ~now ~random:R.generate t.ctx buf in
     Lwt_list.iter_s (function
         | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
         | `Udp (src, dst, buf) -> udp ~src ~dst buf
@@ -157,7 +158,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
   let connect ?ip ?netmask ?gateways ethif clock =
     Log.info (fun f -> f "IP6: Starting");
     let now = C.elapsed_ns clock in
-    let ctx, bufs = Ndpv6.local ~now (E.mac ethif) in
+    let ctx, bufs = Ndpv6.local ~now ~random:R.generate (E.mac ethif) in
     let t = {ctx; clock; ethif} in
     (* MCP: replace this error swallowing with proper propagation *)
     Lwt_list.iter_s (fun buf ->

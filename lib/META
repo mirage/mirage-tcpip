@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: dcb10f894da854c58b0447220a8b0f5c)
+# DO NOT EDIT (digest: dea45474f75e5646b607f83517bf63c0)
 version = "3.0.0"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -131,7 +131,7 @@ package "ipv6" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration mirage-time-lwt mirage-clock-lwt"
+ "logs io-page mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration randomconv mirage-time-lwt mirage-clock-lwt mirage-random"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
