@@ -26,7 +26,19 @@ let pp fmt t =
   say fmt "ICMP type %s, code %d, subheader [%a]" (Icmpv4_wire.ty_to_string t.ty)
     t.code pp_subheader t.subheader
 
-let equal p q = (p = q)
+let subheader_eq = function
+  | Unused, Unused -> true
+  | Id_and_seq (a, b), Id_and_seq (p, q) -> a = p && b = q
+  | Next_hop_mtu a, Next_hop_mtu b-> a = b
+  | Pointer a, Pointer b -> a = b
+  | Address a, Address b -> Ipaddr.V4.compare a b = 0
+  | _ -> false
+
+let equal {code; ty; subheader} q =
+  code = q.code &&
+  ty = q.ty &&
+  subheader_eq (subheader, q.subheader)
+
 
 module Unmarshal = struct
 
