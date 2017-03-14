@@ -3,7 +3,7 @@ module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 
-module Ipv6 = Ipv6.Make(E)(Time)(Mclock)
+module Ipv6 = Ipv6.Make(E)(Stdlibrandom)(Time)(Mclock)
 module Udp = Udp.Make(Ipv6)(Stdlibrandom)
 open Lwt.Infix
 
