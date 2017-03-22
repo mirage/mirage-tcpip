@@ -16,17 +16,17 @@
 
 let suite = [
   "checksums"      , Test_checksums.suite   ;
-  "tcp_window"     , Test_tcp_window.suite  ;
-  "udp"            , Test_udp.suite         ;
-  "socket"         , Test_socket.suite      ;
-  "icmpv4"         , Test_icmpv4.suite      ;
-  "tcp_options"    , Test_tcp_options.suite ;
-  "ip_options"     , Test_ip_options.suite  ;
-  "rfc5961"        , Test_rfc5961.suite     ;
   "arp"            , Test_arp.suite         ;
+  "ipv4"           , Test_ipv4.suite        ;
+  "ipv6"           , Test_ipv6.suite        ;
+  "icmpv4"         , Test_icmpv4.suite      ;
+  "udp"            , Test_udp.suite         ;
+  "tcp_window"     , Test_tcp_window.suite  ;
+  "tcp_options"    , Test_tcp_options.suite ;
+  "rfc5961"        , Test_rfc5961.suite     ;
+  "socket"         , Test_socket.suite      ;
   "connect"        , Test_connect.suite     ;
   "iperf"          , Test_iperf.suite       ;
-  "ipv6"           , Test_ipv6.suite        ;
 ]
 
 let run test () =

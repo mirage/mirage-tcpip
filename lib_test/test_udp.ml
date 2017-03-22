@@ -60,6 +60,16 @@ let write () =
   Static_arp.add_entry stack.arp dst (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
   Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >|= Rresult.R.get_ok
 
+let unmarshal_regression () =
+  let i = Cstruct.create 1016 in
+  Cstruct.memset i 30; 
+  Cstruct.set_char i 4 '\x04';
+  Cstruct.set_char i 5 '\x00';
+  Alcotest.(check (result reject pass)) "correctly return error for bad packet"
+    (Error "parse failed") (Udp_packet.Unmarshal.of_cstruct i);
+  Lwt.return_unit
+
+
 let marshal_marshal () =
   let error_str = Alcotest.result Alcotest.reject Alcotest.string in
   let udp = {Udp_packet.src_port = 1; dst_port = 2} in
@@ -77,6 +87,7 @@ let marshal_marshal () =
   Lwt.return_unit
 
 let suite = [
+  "unmarshal regression", `Quick, unmarshal_regression;
   "marshal/marshal", `Quick, marshal_marshal;
   "marshal/unmarshal", `Quick, marshal_unmarshal;
   "write packets", `Quick, write;
