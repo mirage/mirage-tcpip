@@ -113,6 +113,8 @@ module Unmarshal = struct
                           (get_ipv4_len buf) hlen)
         else if hlen < sizeof_ipv4 then Result.Error
           (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
+        else if Cstruct.len buf < hlen then Result.Error
+          (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.len buf) hlen)
         else Result.Ok hlen
     in
     let parse buf options_end =
