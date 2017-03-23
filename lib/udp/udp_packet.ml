@@ -25,7 +25,7 @@ module Unmarshal = struct
         Error "UDP header claimed a total length < the size of just the header"
       else begin
         let payload_len = length_from_header - sizeof_udp in
-        if payload_len > length_of_buffer
+        if payload_len > (length_of_buffer - sizeof_udp)
         then Error (Printf.sprintf
 	      "UDP header claimed a payload longer than the supplied buffer: %d vs %d."
               payload_len length_of_buffer)
