@@ -32,12 +32,13 @@ type t = {
 
 let get_udpv6_listening_fd {listen_fds;interface} port =
   try
-    Hashtbl.find listen_fds (interface,port)
+    Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface,port));
+    Lwt_unix.Versioned.bind_2 fd (Lwt_unix.ADDR_INET (interface,port))
+    >>= fun () ->
     Hashtbl.add listen_fds (interface,port) fd;
-    fd
+    Lwt.return fd
 
 (** IO operation errors *)
 type error = [
@@ -68,11 +69,10 @@ let id { interface; _ } =
 
 let write ?source_port ~dest_ip ~dest_port t buf =
   let open Lwt_unix in
-  let fd =
-    match source_port with
+  ( match source_port with
     | None -> get_udpv6_listening_fd t 0
-    | Some port -> get_udpv6_listening_fd t port
-  in
+    | Some port -> get_udpv6_listening_fd t port )
+  >>= fun fd ->
   Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dest_ip), dest_port))
   >>= fun _ ->
   return_unit
