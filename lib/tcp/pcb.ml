@@ -603,12 +603,6 @@ struct
           | Error (`No_route _s) ->
             (* normal mechanism for recovery is fine *)
             connecttimer t id tx_isn options window (count + 1)
-          | Error e ->
-            (* TODO: possibly the more sensible thing to do is give up *)
-            Log.warn (fun f ->
-                f "Error sending initial SYN in TCP connection: %a"
-                  WIRE.pp_error e);
-            connecttimer t id tx_isn options window (count + 1)
         )
       else Lwt.return_unit
 
@@ -641,11 +635,6 @@ struct
     | Ok () | Error (`No_route _) (* keep trying *) ->
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
-    | Error e ->
-      Log.warn (fun f ->
-          f "Failure sending initial SYN in outgoing connection: %a"
-            WIRE.pp_error e);
-      Lwt.return @@ Error (e :> error)
 
   (* Construct the main TCP thread *)
   let create ip clock =
