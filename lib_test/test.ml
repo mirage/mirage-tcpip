@@ -23,6 +23,7 @@ let suite = [
   "udp"            , Test_udp.suite         ;
   "tcp_window"     , Test_tcp_window.suite  ;
   "tcp_options"    , Test_tcp_options.suite ;
+  "mtu+tcp"        , Test_mtus.suite        ;
   "rfc5961"        , Test_rfc5961.suite     ;
   "socket"         , Test_socket.suite      ;
   "connect"        , Test_connect.suite     ;
