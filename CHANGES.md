@@ -1,3 +1,9 @@
+### 3.1.1 (2017-05-14)
+
+* fix parsing 20-byte cstructs as ipv4 packets (#307, by @yomimono)
+* udp: payload length parse fix (#307, by @yomimono)
+* support lwt >= 2.7.0 (#308, by @djs55)
+
 ### 3.1.0 (2017-03-14)
 
 * implement MTU setting and querying in the Ethernet module (compatibility with mirage-protocols version 1.1.0), and use this value to inform TCP's MSS. (#288, by @djs55)

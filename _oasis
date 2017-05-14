@@ -1,10 +1,11 @@
 OASISFormat: 0.4
 Name:        tcpip
-Version:     3.1.0
+Version:     3.1.1
 Synopsis:    Implementations for network-related module types from MirageOS.
 Authors:     Anil Madhavapeddy, Balraj Singh, Richard Mortier,
              Nicolas Ojeda Bar, Thomas Gazagnaire, Vincent Bernardoff,
-             Magnus Skjegstad, Mindy Preston, Thomas Leonard
+             Magnus Skjegstad, Mindy Preston, Thomas Leonard,
+             David Scott
 License:     ISC
 Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
