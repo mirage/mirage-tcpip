@@ -32,12 +32,13 @@ type t = {
 
 let get_udpv4_listening_fd {listen_fds;interface} port =
   try
-    Hashtbl.find listen_fds (interface,port)
+    Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port));
+    Lwt_unix.Versioned.bind_2 fd (Lwt_unix.ADDR_INET (interface, port))
+    >>= fun () ->
     Hashtbl.add listen_fds (interface, port) fd;
-    fd
+    Lwt.return fd
 
 
 type error = [`Sendto_failed]
@@ -76,9 +77,8 @@ let write ?src_port ~dst ~dst_port t buf =
     | 0 -> return @@ Error `Sendto_failed
     | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
   in
-  let fd =
-    match src_port with
+  ( match src_port with
     | None -> get_udpv4_listening_fd t 0
-    | Some port -> get_udpv4_listening_fd t port
-  in
+    | Some port -> get_udpv4_listening_fd t port )
+  >>= fun fd ->
   write_to_fd fd buf
