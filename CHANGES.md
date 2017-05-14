@@ -1,3 +1,8 @@
+### 3.1.2 (2017-05-14)
+
+* impose a maximum TCP MSS of 1460 to avoid sending over-large datagrams on 1500 MTU links
+  (#309, by @hannesm)
+
 ### 3.1.1 (2017-05-14)
 
 * fix parsing 20-byte cstructs as ipv4 packets (#307, by @yomimono)
