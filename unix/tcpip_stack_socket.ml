@@ -76,26 +76,29 @@ let listen_udpv4 t ~port callback =
   if port < 0 || port > 65535 then
     raise (Invalid_argument (err_invalid_port port))
   else
-    let fd = Udpv4.get_udpv4_listening_fd t.udpv4 port in
-    let buf = Cstruct.create 4096 in
-    let rec loop () =
-      let continue () =
-        (* TODO cancellation *)
-        if true then loop () else return_unit in
-      Lwt_cstruct.recvfrom fd buf []
-      >>= fun (len, sa) ->
-      let buf = Cstruct.sub buf 0 len in
-      begin match sa with
-            | Lwt_unix.ADDR_INET (addr, src_port) ->
-               let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
-               let dst = Ipaddr.V4.any in (* TODO *)
-               callback ~src ~dst ~src_port buf
-            | _ -> return_unit
-      end >>= fun () ->
-      continue ()
-    in
     (* FIXME: we should not ignore the result *)
-    ignore_result (loop ())
+    ignore_result (
+      Udpv4.get_udpv4_listening_fd t.udpv4 port
+      >>= fun fd ->
+      let buf = Cstruct.create 4096 in
+      let rec loop () =
+        let continue () =
+          (* TODO cancellation *)
+          if true then loop () else return_unit in
+        Lwt_cstruct.recvfrom fd buf []
+        >>= fun (len, sa) ->
+        let buf = Cstruct.sub buf 0 len in
+        begin match sa with
+              | Lwt_unix.ADDR_INET (addr, src_port) ->
+                 let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
+                 let dst = Ipaddr.V4.any in (* TODO *)
+                 callback ~src ~dst ~src_port buf
+              | _ -> return_unit
+        end >>= fun () ->
+        continue ()
+      in
+      loop ()
+    )
 
 let listen_tcpv4 _t ~port callback =
   if port < 0 || port > 65535 then
@@ -105,25 +108,27 @@ let listen_tcpv4 _t ~port callback =
     Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
     (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port));
-    Lwt_unix.listen fd 10;
-    let rec loop () =
-      let continue () =
-        (* TODO cancellation *)
-        if true then loop () else return_unit in
-      Lwt_unix.accept fd
-      >>= fun (afd, _) ->
-      Lwt.async (fun () ->
-                 Lwt.catch
-                   (fun () -> callback afd)
-                   (fun _ -> return_unit)
-                );
-      return_unit
-      >>= fun () ->
-      continue ();
-    in
     (* FIXME: we should not ignore the result *)
-    ignore_result (loop ())
+    ignore_result (
+      Lwt_unix.Versioned.bind_2 fd (Lwt_unix.ADDR_INET (interface, port))
+      >>= fun () ->
+      Lwt_unix.listen fd 10;
+      let rec loop () =
+        let continue () =
+          (* TODO cancellation *)
+          if true then loop () else return_unit in
+        Lwt_unix.accept fd
+        >>= fun (afd, _) ->
+        Lwt.async (fun () ->
+                   Lwt.catch
+                     (fun () -> callback afd)
+                     (fun _ -> return_unit)
+                  );
+        return_unit
+        >>= fun () ->
+        continue () in
+      loop ()
+    )
 
 let listen _t =
   let t, _ = Lwt.task () in
