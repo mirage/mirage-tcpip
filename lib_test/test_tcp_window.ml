@@ -20,7 +20,7 @@ end
 module Timed_window = Tcp.Window.Make(Clock)
 
 let default_window () =
-  Tcp.Window.t ~tx_wnd_scale:2 ~rx_wnd_scale:2 ~rx_wnd:65535 ~tx_wnd:65535 ~rx_isn:Tcp.Sequence.zero ~tx_mss:(Some 1460) ~tx_isn:Tcp.Sequence.zero
+  Tcp.Window.t ~tx_wnd_scale:2 ~rx_wnd_scale:2 ~rx_wnd:65535 ~tx_wnd:65535 ~rx_isn:Tcp.Sequence.zero ~tx_mss:1460 ~tx_isn:Tcp.Sequence.zero
 
 let fresh_window () =
   let window = default_window () in

@@ -266,12 +266,15 @@ struct
       rx_wnd_scaleoffer: int }
 
   let new_pcb t params id =
+    let mtu_mss = Ip.mtu t.ip - Tcp_wire.sizeof_tcp in
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
     in
     let tx_mss = List.fold_left (fun a ->
-        function Options.MSS m -> Some m | _ -> a
-      ) None options
+      function
+      | Options.MSS m -> min m mtu_mss
+      | _ -> a
+    ) mtu_mss options
     in
     let (rx_wnd_scale, tx_wnd_scale), opts =
       resolve_wnd_scaling options rx_wnd_scaleoffer
