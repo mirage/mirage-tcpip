@@ -19,7 +19,7 @@ type t
 val pp: Format.formatter -> t -> unit
 
 val t : rx_wnd_scale:int -> tx_wnd_scale:int -> rx_wnd:int ->
-  tx_wnd:int -> rx_isn:Sequence.t -> tx_mss:int option -> tx_isn:Sequence.t -> t
+  tx_wnd:int -> rx_isn:Sequence.t -> tx_mss:int -> tx_isn:Sequence.t -> t
 
 val valid : t -> Sequence.t -> bool
 
