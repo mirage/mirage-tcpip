@@ -24,8 +24,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   module V = VNETIF_STACK (B)
 
-  let backend = V.create_backend ()
-
   let netmask = 24
   let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
@@ -40,27 +38,24 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     mutable last_time: int64;
   }
 
+  type network = {
+    backend : B.t;
+    server : V.Stackv4.t;
+    client : V.Stackv4.t;
+  }
+
+  let default_network ?(backend = B.create ()) () =
+    V.create_stack backend client_ip netmask gw >>= fun client ->
+    V.create_stack backend server_ip netmask gw >>= fun server ->
+      Lwt.return {backend; server; client}
+
   let msg =
-    "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890\
-     abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijk\
-     lmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuv\
-     wxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFG\
-     HIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR\
-     STUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012\
-     34567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abc\
-     defghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmn\
-     opqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxy\
-     zABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJ\
-     KLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU\
-     VWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345\
-     67890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdef\
-     ghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopq\
-     rstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzAB\
-     CDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM\
-     NOPQRSTUVWXYZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX\
-     YZ01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345678\
-     90abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890abcdefghi\
-     jklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890"
+    let m = "01234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" in
+    let rec build l = function
+            | 0 -> l
+            | n -> build (m :: l) (n - 1)
+    in
+    String.concat "" @@ build [] 60
 
   let mlen = String.length msg
 
@@ -162,29 +157,29 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Lwt.wakeup server_done_u ();
     Lwt.return_unit
 
-  let tcp_iperf amt timeout () =
+  let tcp_iperf ~server ~client amt timeout () =
     let port = 5001 in
 
     let server_ready, server_ready_u = Lwt.wait () in
     let server_done, server_done_u = Lwt.wait () in
+    let server_s, client_s = server, client in
+
+    let ip_of s = V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 s) |> List.hd in
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
        fail "iperf test timed out after %f seconds" timeout);
 
-
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
-       Logs.info (fun f -> f  "I am client with IP %s, trying to connect to server @ %s:%d"
-                     (Ipaddr.V4.to_string client_ip)
-                     (Ipaddr.V4.to_string server_ip) port);
-       V.create_stack backend client_ip netmask gw >>= fun client_s ->
+       Logs.info (fun f -> f  "I am client with IP %a, trying to connect to server @ %a:%d"
+         Ipaddr.V4.pp_hum (ip_of client_s) Ipaddr.V4.pp_hum (ip_of server_s) port);
        Lwt.async (fun () -> V.Stackv4.listen client_s);
-       iperfclient client_s amt server_ip port);
+       iperfclient client_s amt (ip_of server) port);
 
-      (Logs.info (fun f -> f  "I am server with IP %s, expecting connections on port %d"
-                     (Ipaddr.V4.to_string server_ip) port);
-       V.create_stack backend server_ip netmask gw >>= fun server_s ->
+      (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
+         Ipaddr.V4.pp_hum (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
+         port);
        Mclock.connect () >>= fun clock ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
        Lwt.wakeup server_ready_u ();
@@ -193,40 +188,49 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     Logs.info (fun f -> f  "Waiting for server_done...");
     server_done >>= fun () ->
     Lwt.return_unit (* exit cleanly *)
-
-  let record_pcap =
-    V.record_pcap backend
 end
 
 let test_tcp_iperf_two_stacks_basic amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Basic) in
-  Test.record_pcap
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
     (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_basic_%d.pcap" amt)
-    (Test.tcp_iperf amt timeout)
+    (Test.tcp_iperf ~server ~client amt timeout)
+
+let test_tcp_iperf_two_stacks_mtu amt timeout () =
+  let module Test = Test_iperf (Vnetif_backends.Mtu_enforced) in
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
+    (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_mtu_%d.pcap" amt)
+    (Test.tcp_iperf ~server ~client amt timeout)
 
 let test_tcp_iperf_two_stacks_trailing_bytes amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Trailing_bytes) in
-  Test.record_pcap
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
     (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_trailing_bytes_%d.pcap" amt)
-    (Test.tcp_iperf amt timeout)
+    (Test.tcp_iperf ~server ~client amt timeout)
 
 let test_tcp_iperf_two_stacks_uniform_packet_loss amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Uniform_packet_loss) in
-  Test.record_pcap
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
     (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss_%d.pcap" amt)
-    (Test.tcp_iperf amt timeout)
+    (Test.tcp_iperf ~server ~client amt timeout)
 
 let test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Uniform_no_payload_packet_loss) in
-  Test.record_pcap
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
     (Printf.sprintf "tests/pcap/tcp_iperf_two_stacks_uniform_packet_loss_no_payload_%d.pcap" amt)
-    (Test.tcp_iperf amt timeout)
+    (Test.tcp_iperf ~server ~client amt timeout)
 
 let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
   let module Test = Test_iperf (Vnetif_backends.Drop_1_second_after_1_megabyte) in
-  Test.record_pcap
+  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  Test.V.record_pcap backend
     "tests/pcap/tcp_iperf_two_stacks_drop_1sec_after_1mb.pcap"
-    (Test.tcp_iperf amt timeout)
+    (Test.tcp_iperf ~server ~client amt timeout)
 
 let amt_quick = 10_000_000
 let amt_slow  = amt_quick * 100
@@ -235,6 +239,9 @@ let suite = [
 
   "iperf with two stacks, basic tests", `Quick,
   test_tcp_iperf_two_stacks_basic amt_quick 120.0;
+
+  "iperf with two stacks, over an MTU-enforcing backend", `Quick,
+  test_tcp_iperf_two_stacks_mtu amt_quick 120.0;
 
   "iperf with two stacks, testing trailing_bytes", `Quick,
   test_tcp_iperf_two_stacks_trailing_bytes amt_quick 120.0;

@@ -22,6 +22,34 @@ module type Backend = sig
   val create : unit -> t
 end
 
+(** This backend enforces an MTU. *)
+module Mtu_enforced = struct
+  module X = Basic_backend.Make
+  include X
+
+  let mtu = ref 1500
+
+  let writev t id l =
+    if (Cstruct.lenv l < 14) then begin
+      Logs.err (fun f -> f "too smol");
+      Lwt.return @@ Error `Unimplemented
+    end
+    else if ((Cstruct.lenv l) - 14) > !mtu then begin
+      Logs.err (fun f -> f "tried to send a %d byte frame, but MTU is only %d" (Cstruct.lenv l) !mtu);
+      assert (((Cstruct.lenv l) - 14) <= !mtu);
+      Lwt.return @@ Error `Unimplemented (* not quite, but we're constrained to Mirage_net.error *)
+    end
+    else X.writev t id l
+
+  let set_mtu m = mtu := m
+
+  let write t id n = writev t id [n]
+
+  let create () =
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+
+end
+
 (** This backend adds a random number of trailing bytes to each frame *)
 module Trailing_bytes : Backend = struct
   module X = Basic_backend.Make
