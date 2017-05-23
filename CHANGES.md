@@ -1,3 +1,7 @@
+### 3.1.3 (2017-05-23)
+
+* involve the IP layer's MTU in the TCP MSS calculation (hopefully correctly) (#313, by @yomimono)
+
 ### 3.1.2 (2017-05-14)
 
 * impose a maximum TCP MSS of 1460 to avoid sending over-large datagrams on 1500 MTU links
