@@ -60,8 +60,8 @@ module Make
     icmpv4: Icmpv4.t;
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
-    udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
-    tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
+    udpv4_listeners: (Cstruct.uint8, Udpv4.callback) Hashtbl.t;
+    tcpv4_listeners: (Cstruct.uint8, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
   }
 
   let pp fmt t =
