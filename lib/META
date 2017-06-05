@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1faf62d71ae81fd3562cab6dc82b03c0)
+# DO NOT EDIT (digest: ee46c29ce02d1c8101c018f25751ee07)
 version = "3.1.3"
 description =
 "Implementations for network-related module types from MirageOS."
@@ -53,7 +53,7 @@ package "udp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile tcpip randomconv fmt mirage-protocols mirage-protocols-lwt mirage-random"
+ "logs ipaddr cstruct lwt result rresult mirage-profile tcpip randomconv fmt mirage-protocols mirage-protocols-lwt mirage-random"
  archive(byte) = "udp.cma"
  archive(byte, plugin) = "udp.cma"
  archive(native) = "udp.cmxa"
@@ -92,7 +92,7 @@ package "tcp" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-protocols mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt result rresult mirage-profile io-page tcpip duration randomconv fmt mirage-time-lwt mirage-clock mirage-random"
+ "logs mirage-protocols mirage-protocols-lwt ipaddr cstruct lwt result rresult mirage-profile io-page tcpip duration randomconv fmt mirage-time-lwt mirage-clock mirage-random"
  archive(byte) = "tcp.cma"
  archive(byte, plugin) = "tcp.cma"
  archive(native) = "tcp.cmxa"
@@ -131,7 +131,7 @@ package "ipv6" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-protocols-lwt ipaddr cstruct cstruct.ppx lwt tcpip tcpip.ethif duration randomconv mirage-time-lwt mirage-clock-lwt mirage-random"
+ "logs io-page mirage-protocols-lwt ipaddr cstruct lwt tcpip tcpip.ethif duration randomconv mirage-time-lwt mirage-clock-lwt mirage-random"
  archive(byte) = "ipv6.cma"
  archive(byte, plugin) = "ipv6.cma"
  archive(native) = "ipv6.cmxa"
@@ -144,7 +144,7 @@ package "ipv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs io-page mirage-protocols ipaddr cstruct.ppx lwt result rresult tcpip tcpip.ethif tcpip.udp tcpip.tcp"
+ "logs io-page mirage-protocols ipaddr lwt result rresult tcpip tcpip.ethif tcpip.udp tcpip.tcp"
  archive(byte) = "ipv4.cma"
  archive(byte, plugin) = "ipv4.cma"
  archive(native) = "ipv4.cmxa"
@@ -170,7 +170,7 @@ package "icmpv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "logs mirage-protocols mirage-protocols-lwt cstruct cstruct.ppx lwt ipaddr result rresult mirage-profile tcpip fmt"
+ "logs mirage-protocols mirage-protocols-lwt cstruct lwt ipaddr result rresult mirage-profile tcpip fmt"
  archive(byte) = "icmpv4.cma"
  archive(byte, plugin) = "icmpv4.cma"
  archive(native) = "icmpv4.cmxa"
@@ -196,7 +196,7 @@ package "arpv4" (
  description =
  "Implementations for network-related module types from MirageOS."
  requires =
- "mirage-protocols-lwt logs ipaddr cstruct cstruct.ppx lwt result rresult tcpip.ethif duration fmt mirage-clock-lwt mirage-time-lwt"
+ "mirage-protocols-lwt logs ipaddr cstruct lwt result rresult tcpip.ethif duration fmt mirage-clock-lwt mirage-time-lwt"
  archive(byte) = "arpv4.cma"
  archive(byte, plugin) = "arpv4.cma"
  archive(native) = "arpv4.cmxa"
