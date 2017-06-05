@@ -41,7 +41,8 @@ Library ethif
   Findlibparent:      tcpip
   Findlibname:        ethif
   Modules:            Ethif, Ethif_wire, Ethif_packet
-  BuildDepends:       logs,mirage-protocols-lwt,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-net-lwt
+  BuildDepends:       logs,mirage-protocols-lwt,ipaddr,cstruct.ppx,lwt,mirage-profile,result,rresult,mirage-net-lwt
+  XMETARequires:      logs,mirage-protocols-lwt,ipaddr,cstruct,lwt,mirage-profile,result,rresult,mirage-net-lwt
 
 Library arpv4
   CompiledObject:     best
@@ -50,6 +51,9 @@ Library arpv4
   Findlibname:        arpv4
   Modules:            Arpv4, Arpv4_wire, Arpv4_packet
   BuildDepends:       mirage-protocols-lwt,logs,ipaddr,cstruct,cstruct.ppx,lwt,
+                      result,rresult,tcpip.ethif,duration,fmt,
+                      mirage-clock-lwt, mirage-time-lwt
+  XMETARequires:      mirage-protocols-lwt,logs,ipaddr,cstruct,lwt,
                       result,rresult,tcpip.ethif,duration,fmt,
                       mirage-clock-lwt, mirage-time-lwt
 
@@ -63,6 +67,9 @@ Library ipv4
   BuildDepends:       logs,io-page,mirage-protocols,ipaddr,cstruct.ppx,lwt,result,rresult,
                       tcpip,tcpip.ethif,
                       tcpip.udp, tcpip.tcp
+  XMETARequires:      logs,io-page,mirage-protocols,ipaddr,lwt,result,rresult,
+                      tcpip,tcpip.ethif,
+                      tcpip.udp, tcpip.tcp
 
 Library ipv6
   CompiledObject:     best
@@ -73,6 +80,10 @@ Library ipv6
   BuildDepends:       logs,io-page,mirage-protocols-lwt,ipaddr,cstruct,cstruct.ppx,lwt,
                       tcpip,tcpip.ethif, duration, randomconv,
                       mirage-time-lwt, mirage-clock-lwt, mirage-random
+  XMETARequires:      logs,io-page,mirage-protocols-lwt,ipaddr,cstruct,lwt,
+                      tcpip,tcpip.ethif, duration, randomconv,
+                      mirage-time-lwt, mirage-clock-lwt, mirage-random
+
 
 Library icmpv4
   CompiledObject:     best
@@ -83,6 +94,9 @@ Library icmpv4
   BuildDepends:       logs,mirage-protocols,mirage-protocols-lwt,cstruct,
                       cstruct.ppx,lwt,ipaddr,result,rresult,mirage-profile,
                       tcpip,fmt
+  XMETARequires:      logs,mirage-protocols,mirage-protocols-lwt,cstruct,
+                      lwt,ipaddr,result,rresult,mirage-profile,
+                      tcpip,fmt
 
 Library udp
   CompiledObject:     best
@@ -92,6 +106,10 @@ Library udp
   Modules:            Udp, Udp_wire, Udp_packet
   BuildDepends:       logs,ipaddr,cstruct,
                       cstruct.ppx,lwt,result,rresult,mirage-profile,
+                      tcpip,randomconv,fmt,
+                      mirage-protocols,mirage-protocols-lwt,mirage-random
+  XMETARequires:      logs,ipaddr,cstruct,
+                      lwt,result,rresult,mirage-profile,
                       tcpip,randomconv,fmt,
                       mirage-protocols,mirage-protocols-lwt,mirage-random
 
@@ -107,6 +125,10 @@ Library tcp
                       Tcp_wire, Tcp_packet
   BuildDepends:       logs,mirage-protocols,mirage-protocols-lwt,ipaddr,cstruct,
                       cstruct.ppx,lwt,result,rresult,mirage-profile,io-page,
+                      tcpip,duration,randomconv,fmt,
+                      mirage-time-lwt,mirage-clock,mirage-random
+  XMETARequires:      logs,mirage-protocols,mirage-protocols-lwt,ipaddr,cstruct,
+                      lwt,result,rresult,mirage-profile,io-page,
                       tcpip,duration,randomconv,fmt,
                       mirage-time-lwt,mirage-clock,mirage-random
 
