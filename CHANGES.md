@@ -1,3 +1,7 @@
+### 3.1.4 (2017-06-12)
+
+* avoid linking to cstruct.ppx in the compiled library and only use it at build time (#316 @djs55)
+
 ### 3.1.3 (2017-05-23)
 
 * involve the IP layer's MTU in the TCP MSS calculation (hopefully correctly) (#313, by @yomimono)
@@ -16,12 +20,12 @@
 ### 3.1.0 (2017-03-14)
 
 * implement MTU setting and querying in the Ethernet module (compatibility with mirage-protocols version 1.1.0), and use this value to inform TCP's MSS. (#288, by @djs55)
-* rename the ~payload argument of TCP/UDP marshallers to ~payload_len, in an attempt to clarify that the payload will not be copied to the Cstruct.t returned by these functions (#301, by @talex5)
+* rename the ~payload argument of TCP/UDP marshallers to `~payload_len`, in an attempt to clarify that the payload will not be copied to the Cstruct.t returned by these functions (#301, by @talex5)
 * functorize ipv6 over a random implementation (#298, by @olleolleolle and @hannesm)
 * add tests for sending and receiving UDP packets over IPv6 (#300, by @mattgray)
 * avoid float in TCP RTO calculations. (#295, by @olleolleolle and @mattgray)
 * numerous bugfixes in header marshallers and unmarshallers (#301, by @talex5 and @yomimono)
-* replace polymorphic equality in _packet.equals functions (#302, by @yomimono)
+* replace polymorphic equality in `_packet.equals` functions (#302, by @yomimono)
 
 ### 3.0.0 (2017-02-23)
 
@@ -31,7 +35,7 @@
   - `connect` in various modules now returns the device directly or raises an exception
   - refer to mirage-protocols and mirage-stacks, rather than mirage-types
 * if no UDP source port is given to UDP.write, choose a random one (#272, by @hannesm)
-* remove Ipv4.Routing.No\_route\_to\_destination\_address exception; treat routing failures as normal packet loss in TCP (#269, by @yomimono)
+* remove `Ipv4.Routing.No_route_to_destination_address` exception; treat routing failures as normal packet loss in TCP (#269, by @yomimono)
 * Ipv6.connect takes a list of IPs (#268, by @yomimono)
 * remove exception "Refused" in TCP (#267, by @yomimono)
 * remove DHCP module. Users may be interested in the replacement charrua-core (#260, by @yomimono)

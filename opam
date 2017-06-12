@@ -44,7 +44,7 @@ depends: [
   "ocamlbuild" {build}
   "result"
   "rresult"
-  "cstruct" {>= "2.2.0"}
+  "cstruct" {>= "2.4.0"}
   "cstruct-lwt"
   "ppx_tools" {build}
   "mirage-net" {>= "1.0.0"}
