@@ -1,6 +1,7 @@
 ### 3.1.4 (2017-06-12)
 
 * avoid linking to cstruct.ppx in the compiled library and only use it at build time (#316 @djs55)
+* use improved packet size support in `mirage-vnetif>=0.4.0` to test the MTU fixes in #313.
 
 ### 3.1.3 (2017-05-23)
 
