@@ -21,6 +21,7 @@ build-test: [
 
 depends: [
   "jbuilder" {>="1.0+beta9"}
+  "configurator" {build}
   "rresult"
   "cstruct" {>= "3.0.2"}
   "cstruct-lwt"
