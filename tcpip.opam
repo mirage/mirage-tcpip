@@ -4,49 +4,26 @@ homepage:     "https://github.com/mirage/mirage-tcpip"
 dev-repo:     "https://github.com/mirage/mirage-tcpip.git"
 bug-reports:  "https://github.com/mirage/mirage-tcpip/issues"
 authors: [
-  "Anil Madhavapeddy"
-  "Balraj Singh"
-  "Richard Mortier"
-  "Nicolas Ojeda Bar"
-  "Thomas Gazagnaire"
-  "Vincent Bernardoff"
-  "Magnus Skjegstad"
-  "Mindy Preston"
-  "Thomas Leonard"
-  "David Scott"
-  "Gabor Pali"
-  "Hannes Mehnert"
-  "Haris Rotsos"
-  "Kia"
-  "Luke Dunstan"
-  "Pablo Polvorin"
-  "Tim Cuthbertson"
-  "lnmx"
-  "pqwy"
-]
+  "Anil Madhavapeddy" "Balraj Singh" "Richard Mortier" "Nicolas Ojeda Bar"
+  "Thomas Gazagnaire" "Vincent Bernardoff" "Magnus Skjegstad" "Mindy Preston"
+  "Thomas Leonard" "David Scott" "Gabor Pali" "Hannes Mehnert" "Haris Rotsos"
+  "Kia" "Luke Dunstan" "Pablo Polvorin" "Tim Cuthbertson" "lnmx" "pqwy" ]
 license: "ISC"
 tags: ["org:mirage"]
 
 build: [
-  ["./configure" "--prefix" prefix
-    "--%{mirage-xen:enable}%-xen" ]
-  [make]
+  ["jbuilder" "subst"] {pinned}
+  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 build-test: [
-  ["./configure" "--enable-tests"]
-  [make "test" "TESTFLAGS=-v"]
+  ["jbuilder" "runtest" "-p" name "-j" jobs]
 ]
 
-install: [make "install"]
-remove: ["ocamlfind" "remove" "tcpip"]
 depends: [
-  "ocamlfind" {build}
-  "ocamlbuild" {build}
-  "result"
+  "jbuilder" {>="1.0+beta9"}
   "rresult"
-  "cstruct" {>= "2.4.0"}
+  "cstruct" {>= "3.0.2"}
   "cstruct-lwt"
-  "ppx_tools" {build}
   "mirage-net" {>= "1.0.0"}
   "mirage-net-lwt" {>= "1.0.0"}
   "mirage-clock" {>= "1.2.0"}
@@ -69,7 +46,4 @@ depends: [
   "duration"
   "randomconv"
 ]
-depopts: [
-  "mirage-xen"
-]
-available: [ocaml-version >= "4.02.3"]
+available: [ocaml-version >= "4.03.0"]
