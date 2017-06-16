@@ -1,3 +1,4 @@
+(jbuild_version 1)
 (library
  ((name icmpv4_socket)
   (public_name tcpip.icmpv4-socket)

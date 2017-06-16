@@ -1,3 +1,4 @@
+(jbuild_version 1)
 (library
  ((name        tcpip)
   (public_name tcpip)
