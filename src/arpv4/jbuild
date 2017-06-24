@@ -1,0 +1,7 @@
+(jbuild_version 1)
+(library
+ ((name        tcpip_arpv4)
+  (public_name tcpip.arpv4)
+  (libraries   (mirage-protocols-lwt logs ipaddr cstruct rresult tcpip.ethif duration fmt mirage-clock-lwt mirage-time-lwt))
+  (preprocess (pps (ppx_cstruct)))
+  (wrapped false)))

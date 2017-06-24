@@ -1,0 +1,10 @@
+(jbuild_version 1)
+(library
+ ((name        tcp)
+  (public_name tcpip.tcp)
+  (libraries   (logs mirage-protocols-lwt ipaddr cstruct 
+                rresult mirage-profile io-page tcpip duration
+                randomconv fmt mirage-time-lwt mirage-clock
+                mirage-random))
+  (preprocess (pps (ppx_cstruct)))
+  ))

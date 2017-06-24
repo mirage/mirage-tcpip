@@ -1,0 +1,8 @@
+(jbuild_version 1)
+(library
+ ((name        tcpip_ipv6)
+  (public_name tcpip.ipv6)
+  (libraries   (logs io-page mirage-protocols-lwt mirage-time-lwt mirage-clock-lwt duration ipaddr cstruct rresult
+                mirage-random tcpip randomconv tcpip.ethif))
+  (preprocess (pps (ppx_cstruct)))
+  (wrapped false)))

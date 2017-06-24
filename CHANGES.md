@@ -1,3 +1,7 @@
+### 3.2.0
+
+* port to jbuilder. Build time is now roughly 4-5x faster than the old oasis-based build system.
+
 ### 3.1.4 (2017-06-12)
 
 * avoid linking to cstruct.ppx in the compiled library and only use it at build time (#316 @djs55)

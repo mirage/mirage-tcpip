@@ -1,0 +1,8 @@
+(jbuild_version 1)
+(library
+ ((name        tcpip_ipv4)
+  (public_name tcpip.ipv4)
+  (libraries   (logs io-page mirage-protocols-lwt ipaddr cstruct rresult
+                tcpip tcpip.ethif tcpip.udp))
+  (preprocess (pps (ppx_cstruct)))
+  (wrapped false)))
