@@ -1,28 +1,29 @@
-### 3.2.0
+### v3.2.0 (2017-06-25)
 
 * port to jbuilder. Build time is now roughly 4-5x faster than the old oasis-based build system.
+* packs have been replaced by module aliases.
 
-### 3.1.4 (2017-06-12)
+### v3.1.4 (2017-06-12)
 
 * avoid linking to cstruct.ppx in the compiled library and only use it at build time (#316 @djs55)
 * use improved packet size support in `mirage-vnetif>=0.4.0` to test the MTU fixes in #313.
 
-### 3.1.3 (2017-05-23)
+### v3.1.3 (2017-05-23)
 
 * involve the IP layer's MTU in the TCP MSS calculation (hopefully correctly) (#313, by @yomimono)
 
-### 3.1.2 (2017-05-14)
+### v3.1.2 (2017-05-14)
 
 * impose a maximum TCP MSS of 1460 to avoid sending over-large datagrams on 1500 MTU links
   (#309, by @hannesm)
 
-### 3.1.1 (2017-05-14)
+### v3.1.1 (2017-05-14)
 
 * fix parsing 20-byte cstructs as ipv4 packets (#307, by @yomimono)
 * udp: payload length parse fix (#307, by @yomimono)
 * support lwt >= 2.7.0 (#308, by @djs55)
 
-### 3.1.0 (2017-03-14)
+### v3.1.0 (2017-03-14)
 
 * implement MTU setting and querying in the Ethernet module (compatibility with mirage-protocols version 1.1.0), and use this value to inform TCP's MSS. (#288, by @djs55)
 * rename the ~payload argument of TCP/UDP marshallers to `~payload_len`, in an attempt to clarify that the payload will not be copied to the Cstruct.t returned by these functions (#301, by @talex5)
@@ -32,7 +33,7 @@
 * numerous bugfixes in header marshallers and unmarshallers (#301, by @talex5 and @yomimono)
 * replace polymorphic equality in `_packet.equals` functions (#302, by @yomimono)
 
-### 3.0.0 (2017-02-23)
+### v3.0.0 (2017-02-23)
 
 * adapt to MirageOS 3 API changes (*many* PRs, from @hannesm, @samoht, and @yomimono):
   - replace error polyvars in many functions with result types
@@ -54,18 +55,19 @@
 * add vnetif backend that drops packets with no payload (#246, by @magnuss)
 * fix a race when closing test pcap files (#246, by @magnuss)
 
-### 2.8.1 (2016-09-12)
+### v2.8.1 (2016-09-12)
 
 * Set the TCP congestion window correctly when going into fast-recovery mode. (#244, by @balrajsingh)
 * When TCP packet loss is discovered by timeout, allow transition into fast-recovery mode. (#244, by @balrajsingh) 
 
-### 2.8.0 (2016-04-04)
+### v2.8.0 (2016-04-04)
 
 * Provide an implementation for the ICMPV4 module type defined in mirage-types 2.8.0.  Remove default ICMP handling from the IPv4 module, but preserve it in tcpip-stack-direct. (#195 by @yomimono)
 * Explicitly require the use of an OCaml compiler >= 4.02.3 . (#195 by @yomimono)
 * Explicitly depend on `result`. (#195 by @yomimono)
 
-### 2.7.0 (2016-03-20)
+### v2.7.0 (2016-03-20)
+
 * Raise Invalid\_argument if given an invalid port number in listen_{tcp,udp}v4
   (#173 by @matildah and #175 by @hannesm)
 * Improve TCP options marshalling/unmarshalling (#174 by @yomimono)
@@ -79,12 +81,12 @@
 * Make the Unix subpackages optional, so the core builds on Win32
   (#191 by @djs55)
 
-### 2.6.1 (2015-09-15)
+### v2.6.1 (2015-09-15)
 
 * Add optional arguments for settings in ip v6 and v4 connects (#170, by @Drup)
 * Expose `Ipv4.Routing.No_route_to_destination_address` (#166, by @yomimono)
 
-### 2.6.0 (2015-07-29)
+### v2.6.0 (2015-07-29)
 
 * ARP now handles ARP frames, not Ethernet frames with ARP payload
   (#164, by @hannesm)
@@ -93,7 +95,7 @@
 * Pull arpv4 module out of ipv4. Also add unit-tests for the newly created
   ARP library  (#155, by @yomimono)
 
-### 2.5.1 (2015-07-07)
+### v2.5.1 (2015-07-07)
 
 * Fix regression introduced in 2.5.0 where packet loss could lead to the
   connection to become very slow (#157, MagnusS, @talex5, @yomimono and
@@ -107,7 +109,7 @@
 * The `channel` library now lives in a separate repository and is released
   separately (#159, @samoht)
 
-### 2.5.0 (2015-06-10)
+### v2.5.0 (2015-06-10)
 
 * The test runs now produce `.pcap` files (#141, by @MagnusS)
 * Strip trailing bytes from network packets (#145, by @talex5)
@@ -120,36 +122,36 @@
 * Writing in a PCB which does not have the right state now returns an error
   instead of blocking (#150)
 
-### 2.4.3 (2015-05-05)
+### v2.4.3 (2015-05-05)
 
 * Fix infinite loop in `Channel.read_line` when the line does not contain a CRLF
   sequence (#131)
 
-### 2.4.2 (2015-04-29)
+### v2.4.2 (2015-04-29)
 
 * Fix a memory leak in `Channel` (#119, by @yomimono)
 * Add basic unit-test for channels (#119, by @yomimono)
 * Add alcotest testing templates
 * Modernize Travis CI scripts
 
-### 2.4.1 (2015-04-21)
+### v2.4.1 (2015-04-21)
 
 * Merge between 2.4.0 and 2.3.1
 
-### 2.4.0: (2015-03-24)
+### v2.4.0 (2015-03-24)
 
 * ARP improvements (#118)
 
-### 2.3.1 (2015-03-31)
+### v2.3.1 (2015-03-31)
 
 * Do not raise an assertion if an IP frame has extra trailing bytes (#221).
 
-### 2.3.0 (2015-03-09)
+### v2.3.0 (2015-03-09)
 
 * Fix `STACKV4` for the `DEVICE` signature which has `connect` removed
   (in Mirage types 2.3+).
 
-### 2.2.3 (2015-03-09)
+### v2.2.3 (2015-03-09)
 
 * Add ICMPv6 error reporting functions (#101)
 * Add universal IP address converters (#108)
@@ -159,18 +161,18 @@
 * Unhook unused modules `Sliding_window` and `Profiler` from the build. (#112)
 * Add an explicit `connect` method to the signatures. (#100)
 
-### 2.2.2 (2015-01-11)
+### v2.2.2 (2015-01-11)
 
 * Readded tracing and ARP fixes which got accidentally reverted in the IPv6
   merge. (#96)
 
-### 2.2.1 (2014-12-20)
+### v2.2.1 (2014-12-20)
 
 * Use `Bytes` instead of `String` to begin the `-safe-string` migration in OCaml
   4.02.0 (#93).
 * Remove dependency on `uint` to avoid the need for a C stub (#92).
 
-### 2.2.0 (2014-12-18)
+### v2.2.0 (2014-12-18)
 
 Add IPv6 support. This changeset minimises interface changes to the existing
 `STACKV4` interfaces to faciliate a progressive merge.  The only visible
@@ -183,26 +185,26 @@ interface changes are:
 * Several types that had `v4` in their names (like `IPV4.ipv4addr`) have lost
   that particle.
 
-### 2.1.1 (2014-12-12)
+### v2.1.1 (2014-12-12)
 
 * Improve console printing for the DHCP client to output line
   breaks properly on Xen consoles.
 
-### 2.1.0 (2014-12-07)
+### v2.1.0 (2014-12-07)
 
 * Build Xen stubs separately, with `CFLAGS` from `mirage-xen` 2.1.0+.
   This allows us to use the red zone under x86_64 Unix again.
 * Adding tracing labels and counters, which introduces a new dependency on the
   `mirage-profile` package.
 
-### 2.0.3 (2014-12-05)
+### v2.0.3 (2014-12-05)
 
 * Fixed race waiting for ARP response (#86).
 * Move the the code that configures IPv4 address, netmask and gateways
   after receiving a successful lease out of the `Dhcp_clientv4` module
   and into `Stackv4` (#87)
 
-### 2.0.2 (2014-12-01)
+### v2.0.2 (2014-12-01)
 
 * Add IPv4 multicast to MAC address mapping in IPv4 output processing
   (#81 from Luke Dunstan).
@@ -210,12 +212,12 @@ interface changes are:
   (#83).
 * Build with -mno-red-zone on x86_64 to avoid stack corruption on Xen (#80).
 
-### 2.0.1 (2014-11-04)
+### v2.0.1 (2014-11-04)
 
 * Fixed race condition in the signalling between the rx/tx threads under load.
 * Experimentally switch to immediate ACKs in TCPv4 by default instead of delayed ones.
 
-### 2.0.0 (2014-11-02)
+### v2.0.0 (2014-11-02)
 
 * Moved 1s complement checksum C code here from mirage-platform.
 * Depend on `Console_unix` and `Console_xen` instead of `Console`.
@@ -223,7 +225,7 @@ interface changes are:
 * [socket] Accept callbacks now run in async threads instead of being serialised
   (#75).
 
-### 1.1.6 (2014-07-20)
+### v1.1.6 (2014-07-20)
 
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
 * Raise exception `Bad_option` for unparseable or invalid TCPv4 options (#57).
@@ -231,7 +233,7 @@ interface changes are:
   (#60).
 * Add `opam` file to permit easier local pinning, and fix Travis to use this.
 
-### 1.1.5 (2014-06-18)
+### v1.1.5 (2014-06-18)
 
 * Ensure that DHCP completes before the application is started, so that
   unikernels that establish outgoing connections can do so without a race.
@@ -239,36 +241,36 @@ interface changes are:
 * Add `echo`, `chargen` and `discard` services into the `examples/`
   directory. (from Mindy Preston in #52).
 
-### 1.1.4 (2014-06-03)
+### v1.1.4 (2014-06-03)
 
 * [tcp] Fully process the last `ACK` in a 3-way handshake for server connections.
   This ensures that a `FIN` is correctly transmitted upon application-initiated
   connection close. (fix from Mindy Preston in #51).
 
-### 1.1.3 (2014-03-01)
+### v1.1.3 (2014-03-01)
 
 * Expose IPV4 through the STACKV4 interface.
 
-### 1.1.2 (2014-03-27)
+### v1.1.2 (2014-03-27)
 
 * Fix DHCP variable length option parsing for MTU responses, which
   in turns improves robustness on Amazon EC2 (fix from @yomimono
   via mirage/mirage-tcpip#48)
 
-### 1.1.1 (2014-02-21)
+### v1.1.1 (2014-02-21)
 
 * Catch and ignore top-level socket exceptions (#219).
 * Set `SO_REUSEADDR` on listening sockets for Unix (#218).
 * Adapt the Stack interfaces to the v1.1.1 mirage-types interface
   (see mirage/mirage#226 for details).
 
-### 1.1.0 (2014-02-03)
+### v1.1.0 (2014-02-03)
 
 * Rewrite of the library as a set of functors that parameterize the
   stack across the `V1_LWT` module types from Mirage 1.1.x.  This removes
   the need to compile separate Xen and Unix versions of the stack.
 
-### 0.9.5 (2013-12-08)
+### v0.9.5 (2013-12-08)
 
 * Build for either Xen or Unix, depending on the value of the `OS` envvar.
 * Shift to the `mirage-types` 0.5.0+ interfaces, which breaks the
@@ -276,30 +278,30 @@ interface changes are:
 * Port the direct stack to the new interfaces.
 * Add Travis CI scripts.
 
-### 0.9.4 (2013-08-09)
+### v0.9.4 (2013-08-09)
 
 * Use the `Ipaddr` external library and remove the Homebrew
   equivalents in `Nettypes`.
 
-### 0.9.3 (2013-07-18)
+### v0.9.3 (2013-07-18)
 
 * Changes in module Manager: Removed some functions from the `.mli
   (plug/unplug) and added some modifications in the way the Manager
   interacts with the underlying module Netif. The Netif.create function
   does not take a callback anymore.
 
-### 0.9.2 (2013-07-09)
+### v0.9.2 (2013-07-09)
 
 * Improve TCP state machine for connection teardown.
 * Limit fragment number to 8, and coalesce buffers if it goes higher.
 * Adapt to mirage-platform-0.9.2 API changes.
 
-### 0.9.1 (2013-06-12)
+### v0.9.1 (2013-06-12)
 
 * Depend on mirage-platform-0.9.1 direct tuntap interfaces.
 * Version bump to catch up with mirage-platform.
 
-### 0.5.2 (08-Feb-2013-02-03)
+### v0.5.2 (2013-02-08)
 
 * Encourage scatter-gather I/O all the time, rather than playing tricks
   with packet header buffers. This simplifies the output path considerably
@@ -308,16 +310,16 @@ interface changes are:
   compiler can do cross-module optimization (this is not a fatal error,
   but will impact performance if the `cmx` file is not present).
 
-### 0.5.1 (20-Dec-2012-12-20)
+### v0.5.1 (2012-12-20)
 
 * Update socket stack to use Cstruct 0.6.0 API
 
-### 0.5.0 (2012-12-20)
+### v0.5.0 (2012-12-20)
 
 * Update Cstruct API to 0.6.0
 * [tcp] write now blocks if the write buffer and write window are full
 
-### 0.4.1 (2012-12-14)
+### v0.4.1 (2012-12-14)
 
 * Add iperf self-test that creates two VIFs and transmits across
   them. This is a useful local test which stresses the bridge
@@ -331,12 +333,12 @@ interface changes are:
 * Fix TCP fast recovery to wait until all in-flight packets are
   acked, rather then exiting early.
 
-### 0.4.0 (11-Dec-2012-12-11)
+### v0.4.0 (2012-12-11)
 
 * Require OCaml-4.00.0 or higher, and add relevant build fixes
   to deal with module packing.
 
-### 0.3.1 (2012-12-10)
+### v0.3.1 (2012-12-10)
 
 * Fix the DHCP client marshalling for IPv4 addresses.
 * Expose the interface MAC address in the Manager signature.
@@ -346,6 +348,6 @@ interface changes are:
 * Add Ethif.set/disable_promiscuous to permit directly tapping
   a network interface.
 
-### 0.3.0 (2012-09-04)
+### v0.3.0 (2012-09-04)
 
 * Initial public release.
