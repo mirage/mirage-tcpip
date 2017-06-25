@@ -21,7 +21,7 @@ the `socket` stack, and the `direct` stack.
 The `socket` stack uses socket calls to a traditional operating system to
 provide the functionality described in the module types.
 
-See the [`unix/`](./unix/) directory for the modules used as implementations of the
+See the [`src/stack-unix/`](./src/stack-unix/) directory for the modules used as implementations of the
 `socket` stack. 
 
 The `socket` stack is used for testing or other applications which do not
@@ -32,7 +32,7 @@ expect to run as unikernels.
 The `direct` stack expects to write to a device implementing the `NETIF` module
 type defined for MirageOS.
 
-See the [`lib/`](./lib/) directory for the modules used as implementations of the
+See the [`src/`](./src/) directory for the modules used as implementations of the
 `direct` stack, which is the expected stack for most MirageOS applications.
 
 The `direct` stack is the only usable set of implementations for
