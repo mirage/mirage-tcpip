@@ -1,4 +1,4 @@
-# mirage-tcpip
+# mirage-tcpip - an OCaml TCP/IP networking stack
 
 `mirage-tcpip` provides a networking stack for the [Mirage operating
 system](https://mirage.io). It provides implementations for the following module types
