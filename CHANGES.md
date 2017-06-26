@@ -1,4 +1,4 @@
-### v3.2.0 (2017-06-25)
+### v3.2.0 (2017-06-26)
 
 * port to jbuilder. Build time is now roughly 4-5x faster than the old oasis-based build system.
 * packs have been replaced by module aliases.
