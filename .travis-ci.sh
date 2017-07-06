@@ -3,12 +3,12 @@
 wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
 bash -ex .travis-opam.sh
 
-# try building mirage-www in Unix and Xen modes
+# try building mirage-www in the mode set by the build matrix
 
 export OPAMYES=1
 eval `opam config env`
 
-git clone -b mirage-dev git://github.com/mirage/mirage-www
+git clone -b master git://github.com/mirage/mirage-www
 cd mirage-www
 git log --oneline |head -5
 
