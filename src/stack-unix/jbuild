@@ -4,39 +4,39 @@
   (public_name tcpip.icmpv4-socket)
   (modules icmpv4_socket)
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct.lwt io-page-unix tcpip.icmpv4 tcpip.ipv4 tcpip.ipv6 mirage-protocols-lwt))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt io-page-unix tcpip.icmpv4 tcpip.ipv4 tcpip.ipv6 mirage-protocols-lwt))))
 
 (library
  ((name udpv4_socket)
   (public_name tcpip.udpv4-socket)
   (modules udpv4_socket)
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct.lwt fmt mirage-protocols-lwt))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt))))
 
 (library
  ((name udpv6_socket)
   (public_name tcpip.udpv6-socket)
   (modules udpv6_socket)
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct.lwt fmt mirage-protocols-lwt))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt))))
 
 (library
  ((name tcpv4_socket)
   (public_name tcpip.tcpv4-socket)
   (modules (tcpv4_socket tcp_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct.lwt fmt mirage-protocols-lwt))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt))))
 
 (library
  ((name tcpv6_socket)
   (public_name tcpip.tcpv6-socket)
   (modules (tcpv6_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct.lwt fmt mirage-protocols-lwt tcpv4_socket))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt tcpv4_socket))))
 
 (library
  ((name tcpip_stack_socket)
   (public_name tcpip.stack-socket)
   (modules (tcpip_stack_socket ipv4_socket ipv6_socket))
   (wrapped false)
-  (libraries (lwt.unix cstruct.lwt ipaddr.unix io-page-unix logs tcpip.ipv4 tcpip.ipv6 tcpip.icmpv4 mirage-protocols-lwt mirage-stack-lwt))))
+  (libraries (lwt.unix cstruct-lwt ipaddr.unix io-page-unix logs tcpip.ipv4 tcpip.ipv6 tcpip.icmpv4 mirage-protocols-lwt mirage-stack-lwt))))
