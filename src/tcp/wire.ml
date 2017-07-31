@@ -27,26 +27,26 @@ module Make (Ip:Mirage_protocols_lwt.IP) = struct
 
   let pp_error = Mirage_protocols.Ip.pp_error
 
-  type id = {
+  type t = {
     dst_port: int;             (* Remote TCP port *)
     dst: Ip.ipaddr;            (* Remote IP address *)
     src_port: int;             (* Local TCP port *)
     src: Ip.ipaddr;            (* Local IP address *)
   }
 
-  let wire ~src ~src_port ~dst ~dst_port =
-    { dst_port ; dst ; src_port ; src }
+  let v ~src ~src_port ~dst ~dst_port = { dst_port ; dst ; src_port ; src }
 
-  let src_port_of_id id = id.src_port
+  let src t = t.src
+  let dst t = t.dst
+  let src_port t = t.src_port
+  let dst_port t = t.dst_port
 
-  let dst_of_id id = (id.dst, id.dst_port)
-
-  let pp_id fmt id =
+  let pp ppf t =
     let uip = Ip.to_uipaddr in
-    Format.fprintf fmt "remote %a,%d to local %a, %d"
-      Ipaddr.pp_hum (uip id.dst) id.dst_port Ipaddr.pp_hum (uip id.src) id.src_port
+    Fmt.pf ppf "remote %a,%d to local %a, %d"
+      Ipaddr.pp_hum (uip t.dst) t.dst_port Ipaddr.pp_hum (uip t.src) t.src_port
 
-  let xmit ~ip ~id:{ src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false)
+  let xmit ~ip { src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false)
       ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload
     =

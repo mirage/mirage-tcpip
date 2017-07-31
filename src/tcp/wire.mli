@@ -16,26 +16,41 @@
 
 open Result
 
-module Make(Ip:Mirage_protocols_lwt.IP) : sig
+module Make (Ip:Mirage_protocols_lwt.IP) : sig
 
   type error = Mirage_protocols.Ip.error
+  (** The type for TCP wire errors. *)
 
   val pp_error: error Fmt.t
+  (** [pp_error] is the pretty-printer for TCP wire {!error}s. *)
 
-  type id
+  type t
+  (** The type for TCP wire values. *)
 
-  val src_port_of_id : id -> int
+  val pp: t Fmt.t
+  (** [pp] is the pretty-printer for TCP wire values. *)
 
-  val dst_of_id : id -> (Ip.ipaddr * int)
+  val dst_port : t -> int
+  (** Remote TCP port *)
 
-  val wire : src:Ip.ipaddr -> src_port:int -> dst:Ip.ipaddr -> dst_port:int -> id
+  val dst: t -> Ip.ipaddr
+  (** Remote IP address *)
 
-  val pp_id : Format.formatter -> id -> unit
+  val src_port : t -> int
+  (** Local TCP port *)
 
-  val xmit : ip:Ip.t -> id:id ->
+  val src: t -> Ip.ipaddr
+  (** Local IP address *)
+
+  val v: src:Ip.ipaddr -> src_port:int -> dst:Ip.ipaddr -> dst_port:int -> t
+  (** [v ~src ~src_port ~dst ~dst_port] is the wire value [v] with the
+      corresponding local and remote IP/TCP parameters. *)
+
+  val xmit: ip:Ip.t -> t ->
     ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
     rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
     options:Options.t list ->
     Cstruct.t -> (unit, error) result Lwt.t
+  (** [xmit] emits a TCP packet over the network. *)
 
 end
