@@ -63,7 +63,7 @@ let input t ~src ~dst:_ buf =
 let listen _t addr fn =
   let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM) ipproto_icmp in
   let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
-  Lwt_unix.Versioned.bind_2 fd sa >>= fun () ->
+  Lwt_unix.bind fd sa >>= fun () ->
   Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
   let aux fn =
     let receive_buffer = Cstruct.create 4096 in
