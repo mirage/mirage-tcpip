@@ -110,7 +110,7 @@ let listen_tcpv4 _t ~port callback =
     let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
     (* FIXME: we should not ignore the result *)
     ignore_result (
-      Lwt_unix.Versioned.bind_2 fd (Lwt_unix.ADDR_INET (interface, port))
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
       >>= fun () ->
       Lwt_unix.listen fd 10;
       let rec loop () =
