@@ -1,6 +1,6 @@
 let (>>=) = Lwt.(>>=)
 
-let fail fmt = Printf.ksprintf OUnit.assert_failure fmt
+let fail fmt = Fmt.kstrf Alcotest.fail fmt
 
 let or_error name fn t =
   fn t >>= function
@@ -11,10 +11,6 @@ let expect_error error name fn t =
   fn t >>= function
   | Error error2 when error2 = error -> Lwt.return t
   | _    -> fail "expected error on %s" name
-
-let assert_string msg a b =
-  let cmp a b = String.compare a b = 0 in
-  OUnit.assert_equal ~msg ~printer:(fun x -> x) ~cmp a b
 
 let cstruct =
   let module M = struct
@@ -35,9 +31,3 @@ let sequence =
     let equal x y = (=) 0 @@ Tcp.Sequence.compare x y
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
-
-let assert_bool msg a b =
-  OUnit.assert_equal ~msg ~printer:string_of_bool a b
-
-let assert_int msg a b =
-  OUnit.assert_equal ~msg ~printer:string_of_int a b

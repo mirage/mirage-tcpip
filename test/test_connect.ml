@@ -52,7 +52,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     | Ok (`Data b) ->
       Lwt_unix.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
-      assert_string "accept" expected (Cstruct.to_string b);
+      Alcotest.(check string) "accept" expected (Cstruct.to_string b);
       Logs.debug (fun f -> f "Connection closed");
       Lwt.return_unit
 

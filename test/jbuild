@@ -2,7 +2,7 @@
 (executables
  ((names (test))
   (libraries (
-    alcotest oUnit lwt.unix io-page-unix tcpip.unix
+    alcotest lwt.unix io-page-unix tcpip.unix
     logs logs.fmt mirage-profile mirage-flow mirage-vnetif
     mirage-clock-unix pcap-format duration mirage-random
     rresult mirage-protocols-lwt mirage-stack-lwt

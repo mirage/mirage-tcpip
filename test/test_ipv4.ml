@@ -1,5 +1,3 @@
-open OUnit
-
 let test_unmarshal_with_options () =
   let datagram = Cstruct.create 40 in
   Cstruct.blit_from_string ("\x46\xc0\x00\x28\x00\x00\x40\x00\x01\x02" ^
@@ -7,8 +5,8 @@ let test_unmarshal_with_options () =
                             "\x00\xfa\x02\x00\x00\x00\x01\x03\x00\x00\x00\xe0\x00\x00\xfb") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
   | Result.Ok ({Ipv4_packet.options ; _}, payload) ->
-      assert_equal (Cstruct.len options) 4;
-      assert_equal (Cstruct.len payload) 16;
+      Alcotest.(check int) "options" (Cstruct.len options) 4;
+      Alcotest.(check int) "payload" (Cstruct.len payload) 16;
       Lwt.return_unit
   | _ ->
       Alcotest.fail "Fail to parse ip packet with options"
@@ -21,8 +19,8 @@ let test_unmarshal_without_options () =
                             "\x00\x00\x00\x00\x50\x04\x00\x00\xec\x27\x00\x00") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
   | Result.Ok ({Ipv4_packet.options ; _}, payload) ->
-      assert_equal (Cstruct.len options) 0;
-      assert_equal (Cstruct.len payload) 20;
+      Alcotest.(check int) "options" (Cstruct.len options) 0;
+      Alcotest.(check int) "payload" (Cstruct.len payload) 20;
       Lwt.return_unit
   | _ ->
       Alcotest.fail "Fail to parse ip packet with options"
