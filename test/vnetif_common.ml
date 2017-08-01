@@ -34,19 +34,29 @@ sig
   type 'a io
   type id
   module Stackv4 : Mirage_stack_lwt.V4
+
   (** Create a new backend *)
   val create_backend : unit -> backend
+
   (** Create a new stack connected to an existing backend *)
-  val create_stack : backend -> ?mtu:int -> Ipaddr.V4.t -> int -> Ipaddr.V4.t option -> Stackv4.t Lwt.t
-  (** [create_stack backend ?mtu ip netmask gateway] adds a listener function to the backend *)
+  val create_stack : backend -> ?mtu:int -> Ipaddr.V4.t -> int ->
+    Ipaddr.V4.t option -> Stackv4.t Lwt.t
+
+  (** [create_stack backend ?mtu ip netmask gateway] adds a listener
+      function to the backend *)
   val create_backend_listener : backend -> (buffer -> unit io) -> id
+
   (** Disable a listener function *)
   val disable_backend_listener : backend -> id -> unit io
-  (** Records pcap data from the backend while running the specified function. Disables the pcap recorder when the function exits. *)
+
+  (** Records pcap data from the backend while running the specified
+      function. Disables the pcap recorder when the function exits. *)
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
 
-module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type backend = B.t) = struct
+module VNETIF_STACK (B: Vnetif_backends.Backend):
+  VNETIF_STACK with type backend = B.t =
+struct
   type backend = B.t
   type buffer = B.buffer
   type 'a io = 'a B.io
