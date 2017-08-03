@@ -45,7 +45,7 @@ struct
     | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
   type pcb = {
-    id: WIRE.id;
+    id: WIRE.t;
     wnd: Window.t;            (* Window information *)
     rxq: RXS.t;               (* Received segments queue for out-of-order data *)
     txq: TXS.t;               (* Transmit segments queue *)
@@ -61,17 +61,17 @@ struct
     ip : Ip.t;
     clock : Clock.t;
     mutable localport : int;
-    channels: (WIRE.id, connection) Hashtbl.t;
+    channels: (WIRE.t, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
        waiting for ACK *)
-    listens: (WIRE.id, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
+    listens: (WIRE.t, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (WIRE.id, ((connection, error) result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
   let pp_pcb fmt pcb =
-    Format.fprintf fmt "id=[%a] state=[%a]" WIRE.pp_id pcb.id State.pp pcb.state
+    Format.fprintf fmt "id=[%a] state=[%a]" WIRE.pp pcb.id State.pp pcb.state
 
   let pp_stats fmt t =
     Format.fprintf fmt "[channels=%d listens=%d connects=%d]"
@@ -95,7 +95,7 @@ struct
       let fin = match flags with Segment.Fin -> true | _ -> false in
       let rst = match flags with Segment.Rst -> true | _ -> false in
       let psh = match flags with Segment.Psh -> true | _ -> false in
-      WIRE.xmit ~ip ~id ~syn ~fin ~rst ~psh ~rx_ack ~seq ~window ~options datav
+      WIRE.xmit ~ip id ~syn ~fin ~rst ~psh ~rx_ack ~seq ~window ~options datav
 
     (* Output an RST response when we dont have a PCB *)
     let send_rst { ip; _ } id ~sequence ~ack_number ~syn ~fin =
@@ -104,16 +104,16 @@ struct
       let options = [] in
       let seq = ack_number in
       let rx_ack = Some Sequence.(add sequence (of_int32 datalen)) in
-      WIRE.xmit ~ip ~id ~rst:true ~rx_ack ~seq ~window ~options (Cstruct.create 0)
+      WIRE.xmit ~ip id ~rst:true ~rx_ack ~seq ~window ~options (Cstruct.create 0)
 
     (* Output a SYN packet *)
     let send_syn { ip; _ } id ~tx_isn ~options ~window =
-      WIRE.xmit ~ip ~id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options
+      WIRE.xmit ~ip id ~syn:true ~rx_ack:None ~seq:tx_isn ~window ~options
         (Cstruct.create 0)
 
     (* Queue up an immediate close segment *)
     let close pcb =
-      Log.debug (fun f -> f "Closing connection %a" WIRE.pp_id pcb.id);
+      Log.debug (fun f -> f "Closing connection %a" WIRE.pp pcb.id);
       match State.state pcb.state with
       | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
@@ -230,17 +230,17 @@ struct
     | Some _ ->
       Hashtbl.remove t.channels id;
       Stats.decr_channel ();
-      Log.debug (fun f -> f "removed %a from active channels" WIRE.pp_id id);
+      Log.debug (fun f -> f "removed %a from active channels" WIRE.pp id);
     | None ->
       match hashtbl_find t.listens id with
       | Some (isn, _) ->
         if isn = tx_isn then (
           Hashtbl.remove t.listens id;
           Stats.decr_listen ();
-          Log.debug (fun f -> f "removed %a from incomplete listen pcbs" WIRE.pp_id id);
+          Log.debug (fun f -> f "removed %a from incomplete listen pcbs" WIRE.pp id);
         )
       | None ->
-        Log.debug (fun f -> f "error in removing %a - no such connection" WIRE.pp_id id)
+        Log.debug (fun f -> f "error in removing %a - no such connection" WIRE.pp id)
 
   let pcb_allocs = ref 0
   let th_allocs = ref 0
@@ -346,7 +346,7 @@ struct
     (* Add the PCB to our listens table *)
     if Hashtbl.mem t.listens id then (
       Log.debug (fun f -> f "duplicate attempt to make a connection: %a .\
-      Removing the old state and replacing with new attempt" WIRE.pp_id id);
+      Removing the old state and replacing with new attempt" WIRE.pp id);
       Hashtbl.remove t.listens id;
       Stats.decr_listen ();
     );
@@ -433,7 +433,7 @@ struct
 
   let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
-    match listeners @@ WIRE.src_port_of_id id with
+    match listeners @@ WIRE.src_port id with
     | Some pushf ->
       (* XXX: I've no clue why this is the way it is, static 16 bits
          plus some random -- hannes *)
@@ -505,7 +505,9 @@ struct
     | Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Ok (pkt, payload) ->
-      let id = WIRE.wire ~src_port:pkt.dst_port ~dst_port:pkt.src_port ~dst:src ~src:dst in
+      let id =
+        WIRE.v ~src_port:pkt.dst_port ~dst_port:pkt.src_port ~dst:src ~src:dst
+      in
       (* Lookup connection from the active PCB hash *)
       with_hashtbl t.channels id
         (* PCB exists, so continue the connection state machine in tcp_input *)
@@ -562,7 +564,7 @@ struct
   (* Close - no more will be written *)
   let close pcb = Tx.close pcb
 
-  let dst pcb = WIRE.dst_of_id pcb.id
+  let dst pcb = WIRE.dst pcb.id, WIRE.dst_port pcb.id
 
   let getid t dst dst_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
@@ -574,13 +576,14 @@ struct
       Hashtbl.mem t.connects id ||
       Hashtbl.mem t.listens id
     in
-    let inuse t id = islistener t (WIRE.src_port_of_id id) || idinuse t id in
+    let inuse t id = islistener t (WIRE.src_port id) || idinuse t id in
     let rec bumpport t =
       (match t.localport with
        | 65535 -> t.localport <- 10000
        | _ -> t.localport <- t.localport + 1);
-      let id = WIRE.wire ~src:(Ip.src t.ip ~dst)
-          ~src_port:t.localport ~dst ~dst_port in
+      let id =
+        WIRE.v ~src:(Ip.src t.ip ~dst) ~src_port:t.localport ~dst ~dst_port
+      in
       if inuse t id then bumpport t else id
     in
     bumpport t
@@ -628,7 +631,7 @@ struct
       Log.debug (fun f ->
           f "duplicate attempt to make a connection: [%a]. \
              Removing the old state and replacing with new attempt"
-            WIRE.pp_id id);
+            WIRE.pp id);
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
     );
