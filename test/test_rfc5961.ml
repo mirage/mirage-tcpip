@@ -119,10 +119,9 @@ let run backend fsm sut () =
 
     (Lwt_mvar.take error_mbox >>= fun cause ->
      Lwt.return_some cause);
-  ] >>= function
-  | None -> Lwt.return_unit
-  | Some err ->
-    Alcotest.fail err;
+  ] >|= function
+  | None     -> ()
+  | Some err -> Alcotest.fail err
   ]
 
 

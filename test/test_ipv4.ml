@@ -1,3 +1,5 @@
+open Common
+
 let test_unmarshal_with_options () =
   let datagram = Cstruct.create 40 in
   Cstruct.blit_from_string ("\x46\xc0\x00\x28\x00\x00\x40\x00\x01\x02" ^
@@ -41,7 +43,7 @@ let test_size () =
   let tmp = Ipv4_packet.Marshal.make_cstruct ~payload_len:(Cstruct.len payload) ip in
   let tmp = Cstruct.concat [tmp; payload] in
   Ipv4_packet.Unmarshal.of_cstruct tmp
-  |> Alcotest.(check (result (pair Common.ipv4_packet Common.cstruct) string)) "Loading an IP packet with IP options" (Ok (ip, payload));
+  |> Alcotest.(check (result (pair ipv4_packet cstruct) string)) "Loading an IP packet with IP options" (Ok (ip, payload));
   Lwt.return_unit
 
 let suite = [

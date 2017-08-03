@@ -32,16 +32,16 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   let test_string = "Hello world from Mirage 123456789...."
   let backend = V.create_backend ()
 
-  let err_read_eof () = fail "accept got EOF while reading"
-  let err_write_eof () = fail "client tried to write, got EOF"
+  let err_read_eof () = failf "accept got EOF while reading"
+  let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =
     let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
-    fail "Error while reading: %s" err
+    failf "Error while reading: %s" err
 
   let err_write e =
     let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
-    fail "client tried to write, got %s" err
+    failf "client tried to write, got %s" err
 
   let accept flow expected =
     let ip, port = V.Stackv4.TCPV4.dst flow in
@@ -60,7 +60,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
     let timeout = 15.0 in
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () ->
-       fail "connect test timedout after %f seconds" timeout) ;
+       failf "connect test timedout after %f seconds" timeout) ;
 
       (V.create_stack backend server_ip netmask gw >>= fun s1 ->
        V.Stackv4.listen_tcpv4 s1 ~port:80 (fun f -> accept f test_string);

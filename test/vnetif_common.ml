@@ -15,8 +15,10 @@
  *)
 
 open Common
+open Lwt.Infix
 
-(* TODO Some of these modules and signatures could eventually be moved to mirage-vnetif *)
+(* TODO Some of these modules and signatures could eventually be moved
+   to mirage-vnetif *)
 
 module Time = struct
   type 'a io = 'a Lwt.t
@@ -85,7 +87,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | `Error _ -> fail "Error occured while registering to backend"
+    | `Error _ -> failf "Error occured while registering to backend"
     | `Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =

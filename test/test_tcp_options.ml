@@ -1,8 +1,8 @@
-let options = Alcotest.testable Tcp.Options.pp Tcp.Options.equal
+open Common
 
 let check = Alcotest.(check @@ result (list options) string)
 
-  let errors ?(check_msg = false) exp = function
+let errors ?(check_msg = false) exp = function
   | Ok opt ->
     Fmt.kstrf Alcotest.fail "Result.Ok %a when Result.error %s expected"
       Tcp.Options.pps opt exp
@@ -206,14 +206,14 @@ let test_marshal_into_cstruct () =
     ~transport_packet:raw
   |> Alcotest.(check bool) "Checksum correct" true;
   Tcp.Tcp_packet.Unmarshal.of_cstruct raw
-  |> Alcotest.(check (result (pair Common.tcp_packet Common.cstruct) string))
+  |> Alcotest.(check (result (pair tcp_packet cstruct) string))
     "reload TCP packet" (Ok (packet, payload));
   let just_options = Cstruct.create options_size in
   let generated_options = Cstruct.shift buf Tcp.Tcp_wire.sizeof_tcp in
   Alcotest.(check int) "size of options buf" options_size @@
   Tcp.Options.marshal just_options options;
   (* expecting the result of Options.Marshal to be here *)
-  Alcotest.check Common.cstruct "marshalled options are as expected"
+  Alcotest.check cstruct "marshalled options are as expected"
     just_options generated_options;
   (* Now try with make_cstruct *)
   let headers =
@@ -263,7 +263,7 @@ let test_marshal_without_padding () =
     ~transport_packet:raw
   |> Alcotest.(check bool) "Checksum correct" true;
   Tcp.Tcp_packet.Unmarshal.of_cstruct raw
-  |> Alcotest.(check (result (pair Common.tcp_packet Common.cstruct) string))
+  |> Alcotest.(check (result (pair tcp_packet cstruct) string))
     "reload TCP packet" (Ok (packet, payload))
 
 let suite = [
