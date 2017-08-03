@@ -36,17 +36,16 @@ depends: [
   "mirage-time-lwt" {>= "1.0.0"}
   "ipaddr" {>= "2.2.0"}
   "mirage-profile" {>= "0.5"}
-  "mirage-flow" {test & >= "1.2.0"}
-  "mirage-vnetif" {test & >= "0.4.0"}
-  "alcotest" {test & >="0.7.0"}
-  "ounit" {test}
-  "pcap-format" {test}
-  "mirage-clock-unix" {test & >= "1.2.0"}
   "fmt"
   "lwt" {>= "3.0.0"}
   "logs" {>= "0.6.0"}
   "duration"
   "io-page-unix"
   "randomconv"
+  "mirage-flow" {test & >= "1.2.0"}
+  "mirage-vnetif" {test & >= "0.4.0"}
+  "alcotest" {test & >="0.7.0"}
+  "pcap-format" {test}
+  "mirage-clock-unix" {test & >= "1.2.0"}
 ]
 available: [ocaml-version >= "4.03.0"]

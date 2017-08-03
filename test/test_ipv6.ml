@@ -1,3 +1,4 @@
+open Common
 module Time = Vnetif_common.Time
 module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
@@ -54,7 +55,7 @@ let check_for_one_udp_packet netif ~src ~dst buf =
   Alcotest.(check ip) "receiver address" (Ipaddr.V6.of_string_exn "fc00::45") dst;
   (match Udp_packet.Unmarshal.of_cstruct buf with
   | Ok (_, payload) ->
-    Alcotest.(check Common.cstruct) "payload is correct" udp_message payload
+    Alcotest.(check cstruct) "payload is correct" udp_message payload
   | Error m -> Alcotest.fail m);
   (*after receiving 1 packet, disconnect stack so test can continue*)
   V.disconnect netif

@@ -15,8 +15,10 @@
  *)
 
 open Common
+open Lwt.Infix
 
-(* TODO Some of these modules and signatures could eventually be moved to mirage-vnetif *)
+(* TODO Some of these modules and signatures could eventually be moved
+   to mirage-vnetif *)
 
 module Time = struct
   type 'a io = 'a Lwt.t
@@ -32,19 +34,29 @@ sig
   type 'a io
   type id
   module Stackv4 : Mirage_stack_lwt.V4
+
   (** Create a new backend *)
   val create_backend : unit -> backend
+
   (** Create a new stack connected to an existing backend *)
-  val create_stack : backend -> ?mtu:int -> Ipaddr.V4.t -> int -> Ipaddr.V4.t option -> Stackv4.t Lwt.t
-  (** [create_stack backend ?mtu ip netmask gateway] adds a listener function to the backend *)
+  val create_stack : backend -> ?mtu:int -> Ipaddr.V4.t -> int ->
+    Ipaddr.V4.t option -> Stackv4.t Lwt.t
+
+  (** [create_stack backend ?mtu ip netmask gateway] adds a listener
+      function to the backend *)
   val create_backend_listener : backend -> (buffer -> unit io) -> id
+
   (** Disable a listener function *)
   val disable_backend_listener : backend -> id -> unit io
-  (** Records pcap data from the backend while running the specified function. Disables the pcap recorder when the function exits. *)
+
+  (** Records pcap data from the backend while running the specified
+      function. Disables the pcap recorder when the function exits. *)
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
 
-module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type backend = B.t) = struct
+module VNETIF_STACK (B: Vnetif_backends.Backend):
+  VNETIF_STACK with type backend = B.t =
+struct
   type backend = B.t
   type buffer = B.buffer
   type 'a io = 'a B.io
@@ -85,7 +97,7 @@ module VNETIF_STACK ( B : Vnetif_backends.Backend) : (VNETIF_STACK with type bac
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | `Error _ -> fail "Error occured while registering to backend"
+    | `Error _ -> failf "Error occured while registering to backend"
     | `Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =

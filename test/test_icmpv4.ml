@@ -1,3 +1,4 @@
+open Common
 open Result
 
 module Time = Vnetif_common.Time
@@ -43,8 +44,8 @@ let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 let slowly fn =
   Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
 
-let get_stack ?(backend = B.create ~use_async_readers:true 
-                  ~yield:(fun() -> Lwt_main.yield ()) ()) 
+let get_stack ?(backend = B.create ~use_async_readers:true
+                  ~yield:(fun() -> Lwt_main.yield ()) ())
                   ip =
   let network = Ipaddr.V4.Prefix.make 24 listener_address in
   let gateway = None in
@@ -104,7 +105,7 @@ let echo_request () =
       Alcotest.(check int) "icmp echo-reply code" 0x00 reply.code; (* should be code 0 *)
       Alcotest.(check int) "icmp echo-reply id" id_no id;
       Alcotest.(check int) "icmp echo-reply seq" seq_no seq;
-      Alcotest.(check Common.cstruct) "icmp echo-reply payload" payload request_payload;
+      Alcotest.(check cstruct) "icmp echo-reply payload" payload request_payload;
       Lwt.return_unit
   in
   Lwt.pick [

@@ -1,3 +1,4 @@
+open Common
 open Result
 
 module Time = Vnetif_common.Time
@@ -50,7 +51,7 @@ let marshal_unmarshal () =
   match Udp_packet.Unmarshal.of_cstruct with_data with
   | Error s -> Alcotest.fail s
   | Ok (_header, data) ->
-    Alcotest.(check Common.cstruct) "unmarshalling gives expected data" payload data;
+    Alcotest.(check cstruct) "unmarshalling gives expected data" payload data;
     Lwt.return_unit
 
 let write () =
@@ -62,7 +63,7 @@ let write () =
 
 let unmarshal_regression () =
   let i = Cstruct.create 1016 in
-  Cstruct.memset i 30; 
+  Cstruct.memset i 30;
   Cstruct.set_char i 4 '\x04';
   Cstruct.set_char i 5 '\x00';
   Alcotest.(check (result reject pass)) "correctly return error for bad packet"
@@ -83,7 +84,7 @@ let marshal_marshal () =
   Udp_packet.Marshal.into_cstruct ~pseudoheader ~payload udp buffer
   |> Alcotest.(check (result unit string)) "Buffer big enough for header" (Ok ());
   Udp_packet.Unmarshal.of_cstruct (Cstruct.concat [buffer; payload])
-  |> Alcotest.(check (result (pair Common.udp_packet Common.cstruct) string)) "Save and reload" (Ok (udp, payload));
+  |> Alcotest.(check (result (pair udp_packet cstruct) string)) "Save and reload" (Ok (udp, payload));
   Lwt.return_unit
 
 let suite = [

@@ -59,20 +59,20 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let mlen = String.length msg
 
-  let err_eof () = fail "EOF while writing to TCP flow"
+  let err_eof () = failf "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
     let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
     let ip  = Ipaddr.V4.to_string ip in
-    fail "Unable to connect to %s:%d: %s" ip port err
+    failf "Unable to connect to %s:%d: %s" ip port err
 
   let err_write e () =
     let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
-    fail "Error while writing to TCP flow: %s" err
+    failf "Error while writing to TCP flow: %s" err
 
   let err_read e () =
     let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
-    fail "Error in server while reading: %s" err
+    failf "Error in server while reading: %s" err
 
   let write_and_check flow buf =
     V.Stackv4.TCPV4.write flow buf >>= function
@@ -168,7 +168,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
-       fail "iperf test timed out after %f seconds" timeout);
+       failf "iperf test timed out after %f seconds" timeout);
 
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
