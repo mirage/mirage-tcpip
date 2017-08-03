@@ -1,4 +1,5 @@
 (jbuild_version 1)
+
 (library
  ((name        tcpip)
   (public_name tcpip)
@@ -13,13 +14,17 @@
   (modules (tcpip_xen))
   (c_names (checksum_stubs_xen))
   (c_flags (:include c_flags_xen.sexp))
-  (wrapped false)
-))
+  (wrapped false)))
 
 (rule
  ((targets (c_flags_xen.sexp))
   (deps (../config/discover.exe))
   (action (run ${<} -ocamlc ${OCAMLC}))))
+
+(rule
+  ((targets (checksum_stubs_xen.c))
+   (deps    (checksum_stubs.c))
+   (action  (copy# ${<} ${@}))))
 
 (library
  ((name tcpip_unix)
@@ -27,5 +32,4 @@
   (libraries (tcpip))
   (modules (tcpip_unix))
   (c_names (checksum_stubs))
-  (wrapped false)
-))
+  (wrapped false)))
