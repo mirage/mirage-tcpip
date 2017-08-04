@@ -31,6 +31,24 @@ let pp_sockaddr fmt sa =
 let src = Logs.Src.create "icmpv4_socket" ~doc:"Mirage ICMPv4 (Sockets Edition)"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let sendto' fd buf flags dst =
+  if is_win32 then begin
+     (* Lwt on Win32 doesn't support Lwt_bytes.sendto *)
+     let bytes = Bytes.make (Cstruct.len buf) '\000' in
+     Cstruct.blit_to_bytes buf 0 bytes 0 (Cstruct.len buf);
+     Lwt_unix.sendto fd bytes 0 (Bytes.length bytes) flags dst
+  end else Lwt_cstruct.sendto fd buf flags dst
+
+let recvfrom' fd buf flags =
+  if is_win32 then begin
+    (* Lwt on Win32 doesn't support Lwt_bytes.recvfrom *)
+    let bytes = Bytes.make (Cstruct.len buf) '\000' in
+    Lwt_unix.recvfrom fd bytes 0 (Bytes.length bytes) flags
+    >>= fun (n, sockaddr) ->
+    Cstruct.blit_from_bytes bytes 0 buf 0 n;
+    Lwt.return (n, sockaddr)
+  end else Lwt_cstruct.recvfrom fd buf flags
+
 let write _t ~dst buf =
   let open Lwt_unix in
   let flags = [] in
@@ -40,7 +58,7 @@ let write _t ~dst buf =
   let in_addr = Unix.inet_addr_of_string (Ipaddr.V4.to_string dst) in
   let sockaddr = ADDR_INET (in_addr, port) in
   Lwt.catch (fun () ->
-    Lwt_cstruct.sendto fd buf flags sockaddr >>= fun sent ->
+    sendto' fd buf flags sockaddr >>= fun sent ->
       if (sent <> (Cstruct.len buf)) then
         Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Cstruct.len buf));
     Lwt_unix.close fd |> Lwt_result.ok
@@ -74,7 +92,7 @@ let listen _t addr fn =
   Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
   let aux fn =
     let receive_buffer = Cstruct.create 4096 in
-    Lwt_cstruct.recvfrom fd receive_buffer [] >>= fun (len, _sockaddr) ->
+    recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
     (* trim the buffer to the amount of data actually received *)
     let receive_buffer = Cstruct.set_len receive_buffer len in
     fn receive_buffer
