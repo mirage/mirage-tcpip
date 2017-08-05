@@ -4,7 +4,7 @@
  ((name        tcpip)
   (public_name tcpip)
   (modules (tcpip_checksum))
-  (libraries   (cstruct))
+  (libraries   (cstruct tcpip.unix))
   (wrapped false)))
 
 (library
@@ -29,7 +29,6 @@
 (library
  ((name tcpip_unix)
   (public_name tcpip.unix)
-  (libraries (tcpip))
   (modules (tcpip_unix))
   (c_names (checksum_stubs))
   (wrapped false)))
