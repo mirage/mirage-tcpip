@@ -645,7 +645,7 @@ module NeighborCache = struct
     | Not_found ->
       nc, []
 
-  let query nc ~now ~reachable_time ip =
+  let query nc ~now ~retrans_timer ip =
     try
       let nb = IpMap.find ip nc in
       match nb.state with
@@ -659,7 +659,7 @@ module NeighborCache = struct
         nc, Some dmac, []
     with
     | Not_found ->
-      let nb  = {state = INCOMPLETE (Int64.add now reachable_time, 0); is_router = false} in
+      let nb  = {state = INCOMPLETE (Int64.add now retrans_timer, 0); is_router = false} in
       let nc  = IpMap.add ip nb nc in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
       nc, None, [SendNS (`Specified, dst, ip)]
@@ -1110,7 +1110,7 @@ and send ~now ctx dst frame datav =
   | false ->
     let ctx, ip = next_hop ctx dst in
     let neighbor_cache, mac, actions =
-      NeighborCache.query ctx.neighbor_cache ~now ~reachable_time:ctx.reachable_time ip in
+      NeighborCache.query ctx.neighbor_cache ~now ~retrans_timer:ctx.retrans_timer ip in
     let ctx = {ctx with neighbor_cache} in
     match mac with
     | Some dmac ->
