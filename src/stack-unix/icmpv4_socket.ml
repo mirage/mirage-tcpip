@@ -97,6 +97,12 @@ let listen _t addr fn =
         recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
         (* trim the buffer to the amount of data actually received *)
         let receive_buffer = Cstruct.set_len receive_buffer len in
+        (* On macOS the IP length field is set to a very large value (16384) which
+           probably reflects some kernel datastructure size rather than the real
+           on-the-wire size. This confuses our IPv4 parser so we correct the size
+           here. *)
+        let len = Ipv4_wire.get_ipv4_len receive_buffer in
+        Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.len receive_buffer));
         Lwt.async (fun () -> fn receive_buffer);
         loop ()
       in
