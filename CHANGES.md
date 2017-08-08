@@ -1,3 +1,14 @@
+### v3.3.0 (2017-08-08)
+
+* Test with current mirage-www master (#323 @yomimono)
+* Improve the Tcp.Wire API (#325 @samoht)
+* Add dependency from stack-unix to io-page-unix (@avsm)
+* Replace dependency on cstruct.lwt with cstruct-lwt (#322 @yomimono)
+* Update to lwt 3.0 (#326 @samoht)
+* Replace oUnit with alcotest (#329 @samoht)
+* Fix stub linking on Xen (#332 @djs55)
+* Add support for ICMP sockets on Windows (#333 @djs55)
+
 ### v3.2.0 (2017-06-26)
 
 * port to jbuilder. Build time is now roughly 4-5x faster than the old oasis-based build system.
