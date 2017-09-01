@@ -30,6 +30,7 @@ struct
   module UTX = User_buffer.Tx(Time)(Clock)
   module WIRE = Wire.Make(Ip)
   module STATE = State.Make(Time)
+  module KEEPALIVE = Keepalive.Make(Time)(Clock)
 
   type error = [ Mirage_protocols.Tcp.error | WIRE.error]
 
@@ -59,11 +60,17 @@ struct
     state: State.t;           (* Connection state *)
     urx: User_buffer.Rx.t;    (* App rx buffer *)
     utx: UTX.t;               (* App tx buffer *)
+    keepalive: KEEPALIVE.t option; (* Optional TCP keepalive state *)
   }
 
   type flow = pcb
   type callback = flow -> unit Lwt.t
   type connection = flow * unit Lwt.t
+
+  type listener = {
+    process: callback;
+    keepalive: Mirage_protocols.Keepalive.t option;
+  }
 
   type t = {
     ip : Ip.t;
@@ -75,7 +82,7 @@ struct
     listens: (WIRE.t, (Sequence.t * ((flow -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t)) Hashtbl.t;
+    connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Mirage_protocols.Keepalive.t option)) Hashtbl.t;
   }
 
   let _pp_pcb fmt pcb =
@@ -164,6 +171,11 @@ struct
     (* Process an incoming TCP packet that has an active PCB *)
     let input _t parsed (pcb,_) =
       let { rxq; _ } = pcb in
+      (* The connection is alive! *)
+      begin match pcb.keepalive with
+      | None -> ()
+      | Some keepalive -> KEEPALIVE.refresh keepalive
+      end;
       (* Coalesce any outstanding segments and retrieve ready segments *)
       RXS.input rxq parsed
 
@@ -271,7 +283,40 @@ struct
       rx_wnd: int;
       rx_wnd_scaleoffer: int }
 
-  let new_pcb t params id =
+
+  let keepalive_cb t id wnd state urx = function
+  | `SendProbe ->
+    Log.debug (fun f -> f "Sending keepalive on connection %a" WIRE.pp id);
+    (* From https://tools.ietf.org/html/rfc1122#page-101
+
+      > 4.2.3.6  TCP Keep-Alives
+      ...
+      > Such a segment generally contains SEG.SEQ =
+      > SND.NXT-1 and may or may not contain one garbage octet
+      > of data.  Note that on a quiet connection SND.NXT =
+      > RCV.NXT, so that this SEG.SEQ will be outside the
+      > window.  Therefore, the probe causes the receiver to
+      > return an acknowledgment segment, confirming that the
+      > connection is still live.  If the peer has dropped the
+      > connection due to a network partition or a crash, it
+      > will respond with a RST instead of an acknowledgment
+      > segment.
+    *)
+    let flags = Segment.No_flags in
+    let options = [] in
+    let seq = Sequence.pred @@ Window.tx_nxt wnd in
+    (* if the sending fails this behaves like a packet drop which will cause
+        the connection to be eventually closed after the probes are sent *)
+    Tx.xmit_pcb t.ip id ~flags ~wnd ~options ~seq (Cstruct.create 0) >>= fun _ ->
+    Lwt.return_unit
+  | `Close ->
+    Log.debug (fun f -> f "Keepalive timer expired, resetting connection %a" WIRE.pp id);
+    STATE.tick state State.Recv_rst;
+    (* Close the read direction *)
+    User_buffer.Rx.add_r urx None >>= fun () ->
+    Lwt.return_unit
+
+  let new_pcb t params id keepalive =
     let mtu_mss = Ip.mtu t.ip - Tcp_wire.sizeof_tcp in
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
@@ -316,8 +361,12 @@ struct
     let rxq = RXS.create ~rx_data ~wnd ~state ~tx_ack in
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.succ rx_isn) in
+    (* Set up the keepalive state if requested *)
+    let keepalive = match keepalive with
+      | None -> None
+      | Some config -> Some (KEEPALIVE.create config (keepalive_cb t id wnd state urx) t.clock) in
     (* Construct basic PCB in Syn_received state *)
-    let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
+    let pcb = { state; rxq; txq; wnd; id; ack; urx; utx; keepalive } in
     (* Compose the overall thread from the various tx/rx threads
        and the main listener function *)
     let tx_thread = (Tx.thread t pcb ~send_ack ~rx_ack) in
@@ -344,9 +393,9 @@ struct
     Gc.finalise fnth th;
     Lwt.return (pcb, th, opts)
 
-  let new_server_connection t params id pushf =
+  let new_server_connection t params id pushf keepalive =
     Logs.(log_with_stats Debug "new-server-connection" t);
-    new_pcb t params id >>= fun (pcb, th, opts) ->
+    new_pcb t params id keepalive >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
@@ -363,11 +412,11 @@ struct
     TXS.output ~flags:Segment.Syn ~options pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
-  let new_client_connection t params id ack_number =
+  let new_client_connection t params id ack_number keepalive =
     Logs.(log_with_stats Debug "new-client-connection" t);
     let tx_isn = params.tx_isn in
     let params = { params with tx_isn = Sequence.succ tx_isn } in
-    new_pcb t params id >>= fun (pcb, th, _) ->
+    new_pcb t params id keepalive >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
@@ -385,7 +434,7 @@ struct
     Logs.(log_with_stats Debug "process-reset" t);
     if ack then
         match hashtbl_find t.connects id with
-        | Some (wakener, tx_isn) ->
+        | Some (wakener, tx_isn, _) ->
           (* We don't send data in the syn request, so the expected ack is tx_isn + 1 *)
           if is_correct_ack ~tx_isn ~ack_number then begin
             Hashtbl.remove t.connects id;
@@ -412,7 +461,7 @@ struct
   let process_synack t id ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-synack" t);
     match hashtbl_find t.connects id with
-    | Some (wakener, tx_isn) ->
+    | Some (wakener, tx_isn, keepalive) ->
       if is_correct_ack ~tx_isn ~ack_number then (
         Hashtbl.remove t.connects id;
         Stats.decr_connect ();
@@ -422,7 +471,7 @@ struct
         let rx_wnd_scaleoffer = wscale_default in
         new_client_connection t
           { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-          id ack_number
+          id ack_number keepalive
         >>= fun (pcb, th) ->
         Lwt.wakeup wakener (Ok (pcb, th));
         Lwt.return_unit
@@ -440,7 +489,7 @@ struct
   let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.src_port id with
-    | Some pushf ->
+    | Some { process; keepalive } ->
       (* XXX: I've no clue why this is the way it is, static 16 bits
          plus some random -- hannes *)
       let tx_isn =
@@ -453,7 +502,7 @@ struct
       let rx_wnd_scaleoffer = wscale_default in
       new_server_connection t
         { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-        id pushf
+        id process keepalive
       >>= fun _ ->
       Lwt.return_unit
     | None ->
@@ -607,7 +656,7 @@ struct
     Time.sleep_ns (Duration.of_sec rxtime) >>= fun () ->
     match hashtbl_find t.connects id with
     | None                -> Lwt.return_unit
-    | Some (wakener, isn) ->
+    | Some (wakener, isn, _) ->
       if isn = tx_isn then
         if count > 3 then (
           Hashtbl.remove t.connects id;
@@ -623,7 +672,7 @@ struct
         )
       else Lwt.return_unit
 
-  let connect t ~dst ~dst_port =
+  let connect ?keepalive t ~dst ~dst_port =
     let id = getid t dst dst_port in
     (* XXX: I've no clue why this is the way it is, static 16 bits
        plus some random -- hannes *)
@@ -646,7 +695,7 @@ struct
       Hashtbl.remove t.connects id;
       Stats.decr_connect ();
     );
-    Hashtbl.add t.connects id (wakener, tx_isn);
+    Hashtbl.add t.connects id (wakener, tx_isn, keepalive);
     Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= function
     | Ok () | Error (`No_route _) (* keep trying *) ->
@@ -667,8 +716,8 @@ struct
       fmt "%a error connecting to %a:%d\n%!"
         pp_error e Ipaddr.pp_hum (Ip.to_uipaddr daddr) dport)
 
-  let create_connection tcp (daddr, dport) =
-    connect tcp ~dst:daddr ~dst_port:dport >>= function
+  let create_connection ?keepalive tcp (daddr, dport) =
+    connect ?keepalive tcp ~dst:daddr ~dst_port:dport >>= function
     | Error e -> log_failure daddr dport e; Lwt.return @@ Error e
     | Ok (fl, _) -> Lwt.return (Ok fl)
 

@@ -61,7 +61,7 @@ module Make
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
     udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
-    tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
+    tcpv4_listeners: (int, Tcpv4.listener) Hashtbl.t;
   }
 
   let pp fmt t =
@@ -80,10 +80,10 @@ module Make
     else Hashtbl.replace t.udpv4_listeners port callback
 
 
-  let listen_tcpv4 t ~port callback =
+  let listen_tcpv4 ?keepalive t ~port process =
     if port < 0 || port > 65535
     then raise (Invalid_argument (err_invalid_port port))
-    else Hashtbl.replace t.tcpv4_listeners port callback
+    else Hashtbl.replace t.tcpv4_listeners port { Tcpv4.process; keepalive }
 
   let udpv4_listeners t ~dst_port =
     try Some (Hashtbl.find t.udpv4_listeners dst_port)

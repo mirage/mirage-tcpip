@@ -25,14 +25,14 @@
   (public_name tcpip.tcpv4-socket)
   (modules (tcpv4_socket tcp_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt tcp_socket_options))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcp_socket_options))))
 
 (library
  ((name tcpv6_socket)
   (public_name tcpip.tcpv6-socket)
   (modules (tcpv6_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt tcpv4_socket tcp_socket_options))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcpv4_socket tcp_socket_options))))
 
 (library
  ((name tcp_socket_options)
