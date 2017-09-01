@@ -29,6 +29,7 @@ let suite = [
   "connect"        , Test_connect.suite     ;
   "deadlock"       , Test_deadlock.suite    ;
   "iperf"          , Test_iperf.suite       ;
+  "keepalive"      , Test_keepalive.suite   ;
 ]
 
 let run test () =
