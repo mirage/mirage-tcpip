@@ -56,6 +56,11 @@ let writev_nodelay fd bufs =
 let close fd =
   Lwt_unix.close fd
 
+type listener = {
+  process: Lwt_unix.file_descr -> unit Lwt.t;
+  keepalive: Mirage_protocols.Keepalive.t option;
+}
+
 (* FIXME: how does this work at all ?? *)
 let input _t ~listeners:_ =
   (* TODO terminate when signalled by disconnect *)
