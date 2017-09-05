@@ -40,6 +40,9 @@ val sub: t -> t -> t
 (* a + 1 *)
 val succ: t -> t
 
+(* a - 1 *)
+val pred: t -> t
+
 val compare: t -> t -> int
 val of_int32: int32 -> t
 val of_int: int -> t

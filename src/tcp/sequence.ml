@@ -43,6 +43,9 @@ let sub a b = Int32.sub a b
 (* a + 1 *)
 let succ a = Int32.succ a
 
+(* a - 1 *)
+let pred a = Int32.pred a
+
 let compare a b = Int32.compare a b
 let of_int32 t = t
 let of_int t = Int32.of_int t
