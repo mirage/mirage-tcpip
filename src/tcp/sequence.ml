@@ -40,8 +40,8 @@ let add a b = Int32.add a b
 (* a - b *)
 let sub a b = Int32.sub a b
 
-(* a++ *)
-let incr a = Int32.add a 1l
+(* a + 1 *)
+let succ a = Int32.succ a
 
 let compare a b = Int32.compare a b
 let of_int32 t = t

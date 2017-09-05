@@ -37,8 +37,8 @@ val add: t -> t -> t
 (* a - b *)
 val sub: t -> t -> t
 
-(* a++ *)
-val incr: t -> t
+(* a + 1 *)
+val succ: t -> t
 
 val compare: t -> t -> int
 val of_int32: int32 -> t

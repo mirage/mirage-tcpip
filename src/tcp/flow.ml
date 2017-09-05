@@ -315,7 +315,7 @@ struct
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
     let rxq = RXS.create ~rx_data ~wnd ~state ~tx_ack in
     (* Set up ACK module *)
-    let ack = ACK.t ~send_ack ~last:(Sequence.incr rx_isn) in
+    let ack = ACK.t ~send_ack ~last:(Sequence.succ rx_isn) in
     (* Construct basic PCB in Syn_received state *)
     let pcb = { state; rxq; txq; wnd; id; ack; urx; utx } in
     (* Compose the overall thread from the various tx/rx threads
@@ -366,7 +366,7 @@ struct
   let new_client_connection t params id ack_number =
     Logs.(log_with_stats Debug "new-client-connection" t);
     let tx_isn = params.tx_isn in
-    let params = { params with tx_isn = Sequence.incr tx_isn } in
+    let params = { params with tx_isn = Sequence.succ tx_isn } in
     new_pcb t params id >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
     STATE.tick pcb.state (State.Send_syn tx_isn);
@@ -379,7 +379,7 @@ struct
     Lwt.return (pcb, th)
 
   let is_correct_ack ~tx_isn ~ack_number =
-   (Sequence.compare (Sequence.incr tx_isn) ack_number) = 0
+   (Sequence.compare (Sequence.succ tx_isn) ack_number) = 0
 
   let process_reset t id ~ack ~ack_number =
     Logs.(log_with_stats Debug "process-reset" t);
