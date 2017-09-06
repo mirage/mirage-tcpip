@@ -44,6 +44,12 @@ struct
       Fmt.string ppf "attempted to send data before connection was ready"
     | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
+  type ip = Ip.t
+  type ipaddr = Ip.ipaddr
+  type buffer = Cstruct.t
+  type +'a io = 'a Lwt.t
+  type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
+
   type pcb = {
     id: WIRE.t;
     wnd: Window.t;            (* Window information *)
@@ -55,7 +61,9 @@ struct
     utx: UTX.t;               (* App tx buffer *)
   }
 
-  type connection = pcb * unit Lwt.t
+  type flow = pcb
+  type callback = flow -> unit Lwt.t
+  type connection = flow * unit Lwt.t
 
   type t = {
     ip : Ip.t;
@@ -64,13 +72,13 @@ struct
     channels: (WIRE.t, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
        waiting for ACK *)
-    listens: (WIRE.t, (Sequence.t * ((pcb -> unit Lwt.t) * connection)))
+    listens: (WIRE.t, (Sequence.t * ((flow -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
     connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t)) Hashtbl.t;
   }
 
-  let pp_pcb fmt pcb =
+  let _pp_pcb fmt pcb =
     Format.fprintf fmt "id=[%a] state=[%a]" WIRE.pp pcb.id State.pp pcb.state
 
   let pp_stats fmt t =
@@ -80,8 +88,6 @@ struct
       (Hashtbl.length t.connects)
 
   let log_with_stats level name t = Log.msg level (fun fmt -> fmt "%s: %a" name pp_stats t)
-
-  let ip { ip; _ } = ip
 
   let wscale_default = 2
 
@@ -163,7 +169,7 @@ struct
 
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
-    let thread (pcb:pcb) ~rx_data =
+    let thread pcb ~rx_data =
       let { wnd; ack; urx; _ } = pcb in
       (* Thread to monitor application receive and pass it up *)
       let rec rx_application_t () =
@@ -518,6 +524,9 @@ struct
   (* Blocking read on a PCB *)
   let read pcb =
     User_buffer.Rx.take_l pcb.urx
+    >>= function
+    | None   -> Lwt.return @@ Ok `Eof
+    | Some t -> Lwt.return @@ Ok (`Data t)
 
   (* Maximum allowed write *)
   let write_available pcb =
@@ -555,11 +564,13 @@ struct
       | e -> Lwt.return e
 
   (* Blocking write on a PCB *)
-  let write pcb data = writefn pcb (UTX.write pcb.utx) data
-  let writev pcb data = iter_s (write pcb) data
+  let cast x = (x :> (unit, write_error) result Lwt.t)
 
-  let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data
-  let writev_nodelay pcb data = iter_s (write_nodelay pcb) data
+  let write pcb data = writefn pcb (UTX.write pcb.utx) data |> cast
+  let writev pcb data = iter_s (write pcb) data |> cast
+
+  let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data |> cast
+  let writev_nodelay pcb data = iter_s (write_nodelay pcb) data |> cast
 
   (* Close - no more will be written *)
   let close pcb = Tx.close pcb
@@ -642,8 +653,27 @@ struct
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
 
+  let log_failure daddr dport = function
+  | `Timeout ->
+    Log.debug (fun fmt ->
+      fmt "Timeout attempting to connect to %a:%d\n%!"
+        Ipaddr.pp_hum (Ip.to_uipaddr daddr) dport)
+  | `Refused ->
+    Log.debug (fun fmt ->
+      fmt "Refused connection to %a:%d\n%!"
+        Ipaddr.pp_hum (Ip.to_uipaddr daddr) dport)
+  | e ->
+    Log.debug (fun fmt ->
+      fmt "%a error connecting to %a:%d\n%!"
+        pp_error e Ipaddr.pp_hum (Ip.to_uipaddr daddr) dport)
+
+  let create_connection tcp (daddr, dport) =
+    connect tcp ~dst:daddr ~dst_port:dport >>= function
+    | Error e -> log_failure daddr dport e; Lwt.return @@ Error e
+    | Ok (fl, _) -> Lwt.return (Ok fl)
+
   (* Construct the main TCP thread *)
-  let create ip clock =
+  let connect ip clock =
     (* XXX: I've no clue why this is the way it is (10000 + Random
        ~bound:10000) -- hannes *)
     let localport =
@@ -652,6 +682,7 @@ struct
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    { clock; ip; localport; channels; listens; connects }
+    Lwt.return { clock; ip; localport; channels; listens; connects }
 
+  let disconnect _ = Lwt.return_unit
 end
