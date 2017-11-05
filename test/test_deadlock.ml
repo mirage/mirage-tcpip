@@ -1,12 +1,12 @@
-(*
- * Compile with
-    ocamlfind ocamlopt -package cryptokit,tcpip.tcp,lwt.ppx,mirage-clock-unix,mirage-vnetif,mirage-net-lwt,tcpip.ethif,tcpip.arpv4,tcpip.icmpv4,tcpip.ipv4,tcpip.stack-direct,logs,lwt.unix,logs.fmt,io-page.unix  -thread -o tcpip_bug tcpip_bug.ml -linkpkg
-
- * *)
-
 open Lwt.Infix
 
 let mtu = 4000
+
+let server_log = Logs.Src.create "test_deadlock_server" ~doc:"tcp deadlock tests: server"
+module Server_log = (val Logs.src_log server_log : Logs.LOG)
+
+let client_log = Logs.Src.create "test_deadlock_client" ~doc:"tcp deadlock tests: client"
+module Client_log = (val Logs.src_log client_log : Logs.LOG)
 
 module TCPIP =
 struct
@@ -72,41 +72,30 @@ end
 
 let port = 10000
 
-let rnd = Cryptokit.(Random.pseudo_rng @@ hash_string (Hash.sha256 ()) "42")
-
 let test_digest netif1 netif2 =
   TCPIP.make `Client netif1 >>= fun client_stack ->
   TCPIP.make `Server netif2 >>= fun server_stack ->
 
   let send_data () =
-    let data = Cryptokit.Random.string rnd 100_000_000 in
+    let data = Stdlibrandom.generate 100_000_000 |> Cstruct.to_string in
     let t0   = Unix.gettimeofday () in
     TCPIP.TCPV4.create_connection
       TCPIP.(tcpv4 @@ tcpip server_stack) (TCPIP.client_ip, port) >>= function
     | Error _ -> failwith "could not establish tunneled connection"
     | Ok flow ->
-      print_endline "established conn";
+      Server_log.debug (fun f -> f "established conn");
       let rec read_digest chunks =
         TCPIP.TCPV4.read flow >>= function
         | Error _ -> failwith "read error"
         | Ok (`Data data) -> read_digest (data :: chunks)
         | Ok `Eof ->
-          print_endline "EOF";
+          Server_log.debug (fun f -> f "EOF");
           let dt = Unix.gettimeofday () -. t0 in
-          Printf.printf "!!!!!!!!!! XXXX  needed %.2fs (%.1f MB/s)\n"
-            dt (float (String.length data) /. dt /. 1024. ** 2.);
-
-          let expected = Cryptokit.(hash_string (Hash.sha256 ()) data) in
-          let actual   = String.concat "" @@ List.rev_map Cstruct.to_string chunks in
-          if expected <> actual then begin
-            failwith "bad digest"
-          end else begin
-            print_endline "OK";
-          end;
-
+          Server_log.warn (fun f -> f "!!!!!!!!!! XXXX  needed %.2fs (%.1f MB/s)"
+            dt (float (String.length data) /. dt /. 1024. ** 2.));
           Lwt.return_unit
       in
-      Lwt.join
+      Lwt.pick
         [ read_digest [];
           begin
             let rec send_data data =
@@ -118,33 +107,29 @@ let test_digest netif1 netif2 =
                   [
                     (TCPIP.TCPV4.write flow sub >>= fun _ -> Lwt.return_unit);
                     (Lwt_unix.sleep 5. >>= fun () ->
-                     print_endline "=========== DEADLOCK!!! =============";
-                     Lwt.return_unit);
+                     Common.failf "=========== DEADLOCK!!! =============");
                   ]
                 >>= fun () ->
                 send_data data in
             send_data @@ Cstruct.of_bytes data >>= fun () ->
-            print_endline "wrote data";
+            Server_log.debug (fun f -> f "wrote data");
             TCPIP.TCPV4.close flow
           end
         ]
   in
   TCPIP.listen_tcpv4 (TCPIP.tcpip client_stack) port
     (fun flow ->
-       print_endline "client got conn";
-
-       let h = Cryptokit.Hash.sha256 () in
-
+       Client_log.debug (fun f -> f "client got conn");
        let rec consume () =
          TCPIP.TCPV4.read flow >>= function
          | Error _ ->
-           print_endline "XXXX client read error";
+           Client_log.debug (fun f -> f "XXXX client read error");
            TCPIP.TCPV4.close flow
          | Ok `Eof ->
-           TCPIP.TCPV4.write flow @@ Cstruct.of_string @@ h#result >>= fun _ ->
+           TCPIP.TCPV4.write flow @@ Cstruct.of_string "thanks for all the fish"
+           >>= fun _ ->
            TCPIP.TCPV4.close flow
          | Ok (`Data data) ->
-           h#add_string @@ Cstruct.to_string data;
            (if Random.float 1.0 < 0.01 then Lwt_unix.sleep 0.01
            else Lwt.return_unit) >>= fun () ->
            consume ()
@@ -164,7 +149,6 @@ let run_vnetif () =
   TCPIP.M.NETIF.connect backend >>= fun c2 ->
   test_digest c1 c2
 
-let suite () =
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level ~all:true (Some Logs.Debug);
-  Lwt_main.run @@ run_vnetif ();
+let suite = [
+  "test tcp deadlock with slow receiver", `Quick, run_vnetif
+]
