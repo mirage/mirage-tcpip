@@ -120,7 +120,7 @@ let macaddr_of_cstruct cs =
 
 let interface_addr mac =
   let bmac = Macaddr.to_bytes mac in
-  let c i = Char.code (Bytes.get bmac i) in
+  let c i = Char.code (String.get bmac i) in
   Ipaddr.make
     0 0 0 0
     ((c 0 lxor 2) lsl 8 + c 1)

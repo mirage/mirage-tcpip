@@ -8,9 +8,9 @@ let mac_of_multicast ip =
   Bytes.set macb 1 (Char.chr 0x00);
   Bytes.set macb 2 (Char.chr 0x5E);
   Bytes.set macb 3 (Char.chr ((Char.code ipb.[1]) land 0x7F));
-  Bytes.set macb 4 (Bytes.get ipb 2);
-  Bytes.set macb 5 (Bytes.get ipb 3);
-  Macaddr.of_bytes_exn macb
+  Bytes.set macb 4 (String.get ipb 2);
+  Bytes.set macb 5 (String.get ipb 3);
+  Macaddr.of_bytes_exn (Bytes.to_string macb)
 
 type routing_error = [ `Local | `Gateway ]
 
