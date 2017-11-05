@@ -87,14 +87,26 @@ let input t ~src ~dst:_ buf =
 
 let listen _t addr fn =
   let fd = Lwt_unix.socket PF_INET sock_icmp ipproto_icmp in
-  let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
-  Lwt_unix.bind fd sa >>= fun () ->
-  Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
-  let aux fn =
-    let receive_buffer = Cstruct.create 4096 in
-    recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
-    (* trim the buffer to the amount of data actually received *)
-    let receive_buffer = Cstruct.set_len receive_buffer len in
-    fn receive_buffer
-  in
-  aux fn >>= fun () -> Lwt_unix.close fd
+  Lwt.finalize
+    (fun () ->
+      let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
+      Lwt_unix.bind fd sa >>= fun () ->
+      Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
+      let rec loop () =
+        let receive_buffer = Cstruct.create 4096 in
+        recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
+        (* trim the buffer to the amount of data actually received *)
+        let receive_buffer = Cstruct.set_len receive_buffer len in
+        (* On macOS the IP length field is set to a very large value (16384) which
+           probably reflects some kernel datastructure size rather than the real
+           on-the-wire size. This confuses our IPv4 parser so we correct the size
+           here. *)
+        let len = Ipv4_wire.get_ipv4_len receive_buffer in
+        Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.len receive_buffer));
+        Lwt.async (fun () -> fn receive_buffer);
+        loop ()
+      in
+      loop ()
+    ) (fun () ->
+      Lwt_unix.close fd
+    )
