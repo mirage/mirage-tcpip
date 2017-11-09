@@ -1,3 +1,8 @@
+### v3.3.1 (2017-11-07)
+
+* Add an example for user-space `ping`, and some socket ICMPv4 fixes (#336 @djs55)
+* Make tcpip safe-string-safe (and buildable by default on OCaml 4.06.0) (#341 @djs55)
+
 ### v3.3.0 (2017-08-08)
 
 * Test with current mirage-www master (#323 @yomimono)
