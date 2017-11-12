@@ -140,7 +140,7 @@ let set_ack_seq_win t s w =
 (* TODO: scale the window down so we can advertise it correctly with
    window scaling on the wire *)
 let set_rx_wnd t sz =
-  t.rx_wnd <- sz
+  t.rx_wnd <- max sz (Int32.of_int (3 * t.tx_mss + 1 lsl t.rx_wnd_scale))
 
 (* Take an unscaled value and scale it up *)
 let set_tx_wnd t sz =
