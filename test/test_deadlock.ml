@@ -111,7 +111,7 @@ let test_digest netif1 netif2 =
                   ]
                 >>= fun () ->
                 send_data data in
-            send_data @@ Cstruct.of_bytes data >>= fun () ->
+            send_data @@ Cstruct.of_string data >>= fun () ->
             Server_log.debug (fun f -> f "wrote data");
             TCPIP.TCPV4.close flow
           end
