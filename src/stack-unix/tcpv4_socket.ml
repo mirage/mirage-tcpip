@@ -23,7 +23,6 @@ type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
 type ip = Ipaddr.V4.t option (* interface *)
 type ipinput = unit io
-type callback = flow -> unit io
 
 type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)

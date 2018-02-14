@@ -64,11 +64,10 @@ struct
   }
 
   type flow = pcb
-  type callback = flow -> unit Lwt.t
   type connection = flow * unit Lwt.t
 
   type listener = {
-    process: callback;
+    process: flow -> unit io;
     keepalive: Mirage_protocols.Keepalive.t option;
   }
 
