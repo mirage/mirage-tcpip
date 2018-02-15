@@ -1,3 +1,9 @@
+### v3.4.0 (2018-02-15)
+
+* Add support for TCP keepalives (#338 @djs55)
+* Fix TCP deadlock (#343 @mfp)
+* Update the CI to test OCaml 4.04, 4.05, 4.06 (#344 @yomimono)
+
 ### v3.3.1 (2017-11-07)
 
 * Add an example for user-space `ping`, and some socket ICMPv4 fixes (#336 @djs55)
