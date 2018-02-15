@@ -100,7 +100,7 @@ let listen_udpv4 t ~port callback =
       loop ()
     )
 
-let listen_tcpv4 _t ~port callback =
+let listen_tcpv4 ?keepalive _t ~port callback =
   if port < 0 || port > 65535 then
     raise (Invalid_argument (err_invalid_port port))
   else
@@ -119,6 +119,10 @@ let listen_tcpv4 _t ~port callback =
           if true then loop () else return_unit in
         Lwt_unix.accept fd
         >>= fun (afd, _) ->
+        ( match keepalive with
+        | None -> ()
+        | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+          Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes );
         Lwt.async (fun () ->
                    Lwt.catch
                      (fun () -> callback afd)

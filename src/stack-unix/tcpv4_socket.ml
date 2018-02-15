@@ -23,7 +23,6 @@ type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
 type ip = Ipaddr.V4.t option (* interface *)
 type ipinput = unit io
-type callback = flow -> unit io
 
 type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)
@@ -49,11 +48,15 @@ let dst fd =
       | Some ip -> ip,port
     end
 
-let create_connection _t (dst,dst_port) =
+let create_connection ?keepalive _t (dst,dst_port) =
   let fd = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
       >>= fun () ->
+      ( match keepalive with
+        | None -> ()
+        | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+          Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
       return (Ok fd))
     (fun exn -> return (Error (`Exn exn)))

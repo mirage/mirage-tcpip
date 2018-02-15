@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2010 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2017 Docker Inc
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,42 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t
+external tcp_set_keepalive_params: Unix.file_descr -> int -> int -> int -> unit = "caml_tcp_set_keepalive_params"
 
-(* a < b *)
-val lt : t -> t -> bool
-
-(* a <= b *)
-val leq : t -> t -> bool
-
-(* a > b *)
-val gt : t -> t -> bool
-
-(* a >= b *)
-val geq : t -> t -> bool
-
-(* b <= a <= c *)
-val between : t -> t -> t -> bool
-
-(* a + b *)
-val add: t -> t -> t
-
-(* a - b *)
-val sub: t -> t -> t
-
-(* a + 1 *)
-val succ: t -> t
-
-(* a - 1 *)
-val pred: t -> t
-
-val compare: t -> t -> int
-val of_int32: int32 -> t
-val of_int: int -> t
-val to_int32: t -> int32
-val to_int: t -> int
-
-(* the value produced by of_int 0 *)
-val zero : t
-
-val pp: Format.formatter -> t -> unit
+let enable_keepalive ~fd ~after ~interval ~probes =
+  let fd' = Lwt_unix.unix_file_descr fd in
+  let after = Duration.to_ms after in
+  let interval = Duration.to_ms interval in
+  tcp_set_keepalive_params fd' after interval probes;
+  Lwt_unix.setsockopt fd Lwt_unix.SO_KEEPALIVE true

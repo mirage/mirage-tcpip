@@ -120,7 +120,7 @@ module Make(Time:Mirage_time_lwt.S) = struct
     Lwt.return_unit
 
   let tick t (i:action) =
-    let diffone x y = Sequence.incr y = x in
+    let diffone x y = Sequence.succ y = x in
     let tstr s (i:action) =
       match s, i with
       | Closed, Passive_open -> Listen
