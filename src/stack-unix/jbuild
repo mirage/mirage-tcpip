@@ -52,6 +52,8 @@
     ipaddr.unix
     io-page-unix
     logs
+    tcpip.tcpv4-socket
+    tcpip.udpv4-socket
     tcpip.ipv4
     tcpip.ipv6
     tcpip.icmpv4
