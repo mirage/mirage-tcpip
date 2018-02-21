@@ -46,4 +46,14 @@
   (public_name tcpip.stack-socket)
   (modules (tcpip_stack_socket ipv4_socket ipv6_socket))
   (wrapped false)
-  (libraries (lwt.unix cstruct-lwt ipaddr.unix io-page-unix logs tcpip.ipv4 tcpip.ipv6 tcpip.icmpv4 mirage-protocols-lwt mirage-stack-lwt))))
+  (libraries
+   (lwt.unix
+    cstruct-lwt
+    ipaddr.unix
+    io-page-unix
+    logs
+    tcpip.ipv4
+    tcpip.ipv6
+    tcpip.icmpv4
+    mirage-protocols-lwt
+    mirage-stack-lwt))))
