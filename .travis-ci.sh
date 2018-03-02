@@ -12,6 +12,6 @@ cd examples/unikernel
 git log --oneline |head -5
 
 opam install mirage
-mirage configure -t $MIRAGE_MODE
+mirage configure -t $MIRAGE_MODE $FLAGS
 make depend
 make 
