@@ -21,25 +21,26 @@
   (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols-lwt))))
 
 (library
+ ((name tcp_socket_options)
+  (public_name tcpip.tcp_socket_options)
+  (modules (tcp_socket_options))
+  (c_names (tcp_socket_options_stubs))
+  (wrapped false)
+  (libraries (lwt.unix duration))))
+
+(library
  ((name tcpv4_socket)
   (public_name tcpip.tcpv4-socket)
   (modules (tcpv4_socket tcp_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcp_socket_options))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcpip.tcp_socket_options))))
 
 (library
  ((name tcpv6_socket)
   (public_name tcpip.tcpv6-socket)
   (modules (tcpv6_socket))
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcpv4_socket tcp_socket_options))))
-
-(library
- ((name tcp_socket_options)
-  (modules (tcp_socket_options))
-  (c_names (tcp_socket_options_stubs))
-  (wrapped false)
-  (libraries (lwt.unix duration))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols mirage-protocols-lwt tcpv4_socket tcpip.tcp_socket_options))))
 
 (library
  ((name tcpip_stack_socket)
