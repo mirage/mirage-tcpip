@@ -40,6 +40,40 @@ let udp_ipv4_allows_zero () =
     true @@ verify_ipv4_udp ~ipv4_header ~transport_packet;
   Lwt.return_unit
 
+let udp_ipv4_zero_checksum () =
+  let src = Ipaddr.V4.make 127 0 0 1 in
+  let dst = src in
+  let proto = `UDP in
+  let ttl = 38 in
+  let options = Cstruct.empty in
+  let payload = Cstruct.of_hex "01 84" in
+  let payload_len = Cstruct.len payload in
+  let ipv4_header = Ipv4_packet.{
+        src; dst;
+        proto = Ipv4_packet.Marshal.protocol_to_int proto;
+        ttl; options } in
+  let pseudoheader = Ipv4_packet.Marshal.pseudoheader
+      ~src
+      ~dst
+      ~proto
+      (payload_len + 8) in
+  let packet = Cstruct.concat [
+      Ipv4_packet.Marshal.make_cstruct ~payload_len:(payload_len + 8) ipv4_header;
+      Udp_packet.Marshal.make_cstruct ~pseudoheader ~payload
+        { src_port = 42; dst_port = 42 };
+      payload] in
+  let (ipv4_header', transport_packet) = unwrap_ipv4 packet in
+
+  Alcotest.(check bool) "UDP packets with zero checksums pass verification"
+    true @@ verify_ipv4_udp ~ipv4_header ~transport_packet;
+
+  Cstruct.set_char transport_packet (Cstruct.len transport_packet - 1) '\000';
+  Alcotest.(check bool) "Corrupted UDP packets with zero checksum fail verification"
+    false @@ verify_ipv4_udp ~ipv4_header ~transport_packet;
+
+  Lwt.return_unit
+
+
 let tcp_ipv4_correct_positive () =
   let buf = Cstruct.of_string example_ipv4_tcp in
   let (ipv4_header, transport_packet) = unwrap_ipv4 buf in
@@ -60,6 +94,7 @@ let suite =
   "correct UDP IPV4 checksums are recognized",  `Quick, udp_ipv4_correct_positive;
   "incorrect UDP IPV4 checksums are recognized",  `Quick, udp_ipv4_correct_negative;
   "0x00 UDP checksum is valid", `Quick, udp_ipv4_allows_zero;
+  "correct but zero UDP IPV4 checksums are recognized", `Quick, udp_ipv4_zero_checksum;
   "correct TCP IPV4 checksums are recognized",  `Quick, tcp_ipv4_correct_positive;
   "incorrect TCP IPV4 checksums are recognized",  `Quick, tcp_ipv4_correct_negative;
 ]

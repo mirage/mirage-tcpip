@@ -56,6 +56,11 @@ module Marshal = struct
      * consider only the portion which will actually contain the header
      * when calculating this bit of the checksum *)
     let csum = Tcpip_checksum.ones_complement_list [ pseudoheader ; udp_buf ; payload ] in
+    (* Convert zero checksum to the equivalent 0xffff, to prevent it
+     * seeming like no checksum at all. From RFC768: "If the computed
+     * checksum is zero, it is transmitted as all ones (the equivalent
+     * in one's complement arithmetic)."  *)
+    let csum = if csum = 0 then 0xffff else csum in
     set_udp_checksum udp_buf csum
 
   let into_cstruct ~pseudoheader ~payload t udp_buf =
