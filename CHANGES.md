@@ -1,3 +1,9 @@
+### v3.4.1 (2018-03-09)
+
+* expose tcp_socket_options in the socket stack, fixing downstream builds (#356 @yomimono)
+* add missing dependencies and constraints (#354 @yomimono, #353 @rgrinberg)
+* remove leftover ocamlbuild files (#353 @rgrinberg)
+
 ### v3.4.0 (2018-02-15)
 
 * Add support for TCP keepalives (#338 @djs55)
