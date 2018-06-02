@@ -56,7 +56,11 @@ let writev_nodelay fd bufs =
   writev fd bufs
 
 let close fd =
-  Lwt_unix.close fd
+  Lwt.catch
+    (fun () -> Lwt_unix.close fd)
+    (function
+      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
+      | e -> Lwt.fail e)
 
 type listener = {
   process: Lwt_unix.file_descr -> unit Lwt.t;
