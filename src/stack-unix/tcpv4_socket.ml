@@ -59,4 +59,6 @@ let create_connection ?keepalive _t (dst,dst_port) =
         | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
           Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
       return (Ok fd))
-    (fun exn -> return (Error (`Exn exn)))
+    (fun exn ->
+       Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >>= fun () ->
+       return (Error (`Exn exn)))
