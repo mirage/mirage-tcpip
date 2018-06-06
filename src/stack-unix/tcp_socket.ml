@@ -2,13 +2,15 @@ open Lwt
 open Result
 
 type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
-type write_error = Mirage_protocols.Tcp.write_error
+type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
 let pp_error ppf = function
   | #Mirage_protocols.Tcp.error as e -> Mirage_protocols.Tcp.pp_error ppf e
-  | `Exn e -> Fmt.pf ppf "%a" Fmt.exn e
+  | `Exn e -> Fmt.exn ppf e
 
-let pp_write_error = Mirage_protocols.Tcp.pp_write_error
+let pp_write_error ppf = function
+  | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
+  | `Exn e -> Fmt.exn ppf e
 
 let disconnect _ =
   return_unit
@@ -35,7 +37,7 @@ let rec write fd buf =
       | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
     ) (function
       | Unix.Unix_error(Unix.EPIPE, _, _) -> return @@ Error `Closed
-      | e -> Lwt.fail e)
+      | e -> return (Error (`Exn e)))
 
 let writev fd bufs =
   Lwt_list.fold_left_s
