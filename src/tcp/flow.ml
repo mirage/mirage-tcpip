@@ -315,6 +315,8 @@ struct
     User_buffer.Rx.add_r urx None >>= fun () ->
     Lwt.return_unit
 
+  let emitted_keepalive_warning = ref false
+
   let new_pcb t params id keepalive =
     let mtu_mss = Ip.mtu t.ip - Tcp_wire.sizeof_tcp in
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
@@ -363,7 +365,13 @@ struct
     (* Set up the keepalive state if requested *)
     let keepalive = match keepalive with
       | None -> None
-      | Some config -> Some (KEEPALIVE.create config (keepalive_cb t id wnd state urx) t.clock) in
+      | Some config ->
+        (* Only omit the warning once to avoid spamming the logs *)
+	if not !emitted_keepalive_warning then begin
+          Log.warn (fun f -> f "using keep-alives can cause excessive memory consumption: https://github.com/mirage/mirage-tcpip/issues/367");
+          emitted_keepalive_warning := true
+        end;
+        Some (KEEPALIVE.create config (keepalive_cb t id wnd state urx) t.clock) in
     (* Construct basic PCB in Syn_received state *)
     let pcb = { state; rxq; txq; wnd; id; ack; urx; utx; keepalive } in
     (* Compose the overall thread from the various tx/rx threads
