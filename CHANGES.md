@@ -1,3 +1,15 @@
+### v3.4.2 (2018-06-15)
+
+Note the use of the new TCP keep-alive feature can cause excessive amounts
+of memory to be used in some circumstances, see
+  https://github.com/mirage/mirage-tcpip/issues/367
+
+* Ensure a zero UDP checksum is sent as 0xffff, not 0x0000 (#359 @stedolan)
+* Avoid leaking a file descriptor in the socket stack if the connection fails (#363 @hannesm)
+* Avoid raising an exception with `Lwt.fail` when `write` fails in the socket stack (#363 @hannesm)
+* Ignore `EBADF` errors in `close` in the socket stack (#366 @hannesm)
+* Emit a warning when TCP keep-alives are used (#368 @djs55)
+
 ### v3.4.1 (2018-03-09)
 
 * expose tcp_socket_options in the socket stack, fixing downstream builds (#356 @yomimono)
