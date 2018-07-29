@@ -366,8 +366,8 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
             let { wnd; _ } = q in
             let flags=rexmit_seg.flags in
             let options=[] in (* TODO: put the right options *)
-            Lwt.async
-              (fun () -> q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
+            Lwt.async (fun () ->
+                q.xmit ~flags ~wnd ~options ~seq rexmit_seg.data >|= ignore);
             Lwt.return_unit
           end else
             Lwt.return_unit
