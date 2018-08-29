@@ -18,10 +18,10 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
             (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (Clock : Mirage_clock_lwt.MCLOCK) : sig
-  include Mirage_protocols_lwt.IPV6 with type ethif = E.t
+  include Mirage_protocols_lwt.IPV6
   val connect :
     ?ip:Ipaddr.V6.t list ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
-    ethif -> Clock.t -> t Lwt.t
+    E.t -> Clock.t -> t Lwt.t
 end

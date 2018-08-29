@@ -32,7 +32,7 @@ module Make
     (Netif   : Mirage_net_lwt.S)
     (Ethif   : Mirage_protocols_lwt.ETHIF with type netif = Netif.t)
     (Arpv4   : Mirage_protocols_lwt.ARP)
-    (Ipv4    : Mirage_protocols_lwt.IPV4 with type ethif = Ethif.t)
+    (Ipv4    : Mirage_protocols_lwt.IPV4)
     (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
     (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
     (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) = struct
