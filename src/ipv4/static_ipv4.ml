@@ -29,11 +29,9 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
   | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
   | `Ethif e -> Ethif.pp_error ppf e
 
-  type ethif = Ethif.t
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
-  type prefix = Ipaddr.V4.Prefix.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
   type t = {

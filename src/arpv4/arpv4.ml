@@ -29,7 +29,6 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
   type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
   type macaddr = Macaddr.t
-  type ethif = Ethif.t
   type repr = string
   type error = Mirage_protocols.Arp.error
   let pp_error = Mirage_protocols.Arp.pp_error
