@@ -26,7 +26,6 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
-  type ip = Ip.t
   type ipaddr = Ip.ipaddr
   type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t

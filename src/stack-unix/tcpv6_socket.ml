@@ -22,7 +22,6 @@ type buffer = Cstruct.t
 type ipaddr = Ipaddr.V6.t
 type flow = Lwt_unix.file_descr
 type +'a io = 'a Lwt.t
-type ip = Ipaddr.V6.t option (* interface *)
 type ipinput = unit io
 
 type t = {
