@@ -48,8 +48,7 @@ struct
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
     UDPV4.connect ipv4 >>= fun udpv4 ->
     TCPV4.connect ipv4 clock >>= fun tcpv4 ->
-    TCPIP.connect { Mirage_stack_lwt.name = "genTCPIP"; interface = netif }
-      ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 >>= fun tcpip ->
+    TCPIP.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 >>= fun tcpip ->
     Lwt.return tcpip
 
   include TCPIP
