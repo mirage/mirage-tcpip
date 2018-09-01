@@ -16,11 +16,10 @@
  *)
 
 include Mirage_protocols_lwt.TCP
-  with type ip = Ipaddr.V6.t option
-   and type ipaddr = Ipaddr.V6.t
+  with type ipaddr = Ipaddr.V6.t
    and type ipinput = unit Lwt.t
    and type flow = Lwt_unix.file_descr
    and type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
    and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
-val connect : ip -> t io
+val connect : Ipaddr.V6.t option -> t io

@@ -89,11 +89,7 @@ struct
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
-    let config = {
-      Mirage_stack_lwt.name = "stack";
-      interface = netif;
-    } in
-    Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
+    Stackv4.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
 
   let create_backend_listener backend listenf =
     match (B.register backend) with

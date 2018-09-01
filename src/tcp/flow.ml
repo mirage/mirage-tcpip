@@ -44,7 +44,6 @@ struct
       Fmt.string ppf "attempted to send data before connection was ready"
     | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
-  type ip = Ip.t
   type ipaddr = Ip.ipaddr
   type buffer = Cstruct.t
   type +'a io = 'a Lwt.t

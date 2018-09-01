@@ -30,16 +30,13 @@ module Make
     (Time    : Mirage_time.S)
     (Random  : Mirage_random.C)
     (Netif   : Mirage_net_lwt.S)
-    (Ethif   : Mirage_protocols_lwt.ETHIF with type netif = Netif.t)
+    (Ethif   : Mirage_protocols_lwt.ETHIF)
     (Arpv4   : Mirage_protocols_lwt.ARP)
     (Ipv4    : Mirage_protocols_lwt.IPV4)
     (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
-    (Udpv4   : UDPV4_DIRECT with type ip = Ipv4.t)
-    (Tcpv4   : TCPV4_DIRECT with type ip = Ipv4.t) = struct
+    (Udpv4   : UDPV4_DIRECT)
+    (Tcpv4   : TCPV4_DIRECT) = struct
   type +'a io = 'a Lwt.t
-  type 'a config = 'a Mirage_stack_lwt.stackv4_config
-  type netif = Netif.t
-  type id = netif config
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
   type tcpv4 = Tcpv4.t
@@ -51,7 +48,6 @@ module Make
   module IPV4  = Ipv4
 
   type t = {
-    id    : id;
     netif : Netif.t;
     ethif : Ethif.t;
     arpv4 : Arpv4.t;
@@ -127,11 +123,10 @@ module Make
             nstat.tx_bytes nstat.tx_pkts) ;
       Lwt.return_unit
 
-  let connect id ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
-    let { Mirage_stack_lwt.interface = netif; _ } = id in
+  let connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { id; netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
+    let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
     Lwt.ignore_result (listen t);

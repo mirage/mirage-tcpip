@@ -23,19 +23,14 @@ type socket_ipv4_input = unit Lwt.t
 
 module type UDPV4_SOCKET = Mirage_protocols_lwt.UDP
   with type ipinput = socket_ipv4_input
-   and type ip = Ipaddr.V4.t option
 
 module type TCPV4_SOCKET = Mirage_protocols_lwt.TCP
   with type ipinput = socket_ipv4_input
-   and type ip = Ipaddr.V4.t option
 
 module Tcpv4 = Tcpv4_socket
 module Udpv4 = Udpv4_socket
 
 type +'a io = 'a Lwt.t
-type 'a config = 'a Mirage_stack_lwt.stackv4_config
-type netif = Ipaddr.V4.t list
-type id = netif config
 type buffer = Cstruct.t
 type ipv4addr = Ipaddr.V4.t
 
@@ -48,7 +43,6 @@ type tcpv4 = Tcpv4_socket.t
 type ipv4  = Ipaddr.V4.t option
 
 type t = {
-  id    : id;
   udpv4 : Udpv4.t;
   tcpv4 : Tcpv4.t;
   udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
@@ -138,14 +132,13 @@ let listen _t =
   let t, _ = Lwt.task () in
   t (* TODO cancellation *)
 
-let connect id udpv4 tcpv4 =
-  let { Mirage_stack_lwt.interface; _ } = id in
+let connect ips udpv4 tcpv4 =
   Log.info (fun f -> f "Manager: connect");
   let udpv4_listeners = Hashtbl.create 7 in
   let tcpv4_listeners = Hashtbl.create 7 in
-  let t = { id; tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+  let t = { tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
   Log.info (fun f -> f "Manager: configuring");
-  configure t interface
+  configure t ips
   >>= fun () ->
   return t
 

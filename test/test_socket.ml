@@ -17,17 +17,11 @@ let or_fail_str ~str f args =
 
 let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
 
-let make_stack ~name ~ip =
-  (* define a config record, which should match the type expected of
-     Mirage_stack_lwt.stackv4_config *)
+let make_stack ~ip =
   Tcpv4_socket.connect (Some ip) >>= fun tcp ->
   Udpv4_socket.connect (Some ip) >>= fun udp ->
-  let config = {
-    Mirage_stack_lwt.name;
-    interface = [ip];
-  } in
   Icmpv4_socket.connect () >>= fun icmp ->
-  Stack.connect config udp tcp >>= fun stack ->
+  Stack.connect [ip] udp tcp >>= fun stack ->
   Lwt.return { stack; icmp; udp; tcp }
 
 let two_connect_tcp () =
@@ -39,8 +33,8 @@ let two_connect_tcp () =
       Lwt.return_unit
   in
   let server_port = 14041 in
-  make_stack ~name:"server" ~ip:localhost >>= fun server ->
-  make_stack ~name:"client" ~ip:localhost >>= fun client ->
+  make_stack ~ip:localhost >>= fun server ->
+  make_stack ~ip:localhost >>= fun client ->
 
   Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
@@ -52,8 +46,8 @@ let two_connect_tcp () =
   ]
 
 let icmp_echo_request () =
-  make_stack ~name:"server" ~ip:localhost >>= fun server ->
-  make_stack ~name:"client" ~ip:localhost >>= fun client ->
+  make_stack ~ip:localhost >>= fun server ->
+  make_stack ~ip:localhost >>= fun client ->
   let echo_request = Icmpv4_packet.(Marshal.make_cstruct
                                       ~payload:(Cstruct.create 0)
                                       { ty = Icmpv4_wire.Echo_request;
