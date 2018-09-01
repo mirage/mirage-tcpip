@@ -42,6 +42,7 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
     mutable ip: Ipaddr.V4.t;
     network: Ipaddr.V4.Prefix.t;
     mutable gateway: Ipaddr.V4.t option;
+    mutable cache: Fragments.Cache.t;
   }
 
   let adjust_output_header = Ipv4_common.adjust_output_header
@@ -77,23 +78,16 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
     writev t frame [buf]
 
   (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
-  let input _t ~tcp ~udp ~default buf =
-    let open Ipv4_packet in
-    match Unmarshal.of_cstruct buf with
-    | Error s ->
-      Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
-      Lwt.return_unit
-    | Ok (packet, payload) ->
-      match Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
-      | Some _, 0 ->
-        (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
-        Lwt.return_unit
-      | None, 0 -> (* we don't know anything about the protocol; an empty
-                      payload may be meaningful somehow? *)
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
-      | Some `TCP, _ -> tcp ~src:packet.src ~dst:packet.dst payload
-      | Some `UDP, _ -> udp ~src:packet.src ~dst:packet.dst payload
-      | Some `ICMP, _ | None, _ ->
+  let input t ~tcp ~udp ~default buf =
+    let cache, res = Fragments.process t.cache buf in
+    t.cache <- cache ;
+    match res with
+    | None -> Lwt.return_unit
+    | Some (packet, payload) ->
+      match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
+      | Some `TCP -> tcp ~src:packet.src ~dst:packet.dst payload
+      | Some `UDP -> udp ~src:packet.src ~dst:packet.dst payload
+      | Some `ICMP | None ->
         default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
 
   let connect
@@ -106,7 +100,8 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
       Arpv4.set_ips arp [ip] >>= fun () ->
-      let t = { ethif; arp; ip; network; gateway } in
+      let cache = Fragments.Cache.empty (1024 * 1024) in
+      let t = { ethif; arp; ip; network; gateway ; cache } in
       Lwt.return t
 
   let disconnect _ = Lwt.return_unit

@@ -1,8 +1,10 @@
 type t = {
   src     : Ipaddr.V4.t;
   dst     : Ipaddr.V4.t;
-  proto   : Cstruct.uint8;
+  id      : Cstruct.uint16;
+  off     : Cstruct.uint16;
   ttl     : Cstruct.uint8;
+  proto   : Cstruct.uint8;
   options : Cstruct.t;
 }
 
