@@ -1,5 +1,4 @@
 open Lwt
-open Result
 
 type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
 type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]

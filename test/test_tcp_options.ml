@@ -4,11 +4,11 @@ let check = Alcotest.(check @@ result (list options) string)
 
 let errors ?(check_msg = false) exp = function
   | Ok opt ->
-    Fmt.kstrf Alcotest.fail "Result.Ok %a when Result.error %s expected"
+    Fmt.kstrf Alcotest.fail "Ok %a when Error %s expected"
       Tcp.Options.pps opt exp
   | Error p -> if check_msg then
       Alcotest.(check string)
-        "Result.Error didn't give the expected error message" exp p
+        "Error didn't give the expected error message" exp p
     else ()
 
 let test_unmarshal_bad_mss () =

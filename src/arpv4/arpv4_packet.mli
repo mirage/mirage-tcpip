@@ -21,7 +21,7 @@ module Unmarshal : sig
 
   val pp_error : Format.formatter -> error -> unit
 
-  val of_cstruct : Cstruct.t -> (t, error) Result.result
+  val of_cstruct : Cstruct.t -> (t, error) result
 end
 module Marshal : sig
   type error = string
@@ -29,7 +29,7 @@ module Marshal : sig
   (** [into_cstruct t buf] attempts to write an ARP header representing
       [t.op], and the source/destination ip/mac in [t] into [buf] at offset 0.
       [buf] should be at least 24 bytes in size for the call to succeed. *)
-  val into_cstruct : t -> Cstruct.t -> (unit, error) Result.result
+  val into_cstruct : t -> Cstruct.t -> (unit, error) result
 
   (** given a [t], construct and return an ARP header representing
       [t.op], and the source/destination ip/mac in [t].  [make_cstruct] will allocate

@@ -38,12 +38,12 @@ module Unmarshal = struct
     let open Tcp_wire in
     let check_len pkt =
       if Cstruct.len pkt < sizeof_tcp then
-        Result.Error "packet too short to contain a TCP packet of any size"
+        Error "packet too short to contain a TCP packet of any size"
       else
         Ok (Tcp_wire.get_data_offset pkt)
     in
     let long_enough data_offset = if Cstruct.len pkt < data_offset then
-        Result.Error "packet too short to contain a TCP packet of the size claimed"
+        Error "packet too short to contain a TCP packet of the size claimed"
       else
         Ok ()
     in
@@ -51,7 +51,7 @@ module Unmarshal = struct
       if data_offset > 20 then
         Options.unmarshal (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
       else if data_offset < 20 then
-        Result.Error "data offset was unreasonably short; TCP header can't be valid"
+        Error "data offset was unreasonably short; TCP header can't be valid"
       else (Ok [])
     in
     check_len pkt >>= fun data_offset ->
@@ -69,8 +69,8 @@ module Unmarshal = struct
     let src_port = get_tcp_src_port pkt in
     let dst_port = get_tcp_dst_port pkt in
     let data = Cstruct.shift pkt data_offset in
-    Result.Ok ({ urg; ack; psh; rst; syn; fin; window; options;
-                sequence; ack_number; src_port; dst_port }, data)
+    Ok ({ urg; ack; psh; rst; syn; fin; window; options;
+          sequence; ack_number; src_port; dst_port }, data)
 end
 module Marshal = struct
   open Rresult

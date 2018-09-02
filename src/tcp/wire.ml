@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -67,10 +66,10 @@ module Make (Ip:Mirage_protocols_lwt.IP) = struct
     let pseudoheader = Ip.pseudoheader ip ~dst ~proto:`TCP
       (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
     match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
-    | Result.Error s ->
+    | Error s ->
       Log.warn (fun l -> l "Error writing TCP packet header: %s" s);
       Lwt.fail (Failure ("Tcp_packet.Marshal.into_cstruct: " ^ s))
-    | Result.Ok len ->
+    | Ok len ->
       let frame = Cstruct.set_len frame (header_len + len) in
       MProf.Counter.increase count_tcp_to_ip
         (Cstruct.len payload + if syn then 1 else 0);

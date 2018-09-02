@@ -22,16 +22,16 @@ module Unmarshal = struct
   let of_cstruct frame =
     if Cstruct.len frame >= sizeof_ethernet then
       match get_ethernet_ethertype frame |> int_to_ethertype with
-      | None -> Result.Error (Printf.sprintf "unknown ethertype 0x%x in frame"
+      | None -> Error (Printf.sprintf "unknown ethertype 0x%x in frame"
                                 (get_ethernet_ethertype frame))
       | Some ethertype ->
         let payload = Cstruct.shift frame sizeof_ethernet
         and source = Macaddr.of_bytes_exn (copy_ethernet_src frame)
         and destination = Macaddr.of_bytes_exn (copy_ethernet_dst frame)
         in
-        Result.Ok ({ destination; source; ethertype;}, payload)
+        Ok ({ destination; source; ethertype;}, payload)
     else
-      Result.Error "frame too small to contain a valid ethernet header"
+      Error "frame too small to contain a valid ethernet header"
 end
 
 module Marshal = struct
@@ -39,8 +39,8 @@ module Marshal = struct
 
   let check_len buf =
     if sizeof_ethernet > Cstruct.len buf then
-      Result.Error "Not enough space for an Ethernet header"
-    else Result.Ok ()
+      Error "Not enough space for an Ethernet header"
+    else Ok ()
 
   let unsafe_fill t buf =
     set_ethernet_dst (Macaddr.to_bytes t.destination) 0 buf;
@@ -50,7 +50,7 @@ module Marshal = struct
 
   let into_cstruct t buf =
     check_len buf >>= fun () ->
-    Result.Ok (unsafe_fill t buf)
+    Ok (unsafe_fill t buf)
 
   let make_cstruct t =
     let buf = Cstruct.create sizeof_ethernet in
