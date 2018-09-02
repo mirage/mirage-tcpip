@@ -1,114 +1,131 @@
-
 let src = Logs.Src.create "ipv4-fragments" ~doc:"IPv4 fragmentation"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-(* what we actually have is a Cstruct.t (list?) with gaps, no? *)
+open Rresult.R.Infix
 
-(* what is the right data structure here?
-   - fragments may overlap, the last one which came wins
-   - fragments may be out of order
-    - the more_fragments = false may not be the final one
-   we need to store the fragments with their offsets and the order they arrived
-   we could while receiving update a gaps list
-  --> at least linux recently changed their approach:
-   an overlaps indicates an attacker -> drop the queue if there's any overlap
-  this means, we could gather the frags in a tree, where each node contains
-   its offset, length, and payload.  insertion is finding the right spot, and
-   checking neighbours (smaller and bigger) that this is fine, i.e. not
-   overlapping.  sorted list would be fine as well, though it has O(n) lookup
-   can we have a tree which does
-    lookup : t -> int -> (left node option, right node option)?
-   that's hard, but maybe two lookups, one for idx, one for idx+len is sufficient?
-   at the reassembly step, we need to merge them all then
-   type node = N of int * int * Cstruct.t
-
-   the common case seems to be that frag #1 (off = 0, len = 20) followed by
-   frag #2 (off = 20, len = 20), followed by frag #3 (off = 40, len = 20)
-   - all in order aligning nicely
-
-   we can optimise for this case by using a list, sorted by decreasing offset
-   - advantage: common insertion only needs head of list and a compare
-   - for assembly, we can just go and allocate one big buffer when we saw the
-     last segment and ensured no holes
-   - downside: attacker can send us out-of-order fragments which will then lead
-     to list traversal
-   - we can as well limit the number of segments (to 16 - as on my FreeBSD?)
-   on FreeBSD, there's maxfrags (global), maxfragpackets (per VNET),
-    maxfragsperpacket (connection-local), and maxfragbucketsize (size of buckets)
-*)
+(* IP Fragmentation using a LRU cache:
+   The key of our cache is source ip * destination ip * protocol * identifier.
+   The value is a quadruple consisting of IP options (which are usually sent
+   only in the first IP segment), "last segment received" (i.e. an IPv4 segment
+   without the more fragment bit set), a counter of the length of items, and a
+   list of pairs, which contain an offset and payload.  The list is sorted by
+   offset in descending order. *)
 
 module V = struct
-  type t = bool * (int * Cstruct.t) list
+  type t = Cstruct.t * bool * int * (int * Cstruct.t) list
 
-  let weight (_, v) = Cstruct.lenv (List.map snd v)
+  let weight (_, _, _, v) = Cstruct.lenv (List.map snd v)
 end
 
-module K = struct
-  type t = Ipaddr.V4.t * Ipaddr.V4.t * int
+let rec insert_sorted (off, data) = function
+  | [] -> [ (off, data) ]
+  | (off', data')::tl ->
+    if off > off'
+    then (off, data)::(off', data')::tl
+    else (off', data')::insert_sorted (off, data) tl
 
-  let compare (src, dst, id) (src', dst', id') =
+module K = struct
+  type t = Ipaddr.V4.t * Ipaddr.V4.t * int * int
+
+  let compare (src, dst, proto, id) (src', dst', proto', id') =
     let (&&&) a b = match a with 0 -> b | x -> x in
+    let int_cmp : int -> int -> int = compare in
     Ipaddr.V4.compare src src' &&&
     Ipaddr.V4.compare dst dst' &&&
-    compare id id'
+    int_cmp proto proto' &&&
+    int_cmp id id'
 end
 
 module Cache = Lru.F.Make(K)(V)
 
-let assemble fragments =
-  (* input: list of (offset, fragment) in order of arrival (newest first) *)
-  (* output: maybe a cstruct.t if there are no gaps *)
-  let maybe_complete_len =
-    let offl =
-      List.sort (fun (off, d) (off', d') -> match compare off off' with
-          | 0 -> compare (Cstruct.len d) (Cstruct.len d')
-          | x -> x)
-        fragments
-    in
-    let rec check until = function
-      | [] -> Some until
-      | (off, d)::tl ->
-        let until' = off + (Cstruct.len d) in
-        if until >= off
-        then check (max until until') tl
-        else None
-    in
-    check 0 offl
-  in
-  match maybe_complete_len with
-  | None -> None
-  | Some l ->
-    let buf = Cstruct.create_unsafe l in
-    List.iter (fun (off, data) ->
-        Cstruct.blit data 0 buf off (Cstruct.len data))
-      (List.rev fragments) ;
-    (* the list.rev is done so that newer fragments overwrite older ones *)
-    Some buf
+(* attempt_reassemble takes a list of fragments, and returns either
+   - Ok payload when the payload was completed
+   - Error Hole if some fragment is still missing
+   - Error Bad when the list of fragments was bad: it contains overlapping
+     segments.  This is an indication for malicious activity, and we drop
+     the IP fragment
 
-let process cache packet payload =
-  if Cstruct.len payload = 0 then
-    (Log.info (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
-     cache, None)
-  else if packet.off land 0x3FFF = 0 then (* ignore reserved and don't fragment *)
+There are various attacks (and DoS) on IP reassembly, most prominent use
+overlapping segments (and selection thereof), we just drop overlapping segments
+(similar as Linux does since https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git/commit/?id=c30f1fc041b74ecdb072dd44f858750414b8b19f).
+*)
+
+type r = Bad | Hole
+
+let attempt_reassemble fragments =
+  Log.debug (fun m -> m "reassemble %a"
+                Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", len ") int int))
+                (List.map (fun (off, data) -> off, Cstruct.len data) fragments)) ;
+  (* input: list of (offset, fragment) with decreasing offset *)
+  (* output: maybe a cstruct.t if there are no gaps *)
+  let len =
+    (* List.hd is safe here, since we are never called with an empty list *)
+    let off, data = List.hd fragments in
+    off + Cstruct.len data
+  in
+  let rec check until = function
+    | [] -> if until = 0 then Ok () else Error Hole
+    | (off, d)::tl ->
+      let until' = off + (Cstruct.len d) in
+      if until = until'
+      then check off tl
+      else if until' > until
+      then Error Bad
+      else Error Hole
+  in
+  check len fragments >>= fun () ->
+  let buf = Cstruct.create_unsafe len in
+  List.iter (fun (off, data) ->
+      Cstruct.blit data 0 buf off (Cstruct.len data))
+    fragments ;
+  Ok buf
+
+let max_number_of_fragments = 16
+
+let process cache (packet : Ipv4_packet.t) payload =
+  Log.debug (fun m -> m "process called with off %x" packet.off) ;
+  if packet.off land 0x3FFF = 0 then (* ignore reserved and don't fragment *)
+    (* fastpath *)
     cache, Some (packet, payload)
   else
     let offset, more =
-      packet.off lor 0x1FFF,
+      (packet.off land 0x1FFF) lsl 3, (* of 8 byte blocks *)
       packet.off land 0x2000 = 0x2000
+    and key = (packet.src, packet.dst, packet.proto, packet.id)
     in
-    let key = (packet.src, packet.dst, packet.id) in
+    Log.debug (fun m -> m "dealing with fragmented frame %a off %d more %b len %d"
+                  Ipv4_packet.pp packet offset more (Cstruct.len payload)) ;
     match Cache.find key cache with
     | None ->
-      Cache.add key (not more, [(offset, payload)]) cache, None
-    | Some ((finished, frags), cache') ->
-      let all_frags = (offset, payload)::frags in
-      let try_reassemble = finished || not more in
-      let add_to_cache c =
-        Cache.add key (try_reassemble, all_frags) c
+      Log.debug (fun m -> m "none found, inserting into cache") ;
+      Cache.add key (packet.options, not more, 1, [(offset, payload)]) cache, None
+    | Some ((options, finished, cnt, frags), cache') ->
+      let all_frags = insert_sorted (offset, payload) frags
+      and try_reassemble = finished || not more
+      and options' = if offset = 0 then packet.options else options
+      in
+      Log.debug (fun m -> m "%d found, finished %b more %b try_reassemble %b"
+                    cnt finished more try_reassemble) ;
+      let maybe_add_to_cache c =
+        if cnt < max_number_of_fragments then
+          Cache.add key (options', try_reassemble, succ cnt, all_frags) c
+        else
+          (Log.warn (fun m -> m "dropping %a from cache, maximum number of fragments exceeded"
+                       Ipv4_packet.pp packet) ;
+           Cache.remove key c)
       in
       if try_reassemble then
-        match assemble all_frags with
-        | Some p -> Cache.remove key cache', Some (packet, p)
-        | None -> add_to_cache cache', None
+        match attempt_reassemble all_frags with
+        | Ok p ->
+          Log.debug (fun m -> m "reassembled to payload %d" (Cstruct.len p)) ;
+          let packet' = { packet with options = options' ; off = 0 } in
+          Cache.remove key cache', Some (packet', p)
+        | Error Bad ->
+          Log.warn (fun m -> m "dropping %a from cache, bad fragments (%a)"
+                       Ipv4_packet.pp packet
+                       Fmt.(list ~sep:(unit ", ") (pair int Cstruct.hexdump_pp))
+                       all_frags) ;
+          Cache.remove key cache', None
+        | Error Hole -> maybe_add_to_cache cache', None
       else
-        add_to_cache cache', None
+        maybe_add_to_cache cache', None

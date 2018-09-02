@@ -38,7 +38,7 @@ let test_size () =
   let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let dst = Ipaddr.V4.of_string_exn "127.0.0.2" in
   let ttl = 64 in
-  let ip = { Ipv4_packet.src; dst; proto = 17; ttl; options = (Cstruct.of_string "aaaa") } in
+  let ip = { Ipv4_packet.src; dst; proto = 17; ttl; id = 0 ; off = 0 ; options = (Cstruct.of_string "aaaa") } in
   let payload = Cstruct.of_string "abcdefgh" in
   let tmp = Ipv4_packet.Marshal.make_cstruct ~payload_len:(Cstruct.len payload) ip in
   let tmp = Cstruct.concat [tmp; payload] in

@@ -51,7 +51,7 @@ let udp_ipv4_zero_checksum () =
   let ipv4_header = Ipv4_packet.{
         src; dst;
         proto = Ipv4_packet.Marshal.protocol_to_int proto;
-        ttl; options } in
+        ttl; id = 0 ; off = 0 ; options } in
   let pseudoheader = Ipv4_packet.Marshal.pseudoheader
       ~src
       ~dst

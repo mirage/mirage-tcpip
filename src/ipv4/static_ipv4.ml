@@ -84,16 +84,20 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
       Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
       Lwt.return_unit
     | Ok (packet, payload) ->
-      let cache, res = Fragments.process t.cache packet payload in
-      t.cache <- cache ;
-      match res with
-      | None -> Lwt.return_unit
-      | Some (packet, payload) ->
-        let src, dst = packet.src, packet.dst in
-        match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
-        | Some `TCP -> tcp ~src ~dst payload
-        | Some `UDP -> udp ~src ~dst payload
-        | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
+      if Cstruct.len payload = 0 then
+        (Log.info (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
+         Lwt.return_unit)
+      else
+        let cache, res = Fragments.process t.cache packet payload in
+        t.cache <- cache ;
+        match res with
+        | None -> Lwt.return_unit
+        | Some (packet, payload) ->
+          let src, dst = packet.src, packet.dst in
+          match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
+          | Some `TCP -> tcp ~src ~dst payload
+          | Some `UDP -> udp ~src ~dst payload
+          | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
   let connect
       ?(ip=Ipaddr.V4.any)

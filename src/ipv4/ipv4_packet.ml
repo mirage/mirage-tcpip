@@ -17,11 +17,13 @@ let pp fmt t =
   Format.fprintf fmt "IPv4 packet %a -> %a: id %04x, off %d proto %d, ttl %d, options %a"
     Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.id t.off t.proto t.ttl Cstruct.hexdump_pp t.options
 
-let equal {src; dst; proto; ttl; options} q =
+let equal {src; dst; id; off; ttl; proto; options} q =
   src = q.src &&
   dst = q.dst &&
-  proto = q.proto &&
+  id = q.id &&
+  off = q.off &&
   ttl = q.ttl &&
+  proto = q.proto &&
   Cstruct.equal options q.options
 
 module Marshal = struct

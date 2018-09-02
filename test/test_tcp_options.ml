@@ -175,7 +175,7 @@ let test_marshal_into_cstruct () =
   let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let ipv4_header =
-    {Ipv4_packet.src; dst; proto = 6; ttl = 64; options = Cstruct.create 0}
+    {Ipv4_packet.src; dst; proto = 6; ttl = 64; id = 0 ; off = 0 ; options = Cstruct.create 0}
   in
   let payload = Cstruct.of_string "ab" in
   let pseudoheader =
@@ -232,7 +232,7 @@ let test_marshal_without_padding () =
   let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let ipv4_header =
-    {Ipv4_packet.src; dst; proto = 6; ttl = 64; options = Cstruct.create 0}
+    {Ipv4_packet.src; dst; proto = 6; ttl = 64; id = 0 ; off = 0 ; options = Cstruct.create 0}
   in
   let payload = Cstruct.of_string "\x02\x04\x05\xb4" in
   let pseudoheader =
