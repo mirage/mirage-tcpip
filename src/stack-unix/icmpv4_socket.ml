@@ -67,11 +67,11 @@ let write _t ~dst buf =
 let input t ~src ~dst:_ buf =
   (* some default logic -- respond to echo requests with echo replies *)
   match Icmpv4_packet.Unmarshal.of_cstruct buf with
-  | Result.Error s ->
+  | Error s ->
     let s = "Error decomposing an ICMP packet: " ^ s in
     Logs.debug (fun f -> f "%s" s);
     Lwt.return_unit
-  | Result.Ok (icmp, payload) ->
+  | Ok (icmp, payload) ->
     let open Icmpv4_packet in
     match icmp.ty, icmp.subheader with
     | Icmpv4_wire.Echo_request, Id_and_seq (id, seq) ->

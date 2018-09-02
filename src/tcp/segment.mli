@@ -24,8 +24,6 @@
     the Rtx queue to ack messages or close channels.
 *)
 
-open Result
-
 module Rx (T:Mirage_time_lwt.S) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }

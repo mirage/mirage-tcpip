@@ -6,7 +6,7 @@ let test_unmarshal_with_options () =
                             "\x42\x49\xc0\xa8\x01\x08\xe0\x00\x00\x16\x94\x04\x00\x00\x22" ^
                             "\x00\xfa\x02\x00\x00\x00\x01\x03\x00\x00\x00\xe0\x00\x00\xfb") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
-  | Result.Ok ({Ipv4_packet.options ; _}, payload) ->
+  | Ok ({Ipv4_packet.options ; _}, payload) ->
       Alcotest.(check int) "options" (Cstruct.len options) 4;
       Alcotest.(check int) "payload" (Cstruct.len payload) 16;
       Lwt.return_unit
@@ -20,7 +20,7 @@ let test_unmarshal_without_options () =
                             "\x9c\xca\xc0\xa8\x01\x08\x00\x50\xca\xa6\x6f\x19\xf4\x76" ^
                             "\x00\x00\x00\x00\x50\x04\x00\x00\xec\x27\x00\x00") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
-  | Result.Ok ({Ipv4_packet.options ; _}, payload) ->
+  | Ok ({Ipv4_packet.options ; _}, payload) ->
       Alcotest.(check int) "options" (Cstruct.len options) 0;
       Alcotest.(check int) "payload" (Cstruct.len payload) 20;
       Lwt.return_unit

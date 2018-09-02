@@ -39,33 +39,33 @@ module Unmarshal = struct
   let of_cstruct buf =
     let open Rresult in
     let check_len buf =
-      if (Cstruct.len buf) < sizeof_arp then (Result.Error Too_short) else
-        Result.Ok buf
+      if (Cstruct.len buf) < sizeof_arp then (Error Too_short) else
+        Ok buf
     in
     let check_types buf =
       (* we only know how to deal with ethernet <-> IPv4 *)
       if get_arp_htype buf <> 1 || get_arp_ptype buf <> 0x0800 
-         || get_arp_hlen buf <> 6 || get_arp_plen buf <> 4 then Result.Error Unusable
-      else Result.Ok buf
+         || get_arp_hlen buf <> 6 || get_arp_plen buf <> 4 then Error Unusable
+      else Ok buf
     in
     let check_op buf = match get_arp_op buf |> Arpv4_wire.int_to_op with
-      | Some op -> Result.Ok op
-      | None -> Result.Error (Unknown_code (get_arp_op buf))
+      | Some op -> Ok op
+      | None -> Error (Unknown_code (get_arp_op buf))
     in
     check_len buf >>= check_types >>= check_op >>= fun op ->
     let src_mac = copy_arp_sha buf in
     let target_mac = copy_arp_tha buf in
     match (Macaddr.of_bytes src_mac, Macaddr.of_bytes target_mac) with
-    | None, None   -> Result.Error (Bad_mac [ src_mac ; target_mac ])
-    | None, Some _ -> Result.Error (Bad_mac [ src_mac ])
-    | Some _, None -> Result.Error (Bad_mac [ target_mac ])
+    | None, None   -> Error (Bad_mac [ src_mac ; target_mac ])
+    | None, Some _ -> Error (Bad_mac [ src_mac ])
+    | Some _, None -> Error (Bad_mac [ target_mac ])
     | Some src_mac, Some target_mac ->
       let src_ip = Ipaddr.V4.of_int32 (get_arp_spa buf) in
       let target_ip = Ipaddr.V4.of_int32 (get_arp_tpa buf) in
-      Result.Ok { op;
-                  sha = src_mac; spa = src_ip;
-                  tha = target_mac; tpa = target_ip
-                }
+      Ok { op;
+           sha = src_mac; spa = src_ip;
+           tha = target_mac; tpa = target_ip
+         }
 end
 module Marshal = struct
 
@@ -80,8 +80,8 @@ module Marshal = struct
 
   let check_len buf =
     if sizeof_arp > Cstruct.len buf then
-      Result.Error "Not enough space for an arpv4 header"
-    else Result.Ok ()
+      Error "Not enough space for an arpv4 header"
+    else Ok ()
 
   (* call only with bufs that are sure to be large enough (>= 24 bytes) *)
   let unsafe_fill t buf =
@@ -100,7 +100,7 @@ module Marshal = struct
     let open Rresult in
     check_len buf >>= fun () ->
     unsafe_fill t buf;
-    Result.Ok ()
+    Ok ()
 
   let make_cstruct t =
     let buf = Cstruct.create sizeof_arp in

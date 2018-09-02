@@ -16,7 +16,6 @@
  *)
 
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -120,11 +119,11 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     let open Arpv4_packet in
     MProf.Trace.label "arpv4.input";
     match Unmarshal.of_cstruct frame with
-    | Result.Error s ->
+    | Error s ->
       Log.debug (fun f -> f "Failed to parse arpv4 header: %a (buffer: %S)"
                    Unmarshal.pp_error s (Cstruct.to_string frame));
       Lwt.return_unit
-    | Result.Ok arp ->
+    | Ok arp ->
       notify t arp.spa arp.sha; (* cache the sender's mapping. this will get GARPs too *)
       match arp.op with
       | Arpv4_wire.Reply -> Lwt.return_unit

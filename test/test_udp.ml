@@ -1,5 +1,4 @@
 open Common
-open Result
 
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make

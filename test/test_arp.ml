@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Result
 
 let time_reduction_factor = 60
 

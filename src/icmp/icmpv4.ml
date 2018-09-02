@@ -1,5 +1,4 @@
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -40,11 +39,11 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
     let should_reply t dst = List.mem dst @@ IP.get_ip t.ip in
     MProf.Trace.label "icmp_input";
     match Unmarshal.of_cstruct buf with
-    | Result.Error s ->
+    | Error s ->
       Log.info (fun f ->
           f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
       Lwt.return_unit
-    | Result.Ok (message, payload) ->
+    | Ok (message, payload) ->
       let open Icmpv4_wire in
       match message.ty, message.subheader with
       | Echo_reply, _ ->
