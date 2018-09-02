@@ -79,16 +79,21 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
 
   (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
   let input t ~tcp ~udp ~default buf =
-    let cache, res = Fragments.process t.cache buf in
-    t.cache <- cache ;
-    match res with
-    | None -> Lwt.return_unit
-    | Some (packet, payload) ->
-      match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
-      | Some `TCP -> tcp ~src:packet.src ~dst:packet.dst payload
-      | Some `UDP -> udp ~src:packet.src ~dst:packet.dst payload
-      | Some `ICMP | None ->
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
+    match Ipv4_packet.Unmarshal.of_cstruct buf with
+    | Error s ->
+      Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
+      Lwt.return_unit
+    | Ok (packet, payload) ->
+      let cache, res = Fragments.process t.cache packet payload in
+      t.cache <- cache ;
+      match res with
+      | None -> Lwt.return_unit
+      | Some (packet, payload) ->
+        let src, dst = packet.src, packet.dst in
+        match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
+        | Some `TCP -> tcp ~src ~dst payload
+        | Some `UDP -> udp ~src ~dst payload
+        | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
   let connect
       ?(ip=Ipaddr.V4.any)
@@ -96,11 +101,14 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
       ?(gateway=None) ethif arp =
     match Ipaddr.V4.Prefix.mem ip network with
     | false ->
-      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a" Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
+      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a"
+                   Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
       Arpv4.set_ips arp [ip] >>= fun () ->
-      let cache = Fragments.Cache.empty (1024 * 1024) in
+      (* TODO currently hardcoded to 4MB, should be configurable
+         and maybe limited per-src/dst-ip as well? *)
+      let cache = Fragments.Cache.empty (1024 * 1024 * 4) in
       let t = { ethif; arp; ip; network; gateway ; cache } in
       Lwt.return t
 
