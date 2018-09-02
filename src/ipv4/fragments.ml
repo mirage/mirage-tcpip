@@ -10,6 +10,31 @@ module Log = (val Logs.src_log src : Logs.LOG)
     - the more_fragments = false may not be the final one
    we need to store the fragments with their offsets and the order they arrived
    we could while receiving update a gaps list
+  --> at least linux recently changed their approach:
+   an overlaps indicates an attacker -> drop the queue if there's any overlap
+  this means, we could gather the frags in a tree, where each node contains
+   its offset, length, and payload.  insertion is finding the right spot, and
+   checking neighbours (smaller and bigger) that this is fine, i.e. not
+   overlapping.  sorted list would be fine as well, though it has O(n) lookup
+   can we have a tree which does
+    lookup : t -> int -> (left node option, right node option)?
+   that's hard, but maybe two lookups, one for idx, one for idx+len is sufficient?
+   at the reassembly step, we need to merge them all then
+   type node = N of int * int * Cstruct.t
+
+   the common case seems to be that frag #1 (off = 0, len = 20) followed by
+   frag #2 (off = 20, len = 20), followed by frag #3 (off = 40, len = 20)
+   - all in order aligning nicely
+
+   we can optimise for this case by using a list, sorted by decreasing offset
+   - advantage: common insertion only needs head of list and a compare
+   - for assembly, we can just go and allocate one big buffer when we saw the
+     last segment and ensured no holes
+   - downside: attacker can send us out-of-order fragments which will then lead
+     to list traversal
+   - we can as well limit the number of segments (to 16 - as on my FreeBSD?)
+   on FreeBSD, there's maxfrags (global), maxfragpackets (per VNET),
+    maxfragsperpacket (connection-local), and maxfragbucketsize (size of buckets)
 *)
 
 module V = struct
