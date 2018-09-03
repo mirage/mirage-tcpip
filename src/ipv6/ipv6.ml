@@ -20,7 +20,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module I = Ipaddr
 
 open Lwt.Infix
-open Result
 
 module Make (E : Mirage_protocols_lwt.ETHIF)
             (R : Mirage_random.C)

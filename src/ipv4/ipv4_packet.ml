@@ -62,10 +62,9 @@ module Marshal = struct
 
   let into_cstruct ~payload_len t buf =
     if Cstruct.len buf < (sizeof_ipv4 + Cstruct.len t.options) then
-      Result.Error "Not enough space for IPv4 header"
-    else begin
-      Result.Ok (unsafe_fill ~payload_len t buf)
-    end
+      Error "Not enough space for IPv4 header"
+    else
+      Ok (unsafe_fill ~payload_len t buf)
 
   let make_cstruct ~payload_len t =
     let nearest_4 n = match n mod 4 with
@@ -93,29 +92,29 @@ module Unmarshal = struct
     let check_version buf =
       let version n = (n land 0xf0) in
       match get_ipv4_hlen_version buf |> version with
-      | 0x40 -> Result.Ok buf
-      | n -> Result.Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
+      | 0x40 -> Ok buf
+      | n -> Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
     in
     let size_check buf =
-      if (Cstruct.len buf < sizeof_ipv4) then Result.Error "buffer sent to IPv4 parser had size < 20"
-      else Result.Ok buf
+      if (Cstruct.len buf < sizeof_ipv4) then Error "buffer sent to IPv4 parser had size < 20"
+      else Ok buf
     in
     let get_header_length buf =
       let length_of_hlen_version n = (n land 0x0f) * 4 in
       let hlen = get_ipv4_hlen_version buf |> length_of_hlen_version in
         if (get_ipv4_len buf) < sizeof_ipv4 then
-          Result.Error (Printf.sprintf
-                          "total length %d is smaller than minimum header length"
-                          (get_ipv4_len buf))
+          Error (Printf.sprintf
+                   "total length %d is smaller than minimum header length"
+                   (get_ipv4_len buf))
         else if get_ipv4_len buf < hlen then
-          Result.Error (Printf.sprintf
-                          "total length %d is smaller than stated header length %d"
-                          (get_ipv4_len buf) hlen)
-        else if hlen < sizeof_ipv4 then Result.Error
-          (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
-        else if Cstruct.len buf < hlen then Result.Error
-          (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.len buf) hlen)
-        else Result.Ok hlen
+          Error (Printf.sprintf
+                   "total length %d is smaller than stated header length %d"
+                   (get_ipv4_len buf) hlen)
+        else if hlen < sizeof_ipv4 then
+          Error (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
+        else if Cstruct.len buf < hlen then
+          Error (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.len buf) hlen)
+        else Ok hlen
     in
     let parse buf options_end =
       let payload_len = (get_ipv4_len buf) - options_end in

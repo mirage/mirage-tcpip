@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)

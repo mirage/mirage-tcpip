@@ -19,7 +19,7 @@ val equal : t -> t -> bool
 module Unmarshal : sig
   type error = string
 
-  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) Result.result
+  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 end
 
 module Marshal : sig
@@ -37,7 +37,7 @@ module Marshal : sig
     pseudoheader:Cstruct.t ->
     payload:Cstruct.t      ->
     t -> Cstruct.t ->
-    (int, error) Result.result
+    (int, error) result
 
   (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
       representing the TCP header corresponding to [t].  If [t.options] is

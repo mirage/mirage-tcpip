@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  *)
-open Result
 open Lwt.Infix
 
 let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"

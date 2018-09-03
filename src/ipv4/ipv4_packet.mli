@@ -19,7 +19,7 @@ module Unmarshal : sig
 
   val int_to_protocol : int -> protocol option
 
-  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) Result.result
+  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 
   val verify_transport_checksum : proto:([`TCP | `UDP]) -> ipv4_header:t ->
       transport_packet:Cstruct.t -> bool
@@ -37,7 +37,7 @@ module Marshal : sig
 (** [into_cstruct ~payload_len t buf] attempts to write a header representing [t] (including
     [t.options]) into [buf] at offset 0.
     If there is insufficient space to represent [t], an error will be returned. *)
-  val into_cstruct : payload_len:int -> t -> Cstruct.t -> (unit, error) Result.result
+  val into_cstruct : payload_len:int -> t -> Cstruct.t -> (unit, error) result
 
   (** [make_cstruct ~payload_len t] allocates, fills, and returns a buffer
       repesenting the IPV4 header corresponding to [t].

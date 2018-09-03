@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Result
-
 module Make (Ip:Mirage_protocols_lwt.IP) : sig
 
   type error = Mirage_protocols.Ip.error

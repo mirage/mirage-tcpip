@@ -19,7 +19,7 @@ module Unmarshal : sig
 
   val subheader_of_cstruct : Icmpv4_wire.ty -> Cstruct.t -> subheader
 
-  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) Result.result
+  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 end
 module Marshal : sig
   type error = string
@@ -28,7 +28,7 @@ module Marshal : sig
       writes it into [buf] at offset 0. [payload] is used to calculate the ICMPv4 header
       checksum, but is not included in the generated buffer. [into_cstruct] may
       fail if the buffer is of insufficient size. *)
-  val into_cstruct : t -> Cstruct.t -> payload:Cstruct.t -> (unit, error) Result.result
+  val into_cstruct : t -> Cstruct.t -> payload:Cstruct.t -> (unit, error) result
 
   (** [make_cstruct t ~payload] allocates, fills, and returns a Cstruct.t with the header
       information from [t].  The payload is used to calculate the ICMPv4 header

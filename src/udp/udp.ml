@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Result
 
 let src = Logs.Src.create "udp" ~doc:"Mirage UDP"
 module Log = (val Logs.src_log src : Logs.LOG)

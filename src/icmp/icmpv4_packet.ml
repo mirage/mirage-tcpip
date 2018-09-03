@@ -61,19 +61,19 @@ module Unmarshal = struct
     let open Rresult in
     let check_len () =
       if Cstruct.len buf < sizeof_icmpv4 then
-        Result.Error "packet too short for ICMPv4 header"
-      else Result.Ok () in
+        Error "packet too short for ICMPv4 header"
+      else Ok () in
     let check_ty () =
       match int_to_ty (get_icmpv4_ty buf) with
-      | None -> Result.Error "unrecognized ICMPv4 type"
-      | Some ty -> Result.Ok ty
+      | None -> Error "unrecognized ICMPv4 type"
+      | Some ty -> Ok ty
     in
     (* TODO: check checksum as well, and return an error if it's invalid *)
     check_len () >>= check_ty >>= fun ty ->
     let code = get_icmpv4_code buf in
     let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
     let payload = Cstruct.shift buf sizeof_icmpv4 in
-    Result.Ok ({ code; ty; subheader}, payload)
+    Ok ({ code; ty; subheader}, payload)
 end
 
 module Marshal = struct
@@ -99,14 +99,14 @@ module Marshal = struct
 
   let check_len buf =
     if Cstruct.len buf < Icmpv4_wire.sizeof_icmpv4 then
-      Result.Error "Not enough space for ICMP header"
-    else Result.Ok ()
+      Error "Not enough space for ICMP header"
+    else Ok ()
 
   let into_cstruct t buf ~payload =
     let open Rresult in
     check_len buf >>= fun () ->
     unsafe_fill t buf ~payload;
-    Result.Ok ()
+    Ok ()
 
   let make_cstruct t ~payload =
     let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in

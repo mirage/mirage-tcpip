@@ -13,7 +13,7 @@ module Unmarshal : sig
 (** [of_cstruct buf] attempts to interpret [buf] as a UDP header.  If
     successful, it returns [Ok (header, payload)], although [payload] may be an
     empty Cstruct.t . *)
-  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) Result.result
+  val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 end
 module Marshal : sig
 
@@ -28,7 +28,7 @@ module Marshal : sig
     pseudoheader:Cstruct.t  ->
     payload:Cstruct.t       ->
     t -> Cstruct.t ->
-    (unit, error) Result.result
+    (unit, error) result
 
   (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
       representing the UDP header corresponding to [t].  [make_cstruct] will
