@@ -4,7 +4,6 @@ sudo: required
 env:
   global:
   - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
-  - PINS="mirage-protocols:https://github.com/hannesm/mirage-protocols.git#less-types mirage-protocols-lwt:https://github.com/hannesm/mirage-protocols.git#less-types mirage-stack:https://github.com/hannesm/mirage-stack.git#less-types mirage-stack-lwt:https://github.com/hannesm/mirage-stack.git#less-types mirage:https://github.com/hannesm/mirage.git#less-types"
   matrix:
   - OCAML_VERSION=4.04 PACKAGE=tcpip MIRAGE_MODE=unix
   - OCAML_VERSION=4.04 PACKAGE=tcpip MIRAGE_MODE=unix FLAGS="--net=socket"
