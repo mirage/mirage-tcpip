@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
+module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
@@ -41,7 +41,7 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
     mutable gateway: Ipaddr.V4.t option;
   }
 
-  let adjust_output_header = Ipv4_common.adjust_output_header
+  let adjust_output_header = Ipv4_common.adjust_output_header ~rng:R.generate
 
   let allocate_frame t ~(dst:ipaddr) ~(proto : [`ICMP | `TCP | `UDP]) : (buffer * int) =
     Ipv4_common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
@@ -96,7 +96,7 @@ module Make(Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP
   let connect
       ?(ip=Ipaddr.V4.any)
       ?(network=Ipaddr.V4.Prefix.make 0 Ipaddr.V4.any)
-      ?(gateway=None) ethif arp =
+      ?(gateway=None) _clock ethif arp =
     match Ipaddr.V4.Prefix.mem ip network with
     | false ->
       Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a" Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);

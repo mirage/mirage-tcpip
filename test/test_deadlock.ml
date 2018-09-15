@@ -26,7 +26,7 @@ struct
     module NETIF  = Vnetif.Make(B)
     module ETHIF  = Ethif.Make(NETIF)
     module ARPV4  = Arpv4.Make(ETHIF)(MCLOCK)(TIME)
-    module IPV4   = Static_ipv4.Make(ETHIF)(ARPV4)
+    module IPV4   = Static_ipv4.Make(RANDOM)(MCLOCK)(ETHIF)(ARPV4)
     module ICMPV4 = Icmpv4.Make(IPV4)
     module UDPV4  = Udp.Make(IPV4)(RANDOM)
     module TCPV4  = Tcp.Flow.Make(IPV4)(TIME)(MCLOCK)(RANDOM)
@@ -44,7 +44,7 @@ struct
     MCLOCK.connect () >>= fun clock ->
     ETHIF.connect ~mtu netif >>= fun ethif ->
     ARPV4.connect ethif clock >>= fun arpv4 ->
-    IPV4.connect ~ip ~network ?gateway ethif arpv4 >>= fun ipv4 ->
+    IPV4.connect ~ip ~network ?gateway clock ethif arpv4 >>= fun ipv4 ->
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
     UDPV4.connect ipv4 >>= fun udpv4 ->
     TCPV4.connect ipv4 clock >>= fun tcpv4 ->
