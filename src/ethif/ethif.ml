@@ -27,7 +27,6 @@ module Make(Netif : Mirage_net_lwt.S) = struct
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type macaddr = Macaddr.t
-  type netif = Netif.t
 
   type error = Netif.error
   let pp_error = Netif.pp_error

@@ -20,8 +20,6 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
   (Time : Mirage_time_lwt.S) : sig
   include Mirage_protocols_lwt.ARP
 
-  type ethif = Ethif.t
-
   (** [connect] creates a value of type [t]. *)
-  val connect : ethif -> Clock.t -> t Lwt.t
+  val connect : Ethif.t -> Clock.t -> t Lwt.t
 end

@@ -23,7 +23,6 @@ type t = unit
 type +'a io = 'a Lwt.t
 type error = [ `Unimplemented | `Unknown of string ]
 type ipaddr = Ipaddr.V6.t
-type ethif = unit
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
 type uipaddr = Ipaddr.t

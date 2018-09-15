@@ -25,12 +25,10 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
             (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (C : Mirage_clock_lwt.MCLOCK) = struct
-  type ethif    = E.t
   type 'a io    = 'a Lwt.t
   type buffer   = Cstruct.t
   type ipaddr   = Ipaddr.V6.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
-  type prefix   = Ipaddr.V6.Prefix.t
 
   type t =
     { ethif : E.t;

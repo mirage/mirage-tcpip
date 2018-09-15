@@ -44,7 +44,6 @@ struct
       Fmt.string ppf "attempted to send data before connection was ready"
     | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
-  type ip = Ip.t
   type ipaddr = Ip.ipaddr
   type buffer = Cstruct.t
   type +'a io = 'a Lwt.t
@@ -496,13 +495,7 @@ struct
     Logs.(log_with_stats Debug "process-syn" t);
     match listeners @@ WIRE.src_port id with
     | Some { process; keepalive } ->
-      (* XXX: I've no clue why this is the way it is, static 16 bits
-         plus some random -- hannes *)
-      let tx_isn =
-        Sequence.of_int
-          ((Randomconv.int ~bound:65535 (fun x -> Random.generate x))
-           + 0x1AFE0000)
-      in
+      let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -680,12 +673,7 @@ struct
 
   let connect ?keepalive t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    (* XXX: I've no clue why this is the way it is, static 16 bits
-       plus some random -- hannes *)
-    let tx_isn =
-      Sequence.of_int (
-        (Randomconv.int ~bound:65535 (fun x -> Random.generate x)) + 0x1BCD0000
-      ) in
+    let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
@@ -729,10 +717,8 @@ struct
 
   (* Construct the main TCP thread *)
   let connect ip clock =
-    (* XXX: I've no clue why this is the way it is (10000 + Random
-       ~bound:10000) -- hannes *)
     let localport =
-      10000 + (Randomconv.int (fun x -> Random.generate x) ~bound:10000)
+      1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Random.generate)
     in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
