@@ -3,6 +3,7 @@ maintainer:   "anil@recoil.org"
 homepage:     "https://github.com/mirage/mirage-tcpip"
 dev-repo:     "https://github.com/mirage/mirage-tcpip.git"
 bug-reports:  "https://github.com/mirage/mirage-tcpip/issues"
+doc:          "https://mirage.github.io/mirage-tcpip/"
 authors: [
   "Anil Madhavapeddy" "Balraj Singh" "Richard Mortier" "Nicolas Ojeda Bar"
   "Thomas Gazagnaire" "Vincent Bernardoff" "Magnus Skjegstad" "Mindy Preston"
