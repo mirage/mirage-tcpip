@@ -65,7 +65,7 @@ struct
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
   module A = Arpv4.Make(E)(Clock)(Time)
-  module Ip = Static_ipv4.Make(E)(A)
+  module Ip = Static_ipv4.Make(Stdlibrandom)(Clock)(E)(A)
   module Icmp = Icmpv4.Make(Ip)
   module U = Udp.Make(Ip)(Stdlibrandom)
   module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Stdlibrandom)
@@ -85,15 +85,11 @@ struct
     V.connect ?size_limit backend >>= fun netif ->
     E.connect ?mtu netif >>= fun ethif ->
     A.connect ethif clock >>= fun arpv4 ->
-    Ip.connect ~ip ~network ~gateway:gw ethif arpv4 >>= fun ipv4 ->
+    Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
-    let config = {
-      Mirage_stack_lwt.name = "stack";
-      interface = netif;
-    } in
-    Stackv4.connect config ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
+    Stackv4.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
 
   let create_backend_listener backend listenf =
     match (B.register backend) with

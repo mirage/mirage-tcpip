@@ -1,10 +1,10 @@
-let adjust_output_header ~dmac ~tlen frame =
+let adjust_output_header ~rng ~dmac ~tlen frame =
   let open Ipv4_wire in
   Ethif_wire.set_ethernet_dst dmac 0 frame;
   let buf = Cstruct.sub frame Ethif_wire.sizeof_ethernet sizeof_ipv4 in
   (* Set the mutable values in the ipv4 header *)
   set_ipv4_len buf tlen;
-  set_ipv4_id buf (Random.int 65535); (* TODO *)
+  set_ipv4_id buf (Randomconv.int16 rng);
   set_ipv4_csum buf 0;
   let checksum = Tcpip_checksum.ones_complement buf in
   set_ipv4_csum buf checksum

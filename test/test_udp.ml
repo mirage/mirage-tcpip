@@ -5,7 +5,7 @@ module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
-module Ip = Static_ipv4.Make(E)(Static_arp)
+module Ip = Static_ipv4.Make(Stdlibrandom)(Mclock)(E)(Static_arp)
 module Udp = Udp.Make(Ip)(Stdlibrandom)
 
 type stack = {
@@ -27,7 +27,7 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif clock >>= fun arp ->
-  Ip.connect ~ip ~network ~gateway ethif arp >>= fun ip ->
+  Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { clock; backend; netif; ethif; arp; ip; udp }
 

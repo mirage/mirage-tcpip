@@ -15,12 +15,10 @@
  *)
 
 include Mirage_stack_lwt.V4
-  with type netif   = Ipaddr.V4.t list
-   and type tcpv4   = Tcpv4_socket.t
+  with type tcpv4   = Tcpv4_socket.t
    and type udpv4   = Udpv4_socket.t
    and type ipv4    = Ipaddr.V4.t option
    and module UDPV4 = Udpv4_socket
    and module TCPV4 = Tcpv4_socket
    and module IPV4  = Ipv4_socket
-val connect : netif Mirage_stack_lwt.stackv4_config ->
-  Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
+val connect : Ipaddr.V4.t list -> Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
