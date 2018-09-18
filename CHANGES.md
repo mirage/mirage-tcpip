@@ -1,7 +1,7 @@
 ### v3.5.0 (2018-09-16)
 
 * Ipv4: require Mirage_random.C, used for generating IPv4 identifier instead of using OCaml's stdlib Random directly (#371 @hannesm)
-* Tcp: use entire 32 bits at random for the initial sequence number, thanks to NCC group for reporting (#371 @hannesm)
+* Tcp: use entire 32 bits at random for the initial sequence number, thanks to Spencer Michaels and Jeff Dileo of NCC Group for reporting (#371 @hannesm)
 * adjust to mirage-protocols 1.4.0 and mirage-stack 1.3.0 changes (#371 @hannesm)
   Arp no longer contains the type alias ethif
   Ethif no longer contains the type alias netif
