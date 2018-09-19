@@ -36,9 +36,11 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
   type t = {
     ethif : Ethif.t;
     arp : Arpv4.t;
+    clock : C.t;
     mutable ip: Ipaddr.V4.t;
     network: Ipaddr.V4.Prefix.t;
     mutable gateway: Ipaddr.V4.t option;
+    mutable cache: Fragments.Cache.t;
   }
 
   let adjust_output_header = Ipv4_common.adjust_output_header ~rng:R.generate
@@ -74,36 +76,42 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
     writev t frame [buf]
 
   (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
-  let input _t ~tcp ~udp ~default buf =
-    let open Ipv4_packet in
-    match Unmarshal.of_cstruct buf with
+  let input t ~tcp ~udp ~default buf =
+    match Ipv4_packet.Unmarshal.of_cstruct buf with
     | Error s ->
-      Log.info (fun f -> f "IP.input: unparseable header (%s): %S" s (Cstruct.to_string buf));
+      Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
       Lwt.return_unit
     | Ok (packet, payload) ->
-      match Unmarshal.int_to_protocol packet.proto, Cstruct.len payload with
-      | Some _, 0 ->
-        (* Don't pass on empty buffers as payloads to known protocols, as they have no relevant headers *)
-        Lwt.return_unit
-      | None, 0 -> (* we don't know anything about the protocol; an empty
-                      payload may be meaningful somehow? *)
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
-      | Some `TCP, _ -> tcp ~src:packet.src ~dst:packet.dst payload
-      | Some `UDP, _ -> udp ~src:packet.src ~dst:packet.dst payload
-      | Some `ICMP, _ | None, _ ->
-        default ~proto:packet.proto ~src:packet.src ~dst:packet.dst payload
+      if Cstruct.len payload = 0 then
+        (Log.info (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
+         Lwt.return_unit)
+      else
+        let now = C.elapsed_ns t.clock in
+        let cache, res = Fragments.process t.cache now packet payload in
+        t.cache <- cache ;
+        match res with
+        | None -> Lwt.return_unit
+        | Some (packet, payload) ->
+          let src, dst = packet.src, packet.dst in
+          match Ipv4_packet.Unmarshal.int_to_protocol packet.proto with
+          | Some `TCP -> tcp ~src ~dst payload
+          | Some `UDP -> udp ~src ~dst payload
+          | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
   let connect
       ?(ip=Ipaddr.V4.any)
       ?(network=Ipaddr.V4.Prefix.make 0 Ipaddr.V4.any)
-      ?(gateway=None) _clock ethif arp =
+      ?(gateway=None) clock ethif arp =
     match Ipaddr.V4.Prefix.mem ip network with
     | false ->
-      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a" Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
+      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a"
+                   Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
       Arpv4.set_ips arp [ip] >>= fun () ->
-      let t = { ethif; arp; ip; network; gateway } in
+      (* TODO currently hardcoded to 1MB, should be configurable *)
+      let cache = Fragments.Cache.empty (1024 * 1024) in
+      let t = { ethif; arp; ip; clock; network; gateway ; cache } in
       Lwt.return t
 
   let disconnect _ = Lwt.return_unit

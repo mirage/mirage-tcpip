@@ -48,5 +48,6 @@ depends: [
   "alcotest" {test & >="0.7.0"}
   "pcap-format" {test}
   "mirage-clock-unix" {test & >= "1.2.0"}
+  "lru"
 ]
 available: [ocaml-version >= "4.03.0"]
