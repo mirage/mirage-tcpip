@@ -129,7 +129,7 @@ module Make
     let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
               udpv4_listeners; tcpv4_listeners } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.ignore_result (listen t);
+    Lwt.async (fun () -> listen t);
     Lwt.return t
 
   let disconnect t =
