@@ -65,12 +65,12 @@ struct
   module V = Vnetif.Make(B)
   module E = Ethif.Make(V)
   module A = Arpv4.Make(E)(Clock)(Time)
-  module Ip = Static_ipv4.Make(Stdlibrandom)(Clock)(E)(A)
+  module Ip = Static_ipv4.Make(Mirage_random_test)(Clock)(E)(A)
   module Icmp = Icmpv4.Make(Ip)
-  module U = Udp.Make(Ip)(Stdlibrandom)
-  module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Stdlibrandom)
+  module U = Udp.Make(Ip)(Mirage_random_test)
+  module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Mirage_random_test)
   module Stackv4 =
-    Tcpip_stack_direct.Make(Time)(Stdlibrandom)(V)(E)(A)(Ip)(Icmp)(U)(T)
+    Tcpip_stack_direct.Make(Time)(Mirage_random_test)(V)(E)(A)(Ip)(Icmp)(U)(T)
 
   let create_backend () =
     B.create ()

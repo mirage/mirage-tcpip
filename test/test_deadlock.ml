@@ -10,7 +10,7 @@ module Client_log = (val Logs.src_log client_log : Logs.LOG)
 
 module TCPIP =
 struct
-  module RANDOM = Stdlibrandom
+  module RANDOM = Mirage_random_test
 
   module TIME =
   struct
@@ -76,7 +76,7 @@ let test_digest netif1 netif2 =
   TCPIP.make `Server netif2 >>= fun server_stack ->
 
   let send_data () =
-    let data = Stdlibrandom.generate 100_000_000 |> Cstruct.to_string in
+    let data = Mirage_random_test.generate 100_000_000 |> Cstruct.to_string in
     let t0   = Unix.gettimeofday () in
     TCPIP.TCPV4.create_connection
       TCPIP.(tcpv4 @@ tcpip server_stack) (TCPIP.client_ip, port) >>= function

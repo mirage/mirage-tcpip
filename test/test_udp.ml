@@ -5,8 +5,8 @@ module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethif.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
-module Ip = Static_ipv4.Make(Stdlibrandom)(Mclock)(E)(Static_arp)
-module Udp = Udp.Make(Ip)(Stdlibrandom)
+module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
+module Udp = Udp.Make(Ip)(Mirage_random_test)
 
 type stack = {
   clock : Mclock.t;
