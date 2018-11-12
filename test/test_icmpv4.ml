@@ -15,10 +15,10 @@ type decomposed = {
   ethernet_header : Ethif_packet.t;
 }
 
-module Ip = Static_ipv4.Make(Stdlibrandom)(Mclock)(E)(Static_arp)
+module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
 
-module Udp = Udp.Make(Ip)(Stdlibrandom)
+module Udp = Udp.Make(Ip)(Mirage_random_test)
 
 type stack = {
   backend : B.t;

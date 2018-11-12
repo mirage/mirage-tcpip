@@ -1,7 +1,7 @@
-opam-version: "1.2"
+opam-version: "2.0"
 maintainer:   "anil@recoil.org"
 homepage:     "https://github.com/mirage/mirage-tcpip"
-dev-repo:     "https://github.com/mirage/mirage-tcpip.git"
+dev-repo:     "git+https://github.com/mirage/mirage-tcpip.git"
 bug-reports:  "https://github.com/mirage/mirage-tcpip/issues"
 doc:          "https://mirage.github.io/mirage-tcpip/"
 authors: [
@@ -15,14 +15,13 @@ tags: ["org:mirage"]
 build: [
   ["jbuilder" "subst" "-p" name] {pinned}
   ["jbuilder" "build" "-p" name "-j" jobs]
-]
-build-test: [
-  ["jbuilder" "runtest" "-p" name "-j" jobs]
+  ["jbuilder" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 
 depends: [
   "jbuilder"     {build & >="1.0+beta10"}
   "configurator" {build}
+  "ocaml" {>= "4.03.0"}
   "rresult" {>= "0.5.0"}
   "cstruct" {>= "3.0.2"}
   "cstruct-lwt"
@@ -43,10 +42,23 @@ depends: [
   "duration"
   "io-page-unix"
   "randomconv"
-  "mirage-flow" {test & >= "1.2.0"}
-  "mirage-vnetif" {test & >= "0.4.0"}
-  "alcotest" {test & >="0.7.0"}
-  "pcap-format" {test}
-  "mirage-clock-unix" {test & >= "1.2.0"}
+  "mirage-flow" {with-test & >= "1.2.0"}
+  "mirage-vnetif" {with-test & >= "0.4.0"}
+  "alcotest" {with-test & >="0.7.0"}
+  "pcap-format" {with-test}
+  "mirage-clock-unix" {with-test & >= "1.2.0"}
+  "mirage-random-test" {with-test}
 ]
-available: [ocaml-version >= "4.03.0"]
+synopsis: "OCaml TCP/IP networking stack, used in MirageOS"
+description: """
+`mirage-tcpip` provides a networking stack for the [Mirage operating
+system](https://mirage.io). It provides implementations for the following module types
+(which correspond with the similarly-named protocols):
+
+* ETHERNET
+* ARP
+* IP (via the IPv4 and IPv6 modules)
+* ICMP
+* UDP
+* TCP
+"""
