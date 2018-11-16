@@ -61,12 +61,12 @@ struct
 
   type conn = M.NETIF.t
 
-  let get_stats t =
+  let get_stats _t =
     { Mirage_net.rx_pkts = 0l; rx_bytes = 0L;
       tx_pkts = 0l; tx_bytes = 0L;
     }
 
-  let reset_stats t = ()
+  let reset_stats _t = ()
 end
 
 let port = 10000
@@ -116,7 +116,7 @@ let test_digest netif1 netif2 =
           end
         ]
   in
-  TCPIP.listen_tcpv4 (TCPIP.tcpip client_stack) port
+  TCPIP.listen_tcpv4 (TCPIP.tcpip client_stack) ~port
     (fun flow ->
        Client_log.debug (fun f -> f "client got conn");
        let rec consume () =
@@ -128,7 +128,7 @@ let test_digest netif1 netif2 =
            TCPIP.TCPV4.write flow @@ Cstruct.of_string "thanks for all the fish"
            >>= fun _ ->
            TCPIP.TCPV4.close flow
-         | Ok (`Data data) ->
+         | Ok (`Data _data) ->
            (if Random.float 1.0 < 0.01 then Lwt_unix.sleep 0.01
            else Lwt.return_unit) >>= fun () ->
            consume ()

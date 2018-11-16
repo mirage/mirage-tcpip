@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+[@@@ocaml.warning "-3"]
+
 open Lwt.Infix
 
 let src = Logs.Src.create "segment" ~doc:"Mirage TCP Segment module"
