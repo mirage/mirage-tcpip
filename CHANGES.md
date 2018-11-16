@@ -1,3 +1,8 @@
+### v3.5.1 (2018-11-16)
+
+* socket stack (tcp/udp): catch exception in recv_from and accept (#376 @hannesm)
+* use mirage-random-test for testing (Stdlibrandom got removed from mirage-random>1.2.0, #377 @hannesm)
+
 ### v3.5.0 (2018-09-16)
 
 * Ipv4: require Mirage_random.C, used for generating IPv4 identifier instead of using OCaml's stdlib Random directly (#371 @hannesm)
