@@ -3,7 +3,7 @@ open Common
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
+module E = Ethernet.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
 module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
 module Udp = Udp.Make(Ip)(Mirage_random_test)
@@ -21,13 +21,11 @@ type stack = {
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ()) ip =
   let open Lwt.Infix in
-  let network = Ipaddr.V4.Prefix.make 24 ip in
-  let gateway = None in
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif clock >>= fun arp ->
-  Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
+  Ip.connect ~ip clock ethif arp >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { clock; backend; netif; ethif; arp; ip; udp }
 
@@ -55,10 +53,10 @@ let marshal_unmarshal () =
 
 let write () =
   let open Lwt.Infix in
-  let dst = Ipaddr.V4.of_string_exn "192.168.4.20" in
+  let dst = Ipaddr.V4.Prefix.of_address_string_exn "192.168.4.20/24" in
   get_stack dst >>= fun stack ->
-  Static_arp.add_entry stack.arp dst (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
-  Udp.write ~src_port:1212 ~dst_port:21 ~dst stack.udp (Cstruct.of_string "MGET *") >|= Rresult.R.get_ok
+  Static_arp.add_entry stack.arp (snd dst) (Macaddr.of_string_exn "00:16:3e:ab:cd:ef");
+  Udp.write ~src_port:1212 ~dst_port:21 ~dst:(snd dst) stack.udp (Cstruct.of_string "MGET *") >|= Rresult.R.get_ok
 
 let unmarshal_regression () =
   let i = Cstruct.create 1016 in

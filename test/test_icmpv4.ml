@@ -3,7 +3,7 @@ open Common
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
+module E = Ethernet.Make(V)
 module Static_arp = Static_arp.Make(E)(Mclock)(Time)
 
 open Lwt.Infix
@@ -12,7 +12,7 @@ type decomposed = {
   ipv4_payload : Cstruct.t;
   ipv4_header : Ipv4_packet.t;
   ethernet_payload : Cstruct.t;
-  ethernet_header : Ethif_packet.t;
+  ethernet_header : Ethernet_packet.t;
 }
 
 module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
@@ -37,8 +37,8 @@ let testbind x y =
 let (>>=?) = testbind
 
 (* some default addresses which will be on the same class C *)
-let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
-let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
+let listener_address = Ipaddr.V4.Prefix.of_address_string_exn "192.168.222.1/24"
+let speaker_address = Ipaddr.V4.Prefix.of_address_string_exn "192.168.222.10/24"
 
 let slowly fn =
   Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
@@ -46,13 +46,11 @@ let slowly fn =
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ())
                   ip =
-  let network = Ipaddr.V4.Prefix.make 24 listener_address in
-  let gateway = None in
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif clock >>= fun arp ->
-  Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
+  Ip.connect ~ip clock ethif arp >>= fun ip ->
   Icmp.connect ip >>= fun icmp ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }
@@ -60,12 +58,14 @@ let get_stack ?(backend = B.create ~use_async_readers:true
 let icmp_listen stack fn =
   let noop = fun ~src:_ ~dst:_ _buf -> Lwt.return_unit in
   V.listen stack.netif (* some buffer -> (unit, error) result io *)
-    ( E.input stack.ethif ~arpv4:(Static_arp.input stack.arp)
-        ~ipv6:(fun _ -> Lwt.return_unit)
-        ~ipv4:
-          ( Ip.input stack.ip
-              ~tcp:noop ~udp:noop
-              ~default:(fun ~proto -> match proto with | 1 -> fn | _ -> noop))) >|= fun _ -> ()
+    ( E.input stack.ethif (fun proto ~source:_ _destination ->
+          match proto with
+          | `ARP -> Static_arp.input stack.arp
+          | `IPv4 ->
+            Ip.input stack.ip (function
+                | `ICMP -> fn
+                | _ -> noop)
+          | _ -> (fun _ -> Lwt.return_unit))) >|= fun _ -> ()
 
 
 let inform_arp stack = Static_arp.add_entry stack.arp
@@ -86,8 +86,8 @@ let echo_request () =
   let request_payload = Cstruct.of_string "plz reply i'm so lonely" in
   get_stack speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend listener_address >>= fun listener ->
-  inform_arp speaker listener_address (mac_of_stack listener);
-  inform_arp listener speaker_address (mac_of_stack speaker);
+  inform_arp speaker (snd listener_address) (mac_of_stack listener);
+  inform_arp listener (snd speaker_address) (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                             subheader = Id_and_seq (id_no, seq_no)}) in
   let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:request_payload in
@@ -111,7 +111,7 @@ let echo_request () =
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
     icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
                              ~dst buf);
-    slowly (Icmp.write speaker.icmp ~dst:listener_address echo_request);
+    slowly (Icmp.write speaker.icmp ~dst:(snd listener_address) echo_request);
   ]
 
 let echo_silent () =
@@ -132,8 +132,8 @@ let echo_silent () =
       Lwt.return_unit
   in
   let nobody_home = Ipaddr.V4.of_string_exn "192.168.222.90" in
-  inform_arp speaker listener_address (mac_of_stack listener);
-  inform_arp listener speaker_address (mac_of_stack speaker);
+  inform_arp speaker (snd listener_address) (mac_of_stack listener);
+  inform_arp listener (snd speaker_address) (mac_of_stack speaker);
   (* set up an ARP mapping so the listener is more likely to see the echo-request *)
   inform_arp speaker nobody_home (mac_of_stack listener);
   Lwt.pick [
@@ -146,13 +146,13 @@ let echo_silent () =
 let write_errors () =
   let decompose buf =
     let (>>=) = Rresult.(>>=) in
-    let open Ethif_packet in
+    let open Ethernet_packet in
     Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
-    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Error "not an ipv4 packet"
-    | Ethif_wire.IPv4 ->
+    | `IPv4 ->
       Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
+    | _ -> Error "not an ipv4 packet"
   in
   (* for any incoming packet, reject it with would_fragment *)
   let reject_all stack =
@@ -205,11 +205,11 @@ let write_errors () =
   in
   get_stack speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend listener_address >>= fun listener ->
-  inform_arp speaker listener_address (mac_of_stack listener);
-  inform_arp listener speaker_address (mac_of_stack speaker);
+  inform_arp speaker (snd listener_address) (mac_of_stack listener);
+  inform_arp listener (snd speaker_address) (mac_of_stack speaker);
   Lwt.pick [
     reject_all listener;
-    check_rejection speaker listener_address;
+    check_rejection speaker (snd listener_address);
   ]
 
 let suite = [

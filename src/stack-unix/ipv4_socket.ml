@@ -36,7 +36,7 @@ let disconnect _ = return_unit
 let connect _ = return_unit
 
 let input_arpv4 _ _ = fail (Failure "Not implemented")
-let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
+let input _ _ _ = return_unit
 let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
 let write _ _ _ = fail (Failure "Not implemented")
 let writev _ _ _ = fail (Failure "Not implemented")
@@ -50,3 +50,4 @@ let set_ip_gateways _ _ = fail (Failure "Not implemented")
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let checksum _ _ = raise (Failure "Not implemented")
 let pseudoheader _ ~dst:_ ~proto:_ _ = raise (Failure "Not implemented")
+let register _t _proto _callback = Error `Conflict

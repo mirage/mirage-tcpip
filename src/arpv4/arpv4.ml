@@ -20,7 +20,7 @@ open Lwt.Infix
 let src = Logs.Src.create "arpv4" ~doc:"Mirage ARP module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (Ethif : Mirage_protocols_lwt.ETHIF)
+module Make (Ethernet : Mirage_protocols_lwt.ETHERNET)
   (Clock : Mirage_clock.MCLOCK)
   (Time : Mirage_time_lwt.S) = struct
 
@@ -37,16 +37,16 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     | Confirmed of int64 * Macaddr.t
 
   type t = {
-    ethif : Ethif.t;
+    ethernet : Ethernet.t;
     clock : Clock.t;
     cache: (Ipaddr.V4.t, entry) Hashtbl.t;
     mutable bound_ips: Ipaddr.V4.t list;
   }
 
   let report_ethif_error s e =
-    Logs.debug (fun f ->
+    Log.err (fun f ->
         f "error on underlying ethernet interface when attempting to %s : %a"
-          s Ethif.pp_error e)
+          s Ethernet.pp_error e)
 
   let arp_timeout = Duration.of_sec 60 (* age entries out of cache after this many seconds *)
   let probe_repeat_delay = Duration.of_ms 1500 (* per rfc5227, 2s >= probe_repeat_delay >= 1s *)
@@ -104,14 +104,14 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
         Hashtbl.replace t.cache ip (Confirmed (expire, mac))
 
   let output t ~source ~destination arp =
-    let payload = Arpv4_packet.Marshal.make_cstruct arp in
-    let ethif_packet = Ethif_packet.(Marshal.make_cstruct {
-        source;
-        destination;
-        ethertype = Ethif_wire.ARP;
-      }) in
-    Ethif.writev t.ethif [ethif_packet ; payload] >>= fun e ->
-    Lwt.return @@ Rresult.R.ignore_error ~use:(report_ethif_error "write") e
+    let frame, off = Ethernet.allocate_frame ~size:Arpv4_wire.sizeof_arp t.ethernet in
+    match Arpv4_packet.Marshal.into_cstruct arp (Cstruct.shift frame off) with
+    | Error msg ->
+      Log.err (fun m -> m "error %s while marshalling frame: %a" msg Arpv4_packet.pp arp) ;
+      Lwt.return_unit
+    | Ok () ->
+      Ethernet.write t.ethernet `ARP ~source destination frame >>= fun e ->
+      Lwt.return @@ Rresult.R.ignore_error ~use:(report_ethif_error "write") e
 
   (* Input handler for an ARP packet *)
   let input t frame =
@@ -133,7 +133,7 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
         | false -> Lwt.return_unit
         | true ->
           (* We own this IP, so reply with our MAC *)
-          let sha = Ethif.mac t.ethif in
+          let sha = Ethernet.mac t.ethernet in
           let tha = arp.sha in
           let spa = arp.tpa in (* the requested address *)
           let tpa = arp.spa in (* the requesting host IPv4 *)
@@ -141,20 +141,20 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
 
   (* Send a gratuitous ARP for our IP addresses *)
   let output_garp t =
-    let sha = Ethif.mac t.ethif in
+    let sha = Ethernet.mac t.ethernet in
     let tha = Macaddr.broadcast in
     Lwt_list.iter_s (fun spa ->
         let tpa = spa in
         let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
         Log.debug (fun f -> f "ARP: sending gratuitous from %a" Arpv4_packet.pp arp);
-        output t ~source:(Ethif.mac t.ethif) ~destination:Macaddr.broadcast arp
+        output t ~source:(Ethernet.mac t.ethernet) ~destination:Macaddr.broadcast arp
       ) t.bound_ips
 
   (* Send a query for a particular IP *)
   let output_probe t tpa =
     Log.debug (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
     let tha = Macaddr.broadcast in
-    let sha = Ethif.mac t.ethif in
+    let sha = Ethernet.mac t.ethernet in
     (* Source protocol address, pick one of our IP addresses *)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
@@ -213,17 +213,20 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
       Lwt.async (retry 0);
       response
 
-  let connect ethif clock =
+  let connect ethernet clock =
     let cache = Hashtbl.create 7 in
     let bound_ips = [] in
-    let t = { clock; ethif; cache; bound_ips } in
+    let t = { clock; ethernet; cache; bound_ips } in
     Lwt.async (tick t);
     Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+        Ethernet.mac t.ethernet)));
+    (match Ethernet.register ethernet `ARP (fun ~source:_ _dst -> input t) with
+     | Ok () -> Lwt.return_unit
+     | Error `Conflict -> Lwt.fail_with "conflict") >>= fun () ->
     Lwt.return t
 
   let disconnect t =
     Log.info (fun f -> f "Disconnected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+               Ethernet.mac t.ethernet)));
     Lwt.return_unit (* TODO: should kill tick *)
 end

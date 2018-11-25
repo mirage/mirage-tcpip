@@ -26,9 +26,9 @@ let suite = [
   "mtu+tcp"        , Test_mtus.suite        ;
   "rfc5961"        , Test_rfc5961.suite     ;
   "socket"         , Test_socket.suite      ;
-(*  "connect"        , Test_connect.suite     ; *)
+  "connect"        , Test_connect.suite     ;
   "deadlock"       , Test_deadlock.suite    ;
-(*  "iperf"          , Test_iperf.suite       ;*)
+  "iperf"          , Test_iperf.suite       ;
   "keepalive"      , Test_keepalive.suite   ;
 ]
 

@@ -4,7 +4,7 @@
   (public_name tcpip.icmpv4-socket)
   (modules icmpv4_socket)
   (wrapped false)
-  (libraries (lwt.unix ipaddr.unix cstruct-lwt io-page-unix tcpip.icmpv4 tcpip.ipv4 tcpip.ipv6 mirage-protocols-lwt))))
+  (libraries (lwt.unix ipaddr.unix cstruct-lwt tcpip.icmpv4 tcpip.ipv4 tcpip.ipv6 mirage-protocols-lwt))))
 
 (library
  ((name udpv4_socket)
@@ -51,7 +51,6 @@
    (lwt.unix
     cstruct-lwt
     ipaddr.unix
-    io-page-unix
     logs
     tcpip.tcpv4-socket
     tcpip.udpv4-socket

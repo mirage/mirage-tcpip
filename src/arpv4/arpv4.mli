@@ -15,7 +15,7 @@
  *
  *)
 
-module Make (Ethif : Mirage_protocols_lwt.ETHIF)
+module Make (Ethif : Mirage_protocols_lwt.ETHERNET)
   (Clock : Mirage_clock.MCLOCK)
   (Time : Mirage_time_lwt.S) : sig
   include Mirage_protocols_lwt.ARP

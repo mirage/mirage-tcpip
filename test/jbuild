@@ -6,7 +6,7 @@
     logs logs.fmt mirage-profile mirage-flow mirage-vnetif
     mirage-clock-unix pcap-format duration mirage-random
     rresult mirage-protocols-lwt mirage-stack-lwt
-    tcpip.ethif tcpip.arpv4 tcpip.ipv4 tcpip.tcp tcpip.udp
+    tcpip.ethernet tcpip.arpv4 tcpip.ipv4 tcpip.tcp tcpip.udp
     tcpip.stack-direct tcpip.icmpv4
     tcpip.udpv4-socket tcpip.tcpv4-socket tcpip.icmpv4-socket
     tcpip.stack-socket tcpip.ipv6))))

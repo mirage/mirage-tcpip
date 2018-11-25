@@ -24,10 +24,9 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   module V = VNETIF_STACK (B)
 
-  let netmask = 24
-  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
-  let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
-  let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
+  let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
+  let client_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.101/24"
+  let server_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.100/24"
 
   type stats = {
     mutable bytes: int64;
@@ -45,8 +44,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   }
 
   let default_network ?(backend = B.create ()) () =
-    V.create_stack backend client_ip netmask gw >>= fun client ->
-    V.create_stack backend server_ip netmask gw >>= fun server ->
+    V.create_stack ~ip:client_ip ~gateway backend >>= fun client ->
+    V.create_stack ~ip:server_ip ~gateway backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =
@@ -88,7 +87,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let iperfclient s amt dest_ip dport =
     let iperftx flow =
       Logs.info (fun f -> f  "Iperf client: Made connection to server.");
-      let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
+      let a = Cstruct.create mlen in
       Cstruct.blit_from_string msg 0 a 0 mlen;
       let rec loop = function
         | 0 -> Lwt.return_unit

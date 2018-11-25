@@ -1,27 +1,27 @@
-open Ethif_wire
+open Ethernet_wire
 
 type t = {
   source : Macaddr.t;
   destination : Macaddr.t;
-  ethertype : Ethif_wire.ethertype;
+  ethertype : Mirage_protocols.Ethernet.Proto.t;
 }
 
 type error = string
 
 let pp fmt t =
-  Format.fprintf fmt "%s -> %s: %s" (Macaddr.to_string t.source)
-    (Macaddr.to_string t.destination) (Ethif_wire.ethertype_to_string t.ethertype)
+  Format.fprintf fmt "%s -> %s: %a" (Macaddr.to_string t.source)
+    (Macaddr.to_string t.destination) Mirage_protocols.Ethernet.Proto.pp t.ethertype
 
 let equal {source; destination; ethertype} q =
   (Macaddr.compare source q.source) = 0 &&
   (Macaddr.compare destination q.destination) = 0 &&
-  Ethif_wire.(compare (ethertype_to_int ethertype) (ethertype_to_int q.ethertype)) = 0
+  Ethernet_wire.(compare (ethertype_to_int ethertype) (ethertype_to_int q.ethertype)) = 0
 
 module Unmarshal = struct
 
   let of_cstruct frame =
     if Cstruct.len frame >= sizeof_ethernet then
-      match get_ethernet_ethertype frame |> int_to_ethertype with
+      match get_ethernet_ethertype frame |> ethertype_of_int with
       | None -> Error (Printf.sprintf "unknown ethertype 0x%x in frame"
                                 (get_ethernet_ethertype frame))
       | Some ethertype ->

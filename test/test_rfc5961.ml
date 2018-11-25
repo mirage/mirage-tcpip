@@ -26,7 +26,7 @@ module VNETIF_STACK = Vnetif_common.VNETIF_STACK(Vnetif_backends.Basic)
 
 module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
-module E = Ethif.Make(V)
+module E = Ethernet.Make(V)
 module A = Arpv4.Make(E)(Vnetif_common.Clock)(Time)
 module I = Static_ipv4.Make(Mirage_random_test)(Vnetif_common.Clock)(E)(A)
 module Wire = Tcp.Wire
@@ -35,24 +35,23 @@ module Tcp_wire = Tcp.Tcp_wire
 module Tcp_unmarshal = Tcp.Tcp_packet.Unmarshal
 module Sequence = Tcp.Sequence
 
-let sut_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
-let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
-let netmask = 24
-let gateway = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
+let sut_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.101/24"
+let server_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.100/24"
+let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
 
 (* defaults when injecting packets *)
 let options = []
 let window = 5120
 
 let create_sut_stack backend =
-  VNETIF_STACK.create_stack backend sut_ip netmask gateway
+  VNETIF_STACK.create_stack ~ip:sut_ip ~gateway backend
 
 let create_raw_stack ip backend =
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   A.connect ethif clock >>= fun arpv4 ->
-  I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway clock ethif arpv4 >>= fun ip ->
+  I.connect ~ip ~gateway clock ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 
 type 'state fsm_result =
@@ -85,21 +84,22 @@ let run backend fsm sut () =
       (* it will be terminated anyway when the error is picked up *)
       fsm_thread state in
 
-  Lwt.async (fun () ->
-      (V.listen netif
-         (E.input
-            ~arpv4:(A.input arp)
-            ~ipv4:(I.input
-                     ~tcp: (fun ~src ~dst data -> pushf (Some(src,dst,data)); Lwt.return_unit)
-                     ~udp:(fun ~src:_ ~dst:_ _data -> Lwt.return_unit)
-                     ~default:(fun ~proto ~src ~dst _data ->
-                        Logs.debug (fun f -> f "default handler invoked for packet from %a to %a, protocol %d -- dropping" Ipaddr.V4.pp_hum src Ipaddr.V4.pp_hum dst proto); Lwt.return_unit)
-                     rawip
-                  )
-            ~ipv6:(fun _buf ->
-              Logs.debug (fun f -> f "IPv6 packet -- dropping");
-              Lwt.return_unit)
-            ethif) ));
+  let eth_callback proto ~source:_ _destination =
+    match proto with
+    | `ARP -> A.input arp
+    | `IPv4 -> I.input rawip (function
+        | `TCP -> (fun ~src ~dst data -> pushf (Some(src,dst,data)); Lwt.return_unit)
+        | `UDP -> (fun ~src:_ ~dst:_ _data -> Lwt.return_unit)
+        | `ICMP ->
+          (fun ~src ~dst _data ->
+             Logs.debug (fun f -> f "default handler invoked for ICMP packet from %a to %a -- dropping" Ipaddr.V4.pp_hum src Ipaddr.V4.pp_hum dst);
+             Lwt.return_unit))
+    | `IPv6 -> (fun _buf ->
+        Logs.debug (fun f -> f "IPv6 packet -- dropping");
+        Lwt.return_unit)
+  in
+
+  Lwt.async (fun () -> (V.listen netif (E.input ethif eth_callback)));
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
   Lwt.pick [
@@ -168,7 +168,7 @@ let fail_result_not_expected fail = function
 (* Common sut: able to connect, connection not reset, no data received *)
 let sut_connects_and_remains_connected stack fail_callback =
   let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
-  or_error "connect" conn (server_ip, 80) >>= fun flow ->
+  or_error "connect" conn (snd server_ip, 80) >>= fun flow ->
   (* We must remain blocked on read, connection shouldn't be terminated.
    * If after half second that remains true, assume test succeeds *)
   Lwt.pick [
@@ -220,7 +220,7 @@ let connection_refused_scenario =
   let sut stack _fail =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
     (* connection must be rejected *)
-    expect_error `Refused "connect" conn (server_ip, 80) in
+    expect_error `Refused "connect" conn (snd server_ip, 80) in
   (`WAIT_FOR_SYN, fsm), sut
 
 
@@ -282,7 +282,7 @@ let rst_on_established_scenario =
 
   let sut stack fail_callback =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
-    or_error "connect" conn (server_ip, 80) >>= fun flow ->
+    or_error "connect" conn (snd server_ip, 80) >>= fun flow ->
     VNETIF_STACK.Stackv4.TCPV4.read flow >>= function
     | Ok `Eof ->
       (* This is the expected when the other end resets *)
@@ -325,8 +325,7 @@ let blind_syn_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let blind_data_injection_scenario =
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -363,8 +362,7 @@ let blind_data_injection_scenario =
 
 let data_repeated_ack_scenario =
   (* This is the just data transmission with ack in the past but within the acceptable window *)
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -397,7 +395,7 @@ let data_repeated_ack_scenario =
 
   let sut stack fail_callback =
     let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
-    or_error "connect" conn (server_ip, 80) >>= fun flow ->
+    or_error "connect" conn (snd server_ip, 80) >>= fun flow ->
     (* We should receive the data *)
     VNETIF_STACK.Stackv4.TCPV4.read flow >>= function
     | Ok _ -> Lwt.return_unit

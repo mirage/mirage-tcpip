@@ -1,0 +1,6 @@
+(jbuild_version 1)
+(library
+ ((name        tcpip_vlan)
+  (public_name tcpip.vlan)
+  (libraries   (mirage-net-lwt mirage-protocols-lwt rresult logs mirage-profile tcpip.ethernet))
+  (wrapped false)))

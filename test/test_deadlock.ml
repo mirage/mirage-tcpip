@@ -22,33 +22,32 @@ struct
 
   module M =
   struct
-    module B      = Basic_backend.Make
-    module NETIF  = Vnetif.Make(B)
-    module ETHIF  = Ethif.Make(NETIF)
-    module ARPV4  = Arpv4.Make(ETHIF)(MCLOCK)(TIME)
-    module IPV4   = Static_ipv4.Make(RANDOM)(MCLOCK)(ETHIF)(ARPV4)
-    module ICMPV4 = Icmpv4.Make(IPV4)
-    module UDPV4  = Udp.Make(IPV4)(RANDOM)
-    module TCPV4  = Tcp.Flow.Make(IPV4)(TIME)(MCLOCK)(RANDOM)
-    module TCPIP  = Tcpip_stack_direct.Make(TIME)(RANDOM)(NETIF)(ETHIF)(ARPV4)(IPV4)(ICMPV4)(UDPV4)(TCPV4)
+    module B        = Basic_backend.Make
+    module NETIF    = Vnetif.Make(B)
+    module ETHERNET = Ethernet.Make(NETIF)
+    module ARPV4    = Arpv4.Make(ETHERNET)(MCLOCK)(TIME)
+    module IPV4     = Static_ipv4.Make(RANDOM)(MCLOCK)(ETHERNET)(ARPV4)
+    module ICMPV4   = Icmpv4.Make(IPV4)
+    module UDPV4    = Udp.Make(IPV4)(RANDOM)
+    module TCPV4    = Tcp.Flow.Make(IPV4)(TIME)(MCLOCK)(RANDOM)
+    module TCPIP    = Tcpip_stack_direct.Make(TIME)(RANDOM)(IPV4)(ICMPV4)(UDPV4)(TCPV4)
   end
   open M
 
   type stack = TCPIP.t
 
-  let server_ip = Ipaddr.V4.of_string_exn "192.168.10.10"
-  let client_ip = Ipaddr.V4.of_string_exn "192.168.10.20"
-  let network   = Ipaddr.V4.Prefix.of_string_exn "192.168.10.255/24"
+  let server_ip = Ipaddr.V4.Prefix.of_address_string_exn "192.168.10.10/24"
+  let client_ip = Ipaddr.V4.Prefix.of_address_string_exn "192.168.10.20/24"
 
-  let make ~ip ~network ?gateway netif =
+  let make ~ip ?gateway netif =
     MCLOCK.connect () >>= fun clock ->
-    ETHIF.connect netif >>= fun ethif ->
+    ETHERNET.connect netif >>= fun ethif ->
     ARPV4.connect ethif clock >>= fun arpv4 ->
-    IPV4.connect ~ip ~network ?gateway clock ethif arpv4 >>= fun ipv4 ->
+    IPV4.connect ~ip ?gateway clock ethif arpv4 >>= fun ipv4 ->
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
     UDPV4.connect ipv4 >>= fun udpv4 ->
     TCPV4.connect ipv4 clock >>= fun tcpv4 ->
-    TCPIP.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 >>= fun tcpip ->
+    TCPIP.connect ipv4 icmpv4 udpv4 tcpv4 >>= fun tcpip ->
     Lwt.return tcpip
 
   include TCPIP
@@ -56,8 +55,8 @@ struct
   let tcpip t = t
 
   let make role netif = match role with
-    | `Server -> make ~ip:server_ip ~network netif
-    | `Client -> make ~ip:client_ip ~network netif
+    | `Server -> make ~ip:server_ip netif
+    | `Client -> make ~ip:client_ip netif
 
   type conn = M.NETIF.t
 
@@ -79,7 +78,7 @@ let test_digest netif1 netif2 =
     let data = Mirage_random_test.generate 100_000_000 |> Cstruct.to_string in
     let t0   = Unix.gettimeofday () in
     TCPIP.TCPV4.create_connection
-      TCPIP.(tcpv4 @@ tcpip server_stack) (TCPIP.client_ip, port) >>= function
+      TCPIP.(tcpv4 @@ tcpip server_stack) (snd TCPIP.client_ip, port) >>= function
     | Error _ -> failwith "could not establish tunneled connection"
     | Ok flow ->
       Server_log.debug (fun f -> f "established conn");

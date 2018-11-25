@@ -39,8 +39,9 @@ sig
   val create_backend : unit -> backend
 
   (** Create a new stack connected to an existing backend *)
-  val create_stack : ?mtu:int -> backend -> Ipaddr.V4.t -> int ->
-    Ipaddr.V4.t option -> Stackv4.t Lwt.t
+  val create_stack : ?mtu:int ->
+    ?ip:(Ipaddr.V4.Prefix.t * Ipaddr.V4.t) ->
+    ?gateway:Ipaddr.V4.t -> backend -> Stackv4.t Lwt.t
 
   (** [create_stack ?mtu backend ip netmask gateway] adds a listener
       function to the backend *)
@@ -63,30 +64,29 @@ struct
   type id = B.id
 
   module V = Vnetif.Make(B)
-  module E = Ethif.Make(V)
+  module E = Ethernet.Make(V)
   module A = Arpv4.Make(E)(Clock)(Time)
   module Ip = Static_ipv4.Make(Mirage_random_test)(Clock)(E)(A)
   module Icmp = Icmpv4.Make(Ip)
   module U = Udp.Make(Ip)(Mirage_random_test)
   module T = Tcp.Flow.Make(Ip)(Time)(Clock)(Mirage_random_test)
   module Stackv4 =
-    Tcpip_stack_direct.Make(Time)(Mirage_random_test)(V)(E)(A)(Ip)(Icmp)(U)(T)
+    Tcpip_stack_direct.Make(Time)(Mirage_random_test)(Ip)(Icmp)(U)(T)
 
   let create_backend () =
     B.create ()
 
-  let create_stack ?mtu backend ip netmask gw =
+  let create_stack ?mtu ?ip ?gateway backend =
     let size_limit = match mtu with None -> None | Some x -> Some (x + 14) in
-    let network = Ipaddr.V4.Prefix.make netmask ip in
     Clock.connect () >>= fun clock ->
     V.connect ?size_limit backend >>= fun netif ->
     E.connect netif >>= fun ethif ->
     A.connect ethif clock >>= fun arpv4 ->
-    Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
+    Ip.connect ?ip ?gateway clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
-    Stackv4.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
+    Stackv4.connect ipv4 icmpv4 udpv4 tcpv4
 
   let create_backend_listener backend listenf =
     match (B.register backend) with

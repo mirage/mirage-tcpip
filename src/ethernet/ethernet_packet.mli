@@ -1,7 +1,7 @@
 type t = {
   source : Macaddr.t;
   destination : Macaddr.t;
-  ethertype : Ethif_wire.ethertype;
+  ethertype : Mirage_protocols.Ethernet.Proto.t;
 }
 
 type error = string

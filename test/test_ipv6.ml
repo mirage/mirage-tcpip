@@ -2,7 +2,7 @@ open Common
 module Time = Vnetif_common.Time
 module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
+module E = Ethernet.Make(V)
 
 module Ipv6 = Ipv6.Make(E)(Mirage_random_test)(Time)(Mclock)
 module Udp = Udp.Make(Ipv6)(Mirage_random_test)
@@ -39,14 +39,14 @@ let noop = fun ~src:_ ~dst:_ _ -> Lwt.return_unit
 
 let listen ?(tcp = noop) ?(udp = noop) ?(default = noop) stack =
   V.listen stack.netif
-    ( E.input stack.ethif
-      ~arpv4:(fun _ -> Lwt.return_unit)
-      ~ipv4:(fun _ -> Lwt.return_unit)
-      ~ipv6:(
-        Ipv6.input stack.ip
-          ~tcp:tcp
-          ~udp:udp
-          ~default:(fun ~proto:_ -> default))) >>= fun _ -> Lwt.return_unit
+    ( E.input stack.ethif (fun proto ~source:_ _destination ->
+          match proto with
+          | `IPv6 ->
+            Ipv6.input stack.ip (function
+                | `TCP -> tcp
+                | `UDP -> udp
+                | `ICMP -> default)
+          | _ -> (fun _ -> Lwt.return_unit))) >>= fun _ -> Lwt.return_unit
 
 let udp_message = Cstruct.of_string "hello on UDP over IPv6"
 

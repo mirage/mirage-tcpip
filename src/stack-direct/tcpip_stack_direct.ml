@@ -29,9 +29,6 @@ module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
 module Make
     (Time    : Mirage_time.S)
     (Random  : Mirage_random.C)
-    (Netif   : Mirage_net_lwt.S)
-    (Ethif   : Mirage_protocols_lwt.ETHIF)
-    (Arpv4   : Mirage_protocols_lwt.ARP)
     (Ipv4    : Mirage_protocols_lwt.IPV4)
     (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
     (Udpv4   : UDPV4_DIRECT)
@@ -48,9 +45,6 @@ module Make
   module IPV4  = Ipv4
 
   type t = {
-    netif : Netif.t;
-    ethif : Ethif.t;
-    arpv4 : Arpv4.t;
     ipv4  : Ipv4.t;
     icmpv4: Icmpv4.t;
     udpv4 : Udpv4.t;
@@ -60,8 +54,7 @@ module Make
   }
 
   let pp fmt t =
-    Format.fprintf fmt "mac=%s,ip=%a" (Macaddr.to_string (Ethif.mac t.ethif))
-      (Fmt.list Ipaddr.V4.pp_hum) (Ipv4.get_ip t.ipv4)
+    Format.fprintf fmt "ip=%a" (Fmt.list Ipaddr.V4.pp_hum) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
   let udpv4 { udpv4; _ } = udpv4
@@ -89,48 +82,23 @@ module Make
     with Not_found -> None
 
   let listen t =
-    Logs.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-    let ethif_listener = Ethif.input
-        ~arpv4:(Arpv4.input t.arpv4)
-        ~ipv4:(
-          Ipv4.input
-            ~tcp:(Tcpv4.input t.tcpv4
-                    ~listeners:(tcpv4_listeners t))
-            ~udp:(Udpv4.input t.udpv4
-                    ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto ~src ~dst buf ->
-                match proto with
-                | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
-                | _ -> Lwt.return_unit)
-            t.ipv4)
-        ~ipv6:(fun _ -> Lwt.return_unit)
-        t.ethif
-    in
-    Netif.listen t.netif ethif_listener
-    >>= function
-    | Error e ->
-      Log.warn (fun p -> p "%a" Netif.pp_error e) ;
-      (* XXX: error should be passed to the caller *)
-      Lwt.return_unit
-    | Ok _res ->
-      let nstat = Netif.get_stats_counters t.netif in
-      let open Mirage_net in
-      Log.info (fun f ->
-          f "listening loop of interface %s terminated regularly:@ %Lu bytes \
-             (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-            (Macaddr.to_string (Netif.mac t.netif))
-            nstat.rx_bytes nstat.rx_pkts
-            nstat.tx_bytes nstat.tx_pkts) ;
-      Lwt.return_unit
+    Logs.warn (fun f -> f "deprecated listen on stack %a" pp t);
+    let task, _ = Lwt.task () in
+    task
 
-  let connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
-    let udpv4_listeners = Hashtbl.create 7 in
-    let tcpv4_listeners = Hashtbl.create 7 in
-    let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
-              udpv4_listeners; tcpv4_listeners } in
+  let connect ipv4 icmpv4 udpv4 tcpv4 =
+    let t = { ipv4; icmpv4; tcpv4; udpv4;
+              udpv4_listeners = Hashtbl.create 7 ; tcpv4_listeners = Hashtbl.create 7 } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.async (fun () -> listen t);
+    (match
+       Ipv4.register ipv4 `TCP (Tcpv4.input tcpv4 ~listeners:(tcpv4_listeners t)),
+       Ipv4.register ipv4 `UDP (Udpv4.input udpv4 ~listeners:(udpv4_listeners t)),
+       Ipv4.register ipv4 `ICMP (Icmpv4.input icmpv4)
+     with
+     | Ok (), Ok (), Ok () -> Lwt.return_unit
+     | _ -> Lwt.fail_with "conflict ipv4") >>= fun () ->
     Lwt.return t
+
 
   let disconnect t =
     (* TODO: kill the listening thread *)

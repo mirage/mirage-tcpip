@@ -1,7 +1,7 @@
 (jbuild_version 1)
 (library
- ((name        tcpip_ethif)
-  (public_name tcpip.ethif)
+ ((name        tcpip_ethernet)
+  (public_name tcpip.ethernet)
   (libraries   (mirage-net-lwt mirage-protocols-lwt rresult logs mirage-profile))
   (preprocess (pps (ppx_cstruct)))
   (wrapped false)))

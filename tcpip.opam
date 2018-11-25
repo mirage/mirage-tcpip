@@ -40,7 +40,8 @@ depends: [
   "lwt" {>= "3.0.0"}
   "logs" {>= "0.6.0"}
   "duration"
-  "io-page-unix"
+  "io-page"
+  "io-page-unix" {with-test}
   "randomconv"
   "mirage-flow" {with-test & >= "1.2.0"}
   "mirage-vnetif" {with-test & >= "0.4.0"}

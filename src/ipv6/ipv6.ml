@@ -21,7 +21,7 @@ module I = Ipaddr
 
 open Lwt.Infix
 
-module Make (E : Mirage_protocols_lwt.ETHIF)
+module Make (E : Mirage_protocols_lwt.ETHERNET)
             (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (C : Mirage_clock_lwt.MCLOCK) = struct
@@ -35,6 +35,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
       clock : C.t;
       mutable ctx : Ndpv6.context }
 
+  let register _t _proto _callback = assert false
   type error = [ Mirage_protocols.Ip.error | `Ethif of E.error ]
 
   let pp_error ppf = function
@@ -47,7 +48,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
       let ctx, bufs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
       Lwt_list.iter_s (fun buf ->
-          E.writev t.ethif buf >>= fun _ ->
+          E.write t.ethif `IPv6 Macaddr.broadcast (Cstruct.concat buf) >>= fun _ ->
           Lwt.return_unit
         ) bufs (* MCP: replace with propagation *) >>= fun () ->
       T.sleep_ns (Duration.of_sec 1) >>= loop
@@ -64,7 +65,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
     let now = C.elapsed_ns t.clock in
     let dst =
       Ndpv6.ipaddr_of_cstruct
-        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethif_wire.sizeof_ethernet))
+        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethernet_wire.sizeof_ethernet))
     in
     let ctx, bufs = Ndpv6.send ~now t.ctx dst frame bufs in
     t.ctx <- ctx;
@@ -76,7 +77,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
         Lwt.return @@ Error (`Ethif e)
       in
       match progress with
-      | Ok () -> E.writev t.ethif buf >>= squeal
+      | Ok () -> E.write t.ethif `IPv6 Macaddr.broadcast (Cstruct.concat buf) >>= squeal
       | Error e -> Lwt.return @@ Error e
     in
     (* MCP - it's not totally clear to me that this the right behavior
@@ -86,24 +87,22 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
   let write t frame buf =
     writev t frame [buf]
 
-  let input t ~tcp ~udp ~default buf =
+  let input t fn buf =
     let now = C.elapsed_ns t.clock in
     let _, bufs, actions = Ndpv6.handle ~now ~random:R.generate t.ctx buf in
     Lwt_list.iter_s (function
-        | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
-        | `Udp (src, dst, buf) -> udp ~src ~dst buf
-        | `Default (proto, src, dst, buf) -> default ~proto ~src ~dst buf
+        | `Tcp (src, dst, buf) -> fn `TCP ~src ~dst buf
+        | `Udp (src, dst, buf) -> fn `UDP ~src ~dst buf
+        | `Default _ -> assert false
       ) actions >>= fun () ->
     (* MCP: replace below w/proper error propagation *)
     Lwt_list.iter_s (fun buf ->
-        E.writev t.ethif buf >>= fun _ ->
+        E.write t.ethif `IPv6 Macaddr.broadcast (Cstruct.concat buf) >>= fun _ ->
         Lwt.return_unit
       ) bufs
 
   let disconnect _ = (* TODO *)
     Lwt.return_unit
-
-  let checksum = Ndpv6.checksum
 
   let src t ~dst = Ndpv6.select_source t.ctx dst
 
@@ -113,7 +112,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
     t.ctx <- ctx;
     (* MCP: replace the below *)
     Lwt_list.iter_s (fun buf ->
-        E.writev t.ethif buf >>= fun _ ->
+        E.write t.ethif `IPv6 Macaddr.broadcast (Cstruct.concat buf) >>= fun _ ->
         Lwt.return_unit
       ) bufs
 
@@ -159,7 +158,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
     let t = {ctx; clock; ethif} in
     (* MCP: replace this error swallowing with proper propagation *)
     Lwt_list.iter_s (fun buf ->
-        E.writev t.ethif buf >>= fun _ ->
+        E.write t.ethif `IPv6 Macaddr.broadcast (Cstruct.concat buf) >>= fun _ ->
         Lwt.return_unit
       ) bufs >>= fun () ->
     (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->

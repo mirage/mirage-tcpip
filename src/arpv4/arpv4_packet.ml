@@ -44,7 +44,7 @@ module Unmarshal = struct
     in
     let check_types buf =
       (* we only know how to deal with ethernet <-> IPv4 *)
-      if get_arp_htype buf <> 1 || get_arp_ptype buf <> 0x0800 
+      if get_arp_htype buf <> 1 || get_arp_ptype buf <> 0x0800
          || get_arp_hlen buf <> 6 || get_arp_plen buf <> 4 then Error Unusable
       else Ok buf
     in
@@ -73,7 +73,7 @@ module Marshal = struct
 
   let fill_constants buf =
     set_arp_htype buf 1; (* ethernet *)
-    set_arp_ptype buf Ethif_wire.(ethertype_to_int IPv4);
+    set_arp_ptype buf Ethernet_wire.(ethertype_to_int `IPv4);
     set_arp_hlen buf 6; (* ethernet mac size *)
     set_arp_plen buf 4; (* ipv4 size *)
     ()
