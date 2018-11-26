@@ -20,8 +20,6 @@ open Lwt.Infix
 let src = Logs.Src.create "ethif" ~doc:"Mirage Ethernet"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let default_mtu = 1500
-
 module Make(Netif : Mirage_net_lwt.S) = struct
 
   type 'a io = 'a Lwt.t
@@ -33,11 +31,10 @@ module Make(Netif : Mirage_net_lwt.S) = struct
 
   type t = {
     netif: Netif.t;
-    mtu: int;
   }
 
   let mac t = Netif.mac t.netif
-  let mtu t = t.mtu
+  let mtu t = Netif.mtu t.netif - Ethif_wire.sizeof_ethernet
 
   let input ~arpv4 ~ipv4 ~ipv6 t frame =
     let open Ethif_packet in
@@ -56,7 +53,7 @@ module Make(Netif : Mirage_net_lwt.S) = struct
       end
     | Ok _ -> Lwt.return_unit
     | Error s ->
-      Log.debug (fun f -> f "Dropping Ethernet frame: %s" s);
+      Log.debug (fun f -> f "dropping Ethernet frame: %s" s);
       Lwt.return_unit
 
   let write t frame =
@@ -75,9 +72,9 @@ module Make(Netif : Mirage_net_lwt.S) = struct
       Log.warn (fun f -> f "netif writev errored %a" Netif.pp_error e) ;
       Error e
 
-  let connect ?(mtu = default_mtu) netif =
+  let connect netif =
     MProf.Trace.label "ethif.connect";
-    let t = { netif; mtu } in
+    let t = { netif } in
     Log.info (fun f -> f "Connected Ethernet interface %s" (Macaddr.to_string (mac t)));
     Lwt.return t
 

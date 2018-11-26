@@ -18,9 +18,7 @@
 module Make ( N:Mirage_net_lwt.S) : sig
   include Mirage_protocols_lwt.ETHIF
 
-  val connect : ?mtu:int -> N.t -> t Lwt.t
-  (** [connect ?mtu netif] connects an ethernet layer on top of the raw
-      network device [netif]. The Maximum Transfer Unit may be set via the
-      optional [?mtu] parameter, otherwise a default value of 1500 will be
-      used. *)
+  val connect : N.t -> t Lwt.t
+  (** [connect netif] connects an ethernet layer on top of the raw
+      network device [netif]. *)
 end
