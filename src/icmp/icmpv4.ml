@@ -24,10 +24,8 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
   let disconnect _ = Lwt.return_unit
 
   let writev t ~dst bufs =
-    let frame, header_len = IP.allocate_frame t.ip ~dst ~proto:`ICMP in
-    let frame = Cstruct.set_len frame header_len in
-    IP.writev t.ip frame bufs >|= function
-    | Ok () as o -> o
+    IP.write t.ip dst `ICMP (fun _ -> 0) bufs >|= function
+    | Ok () -> Ok ()
     | Error e ->
       Log.warn (fun f -> f "Error sending IP packet: %a" IP.pp_error e);
       Error (`Ip e)

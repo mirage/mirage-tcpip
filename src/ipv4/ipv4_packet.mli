@@ -32,7 +32,7 @@ module Marshal : sig
 
   val protocol_to_int : protocol -> Cstruct.uint16
 
-  val pseudoheader : src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> proto:([< `TCP | `UDP])
+  val pseudoheader : src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> proto:protocol
     -> int -> Cstruct.t
     (** [pseudoheader src dst proto len] constructs a pseudoheader, suitable for inclusion in transport-layer checksum calculations, including the information supplied.  [len] should be the total length of the transport-layer header and payload.  *)
 

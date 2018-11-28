@@ -66,17 +66,13 @@ module Marshal = struct
   let into_cstruct ~pseudoheader ~payload t udp_buf =
     let open Udp_wire in
     let check_header_len () =
-      if (Cstruct.len udp_buf) < sizeof_udp then Error "Not enough space for a UDP header"
-      else Ok ()
+      if Cstruct.len udp_buf < sizeof_udp then
+        Error "Not enough space for a UDP header"
+      else
+        Ok ()
     in
-    let check_overall_len () =
-      let needed = sizeof_udp in
-      let provided = Cstruct.len udp_buf in
-      if provided < needed then
-        Error (Printf.sprintf "Not enough space for UDP header: provided %d, need %d" provided needed)
-      else Ok ((Cstruct.len payload) + sizeof_udp)
-    in
-    check_header_len () >>= check_overall_len >>= fun len ->
+    check_header_len () >>= fun () ->
+    let len = Cstruct.len payload + sizeof_udp in
     let buf = Cstruct.sub udp_buf 0 Udp_wire.sizeof_udp in
     unsafe_fill ~pseudoheader ~payload t buf len;
     Ok ()

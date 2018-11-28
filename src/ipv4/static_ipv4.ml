@@ -23,10 +23,11 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
-  type error = [ Mirage_protocols.Ip.error | `Ethif of Ethif.error ]
+  type error = [ Mirage_protocols.Ip.error | `Would_fragment | `Ethif of Ethif.error ]
   let pp_error ppf = function
-  | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
-  | `Ethif e -> Ethif.pp_error ppf e
+    | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+    | `Would_fragment -> Fmt.string ppf "would fragment, but fragmentation is disabled"
+    | `Ethif e -> Ethif.pp_error ppf e
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -43,14 +44,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
     mutable cache: Fragments.Cache.t;
   }
 
-  let adjust_output_header = Ipv4_common.adjust_output_header ~rng:R.generate
-
-  let allocate_frame t ~(dst:ipaddr) ~(proto : [`ICMP | `TCP | `UDP]) : (buffer * int) =
-    Ipv4_common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
-
-  let writev t frame bufs : (unit, error) result Lwt.t =
-    let v4_frame = Cstruct.shift frame Ethernet_wire.sizeof_ethernet in
-    let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst v4_frame) in
+  let write t ?(fragment = true) ?(ttl = 38) ?src dst proto ?(size = 0) headerf bufs =
     Routing.destination_mac t.network t.gateway t.arp dst >>= function
     | Error `Local ->
       Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp dst);
@@ -63,17 +57,92 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
       (* when a gateway is specified the user likely expects their traffic to be passed to it *)
       Lwt.return @@ Error (`No_route "no route to default gateway to outside world")
     | Ok mac ->
-      let dmac = Macaddr.to_bytes mac in
-      let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethernet_wire.sizeof_ethernet in
-      adjust_output_header ~dmac ~tlen frame;
-      Ethif.writev t.ethif (frame :: bufs) >|= function
-      | Error e ->
-        Log.warn (fun f -> f "Error sending Ethernet frame: %a" Ethif.pp_error e);
-        Error (`Ethif e)
-      | Ok () -> Ok ()
-
-  let write t frame buf =
-    writev t frame [buf]
+      (* need first to deal with fragmentation decision - find out mtu *)
+      let mtu = Ethif.mtu t.ethif in
+      (* no options here, always 20 bytes! *)
+      let hdr_len = Ipv4_wire.sizeof_ipv4 in
+      let needed_bytes = Cstruct.lenv bufs + hdr_len + size in
+      (* construct the header (will be reused across fragments) *)
+      let hdr =
+        let src = match src with None -> t.ip | Some x -> x in
+        let off = if fragment then 0x0000 else 0x4000 in
+        Ipv4_packet.{
+          options = Cstruct.empty ;
+          src ; dst ;
+          ttl ; off ; id = 0 ;
+          proto = Ipv4_packet.Marshal.protocol_to_int proto }
+      in
+      let writeout size fill =
+        Ethif.write t.ethif mac `IPv4 ~size fill >|= function
+        | Error e ->
+          Log.warn (fun f -> f "Error sending Ethernet frame: %a" Ethif.pp_error e);
+          Error (`Ethif e)
+        | Ok () -> Ok ()
+      in
+      Log.debug (fun m -> m "ip write: mtu is %d, hdr_len is %d, size %d payload len %d, needed_bytes %d"
+                   mtu hdr_len size (Cstruct.lenv bufs) needed_bytes) ;
+      if mtu >= needed_bytes then begin
+        (* single fragment *)
+        let fill buf =
+          let hdr_buf, payload_buf = Cstruct.split buf hdr_len in
+          let header_len = headerf payload_buf in
+          if header_len > size then begin
+            Log.err (fun m -> m "headers returned length exceeding size") ;
+            invalid_arg "headerf exceeds size"
+          end ;
+          (* need to copy the given payload *)
+          let len, leftover =
+            Cstruct.fillv ~src:bufs ~dst:(Cstruct.shift payload_buf header_len)
+          in
+          if leftover <> [] then begin
+            Log.err (fun m -> m "there's some leftover data") ;
+            invalid_arg "leftover data"
+          end ;
+          let payload_len = header_len + len in
+          match Ipv4_packet.Marshal.into_cstruct ~payload_len hdr buf with
+          | Ok () -> Ipv4_common.set_checksum hdr_buf ; payload_len + hdr_len
+          | Error msg ->
+            Log.err (fun m -> m "failure while assembling ip frame: %s" msg) ;
+            invalid_arg msg
+        in
+        writeout needed_bytes fill
+      end else if fragment then begin
+        (* where are we? -- need to allocate size, execute fillf
+           --> if size + hdr_len > mtu, we need this allocated here *)
+        let proto_header = Cstruct.create size in
+        let header_len = headerf proto_header in
+        if header_len > size then begin
+            Log.err (fun m -> m "(frag) headers returned length exceeding size") ;
+            invalid_arg "(frag) headerf exceeds size"
+          end ;
+        let proto_header = Cstruct.sub proto_header 0 header_len in
+        let bufs = ref (proto_header :: bufs) in
+        let hdr = { hdr with id = Randomconv.int16 R.generate } in
+        let rec send off =
+          match !bufs with
+          | [] -> Lwt.return (Ok ())
+          | to_send ->
+            let pay_len = min (mtu - hdr_len) (Cstruct.lenv to_send) in
+            let fill buf =
+              let hdr_buf, payload_buf = Cstruct.split buf hdr_len in
+              let len, leftover = Cstruct.fillv ~src:!bufs ~dst:payload_buf in
+              bufs := leftover ;
+              let last = match leftover with [] -> true | _ -> false in
+              let off = if last then off else off lor 0x2000 in
+              let hdr = { hdr with off } in
+              match Ipv4_packet.Marshal.into_cstruct ~payload_len:len hdr buf with
+              | Ok () -> Ipv4_common.set_checksum hdr_buf ; pay_len
+              | Error msg ->
+                Log.err (fun m -> m "failure while assembling ip frame: %s" msg) ;
+                invalid_arg msg
+            in
+            writeout (hdr_len + pay_len) fill >>= function
+            | Error e -> Lwt.return (Error e)
+            | Ok () -> send (off + pay_len lsr 3)
+        in
+        send 0
+      end else (* error out, as described in the semantics *)
+        Lwt.return (Error `Would_fragment)
 
   (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
   let input t ~tcp ~udp ~default buf =
@@ -124,13 +193,11 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
 
   let get_ip t = [t.ip]
 
-  let pseudoheader t ~dst ~proto len =
-    Ipv4_packet.Marshal.pseudoheader ~src:t.ip ~dst ~proto len
+  let pseudoheader t ?src dst proto len =
+    let src = match src with None -> t.ip | Some x -> x in
+    Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto len
 
-  let checksum = Ipv4_common.checksum
-
-  let src t ~dst:_ =
-    t.ip
+  let src t ~dst:_ = t.ip
 
   type uipaddr = Ipaddr.t
   let to_uipaddr ip = Ipaddr.V4 ip

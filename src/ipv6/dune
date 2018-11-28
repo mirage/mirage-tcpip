@@ -1,7 +1,7 @@
 (library
  (name tcpip_ipv6)
  (public_name tcpip.ipv6)
- (libraries logs io-page mirage-protocols-lwt mirage-time-lwt
+ (libraries logs mirage-protocols-lwt mirage-time-lwt
    mirage-clock-lwt duration ipaddr cstruct rresult mirage-random tcpip
    randomconv ethernet)
  (preprocess

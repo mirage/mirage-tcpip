@@ -85,7 +85,7 @@ module Defaults = struct
   let delay_first_probe_time     = Duration.of_sec 5
 
   let link_mtu                   = 1500 (* RFC 2464, 2. *)
-  let min_link_mtu               = 1280
+  let _min_link_mtu               = 1280
 
   let dup_addr_detect_transmits  = 1
 
@@ -147,9 +147,7 @@ let compute_reachable_time r reachable_time =
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 
-let cksum_buf =
-  let pbuf = Io_page.to_cstruct (Io_page.get 1) in
-  Cstruct.set_len pbuf 8
+let cksum_buf = Cstruct.create 8
 
 let checksum' ~proto frame bufs =
   Cstruct.BE.set_uint32 cksum_buf 0 (Int32.of_int (Cstruct.lenv bufs));
@@ -158,103 +156,94 @@ let checksum' ~proto frame bufs =
   Tcpip_checksum.ones_complement_list (src_dst :: cksum_buf :: bufs)
 
 let checksum frame bufs =
-  let frame = Cstruct.shift frame Ethernet_wire.sizeof_ethernet in
   let proto = Ipv6_wire.get_ipv6_nhdr frame in
   checksum' ~proto frame bufs
 
 module Allocate = struct
-  let frame ~mac ~hlim ~src ~dst ~proto =
-    let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-    let ipbuf = Cstruct.shift ethernet_frame Ethernet_wire.sizeof_ethernet in
-    macaddr_to_cstruct_raw mac (Ethernet_wire.get_ethernet_src ethernet_frame) 0;
-    Ethernet_wire.set_ethernet_ethertype ethernet_frame 0x86dd; (* IPv6 *)
-    Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
-    ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
-    ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
-    Ipv6_wire.set_ipv6_hlim ipbuf hlim;
-    Ipv6_wire.set_ipv6_nhdr ipbuf proto;
-    let header_len = Ethernet_wire.sizeof_ethernet + Ipv6_wire.sizeof_ipv6 in
-    (ethernet_frame, header_len)
-
-  let _error ~mac ~src ~dst ~ty ~code ?(reserved = 0l) buf =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
-    let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_icmpv6) in
-    let maxbuf = Defaults.min_link_mtu - (header_len + Ipv6_wire.sizeof_icmpv6) in
-    (* FIXME ? hlim = 255 *)
-    let buf = Cstruct.sub buf 0 (min (Cstruct.len buf) maxbuf) in
-    let icmpbuf = Cstruct.set_len eth_frame Ipv6_wire.sizeof_icmpv6 in
-    Ipv6_wire.set_icmpv6_ty icmpbuf ty;
-    Ipv6_wire.set_icmpv6_code icmpbuf code;
-    Ipv6_wire.set_icmpv6_reserved icmpbuf reserved;
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf; buf ];
-    (eth_frame, buf :: [])
+  let hdr ~hlim ~src ~dst ~proto ~size fillf =
+    let size' = size + Ipv6_wire.sizeof_ipv6 in
+    let fill ipbuf =
+      Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
+      ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
+      ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
+      Ipv6_wire.set_ipv6_hlim ipbuf hlim;
+      Ipv6_wire.set_ipv6_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
+      let hdr, payload = Cstruct.split ipbuf Ipv6_wire.sizeof_ipv6 in
+      let len' = fillf hdr payload in
+      assert (len' <= size') ;
+      len' + Ipv6_wire.sizeof_ipv6
+    in
+    (size', fill)
 
   let ns ~mac ~src ~dst ~tgt =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
-    let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_llopt) in
-    let icmpbuf = Cstruct.shift eth_frame header_len in
-    let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-    Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
-    Ipv6_wire.set_ns_code icmpbuf 0;
-    Ipv6_wire.set_ns_reserved icmpbuf 0l;
-    ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_ns_target icmpbuf) 0;
-    Ipv6_wire.set_llopt_ty optbuf  1;
-    Ipv6_wire.set_llopt_len optbuf  1;
-    macaddr_to_cstruct_raw mac optbuf 2;
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
-    eth_frame
+    let size = Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_llopt in
+    let fillf hdr icmpbuf =
+      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
+      Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
+      Ipv6_wire.set_ns_code icmpbuf 0;
+      Ipv6_wire.set_ns_reserved icmpbuf 0l;
+      ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_ns_target icmpbuf) 0;
+      Ipv6_wire.set_llopt_ty optbuf  1;
+      Ipv6_wire.set_llopt_len optbuf  1;
+      macaddr_to_cstruct_raw mac optbuf 2;
+      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      size
+    in
+    hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
 
   let na ~mac ~src ~dst ~tgt ~sol =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
-    let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt) in
-    let icmpbuf = Cstruct.shift eth_frame header_len in
-    let optbuf  = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-    Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
-    Ipv6_wire.set_na_code icmpbuf 0;
-    Ipv6_wire.set_na_reserved icmpbuf (if sol then 0x60000000l else 0x20000000l);
-    ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_na_target icmpbuf) 0;
-    Ipv6_wire.set_llopt_ty optbuf 2;
-    Ipv6_wire.set_llopt_len optbuf 1;
-    macaddr_to_cstruct_raw mac optbuf 2;
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
-    eth_frame
+    let size = Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt in
+    let fillf hdr icmpbuf =
+      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
+      Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
+      Ipv6_wire.set_na_code icmpbuf 0;
+      Ipv6_wire.set_na_reserved icmpbuf (if sol then 0x60000000l else 0x20000000l);
+      ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_na_target icmpbuf) 0;
+      Ipv6_wire.set_llopt_ty optbuf 2;
+      Ipv6_wire.set_llopt_len optbuf 1;
+      macaddr_to_cstruct_raw mac optbuf 2;
+      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      size
+    in
+    hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
 
   let rs ~mac select_source =
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
     let cmp = Ipaddr.compare in
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim:255 ~proto:58 in
     let include_slla = (cmp src Ipaddr.unspecified) != 0 in
     let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
-    let eth_frame =
-      Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_rs + slla_len)
+    let size = Ipv6_wire.sizeof_rs + slla_len in
+    let fillf hdr icmpbuf =
+      Ipv6_wire.set_rs_ty icmpbuf 133;
+      Ipv6_wire.set_rs_code icmpbuf 0;
+      Ipv6_wire.set_rs_reserved icmpbuf 0l;
+      if include_slla then begin
+        let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
+        macaddr_to_cstruct_raw mac optbuf 2
+      end;
+      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      size
     in
-    let icmpbuf = Cstruct.shift eth_frame header_len in
-    Ipv6_wire.set_rs_ty icmpbuf 133;
-    Ipv6_wire.set_rs_code icmpbuf 0;
-    Ipv6_wire.set_rs_reserved icmpbuf 0l;
-    if include_slla then begin
-      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
-      macaddr_to_cstruct_raw mac optbuf 2
-    end;
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum eth_frame [ icmpbuf ];
-    eth_frame
+    hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
 
-  let pong ~mac ~src ~dst ~hlim ~id ~seq ~data =
-    let eth_frame, header_len = frame ~mac ~src ~dst ~hlim ~proto:58 in
-    let eth_frame = Cstruct.set_len eth_frame (header_len + Ipv6_wire.sizeof_pingv6) in
-    let icmpbuf = Cstruct.shift eth_frame header_len in
-    Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
-    Ipv6_wire.set_pingv6_code icmpbuf 0;
-    Ipv6_wire.set_pingv6_id icmpbuf id;
-    Ipv6_wire.set_pingv6_seq icmpbuf seq;
-    Ipv6_wire.set_pingv6_csum icmpbuf 0;
-    Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum eth_frame (icmpbuf :: data :: []);
-    (eth_frame, data :: [])
+  let pong ~src ~dst ~hlim ~id ~seq ~data =
+    (* TODO data may exceed size, fragment? *)
+    let size = Ipv6_wire.sizeof_pingv6 + Cstruct.len data in
+    let fillf hdr icmpbuf =
+      Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
+      Ipv6_wire.set_pingv6_code icmpbuf 0;
+      Ipv6_wire.set_pingv6_id icmpbuf id;
+      Ipv6_wire.set_pingv6_seq icmpbuf seq;
+      Ipv6_wire.set_pingv6_csum icmpbuf 0;
+      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr (icmpbuf :: data :: []);
+      Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.len data);
+      size
+    in
+    hdr ~src ~dst ~hlim ~proto:`ICMP ~size fillf
 end
 
 type ns =
@@ -1047,7 +1036,7 @@ type context =
     base_reachable_time : time;
     reachable_time : time;
     retrans_timer : time;
-    packet_queue : (Macaddr.t -> Cstruct.t list) PacketQueue.t }
+    packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t }
 
 let next_hop ctx ip =
   if PrefixList.is_local ctx.prefix_list ip then
@@ -1067,25 +1056,25 @@ let rec process_actions ~now ctx actions =
       in
       Log.debug (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
         Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt);
-      let frame = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
-      send ~now ctx dst frame []
+      let size, fillf = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
+      send' ~now ctx dst size fillf
     | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
       Log.debug (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
         Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt sol);
-      let frame = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
-      send ~now ctx dst frame []
+      let size, fillf = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
+      send' ~now ctx dst size fillf
     | SendRS ->
       Log.debug (fun f -> f "ND6: Sending RS");
-      let frame = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
+      let size, fillf = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
       let dst = Ipaddr.link_routers in
-      send ~now ctx dst frame []
+      send' ~now ctx dst size fillf
     | SendQueued (ip, dmac) ->
       Log.debug (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%a" Ipaddr.pp ip Macaddr.pp dmac);
-      let pkts, packet_queue = PacketQueue.pop ip ctx.packet_queue in
-      let bufs = List.map (fun datav -> datav dmac) pkts in
+      let outs, packet_queue = PacketQueue.pop ip ctx.packet_queue in
+      let outs' = List.map (fun (size, fillf) -> dmac, size, fillf) outs in
       let ctx = {ctx with packet_queue} in
-      ctx, bufs
+      ctx, outs'
     | CancelQueued ip ->
       Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp ip);
       let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
@@ -1097,16 +1086,9 @@ let rec process_actions ~now ctx actions =
       ctx, bufs @ bufs'
     ) (ctx, []) actions
 
-and send ~now ctx dst frame datav =
-  let datav dmac =
-    Ipv6_wire.set_ipv6_len (Cstruct.shift frame Ethernet_wire.sizeof_ethernet)
-      (Cstruct.lenv datav + Cstruct.len frame - Ethernet_wire.sizeof_ethernet - Ipv6_wire.sizeof_ipv6);
-    macaddr_to_cstruct_raw dmac (Ethernet_wire.get_ethernet_dst frame) 0;
-    frame :: datav
-  in
+and send' ~now ctx dst size fillf =
   match Ipaddr.is_multicast dst with
-  | true ->
-    ctx, [datav (multicast_mac dst)]
+  | true -> ctx, [(multicast_mac dst, size, fillf)]
   | false ->
     let ctx, ip = next_hop ctx dst in
     let neighbor_cache, mac, actions =
@@ -1115,13 +1097,18 @@ and send ~now ctx dst frame datav =
     match mac with
     | Some dmac ->
       Log.debug (fun f -> f "IP6: Sending packet: dst=%a mac=%a" Ipaddr.pp dst Macaddr.pp dmac);
-      let ctx, bufs = process_actions ~now ctx actions in
-      ctx, datav dmac :: bufs
+      let ctx, outs = process_actions ~now ctx actions in
+      ctx, (dmac, size, fillf) :: outs
     | None ->
       Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp dst);
-      let packet_queue = PacketQueue.push ip datav ctx.packet_queue in
+      let packet_queue = PacketQueue.push ip (size, fillf) ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
+
+let send ~now ctx dst proto size fillf =
+  let src = AddressList.select_source ctx.address_list ~dst in
+  let siz, fill = Allocate.hdr ~hlim:ctx.cur_hop_limit ~src ~dst ~proto ~size fillf in
+  send' ~now ctx dst siz fill
 
 let local ~now ~random mac =
   let ctx =
@@ -1153,11 +1140,6 @@ let add_ip ~now ctx ip =
 
 let get_ip ctx =
   AddressList.to_list ctx.address_list
-
-let allocate_frame ctx dst proto =
-  let proto = Ipv6_wire.protocol_to_int proto in
-  let src = AddressList.select_source ctx.address_list ~dst in
-  Allocate.frame ~mac:ctx.mac ~src ~hlim:ctx.cur_hop_limit ~dst ~proto
 
 let select_source ctx dst =
   AddressList.select_source ctx.address_list ~dst
@@ -1282,9 +1264,9 @@ let handle ~now ~random ctx buf =
         dst
     in
     let frame, bufs =
-      Allocate.pong ~mac:ctx.mac ~src ~dst ~hlim:ctx.cur_hop_limit ~id ~seq ~data
+      Allocate.pong ~src ~dst ~hlim:ctx.cur_hop_limit ~id ~seq ~data
     in
-    let ctx, bufs = send ~now ctx dst frame bufs in
+    let ctx, bufs = send' ~now ctx dst frame bufs in
     ctx, bufs, []
   | DropWithError _ (* TODO *) | Drop ->
     ctx, [], []

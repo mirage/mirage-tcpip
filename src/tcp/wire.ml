@@ -58,29 +58,31 @@ module Make (Ip:Mirage_protocols_lwt.IP) = struct
         urg = false; ack; psh; rst; syn; fin;
         options;
         src_port; dst_port;
-      } in
+      }
+    in
     (* Make a TCP/IP header frame *)
-    let frame, header_len = Ip.allocate_frame ip ~dst ~proto:`TCP in
-    (* Shift this out by the combined ethernet + IP header sizes *)
-    let tcp_buf = Cstruct.shift frame header_len in
-    let pseudoheader = Ip.pseudoheader ip ~dst ~proto:`TCP
-      (Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload) in
-    match Tcp_packet.Marshal.into_cstruct header tcp_buf ~pseudoheader ~payload with
-    | Error s ->
-      Log.warn (fun l -> l "Error writing TCP packet header: %s" s);
-      Lwt.fail (Failure ("Tcp_packet.Marshal.into_cstruct: " ^ s))
-    | Ok len ->
-      let frame = Cstruct.set_len frame (header_len + len) in
-      MProf.Counter.increase count_tcp_to_ip
-        (Cstruct.len payload + if syn then 1 else 0);
-      Ip.write ip frame payload >|= function
-      | Ok () -> Ok ()
-      (* swallow errors so normal recovery mechanisms can be used *)
-      (* For errors which aren't transient, or are too long-lived for TCP to recover
-       * from, this will eventually result in a higher-level notification
-       * that communication over the TCP flow has failed *)
-      | Error e ->
-        Log.warn (fun l -> l "Error sending TCP packet via IP: %a" Ip.pp_error e);
-        Ok ()
-
+    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload in
+    let fill_buffer buf =
+      let pseudoheader = Ip.pseudoheader ip dst `TCP tcp_size in
+      match Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload with
+      | Error s ->
+        Log.err (fun l -> l "Error writing TCP packet header: %s" s) ;
+        0
+        (* TODO: better to avoid this entirely, now we're sending empty IP
+             frame and drop the payload.. oops *)
+      | Ok l ->
+        Cstruct.blit payload 0 buf l (Cstruct.len payload) ;
+        MProf.Counter.increase count_tcp_to_ip
+          (Cstruct.len payload + if syn then 1 else 0) ;
+        tcp_size
+    in
+    Ip.write ip ~fragment:false dst `TCP ~size:tcp_size fill_buffer [] >|= function
+    | Ok () -> Ok ()
+    (* swallow errors so normal recovery mechanisms can be used *)
+    (* For errors which aren't transient, or are too long-lived for TCP to recover
+     * from, this will eventually result in a higher-level notification
+     * that communication over the TCP flow has failed *)
+    | Error e ->
+      Log.warn (fun l -> l "Error sending TCP packet via IP: %a" Ip.pp_error e);
+      Ok ()
 end

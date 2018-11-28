@@ -30,39 +30,39 @@ type event =
 
 type context
 
-val local : now:time -> random:(int -> Cstruct.t) -> Macaddr.t -> context * buffer list list
-(** [local ~now ~random mac] is a pair [ctx, bufs] where [ctx] is a local IPv6 context
-    associated to the hardware address [mac].  [bufs] is a list of ethif packets
+val local : now:time -> random:(int -> Cstruct.t) -> Macaddr.t ->
+  context * (Macaddr.t * int * (buffer -> int)) list
+(** [local ~now ~random mac] is a pair [ctx, outs] where [ctx] is a local IPv6 context
+    associated to the hardware address [mac].  [outs] is a list of ethif packets
     to be sent. *)
 
-val add_ip : now:time -> context -> ipaddr -> context * buffer list list
-(** [add_ip ~now ctx ip] is [ctx', bufs] where [ctx'] is [ctx] updated with a
-    new local ip and [bufs] is a list of ethif packets to be sent. *)
+val add_ip : now:time -> context -> ipaddr ->
+  context * (Macaddr.t * int * (buffer -> int)) list
+(** [add_ip ~now ctx ip] is [ctx', outs] where [ctx'] is [ctx] updated with a
+    new local ip and [outs] is a list of ethif packets to be sent. *)
 
 val get_ip : context -> ipaddr list
 (** [get_ip ctx] returns the list of local ips. *)
-
-val allocate_frame : context -> ipaddr -> [`ICMP | `TCP | `UDP] -> buffer * int
-(** [allocate_frame ctx ip proto] returns a pair [buf, len] where [buf] is a new
-    ethernet frame containing an ipv6 header of length [len]. *)
 
 val select_source : context -> ipaddr -> ipaddr
 (** [select_source ctx ip] returns the ip that should be put in the source field
     of a packet destined to [ip]. *)
 
-val handle : now:time -> random:(int -> Cstruct.t) -> context -> buffer -> context * buffer list list * event list
+val handle : now:time -> random:(int -> Cstruct.t) -> context -> buffer ->
+  context * (Macaddr.t * int * (buffer -> int)) list * event list
 (** [handle ~now ~random ctx buf] handles an incoming ipv6 packet.  It returns [ctx',
     bufs, evs] where [ctx'] is the updated context, [bufs] is a list of packets to
     be sent and [evs] is a list of packets to be passed to the higher layers (udp,
     tcp, etc) for further processing. *)
 
-val send : now:time -> context -> ipaddr -> buffer -> buffer list -> context * buffer list list
+val send : now:time -> context -> ipaddr -> Mirage_protocols.Ip.proto ->
+  int -> (buffer -> buffer -> int) -> context * (Macaddr.t * int * (buffer -> int)) list
 (** [send ~now ctx ip frame bufs] starts route resolution and assembles an ipv6
     packet for sending with header [frame] and body [bufs].  It returns a pair
     [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
     packets to be sent. *)
 
-val tick : now:time -> context -> context * buffer list list
+val tick : now:time -> context -> context * (Macaddr.t * int * (buffer -> int)) list
 (** [tick ~now ctx] should be called periodically (every 1s is good).  It
     returns [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
     packets to be sent. *)

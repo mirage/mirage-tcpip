@@ -325,8 +325,7 @@ let blind_syn_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let blind_data_injection_scenario =
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -363,8 +362,7 @@ let blind_data_injection_scenario =
 
 let data_repeated_ack_scenario =
   (* This is the just data transmission with ack in the past but within the acceptable window *)
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->

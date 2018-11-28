@@ -88,7 +88,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let iperfclient s amt dest_ip dport =
     let iperftx flow =
       Logs.info (fun f -> f  "Iperf client: Made connection to server.");
-      let a = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 mlen in
+      let a = Cstruct.create mlen in
       Cstruct.blit_from_string msg 0 a 0 mlen;
       let rec loop = function
         | 0 -> Lwt.return_unit

@@ -59,21 +59,23 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
       | None   -> Randomconv.int ~bound:65535 (fun x -> Random.generate x)
       | Some p -> p
     in
-    let payload_size = Cstruct.lenv bufs in
-    let frame, header_len = Ip.allocate_frame t.ip ~dst:dst ~proto:`UDP in
-    let frame = Cstruct.set_len frame header_len in
-    let ph =
-      Ip.pseudoheader t.ip ~dst ~proto:`UDP (payload_size + Udp_wire.sizeof_udp)
+    let fill_hdr buf =
+      let payload_size = Cstruct.lenv bufs in
+      let ph =
+        Ip.pseudoheader t.ip dst `UDP (payload_size + Udp_wire.sizeof_udp)
+      in
+      let udp_header = Udp_packet.({ src_port; dst_port; }) in
+      match Udp_packet.Marshal.into_cstruct udp_header buf ~pseudoheader:ph ~payload:(Cstruct.concat bufs) with
+      | Ok () -> 8
+      | Error msg ->
+        Logs.err (fun m -> m "error while assembling udp header: %s, ignoring" msg);
+        8
     in
-    let udp_header = Udp_packet.({ src_port; dst_port; }) in
-    let udp_buf =
-      Udp_packet.Marshal.make_cstruct udp_header ~pseudoheader:ph
-        ~payload:(Cstruct.concat bufs)
-    in
-    Ip.writev t.ip frame (udp_buf :: bufs) >|= function
-    | Ok () as ok         -> ok
-    | Error e -> Log.warn (fun f -> f "IP module couldn't send UDP packet to %a: %a"
-      pp_ip dst Ip.pp_error e); 
+    Ip.write t.ip dst `UDP ~size:8 fill_hdr bufs >|= function
+    | Ok () -> Ok ()
+    | Error e ->
+      Log.err (fun f -> f "IP module couldn't send UDP packet to %a: %a"
+                  pp_ip dst Ip.pp_error e);
       (* we're supposed to make our best effort, and we did *)
       Ok ()
 

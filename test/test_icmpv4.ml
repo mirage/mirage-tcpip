@@ -149,8 +149,8 @@ let write_errors () =
     let open Ethernet_packet in
     Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
-    | Ethernet_wire.IPv6 | Ethernet_wire.ARP -> Error "not an ipv4 packet"
-    | Ethernet_wire.IPv4 ->
+    | `IPv6 | `ARP -> Error "not an ipv4 packet"
+    | `IPv4 ->
       Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in

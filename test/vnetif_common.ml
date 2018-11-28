@@ -76,14 +76,11 @@ struct
     B.create ()
 
   let create_stack backend ?mtu ip netmask gw =
-    let size_limit = match mtu with
-    | None -> None
-    | Some n -> Some (n + 14)
-    in
+    let size_limit = match mtu with None -> None | Some x -> Some x in
     let network = Ipaddr.V4.Prefix.make netmask ip in
     Clock.connect () >>= fun clock ->
     V.connect ?size_limit backend >>= fun netif ->
-    E.connect ?mtu netif >>= fun ethif ->
+    E.connect netif >>= fun ethif ->
     A.connect ethif >>= fun arpv4 ->
     Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
@@ -93,8 +90,8 @@ struct
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | `Error _ -> failf "Error occured while registering to backend"
-    | `Ok id -> (B.set_listen_fn backend id listenf); id
+    | Error _ -> failf "Error occured while registering to backend"
+    | Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =
     B.unregister_and_flush backend id
