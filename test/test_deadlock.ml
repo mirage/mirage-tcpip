@@ -42,7 +42,7 @@ struct
 
   let make ~ip ~network ?gateway netif =
     MCLOCK.connect () >>= fun clock ->
-    ETHIF.connect ~mtu netif >>= fun ethif ->
+    ETHIF.connect netif >>= fun ethif ->
     ARPV4.connect ethif clock >>= fun arpv4 ->
     IPV4.connect ~ip ~network ?gateway clock ethif arpv4 >>= fun ipv4 ->
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
@@ -144,8 +144,8 @@ let test_digest netif1 netif2 =
 let run_vnetif () =
   let backend = Basic_backend.Make.create
       ~use_async_readers:true ~yield:Lwt_unix.yield () in
-  TCPIP.M.NETIF.connect backend >>= fun c1 ->
-  TCPIP.M.NETIF.connect backend >>= fun c2 ->
+  TCPIP.M.NETIF.connect ~size_limit:mtu backend >>= fun c1 ->
+  TCPIP.M.NETIF.connect ~size_limit:mtu backend >>= fun c2 ->
   test_digest c1 c2
 
 let suite = [
