@@ -25,8 +25,7 @@ depends: [
   "rresult" {>= "0.5.0"}
   "cstruct" {>= "3.0.2"}
   "cstruct-lwt"
-  "mirage-net" {>= "1.0.0"}
-  "mirage-net-lwt" {>= "1.0.0"}
+  "mirage-net-lwt" {>= "2.0.0"}
   "mirage-clock" {>= "1.2.0"}
   "mirage-random" {>= "1.0.0"}
   "mirage-clock-lwt" {>= "1.2.0"}
@@ -44,7 +43,7 @@ depends: [
   "duration"
   "io-page-unix"
   "randomconv"
-  "ethernet"
+  "ethernet" {>= "2.0.0"}
   "mirage-flow" {with-test & >= "1.2.0"}
   "mirage-vnetif" {with-test & >= "0.4.0"}
   "alcotest" {with-test & >="0.7.0"}

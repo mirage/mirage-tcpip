@@ -76,14 +76,11 @@ struct
     B.create ()
 
   let create_stack backend ?mtu ip netmask gw =
-    let size_limit = match mtu with
-    | None -> None
-    | Some n -> Some (n + 14)
-    in
+    let size_limit = match mtu with None -> None | Some x -> Some (x + 14) in
     let network = Ipaddr.V4.Prefix.make netmask ip in
     Clock.connect () >>= fun clock ->
     V.connect ?size_limit backend >>= fun netif ->
-    E.connect ?mtu netif >>= fun ethif ->
+    E.connect netif >>= fun ethif ->
     A.connect ethif >>= fun arpv4 ->
     Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
