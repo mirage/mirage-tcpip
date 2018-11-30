@@ -109,9 +109,9 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
       Arpv4.set_ips arp [ip] >>= fun () ->
-      (* TODO currently hardcoded to 4MB, should be configurable
+      (* TODO currently hardcoded to 256KB, should be configurable
          and maybe limited per-src/dst-ip as well? *)
-      let cache = Fragments.Cache.empty (1024 * 1024 * 4) in
+      let cache = Fragments.Cache.empty (1024 * 256) in
       let t = { ethif; arp; ip; clock; network; gateway ; cache } in
       Lwt.return t
 

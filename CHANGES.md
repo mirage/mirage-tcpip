@@ -1,3 +1,12 @@
+### master
+
+* The IPv4 implementation now supports reassembly of IPv4 fragments (#375 by @hannesm)
+  - using a LRU cache using up to 256KB memory
+  - out of order fragments are supported
+  - maximum number of fragments is 16
+  - timeout between first and last fragment is 10s
+  - overlapping fragments are dropped
+
 ### v3.5.1 (2018-11-16)
 
 * socket stack (tcp/udp): catch exception in recv_from and accept (#376 @hannesm)
