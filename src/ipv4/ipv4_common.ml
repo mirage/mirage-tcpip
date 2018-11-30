@@ -23,7 +23,8 @@ let allocate_frame ~src ~source ~(dst:Ipaddr.V4.t) ~(proto : [`ICMP | `TCP | `UD
     let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
     (* TODO: why 38 for TTL? *)
     let ipv4_header = Ipv4_packet.({options = Cstruct.create 0;
-                                    src; dst; ttl = 38; 
+                                    src; dst; ttl = 38;
+                                    off = 0 ; id = 0x0000 ;
                                     proto = Ipv4_packet.Marshal.protocol_to_int proto; }) in
     (* set the payload_len to 0, since we don't know what it'll be yet *)
     (* the caller needs to then use [writev] or [write] to output the buffer;

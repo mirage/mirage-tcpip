@@ -1,8 +1,10 @@
 type t = {
   src     : Ipaddr.V4.t;
   dst     : Ipaddr.V4.t;
-  proto   : Cstruct.uint8;
+  id      : Cstruct.uint16;
+  off     : Cstruct.uint16;
   ttl     : Cstruct.uint8;
+  proto   : Cstruct.uint8;
   options : Cstruct.t;
 }
 
@@ -12,14 +14,16 @@ type protocol = [
   | `UDP ]
 
 let pp fmt t =
-  Format.fprintf fmt "IPv4 packet %a -> %a: proto %d, ttl %d, options %a"
-    Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.proto t.ttl Cstruct.hexdump_pp t.options
+  Format.fprintf fmt "IPv4 packet %a -> %a: id %04x, off %d proto %d, ttl %d, options %a"
+    Ipaddr.V4.pp_hum t.src Ipaddr.V4.pp_hum t.dst t.id t.off t.proto t.ttl Cstruct.hexdump_pp t.options
 
-let equal {src; dst; proto; ttl; options} q =
+let equal {src; dst; id; off; ttl; proto; options} q =
   src = q.src &&
   dst = q.dst &&
-  proto = q.proto &&
+  id = q.id &&
+  off = q.off &&
   ttl = q.ttl &&
+  proto = q.proto &&
   Cstruct.equal options q.options
 
 module Marshal = struct
@@ -33,6 +37,7 @@ module Marshal = struct
     | `UDP    -> 17
 
   let pseudoheader ~src ~dst ~proto len =
+    (* should we do sth about id or off (assert false?) *)
     let proto = protocol_to_int proto in
     let ph = Cstruct.create 12 in
     let numify = Ipaddr.V4.to_int32 in
@@ -120,8 +125,10 @@ module Unmarshal = struct
       let payload_len = (get_ipv4_len buf) - options_end in
       let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
       let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
-      let proto = get_ipv4_proto buf in
+      let id = get_ipv4_id buf in
+      let off = get_ipv4_off buf in
       let ttl = get_ipv4_ttl buf in
+      let proto = get_ipv4_proto buf in
       let options =
         if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
@@ -131,7 +138,7 @@ module Unmarshal = struct
         Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
       ) else (
         let payload = Cstruct.sub buf options_end payload_len in
-        Ok ({src; dst; proto; ttl; options;}, payload)
+        Ok ({src; dst; id; off; ttl; proto; options;}, payload)
       )
     in
     size_check buf >>= check_version >>= get_header_length >>= parse buf
