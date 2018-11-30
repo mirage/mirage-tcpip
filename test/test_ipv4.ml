@@ -52,6 +52,18 @@ let test_packet =
   let ttl = 64 in
   { Ipv4_packet.src; dst; proto = 17; ttl; id = 0 ; off = 0 ; options = (Cstruct.of_string "aaaa") }
 
+let mf = 0x2000
+
+let white = Cstruct.create 16
+let black =
+  let buf = Cstruct.create 16 in
+  Cstruct.memset buf 0xFF ;
+  buf
+let gray =
+  let buf = Cstruct.create 16 in
+  Cstruct.memset buf 0x55 ;
+  buf
+
 let empty_cache = Fragments.Cache.empty 1000
 
 let basic_fragments payload () =
@@ -65,51 +77,48 @@ let basic_fragments payload () =
   Lwt.return_unit
 
 let basic_reassembly () =
-  let more_frags = { test_packet with off = 0x2000 } in
-  let payload = Cstruct.create 16 in
-  let cache, res = Fragments.process empty_cache 0L more_frags payload in
+  let more_frags = { test_packet with off = mf } in
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let off_packet = { test_packet with off = 2 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) "reassembly of two segments works"
-              (Some (test_packet, Cstruct.append payload payload))
-              (snd @@ Fragments.process cache 0L off_packet payload)) ;
+              (Some (test_packet, Cstruct.append black white))
+              (snd @@ Fragments.process cache 0L off_packet white)) ;
   Lwt.return_unit
 
 let basic_reassembly_timeout () =
-  let more_frags = { test_packet with off = 0x2000 } in
-  let payload = Cstruct.create 16 in
-  let cache, res = Fragments.process empty_cache 0L more_frags payload in
+  let more_frags = { test_packet with off = mf } in
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let off_packet = { test_packet with off = 2 } in
   let below_max = Int64.sub Fragments.max_duration 1L in
   Alcotest.(check (option (pair ipv4_packet cstruct)) "even after just before max duration"
-              (Some (test_packet, Cstruct.append payload payload))
-              (snd @@ Fragments.process cache below_max off_packet payload)) ;
+              (Some (test_packet, Cstruct.append black white))
+              (snd @@ Fragments.process cache below_max off_packet white)) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) "none after max duration"
               None
-              (snd @@ Fragments.process cache Fragments.max_duration off_packet payload)) ;
-  let more_off_packet = { test_packet with off = 0x2002 } in
-  let cache, res = Fragments.process cache below_max more_off_packet payload in
+              (snd @@ Fragments.process cache Fragments.max_duration off_packet white)) ;
+  let more_off_packet = { test_packet with off = mf lor 2 } in
+  let cache, res = Fragments.process cache below_max more_off_packet gray in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let final_packet = { test_packet with off = 4 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
-              (Some (test_packet, Cstruct.concat [ payload; payload; payload]))
-              (snd @@ Fragments.process cache below_max final_packet payload)) ;
+              (Some (test_packet, Cstruct.concat [ black; gray; white]))
+              (snd @@ Fragments.process cache below_max final_packet white)) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               None
-              (snd @@ Fragments.process cache Fragments.max_duration off_packet payload)) ;
+              (snd @@ Fragments.process cache Fragments.max_duration off_packet white)) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Lwt.return_unit
 
 let reassembly_out_of_orfer () =
-  let more_frags = { test_packet with off = 0x2000 } in
-  let payload = Cstruct.create 16 in
+  let more_frags = { test_packet with off = mf } in
   let off_packet = { test_packet with off = 2 } in
-  let cache, res = Fragments.process empty_cache 0L off_packet payload in
+  let cache, res = Fragments.process empty_cache 0L off_packet gray in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) "reassembly of two segments works"
-              (Some (test_packet, Cstruct.append payload payload))
-              (snd @@ Fragments.process cache 0L more_frags payload)) ;
+              (Some (test_packet, Cstruct.append black gray))
+              (snd @@ Fragments.process cache 0L more_frags black)) ;
   Lwt.return_unit
 
 let reassembly_multiple_out_of_orfer packets final_payload () =
@@ -125,26 +134,49 @@ let reassembly_multiple_out_of_orfer packets final_payload () =
   Lwt.return_unit
 
 let basic_overlaps () =
-  let more_frags = { test_packet with off = 0x2000 } in
-  let payload = Cstruct.create 16 in
+  let more_frags = { test_packet with off = mf } in
   let off_packet = { test_packet with off = 1 } in
-  let cache, res = Fragments.process empty_cache 0L off_packet payload in
+  let cache, res = Fragments.process empty_cache 0L off_packet black in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (snd @@ Fragments.process cache 0L more_frags payload)) ;
+              (snd @@ Fragments.process cache 0L more_frags white)) ;
   Lwt.return_unit
 
 let basic_other_ip_flow () =
-  let more_frags = { test_packet with off = 0x2000 } in
-  let payload = Cstruct.create 16 in
-  let cache, res = Fragments.process empty_cache 0L more_frags payload in
+  let more_frags = { test_packet with off = mf } in
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
   let off_packet = { test_packet with off = 2 ; src = Ipaddr.V4.of_string_exn "127.0.0.2" } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (snd @@ Fragments.process cache 0L off_packet payload)) ;
+              (snd @@ Fragments.process cache 0L off_packet white)) ;
   let off_packet' = { test_packet with off = 2 ; proto = 25 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (snd @@ Fragments.process cache 0L off_packet' payload)) ;
+              (snd @@ Fragments.process cache 0L off_packet' white)) ;
+  Lwt.return_unit
+
+let max_fragment () =
+  let all_16 = [ white; gray; black; white;
+                 white; gray; black; white;
+                 white; gray; black; white;
+                 white; gray; black ; gray ]
+  in
+  let (cache, res), off =
+    List.fold_left (fun ((cache, res), off) payload ->
+        Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
+        let r = Fragments.process cache 0L { test_packet with off = off lor mf } payload in
+        (r, Cstruct.len payload / 8 + off))
+      ((empty_cache, None), 0)
+      all_16
+  in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
+              (Some (test_packet, Cstruct.concat (all_16 @ [white ])))
+              (snd @@ Fragments.process cache 0L { test_packet with off } white)) ;
+  let cache, res = Fragments.process cache 0L { test_packet with off = off lor mf } white in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
+              None
+              (snd @@ Fragments.process cache 0L { test_packet with off = off + 2 } black)) ;
   Lwt.return_unit
 
 let none_returned packets () =
@@ -156,18 +188,6 @@ let none_returned packets () =
   in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Lwt.return_unit
-
-let white = Cstruct.create 16
-let black =
-  let buf = Cstruct.create 16 in
-  Cstruct.memset buf 0xFF ;
-  buf
-let gray =
-  let buf = Cstruct.create 16 in
-  Cstruct.memset buf 0x55 ;
-  buf
-
-let mf = 0x2000
 
 let ins_all_positions x l =
   let rec aux prev acc = function
@@ -193,8 +213,9 @@ let suite = [
     "basic reassembly", `Quick, basic_reassembly;
     "basic reassembly timeout", `Quick, basic_reassembly_timeout;
     "reassembly out of order", `Quick, reassembly_out_of_orfer ;
-    "other ip flow", `Quick, basic_other_ip_flow ] @
-  List.mapi (fun i (packets, final) ->
+    "other ip flow", `Quick, basic_other_ip_flow ;
+    "maximum amount of fragments", `Quick, max_fragment ] @
+    List.mapi (fun i (packets, final) ->
       Printf.sprintf "ressembly multiple %d" i, `Quick,
       reassembly_multiple_out_of_orfer packets final)
     ([

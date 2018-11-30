@@ -29,7 +29,6 @@ module Cache : sig
   include Lru.F.S with type k = K.t and type v = V.t
 end
 
-val max_number_of_fragments : int
 val max_duration : int64
 
 val process : Cache.t -> int64 -> Ipv4_packet.t -> Cstruct.t ->
