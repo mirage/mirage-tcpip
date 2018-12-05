@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Main (S: Mirage_types_lwt.STACKV4) = struct
+module Main (S: Mirage_stack.V4) = struct
   let report_and_close flow pp e message =
     let ip, port = S.TCPV4.dst flow in
     Logs.warn

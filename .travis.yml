@@ -4,8 +4,8 @@ script: bash -ex .travis-docker.sh
 sudo: false
 env:
   global:
-  - PINS="mirage-vnetif:git+https://github.com/hannesm/mirage-vnetif.git#easy arp:git+https://github.com/hannesm/arp.git#easy arp-mirage:git+https://github.com/hannesm/arp.git#easy ethernet:git+https://github.com/hannesm/ethernet.git#easy mirage-random-test:git+https://github.com/hannesm/mirage-random-test.git#easy"
   - POST_INSTALL_HOOK="sh ./.travis-ci.sh"
+  - EXTRA_REMOTES="https://github.com/hannesm/mirage-dev.git#easy"
   - PACKAGE=tcpip
   matrix:
   - DISTRO=alpine OCAML_VERSION=4.06 EXTRA_ENV="MIRAGE_MODE=xen"

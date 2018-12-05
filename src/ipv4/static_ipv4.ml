@@ -156,22 +156,12 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | Some `UDP -> udp ~src ~dst payload
           | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
-  let connect
-      ?(ip=Ipaddr.V4.any)
-      ?(network=Ipaddr.V4.Prefix.make 0 Ipaddr.V4.any)
-      ?(gateway=None) ethif arp =
-    match Ipaddr.V4.Prefix.mem ip network with
-    | false ->
-      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a"
-                   Ipaddr.V4.pp ip Ipaddr.V4.Prefix.pp network);
-      Lwt.fail_with "given IP is not in the network provided"
-    | true ->
-      Arpv4.set_ips arp [ip] >>= fun () ->
-      (* TODO currently hardcoded to 256KB, should be configurable
-         and maybe limited per-src/dst-ip as well? *)
-      let cache = Fragments.Cache.create ~random:true (1024 * 256) in
-      let t = { ethif; arp; ip; network; gateway ; cache } in
-      Lwt.return t
+  let connect ~ip:(network, ip) ?gateway ethif arp =
+    Arpv4.set_ips arp [ip] >>= fun () ->
+    (* TODO currently hardcoded to 256KB, should be configurable
+          and maybe limited per-src/dst-ip as well? *)
+    let cache = Fragments.Cache.create ~random:true (1024 * 256) in
+    Lwt.return { ethif; arp; ip; network; gateway ; cache }
 
   let disconnect _ = Lwt.return_unit
 
