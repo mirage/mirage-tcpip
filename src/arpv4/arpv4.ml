@@ -44,7 +44,7 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
   }
 
   let report_ethif_error s e =
-    Logs.debug (fun f ->
+    Log.err (fun f ->
         f "error on underlying ethernet interface when attempting to %s : %a"
           s Ethif.pp_error e)
 
@@ -159,7 +159,7 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     let spa = match t.bound_ips with
       | hd::_ -> hd | [] -> Ipaddr.V4.any in
     let arp = Arpv4_packet.({ op=Arpv4_wire.Request; tha; sha; tpa; spa }) in
-    Logs.debug (fun f -> f "ARP: transmitting probe: %a" Arpv4_packet.pp arp);
+    Log.debug (fun f -> f "ARP: transmitting probe: %a" Arpv4_packet.pp arp);
     output t ~source:sha ~destination:tha arp
 
   let get_ips t = t.bound_ips

@@ -68,8 +68,7 @@ let input t ~src ~dst:_ buf =
   (* some default logic -- respond to echo requests with echo replies *)
   match Icmpv4_packet.Unmarshal.of_cstruct buf with
   | Error s ->
-    let s = "Error decomposing an ICMP packet: " ^ s in
-    Logs.debug (fun f -> f "%s" s);
+    Log.debug (fun f -> f "Error decomposing an ICMP packet: %s" s);
     Lwt.return_unit
   | Ok (icmp, payload) ->
     let open Icmpv4_packet in

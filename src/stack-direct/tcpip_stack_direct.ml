@@ -89,7 +89,7 @@ module Make
     with Not_found -> None
 
   let listen t =
-    Logs.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
+    Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
     let ethif_listener = Ethif.input
         ~arpv4:(Arpv4.input t.arpv4)
         ~ipv4:(
