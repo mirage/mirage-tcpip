@@ -17,9 +17,8 @@
 module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (E: Mirage_protocols_lwt.ETHIF) (A: Mirage_protocols_lwt.ARP) : sig
   include Mirage_protocols_lwt.IPV4
   val connect :
-    ?ip:Ipaddr.V4.t ->
-    ?network:Ipaddr.V4.Prefix.t ->
-    ?gateway:Ipaddr.V4.t option ->
+    ip:(Ipaddr.V4.Prefix.t * Ipaddr.V4.t) ->
+    ?gateway:Ipaddr.V4.t ->
     C.t -> E.t -> A.t -> t Lwt.t
     (** Connect to an ipv4 device.
         Default ip is {!Ipaddr.V4.any}

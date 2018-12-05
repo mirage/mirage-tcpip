@@ -24,10 +24,9 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   module V = VNETIF_STACK (B)
 
-  let netmask = 24
-  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
-  let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
-  let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
+  let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
+  let client_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.101/24"
+  let server_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.100/24"
 
   type stats = {
     mutable bytes: int64;
@@ -45,8 +44,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   }
 
   let default_network ?(backend = B.create ()) () =
-    V.create_stack backend client_ip netmask gw >>= fun client ->
-    V.create_stack backend server_ip netmask gw >>= fun server ->
+    V.create_stack ~ip:client_ip ~gateway backend >>= fun client ->
+    V.create_stack ~ip:server_ip ~gateway backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =

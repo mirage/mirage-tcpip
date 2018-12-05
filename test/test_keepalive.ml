@@ -74,10 +74,10 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Test_connect = struct
   module V = VNETIF_STACK (Vnetif_backends.On_off_switch)
 
-  let netmask = 24
-  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
+  let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
   let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
   let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
+  let network = Ipaddr.V4.Prefix.make 24 client_ip
   let backend = V.create_backend ()
 
   let err_read_eof () = failf "accept got EOF while reading"
@@ -101,12 +101,12 @@ module Test_connect = struct
       (Lwt_unix.sleep timeout >>= fun () ->
         failf "connect test timedout after %f seconds" timeout) ;
 
-      (V.create_stack backend server_ip netmask gw >>= fun s1 ->
+      (V.create_stack ~ip:(network, server_ip) ~gateway backend >>= fun s1 ->
         V.Stackv4.listen_tcpv4 s1 ~port:80 (fun f -> accept f);
         V.Stackv4.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
-        V.create_stack backend client_ip netmask gw >>= fun s2 ->
+        V.create_stack ~ip:(network, client_ip) ~gateway backend >>= fun s2 ->
         Lwt.pick [
         V.Stackv4.listen s2;
         let keepalive = { Mirage_protocols.Keepalive.after = 0L; interval = Duration.of_sec 1; probes = 3 } in

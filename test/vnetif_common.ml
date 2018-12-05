@@ -39,8 +39,8 @@ sig
   val create_backend : unit -> backend
 
   (** Create a new stack connected to an existing backend *)
-  val create_stack : backend -> ?mtu:int -> Ipaddr.V4.t -> int ->
-    Ipaddr.V4.t option -> Stackv4.t Lwt.t
+  val create_stack : ?mtu:int -> ip:(Ipaddr.V4.Prefix.t * Ipaddr.V4.t) ->
+    ?gateway:Ipaddr.V4.t -> backend -> Stackv4.t Lwt.t
 
   (** [create_stack backend ?mtu ip netmask gateway] adds a listener
       function to the backend *)
@@ -75,17 +75,16 @@ struct
   let create_backend () =
     B.create ()
 
-  let create_stack backend ?mtu ip netmask gw =
+  let create_stack ?mtu ~ip ?gateway backend =
     let size_limit = match mtu with
     | None -> None
     | Some n -> Some (n + 14)
     in
-    let network = Ipaddr.V4.Prefix.make netmask ip in
     Clock.connect () >>= fun clock ->
     V.connect ?size_limit backend >>= fun netif ->
     E.connect ?mtu netif >>= fun ethif ->
     A.connect ethif clock >>= fun arpv4 ->
-    Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
+    Ip.connect ~ip ?gateway clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->
     T.connect ipv4 clock >>= fun tcpv4 ->
