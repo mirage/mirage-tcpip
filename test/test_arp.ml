@@ -167,7 +167,7 @@ let query_or_die arp ip expected_mac =
   | Error `Timeout ->
     let pp_ip = Ipaddr.V4.pp_hum in
     A.to_repr arp >>= fun repr ->
-    Logs.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
+    Log.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
   | Ok mac ->
     Alcotest.(check macaddr) "mismatch for expected query value" expected_mac mac;
@@ -183,8 +183,8 @@ let set_and_check ~listener ~claimant ip =
 
 let start_arp_listener stack () =
   let noop = (fun _ -> Lwt.return_unit) in
-  Logs.debug (fun f -> f "starting arp listener for %s" (Macaddr.to_string (V.mac stack.netif)));
-  E.input ~arpv4:(fun frame -> Logs.debug (fun f -> f "frame received for arpv4"); A.input stack.arp frame) ~ipv4:noop ~ipv6:noop stack.ethif
+  Log.debug (fun f -> f "starting arp listener for %s" (Macaddr.to_string (V.mac stack.netif)));
+  E.input ~arpv4:(fun frame -> Log.debug (fun f -> f "frame received for arpv4"); A.input stack.arp frame) ~ipv4:noop ~ipv6:noop stack.ethif
 
 let output_then_disconnect ~speak:speak_netif ~disconnect:listen_netif bufs =
   Lwt.join (List.map (fun b -> V.write speak_netif b >|= fun _ -> ()) bufs) >>= fun () ->
@@ -312,7 +312,7 @@ let unreachable_times_out () =
 let input_replaces_old () =
   three_arp () >>= fun (listen, claimant_1, claimant_2) ->
   let listener = start_arp_listener listen () in
-  Lwt.async ( fun () -> Logs.debug (fun f -> f "arp listener started"); V.listen listen.netif (fun buf -> Logs.debug (fun f -> f "packet received: %a" Cstruct.hexdump_pp buf); listener buf));
+  Lwt.async ( fun () -> Log.debug (fun f -> f "arp listener started"); V.listen listen.netif (fun buf -> Log.debug (fun f -> f "packet received: %a" Cstruct.hexdump_pp buf); listener buf));
   timeout ~time:2000 (
     Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
     set_and_check ~listener:listen.arp ~claimant:claimant_1 first_ip >>= fun () ->

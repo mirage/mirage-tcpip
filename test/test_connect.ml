@@ -45,7 +45,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
 
   let accept flow expected =
     let ip, port = V.Stackv4.TCPV4.dst flow in
-    Logs.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
+    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
     V.Stackv4.TCPV4.read flow >>= function
     | Error e      -> err_read e
     | Ok `Eof      -> err_read_eof ()
@@ -53,7 +53,7 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
       Lwt_unix.sleep 0.1 >>= fun () ->
       (* sleep first to capture data in pcap *)
       Alcotest.(check string) "accept" expected (Cstruct.to_string b);
-      Logs.debug (fun f -> f "Connection closed");
+      Log.debug (fun f -> f "Connection closed");
       Lwt.return_unit
 
   let test_tcp_connect_two_stacks () =
@@ -72,12 +72,12 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
        V.Stackv4.listen s2;
        (let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
        or_error "connect" conn (server_ip, 80) >>= fun flow ->
-       Logs.debug (fun f -> f "Connected to other end...");
+       Log.debug (fun f -> f "Connected to other end...");
        V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function
        | Error `Closed -> err_write_eof ()
        | Error e -> err_write e
        | Ok ()   ->
-         Logs.debug (fun f -> f "wrote hello world");
+         Log.debug (fun f -> f "wrote hello world");
          V.Stackv4.TCPV4.close flow >>= fun () ->
          Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
          Lwt.return_unit)]) ] >>= fun () ->
@@ -98,7 +98,7 @@ let test_tcp_connect_two_stacks_basic () =
 let test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss () =
   let rec loop = function
       | 0 -> Lwt.return_unit
-      | n -> Logs.info (fun f -> f "%d/100" (101-n));
+      | n -> Log.info (fun f -> f "%d/100" (101-n));
              let module Test = Test_connect(Vnetif_backends.Uniform_no_payload_packet_loss) in
              Test.record_pcap
                (Printf.sprintf

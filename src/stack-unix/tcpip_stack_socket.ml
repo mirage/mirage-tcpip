@@ -45,8 +45,6 @@ type ipv4  = Ipaddr.V4.t option
 type t = {
   udpv4 : Udpv4.t;
   tcpv4 : Tcpv4.t;
-  udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
-  tcpv4_listeners: (int, (Tcpv4.flow -> unit Lwt.t)) Hashtbl.t;
 }
 
 let udpv4 { udpv4; _ } = udpv4
@@ -132,9 +130,7 @@ let listen _t =
 
 let connect ips udpv4 tcpv4 =
   Log.info (fun f -> f "Manager: connect");
-  let udpv4_listeners = Hashtbl.create 7 in
-  let tcpv4_listeners = Hashtbl.create 7 in
-  let t = { tcpv4; udpv4; udpv4_listeners; tcpv4_listeners } in
+  let t = { tcpv4; udpv4 } in
   Log.info (fun f -> f "Manager: configuring");
   configure t ips >|= fun () ->
   t

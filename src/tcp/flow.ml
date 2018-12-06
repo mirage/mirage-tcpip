@@ -91,7 +91,7 @@ struct
       (Hashtbl.length t.listens)
       (Hashtbl.length t.connects)
 
-  let log_with_stats level name t = Log.msg level (fun fmt -> fmt "%s: %a" name pp_stats t)
+  let log_with_stats name t = Log.debug (fun fmt -> fmt "%s: %a" name pp_stats t)
 
   let wscale_default = 2
 
@@ -240,7 +240,7 @@ struct
     try Some (Hashtbl.find h k) with Not_found -> None
 
   let clearpcb t id tx_isn =
-    Logs.(log_with_stats Debug "removing pcb from connection tables" t);
+    log_with_stats "removing pcb from connection tables" t;
     match hashtbl_find t.channels id with
     | Some _ ->
       Hashtbl.remove t.channels id;
@@ -399,7 +399,7 @@ struct
     Lwt.return (pcb, th, opts)
 
   let new_server_connection t params id pushf keepalive =
-    Logs.(log_with_stats Debug "new-server-connection" t);
+    log_with_stats "new-server-connection" t;
     new_pcb t params id keepalive >>= fun (pcb, th, opts) ->
     STATE.tick pcb.state State.Passive_open;
     STATE.tick pcb.state (State.Send_synack params.tx_isn);
@@ -418,7 +418,7 @@ struct
     Lwt.return (pcb, th)
 
   let new_client_connection t params id ack_number keepalive =
-    Logs.(log_with_stats Debug "new-client-connection" t);
+    log_with_stats "new-client-connection" t;
     let tx_isn = params.tx_isn in
     let params = { params with tx_isn = Sequence.succ tx_isn } in
     new_pcb t params id keepalive >>= fun (pcb, th, _) ->
@@ -436,7 +436,7 @@ struct
    (Sequence.compare (Sequence.succ tx_isn) ack_number) = 0
 
   let process_reset t id ~ack ~ack_number =
-    Logs.(log_with_stats Debug "process-reset" t);
+    log_with_stats "process-reset" t;
     if ack then
         match hashtbl_find t.connects id with
         | Some (wakener, tx_isn, _) ->
@@ -464,7 +464,7 @@ struct
         Lwt.return_unit
 
   let process_synack t id ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
-    Logs.(log_with_stats Debug "process-synack" t);
+    log_with_stats "process-synack" t;
     match hashtbl_find t.connects id with
     | Some (wakener, tx_isn, keepalive) ->
       if is_correct_ack ~tx_isn ~ack_number then (
@@ -492,7 +492,7 @@ struct
       >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
 
   let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
-    Logs.(log_with_stats Debug "process-syn" t);
+    log_with_stats "process-syn" t;
     match listeners @@ WIRE.src_port id with
     | Some { process; keepalive } ->
       let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
@@ -510,7 +510,7 @@ struct
 
   let process_ack t id ~pkt =
     let open RXS in
-    Logs.(log_with_stats Debug "process-ack" t);
+    log_with_stats "process-ack" t;
     match hashtbl_find t.listens id with
     | Some (tx_isn, (pushf, newconn)) ->
       if Tcp_packet.(is_correct_ack ~tx_isn ~ack_number:pkt.header.ack_number) then begin

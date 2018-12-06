@@ -168,9 +168,9 @@ let process cache ts (packet : Ipv4_packet.t) payload =
                          Ipv4_packet.pp packet
                          Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", ") int int))
                          (List.map (fun (s, d) -> (s, Cstruct.len d)) all_frags)) ;
-            Logs.debug (fun m -> m "full fragments: %a"
-                           Fmt.(list ~sep:(unit "@.") Cstruct.hexdump_pp)
-                           (List.map snd all_frags)) ;
+            Log.debug (fun m -> m "full fragments: %a"
+                          Fmt.(list ~sep:(unit "@.") Cstruct.hexdump_pp)
+                          (List.map snd all_frags)) ;
 
             Cache.remove key cache', None
           | Error Hole -> maybe_add_to_cache cache', None
