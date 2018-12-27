@@ -50,15 +50,25 @@ let listen ?(tcp = noop) ?(udp = noop) ?(default = noop) stack =
 
 let udp_message = Cstruct.of_string "hello on UDP over IPv6"
 
-let check_for_one_udp_packet netif ~src ~dst buf =
+let check_for_one_udp_packet netif on_received_one ~src ~dst buf =
   Alcotest.(check ip) "sender address" (Ipaddr.V6.of_string_exn "fc00::23") src;
   Alcotest.(check ip) "receiver address" (Ipaddr.V6.of_string_exn "fc00::45") dst;
   (match Udp_packet.Unmarshal.of_cstruct buf with
   | Ok (_, payload) ->
     Alcotest.(check cstruct) "payload is correct" udp_message payload
   | Error m -> Alcotest.fail m);
+  (try Lwt.wakeup_later on_received_one () with _ -> () (* the first succeeds, the rest raise *));
   (*after receiving 1 packet, disconnect stack so test can continue*)
   V.disconnect netif
+
+let send_forever sender receiver_address udp_message =
+  let rec loop () =
+    Printf.fprintf stderr "Udp.write\n%!";
+    Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
+    >|= Rresult.R.get_ok >>= fun () ->
+    Time.sleep_ns (Duration.of_ms 50) >>= fun () ->
+    loop () in
+  loop ()
 
 let pass_udp_traffic () =
   let sender_address = Ipaddr.V6.of_string_exn "fc00::23" in
@@ -66,13 +76,12 @@ let pass_udp_traffic () =
   let backend = B.create () in
   get_stack backend sender_address >>= fun sender ->
   get_stack backend receiver_address >>= fun receiver ->
+  let received_one, on_received_one = Lwt.task () in
   Lwt.pick [
-    listen receiver ~udp:(check_for_one_udp_packet receiver.netif);
+    listen receiver ~udp:(check_for_one_udp_packet receiver.netif on_received_one);
     listen sender;
-    (* Duration.of_ms 500 makes this test fail - why? *)
-    Time.sleep_ns (Duration.of_ms 1000) >>= fun () ->
-      Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
-      >|= Rresult.R.get_ok >>= fun () ->
+    send_forever sender receiver_address udp_message;
+    received_one; (* stop on the first packet *)
       Time.sleep_ns (Duration.of_ms 3000) >>= fun () ->
       Alcotest.fail "UDP packet should have been received";
   ]
