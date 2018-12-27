@@ -1,0 +1,13 @@
+(library
+ (name tcpip_checksum_xen)
+ (public_name tcpip-checksum.xen)
+ (implements tcpip_checksum)
+ (c_names checksum_stubs)
+ (c_flags (:include c_flags_xen.sexp)))
+
+(rule
+ (targets c_flags_xen.sexp)
+ (deps ../../config/discover.exe)
+ (action (run %{deps})))
+
+(copy_files# ../checksum_stubs.c)

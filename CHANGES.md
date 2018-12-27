@@ -1,3 +1,8 @@
+### dev
+
+* Port from Jbuilder to Dune and use virtual libraries to cleanup the stub compilation
+  of checksums. (@avsm).
+
 ### v3.7.0 (2019-02-02)
 
 * Use `Lwt_dllist` instead of `Lwt_sequence`, due to the latter being deprecated
@@ -20,6 +25,8 @@
 
 * Use `Ipaddr.pp` instead of `Ipaddr.pp_hum` due to upstream
   interface changes (#385 @hannesm).
+
+* Use `Ipaddr.pp` instead of `Ipaddr.pp_hum` due to upstream interface changes (@avsm).
 
 ### v3.5.1 (2018-11-16)
 

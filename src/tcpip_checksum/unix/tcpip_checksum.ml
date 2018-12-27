@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2010-2011 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2010-2018 Anil Madhavapeddy <anil@recoil.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,6 +15,7 @@
  *)
 
 (** One's complement checksum, RFC1071 *)
-external ones_complement: Cstruct.t -> int = "caml_tcpip_ones_complement_checksum"
 
+external ones_complement: Cstruct.t -> int = "caml_tcpip_ones_complement_checksum"
 external ones_complement_list: Cstruct.t list -> int = "caml_tcpip_ones_complement_checksum_list"
+
