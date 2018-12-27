@@ -17,8 +17,8 @@ let equal {op; sha; spa; tha; tpa} q =
 
 let pp fmt t =
   Format.fprintf fmt "MAC %s (IP %a) -> MAC %s (IP %a): ARP operation %s"
-    (Macaddr.to_string t.sha) Ipaddr.V4.pp_hum t.spa (Macaddr.to_string t.tha)
-    Ipaddr.V4.pp_hum t.tpa (Arpv4_wire.op_to_string t.op)
+    (Macaddr.to_string t.sha) Ipaddr.V4.pp t.spa (Macaddr.to_string t.tha)
+    Ipaddr.V4.pp t.tpa (Arpv4_wire.op_to_string t.op)
 
 module Unmarshal = struct
   type error =

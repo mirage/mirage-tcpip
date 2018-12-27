@@ -41,18 +41,18 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
     match Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun f ->
-          f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp_hum src s);
+          f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp src s);
       Lwt.return_unit
     | Ok (message, payload) ->
       let open Icmpv4_wire in
       match message.ty, message.subheader with
       | Echo_reply, _ ->
         Log.info (fun f ->
-            f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp_hum src);
+            f "ICMP: discarding echo reply from %a" Ipaddr.V4.pp src);
         Lwt.return_unit
       | Destination_unreachable, _ ->
         Log.info (fun f ->
-            f "ICMP: destination unreachable from %a" Ipaddr.V4.pp_hum src);
+            f "ICMP: destination unreachable from %a" Ipaddr.V4.pp src);
         Lwt.return_unit
       | Echo_request, Id_and_seq (id, seq) ->
         Log.debug (fun f ->
@@ -73,7 +73,7 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
       | ty, _ ->
         Log.info (fun f ->
             f "ICMP unknown ty %s from %a"
-              (ty_to_string ty) Ipaddr.V4.pp_hum src);
+              (ty_to_string ty) Ipaddr.V4.pp src);
         Lwt.return_unit
 
 end

@@ -53,13 +53,13 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
     let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst v4_frame) in
     Routing.destination_mac t.network t.gateway t.arp dst >>= function
     | Error `Local ->
-      Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp_hum dst);
+      Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp dst);
       Lwt.return @@ Error (`No_route "no response for IP on local network")
     | Error `Gateway when t.gateway = None ->
-      Log.warn (fun f -> f "Write to %a would require an external route, which was not provided" Ipaddr.V4.pp_hum dst);
+      Log.warn (fun f -> f "Write to %a would require an external route, which was not provided" Ipaddr.V4.pp dst);
       Lwt.return @@ Ok ()
     | Error `Gateway ->
-      Log.warn (fun f -> f "Write to %a requires an external route, and the provided %a was not reachable" Ipaddr.V4.pp_hum dst (Fmt.option Ipaddr.V4.pp_hum) t.gateway);
+      Log.warn (fun f -> f "Write to %a requires an external route, and the provided %a was not reachable" Ipaddr.V4.pp dst (Fmt.option Ipaddr.V4.pp) t.gateway);
       (* when a gateway is specified the user likely expects their traffic to be passed to it *)
       Lwt.return @@ Error (`No_route "no route to default gateway to outside world")
     | Ok mac ->
@@ -105,7 +105,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
     match Ipaddr.V4.Prefix.mem ip network with
     | false ->
       Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a"
-                   Ipaddr.V4.pp_hum ip Ipaddr.V4.Prefix.pp_hum network);
+                   Ipaddr.V4.pp ip Ipaddr.V4.Prefix.pp network);
       Lwt.fail_with "given IP is not in the network provided"
     | true ->
       Arpv4.set_ips arp [ip] >>= fun () ->

@@ -57,7 +57,7 @@ let configure _t addrs =
   | [] -> Lwt.return_unit
   | [ip] when (Ipaddr.V4.compare Ipaddr.V4.any ip) = 0 -> Lwt.return_unit
   | l ->
-    let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp_hum fmt l in
+    let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp fmt l in
     Log.warn (fun f -> f
               "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
     Lwt.return_unit

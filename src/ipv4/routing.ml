@@ -27,8 +27,8 @@ module Make(Log : Logs.LOG) (A : Mirage_protocols_lwt.ARP) = struct
         | Error `Timeout ->
           Log.info (fun f ->
               f "IP.output: could not determine link-layer address for local \
-                 network (%a) ip %a" Ipaddr.V4.Prefix.pp_hum network
-                Ipaddr.V4.pp_hum ip);
+                 network (%a) ip %a" Ipaddr.V4.Prefix.pp network
+                Ipaddr.V4.pp ip);
           Error `Local
         | Error e ->
           Log.info (fun f -> f "IP.output: %a" A.pp_error e);
@@ -39,7 +39,7 @@ module Make(Log : Logs.LOG) (A : Mirage_protocols_lwt.ARP) = struct
       | None ->
         Log.info (fun f ->
             f "IP.output: no route to %a (no default gateway is configured)"
-              Ipaddr.V4.pp_hum ip);
+              Ipaddr.V4.pp ip);
         Lwt.return (Error `Gateway)
       | Some gateway ->
         A.query arp gateway >|= function
@@ -47,7 +47,7 @@ module Make(Log : Logs.LOG) (A : Mirage_protocols_lwt.ARP) = struct
         | Error `Timeout ->
           Log.info (fun f ->
               f "IP.output: could not send to %a: failed to contact gateway %a"
-                Ipaddr.V4.pp_hum ip Ipaddr.V4.pp_hum gateway);
+                Ipaddr.V4.pp ip Ipaddr.V4.pp gateway);
           Error `Gateway
         | Error e ->
           Log.info (fun f -> f "IP.output: %a" A.pp_error e);
