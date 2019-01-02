@@ -86,7 +86,7 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     Format.fprintf fmt "%s" repr
 
   let notify t ip mac =
-    Log.debug (fun f -> f "notifying: %a -> %s" Ipaddr.V4.pp ip (Macaddr.to_string mac));
+    Log.debug (fun f -> f "notifying: %a -> %a" Ipaddr.V4.pp ip Macaddr.pp mac);
     match Ipaddr.V4.is_multicast ip || (Ipaddr.V4.compare ip Ipaddr.V4.any = 0) with
     | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp ip)
     | false ->
@@ -218,12 +218,12 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     let bound_ips = [] in
     let t = { clock; ethif; cache; bound_ips } in
     Lwt.async (tick t);
-    Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+    Log.info (fun f -> f "Connected arpv4 device on %a"
+                 Macaddr.pp (Ethif.mac t.ethif));
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "Disconnected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+    Log.info (fun f -> f "Disconnected arpv4 device on %a"
+                 Macaddr.pp (Ethif.mac t.ethif));
     Lwt.return_unit (* TODO: should kill tick *)
 end

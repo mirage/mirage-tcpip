@@ -173,12 +173,12 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
        Logs.info (fun f -> f  "I am client with IP %a, trying to connect to server @ %a:%d"
-         Ipaddr.V4.pp_hum (ip_of client_s) Ipaddr.V4.pp_hum (ip_of server_s) port);
+         Ipaddr.V4.pp (ip_of client_s) Ipaddr.V4.pp (ip_of server_s) port);
        Lwt.async (fun () -> V.Stackv4.listen client_s);
        iperfclient client_s amt (ip_of server) port);
 
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
-         Ipaddr.V4.pp_hum (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
+         Ipaddr.V4.pp (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
          port);
        Mclock.connect () >>= fun clock ->
        V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);

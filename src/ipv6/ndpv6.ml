@@ -115,8 +115,8 @@ let macaddr_to_cstruct_raw x cs off =
 let macaddr_of_cstruct cs =
   if Cstruct.len cs <> 6 then invalid_arg "macaddr_of_cstruct";
   match Macaddr.of_bytes (Cstruct.to_string cs) with
-  | Some x -> x
-  | None -> assert false
+  | Ok x -> x
+  | Error _ -> assert false
 
 let interface_addr mac =
   let bmac = Macaddr.to_bytes mac in

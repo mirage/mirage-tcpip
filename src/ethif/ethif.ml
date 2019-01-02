@@ -78,10 +78,10 @@ module Make(Netif : Mirage_net_lwt.S) = struct
   let connect ?(mtu = default_mtu) netif =
     MProf.Trace.label "ethif.connect";
     let t = { netif; mtu } in
-    Log.info (fun f -> f "Connected Ethernet interface %s" (Macaddr.to_string (mac t)));
+    Log.info (fun f -> f "Connected Ethernet interface %a" Macaddr.pp (mac t));
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "Disconnected Ethernet interface %s" (Macaddr.to_string (mac t)));
+    Log.info (fun f -> f "Disconnected Ethernet interface %a" Macaddr.pp (mac t));
     Lwt.return_unit
 end
