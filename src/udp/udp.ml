@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "udp" ~doc:"Mirage UDP"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let pp_ips = Format.pp_print_list Ipaddr.pp_hum
+let pp_ips = Format.pp_print_list Ipaddr.pp
 
 module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
 
@@ -37,7 +37,7 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
   }
 
   let pp_ip fmt a =
-    Ipaddr.pp_hum fmt (Ip.to_uipaddr a)
+    Ipaddr.pp fmt (Ip.to_uipaddr a)
 
   (* TODO: ought we to check to make sure the destination is relevant
      here?  Currently we process all incoming packets without making

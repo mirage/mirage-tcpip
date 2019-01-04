@@ -9,8 +9,8 @@ type t = {
 type error = string
 
 let pp fmt t =
-  Format.fprintf fmt "%s -> %s: %s" (Macaddr.to_string t.source)
-    (Macaddr.to_string t.destination) (Ethif_wire.ethertype_to_string t.ethertype)
+  Format.fprintf fmt "%a -> %a: %s" Macaddr.pp t.source
+    Macaddr.pp t.destination (Ethif_wire.ethertype_to_string t.ethertype)
 
 let equal {source; destination; ethertype} q =
   (Macaddr.compare source q.source) = 0 &&

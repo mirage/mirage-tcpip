@@ -16,9 +16,9 @@ let equal {op; sha; spa; tha; tpa} q =
   Ipaddr.V4.compare tpa q.tpa = 0
 
 let pp fmt t =
-  Format.fprintf fmt "MAC %s (IP %a) -> MAC %s (IP %a): ARP operation %s"
-    (Macaddr.to_string t.sha) Ipaddr.V4.pp_hum t.spa (Macaddr.to_string t.tha)
-    Ipaddr.V4.pp_hum t.tpa (Arpv4_wire.op_to_string t.op)
+  Format.fprintf fmt "MAC %a (IP %a) -> MAC %a (IP %a): ARP operation %s"
+    Macaddr.pp t.sha Ipaddr.V4.pp t.spa Macaddr.pp t.tha
+    Ipaddr.V4.pp t.tpa (Arpv4_wire.op_to_string t.op)
 
 module Unmarshal = struct
   type error =
@@ -56,10 +56,10 @@ module Unmarshal = struct
     let src_mac = copy_arp_sha buf in
     let target_mac = copy_arp_tha buf in
     match (Macaddr.of_bytes src_mac, Macaddr.of_bytes target_mac) with
-    | None, None   -> Error (Bad_mac [ src_mac ; target_mac ])
-    | None, Some _ -> Error (Bad_mac [ src_mac ])
-    | Some _, None -> Error (Bad_mac [ target_mac ])
-    | Some src_mac, Some target_mac ->
+    | Error _, Error _ -> Error (Bad_mac [ src_mac ; target_mac ])
+    | Error _, Ok _ -> Error (Bad_mac [ src_mac ])
+    | Ok _, Error _ -> Error (Bad_mac [ target_mac ])
+    | Ok src_mac, Ok target_mac ->
       let src_ip = Ipaddr.V4.of_int32 (get_arp_spa buf) in
       let target_ip = Ipaddr.V4.of_int32 (get_arp_tpa buf) in
       Ok { op;

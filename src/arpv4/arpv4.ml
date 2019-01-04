@@ -61,13 +61,13 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
           if Int64.compare t now > -1 then
             expired
           else begin
-            Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip);
+            Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp ip);
             ip :: expired
           end)
         t.cache []
     in
     List.iter (fun ip ->
-        Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp_hum ip);
+        Log.info (fun f -> f "ARP: timeout %a" Ipaddr.V4.pp ip);
         Hashtbl.remove t.cache ip)
       expired;
     Time.sleep_ns arp_timeout >>= tick t
@@ -86,9 +86,9 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     Format.fprintf fmt "%s" repr
 
   let notify t ip mac =
-    Log.debug (fun f -> f "notifying: %a -> %s" Ipaddr.V4.pp_hum ip (Macaddr.to_string mac));
+    Log.debug (fun f -> f "notifying: %a -> %a" Ipaddr.V4.pp ip Macaddr.pp mac);
     match Ipaddr.V4.is_multicast ip || (Ipaddr.V4.compare ip Ipaddr.V4.any = 0) with
-    | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp_hum ip)
+    | true -> Log.debug (fun f -> f "Ignoring ARP notification request for IP %a" Ipaddr.V4.pp ip)
     | false ->
       let now = Clock.elapsed_ns t.clock in
       let expire = Int64.add now arp_timeout in
@@ -152,7 +152,7 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
 
   (* Send a query for a particular IP *)
   let output_probe t tpa =
-    Log.debug (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp_hum tpa);
+    Log.debug (fun f -> f "ARP: transmitting probe -> %a" Ipaddr.V4.pp tpa);
     let tha = Macaddr.broadcast in
     let sha = Ethif.mac t.ethif in
     (* Source protocol address, pick one of our IP addresses *)
@@ -200,12 +200,12 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
         | Error `Timeout ->
           if n < probe_num then begin
             let n = n+1 in
-            Log.info (fun f -> f "ARP: retrying %a (n=%d)" Ipaddr.V4.pp_hum ip n);
+            Log.info (fun f -> f "ARP: retrying %a (n=%d)" Ipaddr.V4.pp ip n);
             retry n ()
           end else begin
             Hashtbl.remove t.cache ip;
             Log.info (fun f -> f "ARP: giving up on resolution of %a after %d attempts"
-                               Ipaddr.V4.pp_hum ip n);
+                               Ipaddr.V4.pp ip n);
             Lwt.wakeup waker (Error `Timeout);
             Lwt.return_unit
           end
@@ -218,12 +218,12 @@ module Make (Ethif : Mirage_protocols_lwt.ETHIF)
     let bound_ips = [] in
     let t = { clock; ethif; cache; bound_ips } in
     Lwt.async (tick t);
-    Log.info (fun f -> f "Connected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+    Log.info (fun f -> f "Connected arpv4 device on %a"
+                 Macaddr.pp (Ethif.mac t.ethif));
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "Disconnected arpv4 device on %s" (Macaddr.to_string (
-               Ethif.mac t.ethif)));
+    Log.info (fun f -> f "Disconnected arpv4 device on %a"
+                 Macaddr.pp (Ethif.mac t.ethif));
     Lwt.return_unit (* TODO: should kill tick *)
 end

@@ -50,7 +50,7 @@ let packet = (module Arpv4_packet : Alcotest.TESTABLE with type t = Arpv4_packet
 let ip =
   let module M = struct
     type t = Ipaddr.V4.t
-    let pp = Ipaddr.V4.pp_hum
+    let pp = Ipaddr.V4.pp
     let equal p q = (Ipaddr.V4.compare p q) = 0
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
@@ -165,7 +165,7 @@ let three_arp () =
 let query_or_die arp ip expected_mac =
   A.query arp ip >>= function
   | Error `Timeout ->
-    let pp_ip = Ipaddr.V4.pp_hum in
+    let pp_ip = Ipaddr.V4.pp in
     A.to_repr arp >>= fun repr ->
     Log.warn (fun f -> f "Timeout querying %a. Table contents: %a" pp_ip ip A.pp repr);
     fail "ARP query failed when success was mandatory";
@@ -176,7 +176,7 @@ let query_or_die arp ip expected_mac =
 
 let set_and_check ~listener ~claimant ip =
   A.set_ips claimant.arp [ ip ] >>= fun () ->
-  Log.debug (fun f -> f "Set IP for %s to %a" (Macaddr.to_string (V.mac claimant.netif)) Ipaddr.V4.pp_hum ip);
+  Log.debug (fun f -> f "Set IP for %s to %a" (Macaddr.to_string (V.mac claimant.netif)) Ipaddr.V4.pp ip);
   A.to_repr listener >>= fun repr ->
   Logs.debug (fun f -> f "Listener table contents after IP set on claimant: %a" A.pp repr);
   query_or_die listener ip (V.mac claimant.netif)

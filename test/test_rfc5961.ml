@@ -93,7 +93,7 @@ let run backend fsm sut () =
                      ~tcp: (fun ~src ~dst data -> pushf (Some(src,dst,data)); Lwt.return_unit)
                      ~udp:(fun ~src:_ ~dst:_ _data -> Lwt.return_unit)
                      ~default:(fun ~proto ~src ~dst _data ->
-                        Logs.debug (fun f -> f "default handler invoked for packet from %a to %a, protocol %d -- dropping" Ipaddr.V4.pp_hum src Ipaddr.V4.pp_hum dst proto); Lwt.return_unit)
+                        Logs.debug (fun f -> f "default handler invoked for packet from %a to %a, protocol %d -- dropping" Ipaddr.V4.pp src Ipaddr.V4.pp dst proto); Lwt.return_unit)
                      rawip
                   )
             ~ipv6:(fun _buf ->

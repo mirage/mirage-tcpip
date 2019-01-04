@@ -20,7 +20,7 @@ let pp fmt t =
     | Id_and_seq (id, seq) -> say fmt "subheader: id: %d, sequence %d" id seq
     | Next_hop_mtu mtu -> say fmt "subheader: MTU %d" mtu
     | Pointer pt -> say fmt "subheader: pointer to byte %d" pt
-    | Address addr -> say fmt "subheader: ip %a" Ipaddr.V4.pp_hum addr
+    | Address addr -> say fmt "subheader: ip %a" Ipaddr.V4.pp addr
     | Unused -> ()
   in
   say fmt "ICMP type %s, code %d, subheader [%a]" (Icmpv4_wire.ty_to_string t.ty)

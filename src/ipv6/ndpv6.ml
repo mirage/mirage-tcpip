@@ -115,8 +115,8 @@ let macaddr_to_cstruct_raw x cs off =
 let macaddr_of_cstruct cs =
   if Cstruct.len cs <> 6 then invalid_arg "macaddr_of_cstruct";
   match Macaddr.of_bytes (Cstruct.to_string cs) with
-  | Some x -> x
-  | None -> assert false
+  | Ok x -> x
+  | Error _ -> assert false
 
 let interface_addr mac =
   let bmac = Macaddr.to_bytes mac in
@@ -327,21 +327,21 @@ module AddressList = struct
           | Some (preferred_lifetime, valid_lifetime) ->
             Some (Int64.add now preferred_lifetime, valid_lifetime)
         in
-        Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp_hum ip);
+        Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp ip);
         Some (ip, PREFERRED timeout), []
       else
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         Some (ip, TENTATIVE (timeout, n+1, Int64.add now retrans_timer)),
         [SendNS (`Unspecified, dst, ip)]
     | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-      Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp ip);
       let valid_timeout = match valid_lifetime with
         | None -> None
         | Some valid_lifetime -> Some (Int64.add now valid_lifetime)
       in
       Some (ip, DEPRECATED valid_timeout), []
     | ip, DEPRECATED (Some t) when t <= now ->
-      Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp ip);
       None, []
     | addr ->
       Some addr, []
@@ -370,7 +370,7 @@ module AddressList = struct
       al, [SendNS (`Unspecified, dst, ip)]
     | true ->
       Log.warn (fun f -> f "ndpv6: attempted to add ip %a already in address list"
-                   Ipaddr.pp_hum ip);
+                   Ipaddr.pp ip);
       al, []
 
   let is_my_addr al ip =
@@ -402,7 +402,7 @@ module AddressList = struct
     try
       match List.assoc ip al with
       | TENTATIVE _ ->
-        Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp_hum ip);
+        Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp ip);
         List.remove_assoc ip al
       | _ ->
         al
@@ -468,23 +468,23 @@ module PrefixList = struct
     if Ipaddr.Prefix.link <> pfx then
       match vlft, List.mem_assoc pfx pl with
       | Some 0L, true ->
-        Log.debug (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp pfx);
         List.remove_assoc pfx pl, []
       | Some 0L, false ->
         pl, []
       | Some dt, true ->
-        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp_hum pfx dt);
+        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx dt);
         let pl = List.remove_assoc pfx pl in
         (pfx, Some (Int64.add now dt)) :: pl, []
       | Some dt, false ->
-        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp_hum pfx dt);
+        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx dt);
         (pfx, Some (Int64.add now dt)) :: pl, []
       | None, true ->
-        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
         let pl = List.remove_assoc pfx pl in
         (pfx, None) :: pl, []
       | None, false ->
-        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp_hum pfx);
+        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
         (pfx, None) :: pl, []
     else
       pl, []
@@ -515,29 +515,29 @@ module NeighborCache = struct
     match nb.state with
     | INCOMPLETE (t, tn) when t <= now ->
       if tn < Defaults.max_multicast_solicit then begin
-        Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp_hum ip);
+        Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp ip);
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
         IpMap.add ip {nb with state = INCOMPLETE ((Int64.add now retrans_timer), tn+1)} nc,
         [SendNS (`Specified, dst, ip)]
       end else begin
-        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
+        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
         (* TODO Generate ICMP error: Destination Unreachable *)
         IpMap.remove ip nc, [CancelQueued ip]
       end
     | REACHABLE (t, mac) when t <= now ->
-      Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum ip);
+      Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp ip);
       IpMap.add ip {nb with state = STALE mac} nc, []
     | DELAY (t, dmac) when t <= now ->
-      Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp_hum ip);
+      Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp ip);
       IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), 0, dmac)} nc,
       [SendNS (`Specified, ip, ip)]
     | PROBE (t, tn, dmac) when t <= now ->
       if tn < Defaults.max_unicast_solicit then begin
-        Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp_hum ip);
+        Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp ip);
         IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), tn+1, dmac)} nc,
         [SendNS (`Specified, ip, ip)]
       end else begin
-        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp_hum ip);
+        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
         IpMap.remove ip nc, []
       end
     | _ ->
@@ -591,11 +591,11 @@ module NeighborCache = struct
     let update nb =
       match nb.state, new_mac, sol, ovr with
       | INCOMPLETE _, Some new_mac, false, _ ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
         let nb = {nb with state = STALE new_mac} in
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, Some new_mac, true, _ ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
         let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
       | INCOMPLETE _, None, _, _ ->
@@ -607,11 +607,11 @@ module NeighborCache = struct
         in
         nc, []
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
         let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, []
       | PROBE (_, _, mac), None, true, false ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
         let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
@@ -623,16 +623,16 @@ module NeighborCache = struct
         in
         nc, []
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
         let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
         IpMap.add tgt nb nc, []
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
         let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
         IpMap.add tgt nb nc, []
       | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
         Some new_mac, false, true when mac <> new_mac ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp_hum tgt);
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
         let nb = {nb with state = STALE mac} in
         IpMap.add tgt nb nc, []
       | _ ->
@@ -700,15 +700,15 @@ module RouterList = struct
     | true ->
       let rl = List.remove_assoc src rl in
       if lft > 0L then begin
-        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%Lu" Ipaddr.pp_hum src lft);
+        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%Lu" Ipaddr.pp src lft);
         (src, Int64.add now lft) :: rl, []
       end else begin
-        Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp_hum src);
+        Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp src);
         rl, []
       end
     | false ->
       if lft > 0L then begin
-	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp_hum src);
+	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp src);
         (add rl ~now ~lifetime:lft src), []
       end else
         rl, []
@@ -1016,7 +1016,7 @@ module Parser = struct
     (* TODO check version = 6 *)
 
     (* Log.debug (fun f -> f "IPv6 packet received from %s to %s" *)
-    (* Ipaddr.pp_hum src) Ipaddr.pp_hum dst); *)
+    (* Ipaddr.pp src) Ipaddr.pp dst); *)
 
     if Ipaddr.Prefix.(mem src multicast) then begin
       Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
@@ -1066,13 +1066,13 @@ let rec process_actions ~now ctx actions =
         | `Specified -> AddressList.select_source ctx.address_list ~dst
       in
       Log.debug (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
-        Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt);
+        Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt);
       let frame = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
       send ~now ctx dst frame []
     | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
       Log.debug (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
-        Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum tgt sol);
+        Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt sol);
       let frame = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
       send ~now ctx dst frame []
     | SendRS ->
@@ -1081,13 +1081,13 @@ let rec process_actions ~now ctx actions =
       let dst = Ipaddr.link_routers in
       send ~now ctx dst frame []
     | SendQueued (ip, dmac) ->
-      Log.debug (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%s" Ipaddr.pp_hum ip (Macaddr.to_string dmac));
+      Log.debug (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%a" Ipaddr.pp ip Macaddr.pp dmac);
       let pkts, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let bufs = List.map (fun datav -> datav dmac) pkts in
       let ctx = {ctx with packet_queue} in
       ctx, bufs
     | CancelQueued ip ->
-      Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp_hum ip);
+      Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp ip);
       let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       ctx, []
@@ -1114,11 +1114,11 @@ and send ~now ctx dst frame datav =
     let ctx = {ctx with neighbor_cache} in
     match mac with
     | Some dmac ->
-      Log.debug (fun f -> f "IP6: Sending packet: dst=%a mac=%s" Ipaddr.pp_hum dst (Macaddr.to_string dmac));
+      Log.debug (fun f -> f "IP6: Sending packet: dst=%a mac=%a" Ipaddr.pp dst Macaddr.pp dmac);
       let ctx, bufs = process_actions ~now ctx actions in
       ctx, datav dmac :: bufs
     | None ->
-      Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp_hum dst);
+      Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp dst);
       let packet_queue = PacketQueue.push ip datav ctx.packet_queue in
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
@@ -1163,7 +1163,7 @@ let select_source ctx dst =
   AddressList.select_source ctx.address_list ~dst
 
 let handle_ra ~now ~random ctx ~src ~dst ra =
-  Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp_hum src Ipaddr.pp_hum dst);
+  Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp src Ipaddr.pp dst);
   let ctx =
     if ra.ra_cur_hop_limit <> 0 then
       {ctx with cur_hop_limit = ra.ra_cur_hop_limit}
@@ -1221,7 +1221,7 @@ let handle_ra ~now ~random ctx ~src ~dst ra =
 
 let handle_ns ~now:_ ctx ~src ~dst ns =
   Log.debug (fun f -> f "ND: Received NS: src=%a dst=%a tgt=%a"
-    Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum ns.ns_target);
+    Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp ns.ns_target);
   (* TODO check hlim = 255, target not mcast, code = 0 *)
   let ctx, actions = match ns.ns_slla with
     | Some new_mac ->
@@ -1234,14 +1234,14 @@ let handle_ns ~now:_ ctx ~src ~dst ns =
   if AddressList.is_my_addr ctx.address_list ns.ns_target then
     let src = ns.ns_target and dst = src in
 (*     (\* Log.debug (fun f -> f "Sending NA to %a from %a with target address %a" *\) *)
-(*       (\* Ipaddr.pp_hum dst Ipaddr.pp_hum src Ipaddr.pp_hum target); *\) *)
+(*       (\* Ipaddr.pp dst Ipaddr.pp src Ipaddr.pp target); *\) *)
     ctx, SendNA (src, dst, ns.ns_target, `Solicited) :: actions
   else
     ctx, actions
 
 let handle_na ~now ctx ~src ~dst na =
   Log.debug (fun f -> f "ND: Received NA: src=%a dst=%a tgt=%a"
-    Ipaddr.pp_hum src Ipaddr.pp_hum dst Ipaddr.pp_hum na.na_target);
+    Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp na.na_target);
 
   (* TODO Handle case when na.target is one of my bound IPs. *)
 
@@ -1272,8 +1272,8 @@ let handle ~now ~random ctx buf =
     let ctx, bufs = process_actions ~now ctx actions in
     ctx, bufs, []
   | Ping (src, dst, id, seq, data) ->
-    Log.info (fun f -> f "ICMP6: Received PING: src=%a dst=%a id=%d seq=%d" Ipaddr.pp_hum src
-      Ipaddr.pp_hum dst id seq);
+    Log.info (fun f -> f "ICMP6: Received PING: src=%a dst=%a id=%d seq=%d" Ipaddr.pp src
+      Ipaddr.pp dst id seq);
     let dst = src
     and src =
       if Ipaddr.is_multicast dst then

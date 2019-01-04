@@ -1,20 +1,22 @@
 open Lwt.Infix
 
+let now = ref 0L
+
 module Clock = struct
   (* Mirage_device.S *)
   type error = string
-  type t = { time: int64 }
+  type t = unit
   type 'a io = 'a Lwt.t
   let disconnect _ = Lwt.return_unit
-  let connect () = Lwt.return { time = 0L }
+  let connect () = Lwt.return_unit
 
   (* Mirage_clock.MCLOCK *)
-  let period_ns _ = None
-  let elapsed_ns {time} = time
+  let period_ns () = None
+  let elapsed_ns () = !now
 
   (* Test-related function: advance by 1 ns *)
-  let tick {time} = { time = Int64.add time 1L }
-  let tick_for {time} duration = { time = Int64.add time duration }
+  let tick () = now := Int64.add !now 1L
+  let tick_for () duration = now := Int64.add !now duration
 end
 
 module Timed_window = Tcp.Window.Make(Clock)

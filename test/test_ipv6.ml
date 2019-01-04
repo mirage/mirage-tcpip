@@ -11,7 +11,7 @@ open Lwt.Infix
 let ip =
   let module M = struct
     type t = Ipaddr.V6.t
-    let pp = Ipaddr.V6.pp_hum
+    let pp = Ipaddr.V6.pp
     let equal p q = (Ipaddr.V6.compare p q) = 0
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
