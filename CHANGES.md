@@ -1,4 +1,4 @@
-### master
+### v3.6.0 (2019-01-04)
 
 * The IPv4 implementation now supports reassembly of IPv4 fragments (#375 by @hannesm)
   - using a LRU cache using up to 256KB memory
@@ -6,6 +6,11 @@
   - maximum number of fragments is 16
   - timeout between first and last fragment is 10s
   - overlapping fragments are dropped
+
+* IPv6: use correct timeout value after first NS message (#334 @djs55)
+
+* Use `Ipaddr.pp` instead of `Ipaddr.pp_hum` due to upstream
+  interface changes (#385 @hannesm).
 
 ### v3.5.1 (2018-11-16)
 
