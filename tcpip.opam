@@ -39,7 +39,7 @@ depends: [
   "mirage-profile" {>= "0.5"}
   "fmt"
   "lwt" {>= "3.0.0"}
-  "lwt-dlllist"
+  "lwt-dllist"
   "logs" {>= "0.6.0"}
   "duration"
   "io-page-unix"
