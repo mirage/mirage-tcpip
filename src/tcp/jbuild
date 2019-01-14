@@ -2,7 +2,7 @@
 (library
  ((name        tcp)
   (public_name tcpip.tcp)
-  (libraries   (logs mirage-protocols-lwt ipaddr cstruct 
+  (libraries   (logs mirage-protocols-lwt ipaddr cstruct lwt-dllist
                 rresult mirage-profile io-page tcpip duration
                 randomconv fmt mirage-time-lwt mirage-clock
                 mirage-random))

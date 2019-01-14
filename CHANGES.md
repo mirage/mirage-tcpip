@@ -1,3 +1,8 @@
+## dev
+
+* Use `Lwt_dllist` instead of `Lwt_sequence`, due to the latter being deprecated
+  upstream in Lwt (ocsigen/lwt#361).
+
 ### v3.6.0 (2019-01-04)
 
 * The IPv4 implementation now supports reassembly of IPv4 fragments (#375 by @hannesm)

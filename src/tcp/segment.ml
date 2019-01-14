@@ -22,29 +22,29 @@ let src = Logs.Src.create "segment" ~doc:"Mirage TCP Segment module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let lwt_sequence_add_l s seq =
-  let (_:'a Lwt_sequence.node) = Lwt_sequence.add_l s seq in
+  let (_:'a Lwt_dllist.node) = Lwt_dllist.add_l s seq in
   ()
 
 let lwt_sequence_add_r s seq =
-  let (_:'a Lwt_sequence.node) = Lwt_sequence.add_r s seq in
+  let (_:'a Lwt_dllist.node) = Lwt_dllist.add_r s seq in
   ()
 
 let peek_opt_l seq =
-  match Lwt_sequence.take_opt_l seq with
+  match Lwt_dllist.take_opt_l seq with
   | None -> None
   | Some s ->
     lwt_sequence_add_l s seq;
     Some s
 
 let peek_l seq =
-  match Lwt_sequence.take_opt_l seq with
+  match Lwt_dllist.take_opt_l seq with
   | None -> assert false
   | Some s ->
-    let _ = Lwt_sequence.add_l s seq in
+    let _ = Lwt_dllist.add_l s seq in
     s
 
 let rec reset_seq segs =
-  match Lwt_sequence.take_opt_l segs with
+  match Lwt_dllist.take_opt_l segs with
   | None -> ()
   | Some _ -> reset_seq segs
 
@@ -258,7 +258,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
 
   (* Queue of pre-transmission segments *)
   type ('a, 'b) q = {
-    segs: seg Lwt_sequence.t;      (* Retransmitted segment queue *)
+    segs: seg Lwt_dllist.t;      (* Retransmitted segment queue *)
     xmit: ('a, 'b) xmit;           (* Transmit packet to the wire *)
     rx_ack: Sequence.t Lwt_mvar.t; (* RX Ack thread that we've sent one *)
     wnd: Window.t;                 (* TCP Window information *)
@@ -328,7 +328,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
     | false -> Sequence.zero (* here we return 0l instead of ack_remaining in case
                      the ack was an old packet in the network *)
     | true ->
-      match Lwt_sequence.take_opt_l segs with
+      match Lwt_dllist.take_opt_l segs with
       | None ->
         Log.debug (fun f -> f "Dubious ACK received");
         ack_remaining
@@ -391,7 +391,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
           let dupacktest () =
             0l = Sequence.to_int32 ack_len &&
             Window.tx_wnd_unscaled q.wnd = Int32.of_int win &&
-            not (Lwt_sequence.is_empty q.segs)
+            not (Lwt_dllist.is_empty q.segs)
           in
           serviceack (dupacktest ()) ack_len seq win
       end >>= fun () ->
@@ -402,7 +402,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
     tx_ack_t ()
 
   let create ~clock ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
-    let segs = Lwt_sequence.create () in
+    let segs = Lwt_dllist.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
     let period_ns = Window.rto wnd in
