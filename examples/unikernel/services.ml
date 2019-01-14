@@ -5,7 +5,7 @@ module Main (S: Mirage_types_lwt.STACKV4) = struct
     let ip, port = S.TCPV4.dst flow in
     Logs.warn
       (fun m -> m "closing connection from %a:%d due to error %a while %s"
-          Ipaddr.V4.pp_hum ip port pp e message);
+          Ipaddr.V4.pp ip port pp e message);
     S.TCPV4.close flow
 
   let rec chargen flow how_many start_at =
