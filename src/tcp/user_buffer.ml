@@ -20,7 +20,7 @@
 open Lwt.Infix
 
 let lwt_sequence_add_l s seq =
-  let (_:'a Lwt_sequence.node) = Lwt_sequence.add_l s seq in
+  let (_:'a Lwt_dllist.node) = Lwt_dllist.add_l s seq in
   ()
 
 (* A bounded queue to receive data segments and let readers block on
@@ -32,19 +32,19 @@ module Rx = struct
     stops taking data the window closes so the other side stops sending *)
 
   type t = {
-    q: Cstruct.t option Lwt_sequence.t;
+    q: Cstruct.t option Lwt_dllist.t;
     wnd: Window.t;
-    writers: unit Lwt.u Lwt_sequence.t;
-    readers: Cstruct.t option Lwt.u Lwt_sequence.t;
+    writers: unit Lwt.u Lwt_dllist.t;
+    readers: Cstruct.t option Lwt.u Lwt_dllist.t;
     mutable watcher: int32 Lwt_mvar.t option;
     mutable max_size: int32;
     mutable cur_size: int32;
   }
 
   let create ~max_size ~wnd =
-    let q = Lwt_sequence.create () in
-    let writers = Lwt_sequence.create () in
-    let readers = Lwt_sequence.create () in
+    let q = Lwt_dllist.create () in
+    let writers = Lwt_dllist.create () in
+    let readers = Lwt_dllist.create () in
     let watcher = None in
     let cur_size = 0l in
     { q; wnd; writers; readers; max_size; cur_size; watcher }
@@ -64,34 +64,34 @@ module Rx = struct
   let add_r t s =
     if t.cur_size > t.max_size then
       let th,u = MProf.Trace.named_task "User_buffer.add_r" in
-      let node = Lwt_sequence.add_r u t.writers in
-      Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
+      let node = Lwt_dllist.add_r u t.writers in
+      Lwt.on_cancel th (fun _ -> Lwt_dllist.remove node);
       (* Update size before blocking, which may push cur_size above max_size *)
       t.cur_size <- Int32.(add t.cur_size (of_int (seglen s)));
       notify_size_watcher t >>= fun () ->
       th >>= fun () ->
-      ignore(Lwt_sequence.add_r s t.q);
+      ignore(Lwt_dllist.add_r s t.q);
       Lwt.return_unit
-    else match Lwt_sequence.take_opt_l t.readers with
+    else match Lwt_dllist.take_opt_l t.readers with
       | None ->
         t.cur_size <- Int32.(add t.cur_size (of_int (seglen s)));
-        ignore(Lwt_sequence.add_r s t.q);
+        ignore(Lwt_dllist.add_r s t.q);
         notify_size_watcher t
       | Some u ->
         Lwt.return (Lwt.wakeup u s)
 
   let take_l t =
-    if Lwt_sequence.is_empty t.q then begin
+    if Lwt_dllist.is_empty t.q then begin
       let th,u = MProf.Trace.named_task "User_buffer.take_l" in
-      let node = Lwt_sequence.add_r u t.readers in
-      Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
+      let node = Lwt_dllist.add_r u t.readers in
+      Lwt.on_cancel th (fun _ -> Lwt_dllist.remove node);
       th
     end else begin
-      let s = Lwt_sequence.take_l t.q in
+      let s = Lwt_dllist.take_l t.q in
       t.cur_size <- Int32.(sub t.cur_size (of_int (seglen s)));
       notify_size_watcher t >>= fun () ->
       if t.cur_size < t.max_size then begin
-        match Lwt_sequence.take_opt_l t.writers with
+        match Lwt_dllist.take_opt_l t.writers with
         |None -> ()
         |Some w -> Lwt.wakeup w ()
       end;
@@ -117,16 +117,16 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
 
   type t = {
     wnd: Window.t;
-    writers: unit Lwt.u Lwt_sequence.t;
+    writers: unit Lwt.u Lwt_dllist.t;
     txq: TXS.t;
-    buffer: Cstruct.t Lwt_sequence.t;
+    buffer: Cstruct.t Lwt_dllist.t;
     max_size: int32;
     mutable bufbytes: int32;
   }
 
   let create ~max_size ~wnd ~txq =
-    let buffer = Lwt_sequence.create () in
-    let writers = Lwt_sequence.create () in
+    let buffer = Lwt_dllist.create () in
+    let writers = Lwt_dllist.create () in
     let bufbytes = 0l in
     { wnd; writers; txq; buffer; max_size; bufbytes }
 
@@ -157,8 +157,8 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
     end
     else begin
       let th,u = MProf.Trace.named_task "User_buffer.wait_for" in
-      let node = Lwt_sequence.add_r u t.writers in
-      Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
+      let node = Lwt_dllist.add_r u t.writers in
+      Lwt.on_cancel th (fun _ -> Lwt_dllist.remove node);
       th >>= fun () ->
       wait_for t sz
     end
@@ -167,20 +167,20 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
 
   (* Wait until the user buffer is flushed *)
   let rec wait_for_flushed t =
-    if Lwt_sequence.is_empty t.buffer then begin
+    if Lwt_dllist.is_empty t.buffer then begin
       Lwt.return_unit
     end
     else begin
       let th,u = MProf.Trace.named_task "User_buffer.wait_for_flushed" in
-      let node = Lwt_sequence.add_r u t.writers in
-      Lwt.on_cancel th (fun _ -> Lwt_sequence.remove node);
+      let node = Lwt_dllist.add_r u t.writers in
+      Lwt.on_cancel th (fun _ -> Lwt_dllist.remove node);
       th >>= fun () ->
       wait_for_flushed t
     end
 
   let rec clear_buffer t =
     let rec addon_more curr_data l =
-      match Lwt_sequence.take_opt_l t.buffer with
+      match Lwt_dllist.take_opt_l t.buffer with
       | None -> List.rev curr_data
       | Some s ->
         let s_len = len s in
@@ -194,7 +194,7 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
     in
     let get_pkt_to_send () =
       let avail_len = min (available_cwnd t) (Int32.of_int (Window.tx_mss t.wnd)) in
-      let s = Lwt_sequence.take_l t.buffer in
+      let s = Lwt_dllist.take_l t.buffer in
       let s_len = len s in
       match s_len > avail_len with
       | true ->  begin
@@ -218,7 +218,7 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
           t.bufbytes <- Int32.sub t.bufbytes s_len;
           Some [s]
     in
-    match Lwt_sequence.is_empty t.buffer with
+    match Lwt_dllist.is_empty t.buffer with
     | true -> Lwt.return_unit
     | false ->
       match get_pkt_to_send () with
@@ -256,11 +256,11 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
   let write t datav =
     let l = lenv datav in
     let mss = Int32.of_int (Window.tx_mss t.wnd) in
-    match Lwt_sequence.is_empty t.buffer &&
+    match Lwt_dllist.is_empty t.buffer &&
           (l = mss || not (Window.tx_inflight t.wnd)) with
     | false ->
       t.bufbytes <- Int32.add t.bufbytes l;
-      List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+      List.iter (fun data -> ignore(Lwt_dllist.add_r data t.buffer)) datav;
       if t.bufbytes < mss then
         Lwt.return_unit
       else
@@ -270,7 +270,7 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
       match avail_len < l with
       | true ->
         t.bufbytes <- Int32.add t.bufbytes l;
-        List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+        List.iter (fun data -> ignore(Lwt_dllist.add_r data t.buffer)) datav;
         Lwt.return_unit
       | false ->
         let max_size = Window.tx_mss t.wnd in
@@ -278,17 +278,17 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
 
   let write_nodelay t datav =
     let l = lenv datav in
-    match Lwt_sequence.is_empty t.buffer with
+    match Lwt_dllist.is_empty t.buffer with
     | false ->
       t.bufbytes <- Int32.add t.bufbytes l;
-      List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+      List.iter (fun data -> ignore(Lwt_dllist.add_r data t.buffer)) datav;
       Lwt.return_unit
     | true ->
       let avail_len = available_cwnd t in
       match avail_len < l with
       | true ->
         t.bufbytes <- Int32.add t.bufbytes l;
-        List.iter (fun data -> ignore(Lwt_sequence.add_r data t.buffer)) datav;
+        List.iter (fun data -> ignore(Lwt_dllist.add_r data t.buffer)) datav;
         Lwt.return_unit
       | false ->
         let max_size = Window.tx_mss t.wnd in
@@ -296,7 +296,7 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
 
 
   let inform_app t =
-    match Lwt_sequence.take_opt_l t.writers with
+    match Lwt_dllist.take_opt_l t.writers with
     | None   -> Lwt.return_unit
     | Some w ->
       Lwt.wakeup w ();
@@ -314,7 +314,7 @@ module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
   let reset t =
     (* FIXME: duplicated code with Segment.reset_seq *)
     let rec reset_seq segs =
-      match Lwt_sequence.take_opt_l segs with
+      match Lwt_dllist.take_opt_l segs with
       | None   -> ()
       | Some _ -> reset_seq segs
     in
