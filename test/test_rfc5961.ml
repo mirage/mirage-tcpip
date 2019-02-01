@@ -26,8 +26,8 @@ module VNETIF_STACK = Vnetif_common.VNETIF_STACK(Vnetif_backends.Basic)
 
 module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
-module E = Ethif.Make(V)
-module A = Arpv4.Make(E)(Vnetif_common.Clock)(Time)
+module E = Ethernet.Make(V)
+module A = Arp.Make(E)(Time)
 module I = Static_ipv4.Make(Mirage_random_test)(Vnetif_common.Clock)(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
@@ -51,7 +51,7 @@ let create_raw_stack ip backend =
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  A.connect ethif clock >>= fun arpv4 ->
+  A.connect ethif >>= fun arpv4 ->
   I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway clock ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 

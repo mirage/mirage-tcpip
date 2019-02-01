@@ -63,8 +63,8 @@ struct
   type id = B.id
 
   module V = Vnetif.Make(B)
-  module E = Ethif.Make(V)
-  module A = Arpv4.Make(E)(Clock)(Time)
+  module E = Ethernet.Make(V)
+  module A = Arp.Make(E)(Time)
   module Ip = Static_ipv4.Make(Mirage_random_test)(Clock)(E)(A)
   module Icmp = Icmpv4.Make(Ip)
   module U = Udp.Make(Ip)(Mirage_random_test)
@@ -84,7 +84,7 @@ struct
     Clock.connect () >>= fun clock ->
     V.connect ?size_limit backend >>= fun netif ->
     E.connect ?mtu netif >>= fun ethif ->
-    A.connect ethif clock >>= fun arpv4 ->
+    A.connect ethif >>= fun arpv4 ->
     Ip.connect ~ip ~network ~gateway:gw clock ethif arpv4 >>= fun ipv4 ->
     Icmp.connect ipv4 >>= fun icmpv4 ->
     U.connect ipv4 >>= fun udpv4 ->

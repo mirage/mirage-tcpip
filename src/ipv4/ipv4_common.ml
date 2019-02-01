@@ -1,7 +1,7 @@
 let adjust_output_header ~rng ~dmac ~tlen frame =
   let open Ipv4_wire in
-  Ethif_wire.set_ethernet_dst dmac 0 frame;
-  let buf = Cstruct.sub frame Ethif_wire.sizeof_ethernet sizeof_ipv4 in
+  Ethernet_wire.set_ethernet_dst dmac 0 frame;
+  let buf = Cstruct.sub frame Ethernet_wire.sizeof_ethernet sizeof_ipv4 in
   (* Set the mutable values in the ipv4 header *)
   set_ipv4_len buf tlen;
   set_ipv4_id buf (Randomconv.int16 rng);
@@ -12,15 +12,15 @@ let adjust_output_header ~rng ~dmac ~tlen frame =
 let allocate_frame ~src ~source ~(dst:Ipaddr.V4.t) ~(proto : [`ICMP | `TCP | `UDP]) : (Cstruct.t * int) =
   let open Ipv4_wire in
   let ethernet_frame = Io_page.to_cstruct (Io_page.get 1) in
-  let len = Ethif_wire.sizeof_ethernet + sizeof_ipv4 in
-  let eth_header = Ethif_packet.({ethertype = Ethif_wire.IPv4;
-                                  source;
-                                  destination = Macaddr.broadcast}) in
-  match Ethif_packet.Marshal.into_cstruct eth_header ethernet_frame with
-  | Error _s -> 
+  let len = Ethernet_wire.sizeof_ethernet + sizeof_ipv4 in
+  let eth_header = Ethernet_packet.({ethertype = Ethernet_wire.IPv4;
+                                     source;
+                                     destination = Macaddr.broadcast}) in
+  match Ethernet_packet.Marshal.into_cstruct eth_header ethernet_frame with
+  | Error _s ->
     raise (Invalid_argument "writing ethif header to ipv4.allocate_frame failed")
   | Ok () ->
-    let buf = Cstruct.shift ethernet_frame Ethif_wire.sizeof_ethernet in
+    let buf = Cstruct.shift ethernet_frame Ethernet_wire.sizeof_ethernet in
     (* TODO: why 38 for TTL? *)
     let ipv4_header = Ipv4_packet.({options = Cstruct.create 0;
                                     src; dst; ttl = 38;
@@ -36,6 +36,6 @@ let allocate_frame ~src ~source ~(dst:Ipaddr.V4.t) ~(proto : [`ICMP | `TCP | `UD
       (ethernet_frame, len)
 
 let checksum frame bufs =
-  let packet = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
+  let packet = Cstruct.shift frame Ethernet_wire.sizeof_ethernet in
   Ipv4_wire.set_ipv4_csum packet 0;
   Tcpip_checksum.ones_complement_list (packet :: bufs)

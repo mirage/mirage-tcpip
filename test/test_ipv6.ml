@@ -2,7 +2,7 @@ open Common
 module Time = Vnetif_common.Time
 module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
+module E = Ethernet.Make(V)
 
 module Ipv6 = Ipv6.Make(E)(Mirage_random_test)(Time)(Mclock)
 module Udp = Udp.Make(Ipv6)(Mirage_random_test)

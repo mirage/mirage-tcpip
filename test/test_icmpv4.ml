@@ -3,8 +3,8 @@ open Common
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
-module Static_arp = Static_arp.Make(E)(Mclock)(Time)
+module E = Ethernet.Make(V)
+module Static_arp = Static_arp.Make(E)(Time)
 
 open Lwt.Infix
 
@@ -12,7 +12,7 @@ type decomposed = {
   ipv4_payload : Cstruct.t;
   ipv4_header : Ipv4_packet.t;
   ethernet_payload : Cstruct.t;
-  ethernet_header : Ethif_packet.t;
+  ethernet_header : Ethernet_packet.t;
 }
 
 module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
@@ -51,7 +51,7 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  Static_arp.connect ethif clock >>= fun arp ->
+  Static_arp.connect ethif >>= fun arp ->
   Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
   Icmp.connect ip >>= fun icmp ->
   Udp.connect ip >>= fun udp ->
@@ -146,11 +146,11 @@ let echo_silent () =
 let write_errors () =
   let decompose buf =
     let (>>=) = Rresult.(>>=) in
-    let open Ethif_packet in
+    let open Ethernet_packet in
     Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
-    | Ethif_wire.IPv6 | Ethif_wire.ARP -> Error "not an ipv4 packet"
-    | Ethif_wire.IPv4 ->
+    | Ethernet_wire.IPv6 | Ethernet_wire.ARP -> Error "not an ipv4 packet"
+    | Ethernet_wire.IPv4 ->
       Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in

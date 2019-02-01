@@ -3,8 +3,8 @@ open Common
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
-module E = Ethif.Make(V)
-module Static_arp = Static_arp.Make(E)(Mclock)(Time)
+module E = Ethernet.Make(V)
+module Static_arp = Static_arp.Make(E)(Time)
 module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
 module Udp = Udp.Make(Ip)(Mirage_random_test)
 
@@ -26,7 +26,7 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  Static_arp.connect ethif clock >>= fun arp ->
+  Static_arp.connect ethif >>= fun arp ->
   Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { clock; backend; netif; ethif; arp; ip; udp }

@@ -49,7 +49,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
     Ipv4_common.allocate_frame ~src:t.ip ~source:(Ethif.mac t.ethif) ~dst ~proto
 
   let writev t frame bufs : (unit, error) result Lwt.t =
-    let v4_frame = Cstruct.shift frame Ethif_wire.sizeof_ethernet in
+    let v4_frame = Cstruct.shift frame Ethernet_wire.sizeof_ethernet in
     let dst = Ipaddr.V4.of_int32 (Ipv4_wire.get_ipv4_dst v4_frame) in
     Routing.destination_mac t.network t.gateway t.arp dst >>= function
     | Error `Local ->
@@ -64,7 +64,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
       Lwt.return @@ Error (`No_route "no route to default gateway to outside world")
     | Ok mac ->
       let dmac = Macaddr.to_bytes mac in
-      let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethif_wire.sizeof_ethernet in
+      let tlen = Cstruct.len frame + Cstruct.lenv bufs - Ethernet_wire.sizeof_ethernet in
       adjust_output_header ~dmac ~tlen frame;
       Ethif.writev t.ethif (frame :: bufs) >|= function
       | Error e ->

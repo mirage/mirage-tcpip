@@ -4,8 +4,6 @@
 system](https://mirage.io). It provides implementations for the following module types
 (which correspond with the similarly-named protocols):
 
-* ETHERNET
-* ARP
 * IP (via the IPv4 and IPv6 modules)
 * ICMP
 * UDP

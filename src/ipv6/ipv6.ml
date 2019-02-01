@@ -64,7 +64,7 @@ module Make (E : Mirage_protocols_lwt.ETHIF)
     let now = C.elapsed_ns t.clock in
     let dst =
       Ndpv6.ipaddr_of_cstruct
-        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethif_wire.sizeof_ethernet))
+        (Ipv6_wire.get_ipv6_dst (Cstruct.shift frame Ethernet_wire.sizeof_ethernet))
     in
     let ctx, bufs = Ndpv6.send ~now t.ctx dst frame bufs in
     t.ctx <- ctx;

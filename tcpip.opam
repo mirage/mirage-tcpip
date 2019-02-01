@@ -44,12 +44,14 @@ depends: [
   "duration"
   "io-page-unix"
   "randomconv"
+  "ethernet"
   "mirage-flow" {with-test & >= "1.2.0"}
   "mirage-vnetif" {with-test & >= "0.4.0"}
   "alcotest" {with-test & >="0.7.0"}
   "pcap-format" {with-test}
   "mirage-clock-unix" {with-test & >= "1.2.0"}
   "mirage-random-test" {with-test}
+  "arp-mirage" {with-test}
   "lru"
 ]
 synopsis: "OCaml TCP/IP networking stack, used in MirageOS"
@@ -58,8 +60,6 @@ description: """
 system](https://mirage.io). It provides implementations for the following module types
 (which correspond with the similarly-named protocols):
 
-* ETHERNET
-* ARP
 * IP (via the IPv4 and IPv6 modules)
 * ICMP
 * UDP
