@@ -1,7 +1,9 @@
-## dev
+## v3.7.0 (2019-02-02)
 
 * Use `Lwt_dllist` instead of `Lwt_sequence`, due to the latter being deprecated
-  upstream in Lwt (ocsigen/lwt#361).
+  upstream in Lwt (ocsigen/lwt#361) (#388 by @avsm).
+* Remove arpv4 and ethif sublibraries, now provided by ethernet and arp-mirage
+  opam packages (#380 by @hannesm).
 
 ### v3.6.0 (2019-01-04)
 
