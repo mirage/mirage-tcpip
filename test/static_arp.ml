@@ -45,12 +45,12 @@ module Make(E : Mirage_protocols_lwt.ETHIF)(Time : Mirage_time_lwt.S) = struct
 
   let input t buffer =
     (* disregard responses, but reply to queries *)
-    try
-    match Cstruct.BE.get_uint16 buffer 6 with
-    | 1 -> A.input t.base buffer
-    | 2 | _ -> Lwt.return_unit
-    with
-    | Invalid_argument s -> Printf.printf "Arpv4_wire failed on buffer: %s" s;
+    let open Arp_packet in
+    match decode buffer with
+    | Ok arp when arp.operation = Request -> A.input t.base buffer
+    | Ok _ -> Lwt.return_unit
+    | Error e ->
+      Format.printf "Arp decoding failed %a" pp_error e ;
       Lwt.return_unit
 
   let add_entry t ip mac =

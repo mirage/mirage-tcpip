@@ -5,7 +5,7 @@
     alcotest mirage-random-test lwt.unix io-page-unix tcpip.unix
     logs logs.fmt mirage-profile mirage-flow mirage-vnetif
     mirage-clock-unix pcap-format duration mirage-random
-    rresult mirage-protocols-lwt mirage-stack-lwt arp-mirage
+    rresult mirage-protocols-lwt mirage-stack-lwt arp arp-mirage
     ethernet tcpip.ipv4 tcpip.tcp tcpip.udp
     tcpip.stack-direct tcpip.icmpv4
     tcpip.udpv4-socket tcpip.tcpv4-socket tcpip.icmpv4-socket
