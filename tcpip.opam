@@ -13,13 +13,13 @@ license: "ISC"
 tags: ["org:mirage"]
 
 build: [
-  ["jbuilder" "subst" "-p" name] {pinned}
-  ["jbuilder" "build" "-p" name "-j" jobs]
-  ["jbuilder" "runtest" "-p" name "-j" jobs] {with-test}
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 
 depends: [
-  "jbuilder"     {build & >="1.0+beta10"}
+  "dune"     {build & >= "1.0"}
   "configurator" {build}
   "ocaml" {>= "4.03.0"}
   "rresult" {>= "0.5.0"}
