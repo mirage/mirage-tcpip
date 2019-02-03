@@ -4,6 +4,8 @@
   upstream in Lwt (ocsigen/lwt#361) (#388 by @avsm).
 * Remove arpv4 and ethif sublibraries, now provided by ethernet and arp-mirage
   opam packages (#380 by @hannesm).
+* Upgrade from jbuilder to dune (#391 @avsm)
+* Switch from topkg to dune-release (#391 @avsm)
 
 ### v3.6.0 (2019-01-04)
 

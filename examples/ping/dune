@@ -1,0 +1,3 @@
+(executables
+ (names ping)
+ (libraries cmdliner logs logs.fmt tcpip.icmpv4-socket))
