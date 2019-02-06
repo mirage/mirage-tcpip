@@ -1,4 +1,4 @@
-## v3.7.0 (2019-02-02)
+### v3.7.0 (2019-02-02)
 
 * Use `Lwt_dllist` instead of `Lwt_sequence`, due to the latter being deprecated
   upstream in Lwt (ocsigen/lwt#361) (#388 by @avsm).
