@@ -3,7 +3,7 @@
  (public_name tcpip.ipv6)
  (libraries logs mirage-protocols-lwt mirage-time-lwt
    mirage-clock-lwt duration ipaddr cstruct rresult mirage-random tcpip
-   randomconv ethernet)
+   randomconv)
  (preprocess
   (pps ppx_cstruct))
  (wrapped false))
