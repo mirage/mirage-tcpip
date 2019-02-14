@@ -106,7 +106,7 @@ module Make
         ~ipv6:(fun _ -> Lwt.return_unit)
         t.ethif
     in
-    Netif.listen t.netif ethif_listener
+    Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
     >>= function
     | Error e ->
       Log.warn (fun p -> p "%a" Netif.pp_error e) ;

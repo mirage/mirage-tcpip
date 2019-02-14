@@ -2,4 +2,4 @@
  (name tcpip_stack_direct)
  (public_name tcpip.stack-direct)
  (libraries logs ipaddr lwt result fmt mirage-time-lwt mirage-random
-   mirage-protocols-lwt mirage-stack-lwt mirage-net-lwt))
+   mirage-protocols-lwt mirage-stack-lwt mirage-net-lwt ethernet))

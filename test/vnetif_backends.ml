@@ -28,12 +28,11 @@ module Mtu_enforced = struct
 
   let mtu = ref 1500
 
-  let write t id ?size fill =
-    let size' = match size with None -> !mtu | Some s -> s in
-    if size' > !mtu then
-      Lwt.return (Error `Exceeds_mtu)
+  let write t id ~size fill =
+    if size > !mtu then
+      Lwt.return (Error `Invalid_length)
     else
-      X.write t id ?size fill
+      X.write t id ~size fill
 
   let set_mtu m = mtu := m
 
@@ -74,13 +73,13 @@ module Uniform_packet_loss : Backend = struct
 
   let drop_p = 0.01
 
-  let write t id ?size fill =
+  let write t id ~size fill =
     if Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id ?size fill (* pass to real write *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
@@ -98,14 +97,13 @@ module Uniform_no_payload_packet_loss : Backend = struct
   (* Drop probability, if no payload *)
   let drop_p = 0.10
 
-  let write t id ?size fill =
-    let size' = match size with None -> 1500 | Some s -> s in
-    if size' <= no_payload_len && Random.float 1.0 < drop_p then
+  let write t id ~size fill =
+    if size <= no_payload_len && Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id ?size fill (* pass to real write *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
@@ -168,12 +166,12 @@ module Drop_1_second_after_1_megabyte : Backend = struct
           false
       end
 
-  let write t id ?size fill =
-    t.sent_bytes <- t.sent_bytes + (match size with None -> 1500 | Some s -> s);
+  let write t id ~size fill =
+    t.sent_bytes <- t.sent_bytes + size;
     if should_drop t then
       Lwt.return (Ok ())
     else
-      X.write t.xt id ?size fill (* pass to real write *)
+      X.write t.xt id ~size fill (* pass to real write *)
 
   let create () =
     let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield ()) () in
@@ -188,14 +186,14 @@ module On_off_switch = struct
 
   let send_packets = ref true
 
-  let write t id ?size fill =
+  let write t id ~size fill =
     if not !send_packets then
       begin
         Logs.info (fun f -> f "write dropping 1 packet");
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id ?size fill (* pass to real write *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()

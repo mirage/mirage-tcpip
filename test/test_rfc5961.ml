@@ -40,6 +40,8 @@ let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
 let netmask = 24
 let gateway = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
 
+let header_size = Ethernet_wire.sizeof_ethernet
+
 (* defaults when injecting packets *)
 let options = []
 let window = 5120
@@ -86,7 +88,7 @@ let run backend fsm sut () =
       fsm_thread state in
 
   Lwt.async (fun () ->
-      (V.listen netif
+      (V.listen netif ~header_size
          (E.input
             ~arpv4:(A.input arp)
             ~ipv4:(I.input
