@@ -126,12 +126,15 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
             let fill buf =
               let hdr_buf, payload_buf = Cstruct.split buf hdr_len in
               let len, leftover = Cstruct.fillv ~src:!bufs ~dst:payload_buf in
+              Log.debug (fun m -> m "header buffer is %d, payload %d (requested was %d) len %d"
+                            (Cstruct.len hdr_buf) (Cstruct.len payload_buf)
+                            (pay_len + hdr_len) len) ;
               bufs := leftover ;
               let last = match leftover with [] -> true | _ -> false in
               let off = if last then off else off lor 0x2000 in
               let hdr = { hdr with off } in
               match Ipv4_packet.Marshal.into_cstruct ~payload_len:len hdr buf with
-              | Ok () -> Ipv4_common.set_checksum hdr_buf ; pay_len
+              | Ok () -> Ipv4_common.set_checksum hdr_buf ; pay_len + hdr_len
               | Error msg ->
                 Log.err (fun m -> m "failure while assembling ip frame: %s" msg) ;
                 invalid_arg msg
