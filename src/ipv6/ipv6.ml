@@ -21,7 +21,7 @@ module I = Ipaddr
 
 open Lwt.Infix
 
-module Make (E : Mirage_protocols_lwt.ETHIF)
+module Make (E : Mirage_protocols_lwt.ETHERNET)
             (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (C : Mirage_clock_lwt.MCLOCK) = struct

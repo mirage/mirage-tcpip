@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (E: Mirage_protocols_lwt.ETHIF) (A: Mirage_protocols_lwt.ARP) : sig
+module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (E: Mirage_protocols_lwt.ETHERNET) (A: Mirage_protocols_lwt.ARP) : sig
   include Mirage_protocols_lwt.IPV4
   val connect :
     ?ip:Ipaddr.V4.t ->

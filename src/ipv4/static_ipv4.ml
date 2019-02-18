@@ -19,15 +19,15 @@ open Lwt.Infix
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protocols_lwt.ETHIF) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
+module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_protocols_lwt.ETHERNET) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
-  type error = [ Mirage_protocols.Ip.error | `Would_fragment | `Ethif of Ethif.error ]
+  type error = [ Mirage_protocols.Ip.error | `Would_fragment | `Ethif of Ethernet.error ]
   let pp_error ppf = function
     | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
     | `Would_fragment -> Fmt.string ppf "would fragment, but fragmentation is disabled"
-    | `Ethif e -> Ethif.pp_error ppf e
+    | `Ethif e -> Ethernet.pp_error ppf e
 
   type 'a io = 'a Lwt.t
   type buffer = Cstruct.t
@@ -35,7 +35,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
   type t = {
-    ethif : Ethif.t;
+    ethif : Ethernet.t;
     arp : Arpv4.t;
     clock : C.t;
     mutable ip: Ipaddr.V4.t;
@@ -58,7 +58,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
       Lwt.return @@ Error (`No_route "no route to default gateway to outside world")
     | Ok mac ->
       (* need first to deal with fragmentation decision - find out mtu *)
-      let mtu = Ethif.mtu t.ethif in
+      let mtu = Ethernet.mtu t.ethif in
       (* no options here, always 20 bytes! *)
       let hdr_len = Ipv4_wire.sizeof_ipv4 in
       let needed_bytes = Cstruct.lenv bufs + hdr_len + size in
@@ -73,9 +73,9 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
           proto = Ipv4_packet.Marshal.protocol_to_int proto }
       in
       let writeout size fill =
-        Ethif.write t.ethif mac `IPv4 ~size fill >|= function
+        Ethernet.write t.ethif mac `IPv4 ~size fill >|= function
         | Error e ->
-          Log.warn (fun f -> f "Error sending Ethernet frame: %a" Ethif.pp_error e);
+          Log.warn (fun f -> f "Error sending Ethernet frame: %a" Ethernet.pp_error e);
           Error (`Ethif e)
         | Ok () -> Ok ()
       in
@@ -206,6 +206,6 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethif: Mirage_protoco
   let to_uipaddr ip = Ipaddr.V4 ip
   let of_uipaddr = Ipaddr.to_v4
 
-  let mtu t = Ethif.mtu t.ethif - Ipv4_wire.sizeof_ipv4
+  let mtu t = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 
 end
