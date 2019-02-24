@@ -57,10 +57,11 @@ val handle : now:time -> random:(int -> Cstruct.t) -> context -> buffer ->
 
 val send : now:time -> context -> ipaddr -> Mirage_protocols.Ip.proto ->
   int -> (buffer -> buffer -> int) -> context * (Macaddr.t * int * (buffer -> int)) list
-(** [send ~now ctx ip frame bufs] starts route resolution and assembles an ipv6
-    packet for sending with header [frame] and body [bufs].  It returns a pair
-    [ctx', bufs] where [ctx'] is the updated context and [bufs] is a list of
-    packets to be sent. *)
+(** [send ~now ctx ip proto size fillf] starts route resolution and assembles an
+    ipv6 packet of [size] for sending with header and body passed to [fillf].
+    It returns a pair [ctx', dst_size_fills] where [ctx'] is the updated
+    context and [dst, size, fillf] is a list of packets to be sent, specified
+    by destination, their size, and fill function. *)
 
 val tick : now:time -> context -> context * (Macaddr.t * int * (buffer -> int)) list
 (** [tick ~now ctx] should be called periodically (every 1s is good).  It
