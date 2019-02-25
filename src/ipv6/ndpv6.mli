@@ -50,10 +50,10 @@ val select_source : context -> ipaddr -> ipaddr
 
 val handle : now:time -> random:(int -> Cstruct.t) -> context -> buffer ->
   context * (Macaddr.t * int * (buffer -> int)) list * event list
-(** [handle ~now ~random ctx buf] handles an incoming ipv6 packet.  It returns [ctx',
-    bufs, evs] where [ctx'] is the updated context, [bufs] is a list of packets to
-    be sent and [evs] is a list of packets to be passed to the higher layers (udp,
-    tcp, etc) for further processing. *)
+(** [handle ~now ~random ctx buf] handles an incoming ipv6 packet.  It returns
+    [ctx', bufs, evs] where [ctx'] is the updated context, [bufs] is a list of
+    packets to be sent and [evs] is a list of packets to be passed to the higher
+    layers (udp, tcp, etc) for further processing. *)
 
 val send : now:time -> context -> ipaddr -> Mirage_protocols.Ip.proto ->
   int -> (buffer -> buffer -> int) -> context * (Macaddr.t * int * (buffer -> int)) list
