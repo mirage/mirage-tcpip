@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (E : Mirage_protocols_lwt.ETHIF)
+module Make (E : Mirage_protocols_lwt.ETHERNET)
             (R : Mirage_random.C)
             (T : Mirage_time_lwt.S)
             (Clock : Mirage_clock_lwt.MCLOCK) : sig

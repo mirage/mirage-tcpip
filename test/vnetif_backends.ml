@@ -28,21 +28,13 @@ module Mtu_enforced = struct
 
   let mtu = ref 1500
 
-  let writev t id l =
-    if (Cstruct.lenv l < 14) then begin
-      Logs.err (fun f -> f "too smol");
-      Lwt.return @@ Error `Unimplemented
-    end
-    else if ((Cstruct.lenv l) - 14) > !mtu then begin
-      Logs.err (fun f -> f "tried to send a %d byte frame, but MTU is only %d" (Cstruct.lenv l) !mtu);
-      assert (((Cstruct.lenv l) - 14) <= !mtu);
-      Lwt.return @@ Error `Unimplemented (* not quite, but we're constrained to Mirage_net.error *)
-    end
-    else X.writev t id l
+  let write t id ~size fill =
+    if size > !mtu then
+      Lwt.return (Error `Invalid_length)
+    else
+      X.write t id ~size fill
 
   let set_mtu m = mtu := m
-
-  let write t id n = writev t id [n]
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
@@ -70,9 +62,9 @@ module Trailing_bytes : Backend = struct
         fn (add_random_bytes buf))
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
 
-end 
+end
 
 (** This backend drops packets *)
 module Uniform_packet_loss : Backend = struct
@@ -81,26 +73,18 @@ module Uniform_packet_loss : Backend = struct
 
   let drop_p = 0.01
 
-  let write t id buffer =
+  let write t id ~size fill =
     if Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id buffer (* pass to real write *)
-
-  let writev t id buffers =
-    if Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.writev t id buffers (* pass to real writev *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
 
-end 
+end
 
 (** This backend uniformly drops packets with no payload *)
 module Uniform_no_payload_packet_loss : Backend = struct
@@ -113,22 +97,13 @@ module Uniform_no_payload_packet_loss : Backend = struct
   (* Drop probability, if no payload *)
   let drop_p = 0.10
 
-  let write t id buffer =
-    if Cstruct.len buffer <= no_payload_len && Random.float 1.0 < drop_p then
+  let write t id ~size fill =
+    if size <= no_payload_len && Random.float 1.0 < drop_p then
       begin
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id buffer (* pass to real write *)
-
-  let writev t id buffers =
-    let total_len bufs = List.fold_left (fun a b -> a + Cstruct.len b) 0 bufs in
-    if total_len buffers <= no_payload_len && Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.writev t id buffers (* pass to real writev *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
@@ -156,7 +131,7 @@ module Drop_1_second_after_1_megabyte : Backend = struct
   let register t =
     X.register t.xt
 
-  let unregister t id = 
+  let unregister t id =
     X.unregister t.xt id
 
   let mac t id =
@@ -169,8 +144,8 @@ module Drop_1_second_after_1_megabyte : Backend = struct
     X.unregister_and_flush t.xt id
 
   let should_drop t =
-    if (t.sent_bytes > byte_limit) && 
-       (t.is_dropping = false) && 
+    if (t.sent_bytes > byte_limit) &&
+       (t.is_dropping = false) &&
        (t.done_dropping = false) then
       begin
         Logs.info (fun f -> f  "Backend dropping packets for %f sec" time_to_sleep);
@@ -191,20 +166,12 @@ module Drop_1_second_after_1_megabyte : Backend = struct
           false
       end
 
-  let write t id buffer =
-    t.sent_bytes <- t.sent_bytes + (Cstruct.len buffer);
+  let write t id ~size fill =
+    t.sent_bytes <- t.sent_bytes + size;
     if should_drop t then
       Lwt.return (Ok ())
     else
-      X.write t.xt id buffer (* pass to real write *)
-
-  let writev t id buffers =
-    let total_len = List.fold_left (fun a b -> a + Cstruct.len b) 0 buffers in
-    t.sent_bytes <- t.sent_bytes + total_len;
-    if should_drop t then
-      Lwt.return (Ok ())
-    else
-      X.writev t.xt id buffers (* pass to real writev *)
+      X.write t.xt id ~size fill (* pass to real write *)
 
   let create () =
     let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield ()) () in
@@ -219,23 +186,14 @@ module On_off_switch = struct
 
   let send_packets = ref true
 
-  let write t id buffer =
+  let write t id ~size fill =
     if not !send_packets then
       begin
-        Logs.info (fun f -> f "write dropping 1 packet (length %d)" (Cstruct.len buffer));
+        Logs.info (fun f -> f "write dropping 1 packet");
         MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
-      X.write t id buffer (* pass to real write *)
-
-  let writev t id buffers =
-    if not !send_packets then
-      begin
-        Logs.info (fun f -> f "writev dropping 1 packet (length %d)" (Cstruct.lenv buffers));
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.writev t id buffers (* pass to real writev *)
+      X.write t id ~size fill (* pass to real write *)
 
   let create () =
     X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
@@ -248,5 +206,5 @@ module Basic : Backend = struct
   include X
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () 
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
 end

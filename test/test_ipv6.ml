@@ -38,7 +38,7 @@ let get_stack backend address =
 let noop = fun ~src:_ ~dst:_ _ -> Lwt.return_unit
 
 let listen ?(tcp = noop) ?(udp = noop) ?(default = noop) stack =
-  V.listen stack.netif
+  V.listen stack.netif ~header_size:Ethernet_wire.sizeof_ethernet
     ( E.input stack.ethif
       ~arpv4:(fun _ -> Lwt.return_unit)
       ~ipv4:(fun _ -> Lwt.return_unit)

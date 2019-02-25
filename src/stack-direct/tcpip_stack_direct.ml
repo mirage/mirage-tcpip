@@ -27,15 +27,15 @@ module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Time    : Mirage_time.S)
-    (Random  : Mirage_random.C)
-    (Netif   : Mirage_net_lwt.S)
-    (Ethif   : Mirage_protocols_lwt.ETHIF)
-    (Arpv4   : Mirage_protocols_lwt.ARP)
-    (Ipv4    : Mirage_protocols_lwt.IPV4)
-    (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
-    (Udpv4   : UDPV4_DIRECT)
-    (Tcpv4   : TCPV4_DIRECT) = struct
+    (Time     : Mirage_time.S)
+    (Random   : Mirage_random.C)
+    (Netif    : Mirage_net_lwt.S)
+    (Ethernet : Mirage_protocols_lwt.ETHERNET)
+    (Arpv4    : Mirage_protocols_lwt.ARP)
+    (Ipv4     : Mirage_protocols_lwt.IPV4)
+    (Icmpv4   : Mirage_protocols_lwt.ICMPV4)
+    (Udpv4    : UDPV4_DIRECT)
+    (Tcpv4    : TCPV4_DIRECT) = struct
   type +'a io = 'a Lwt.t
   type buffer = Cstruct.t
   type ipv4addr = Ipaddr.V4.t
@@ -49,7 +49,7 @@ module Make
 
   type t = {
     netif : Netif.t;
-    ethif : Ethif.t;
+    ethif : Ethernet.t;
     arpv4 : Arpv4.t;
     ipv4  : Ipv4.t;
     icmpv4: Icmpv4.t;
@@ -60,7 +60,7 @@ module Make
   }
 
   let pp fmt t =
-    Format.fprintf fmt "mac=%s,ip=%a" (Macaddr.to_string (Ethif.mac t.ethif))
+    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Ethernet.mac t.ethif)
       (Fmt.list Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
@@ -90,7 +90,7 @@ module Make
 
   let listen t =
     Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-    let ethif_listener = Ethif.input
+    let ethif_listener = Ethernet.input
         ~arpv4:(Arpv4.input t.arpv4)
         ~ipv4:(
           Ipv4.input
@@ -106,7 +106,7 @@ module Make
         ~ipv6:(fun _ -> Lwt.return_unit)
         t.ethif
     in
-    Netif.listen t.netif ethif_listener
+    Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
     >>= function
     | Error e ->
       Log.warn (fun p -> p "%a" Netif.pp_error e) ;

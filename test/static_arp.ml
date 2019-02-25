@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Make(E : Mirage_protocols_lwt.ETHIF)(Time : Mirage_time_lwt.S) = struct
+module Make(E : Mirage_protocols_lwt.ETHERNET)(Time : Mirage_time_lwt.S) = struct
   module A = Arp.Make(E)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)

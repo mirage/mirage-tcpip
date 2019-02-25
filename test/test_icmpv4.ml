@@ -40,6 +40,8 @@ let (>>=?) = testbind
 let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
 let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
+let header_size = Ethernet_wire.sizeof_ethernet
+
 let slowly fn =
   Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
 
@@ -59,7 +61,7 @@ let get_stack ?(backend = B.create ~use_async_readers:true
 
 let icmp_listen stack fn =
   let noop = fun ~src:_ ~dst:_ _buf -> Lwt.return_unit in
-  V.listen stack.netif (* some buffer -> (unit, error) result io *)
+  V.listen stack.netif ~header_size (* some buffer -> (unit, error) result io *)
     ( E.input stack.ethif ~arpv4:(Static_arp.input stack.arp)
         ~ipv6:(fun _ -> Lwt.return_unit)
         ~ipv4:
@@ -149,8 +151,8 @@ let write_errors () =
     let open Ethernet_packet in
     Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
     match ethernet_header.ethertype with
-    | Ethernet_wire.IPv6 | Ethernet_wire.ARP -> Error "not an ipv4 packet"
-    | Ethernet_wire.IPv4 ->
+    | `IPv6 | `ARP -> Error "not an ipv4 packet"
+    | `IPv4 ->
       Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in
@@ -171,7 +173,7 @@ let write_errors () =
         let open Ipv4_packet in
         Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload >|= Rresult.R.get_ok
     in
-    V.listen stack.netif reject >|= fun _ -> ()
+    V.listen stack.netif ~header_size reject >|= fun _ -> ()
   in
   let check_packet buf : unit Lwt.t =
     let aux buf =

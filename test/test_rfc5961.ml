@@ -40,6 +40,8 @@ let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
 let netmask = 24
 let gateway = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
 
+let header_size = Ethernet_wire.sizeof_ethernet
+
 (* defaults when injecting packets *)
 let options = []
 let window = 5120
@@ -86,7 +88,7 @@ let run backend fsm sut () =
       fsm_thread state in
 
   Lwt.async (fun () ->
-      (V.listen netif
+      (V.listen netif ~header_size
          (E.input
             ~arpv4:(A.input arp)
             ~ipv4:(I.input
@@ -325,8 +327,7 @@ let blind_syn_on_established_scenario =
   (`WAIT_FOR_SYN, fsm), sut_connects_and_remains_connected
 
 let blind_data_injection_scenario =
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -363,8 +364,7 @@ let blind_data_injection_scenario =
 
 let data_repeated_ack_scenario =
   (* This is the just data transmission with ack in the past but within the acceptable window *)
-  let page = Io_page.to_cstruct (Io_page.get 1) in
-  let page = Cstruct.set_len page 512 in
+  let page = Cstruct.create 512 in
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->

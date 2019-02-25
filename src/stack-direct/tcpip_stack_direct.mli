@@ -22,15 +22,15 @@ module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
   with type ipinput = direct_ipv4_input
 
 module Make
-    (Time    : Mirage_time.S)
-    (Random  : Mirage_random.C)
-    (Netif   : Mirage_net_lwt.S)
-    (Ethif   : Mirage_protocols_lwt.ETHIF)
-    (Arpv4   : Mirage_protocols_lwt.ARP)
-    (Ipv4    : Mirage_protocols_lwt.IPV4)
-    (Icmpv4  : Mirage_protocols_lwt.ICMPV4)
-    (Udpv4   : UDPV4_DIRECT)
-    (Tcpv4   : TCPV4_DIRECT) : sig
+    (Time     : Mirage_time.S)
+    (Random   : Mirage_random.C)
+    (Netif    : Mirage_net_lwt.S)
+    (Ethernet : Mirage_protocols_lwt.ETHERNET)
+    (Arpv4    : Mirage_protocols_lwt.ARP)
+    (Ipv4     : Mirage_protocols_lwt.IPV4)
+    (Icmpv4   : Mirage_protocols_lwt.ICMPV4)
+    (Udpv4    : UDPV4_DIRECT)
+    (Tcpv4    : TCPV4_DIRECT) : sig
   include Mirage_stack_lwt.V4
     with type udpv4   = Udpv4.t
      and type tcpv4   = Tcpv4.t
@@ -39,7 +39,7 @@ module Make
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
 
-  val connect : Netif.t -> Ethif.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t ->
+  val connect : Netif.t -> Ethernet.t -> Arpv4.t -> Ipv4.t -> Icmpv4.t ->
     Udpv4.t -> Tcpv4.t -> t Lwt.t
   (** [connect] assembles the arguments into a network stack, then calls
       `listen` on the assembled stack before returning it to the caller.  The
