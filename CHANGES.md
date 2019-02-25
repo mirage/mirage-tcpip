@@ -1,3 +1,10 @@
+### v3.7.1 (2019-02-25)
+
+* Adjust to mirage-protocols 2.0.0 changes (#394 by @hannesm)
+* Ethif is now Ethernet (#394 by @hannesm)
+* IPv4 write now fragments if payload exceeds MTU (and the optional labeled
+  fragment argument is not false) (#394 by @hannesm)
+
 ### v3.7.0 (2019-02-02)
 
 * Use `Lwt_dllist` instead of `Lwt_sequence`, due to the latter being deprecated
