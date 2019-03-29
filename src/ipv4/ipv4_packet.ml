@@ -93,7 +93,8 @@ module Unmarshal = struct
     | 17 -> Some `UDP
     | _  -> None
 
-  let of_cstruct buf =
+
+  let header_of_cstruct buf =
     let open Rresult in
     let open Ipv4_wire in
     let check_version buf =
@@ -124,7 +125,6 @@ module Unmarshal = struct
         else Ok hlen
     in
     let parse buf options_end =
-      let payload_len = (get_ipv4_len buf) - options_end in
       let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
       let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
       let id = get_ipv4_id buf in
@@ -135,15 +135,25 @@ module Unmarshal = struct
         if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
       in
+       Ok ({src; dst; id; off; ttl; proto; options;}, options_end)
+    in
+    size_check buf >>= check_version >>= get_header_length >>= parse buf
+
+  let of_cstruct buf =
+    let open Rresult in
+    let open Ipv4_wire in
+    let parse buf options_end =
+      let payload_len = (get_ipv4_len buf) - options_end in
       let payload_available = Cstruct.len buf - options_end in
       if payload_available < payload_len then (
         Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
       ) else (
         let payload = Cstruct.sub buf options_end payload_len in
-        Ok ({src; dst; id; off; ttl; proto; options;}, payload)
+        Ok payload
       )
     in
-    size_check buf >>= check_version >>= get_header_length >>= parse buf
+    header_of_cstruct buf >>= fun (header, options_end) ->
+    parse buf options_end >>= fun payload -> Ok (header, payload)
 
   let verify_transport_checksum ~proto ~ipv4_header ~transport_packet =
     (* note: it's not necessary to ensure padding to integral number of 16-bit fields here; ones_complement_list does this for us *)
