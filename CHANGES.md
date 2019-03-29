@@ -1,3 +1,8 @@
+### v3.7.2 (2019-03-29)
+
+* add Ipv4_packet.Unmarshal.header_of_cstruct (#397 by @linse)
+* require cstruct version 3.2.0 (#398 by @hannesm)
+
 ### v3.7.1 (2019-02-25)
 
 * Adjust to mirage-protocols 2.0.0 changes (#394 by @hannesm)
