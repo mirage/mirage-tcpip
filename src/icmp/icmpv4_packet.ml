@@ -94,7 +94,7 @@ module Marshal = struct
     set_icmpv4_code buf code;
     set_icmpv4_csum buf 0x0000;
     subheader_into_cstruct ~buf:(Cstruct.shift buf 4) subheader;
-    let packets = [buf ; payload] in
+    let packets = [(Cstruct.sub buf 0 Icmpv4_wire.sizeof_icmpv4); payload] in
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
 
   let check_len buf =
