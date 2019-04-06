@@ -1,3 +1,6 @@
+### v3.7.3 (2019-04-06)
+* fix ICMPv4 checksum calculation (#401 by @yomimono)
+
 ### v3.7.2 (2019-03-29)
 
 * add Ipv4_packet.Unmarshal.header_of_cstruct (#397 by @linse)
