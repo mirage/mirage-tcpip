@@ -45,9 +45,6 @@ let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
 let header_size = Ethernet_wire.sizeof_ethernet
 
-let slowly fn =
-  Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
-
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ())
                   ip =
@@ -147,12 +144,14 @@ let echo_silent () =
   inform_arp listener speaker_address (mac_of_stack speaker);
   (* set up an ARP mapping so the listener is more likely to see the echo-request *)
   inform_arp speaker nobody_home (mac_of_stack listener);
+  Lwt.async (fun () ->
   Lwt.pick [
-    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
-                             ~dst buf);
+    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src ~dst buf);
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check);
-    slowly (Icmp.write speaker.icmp ~dst:nobody_home echo_request);
-  ]
+  ]);
+  Icmp.write speaker.icmp ~dst:nobody_home echo_request >>= function
+  | Error e -> Alcotest.failf "ICMP echo request write: %a" Icmp.pp_error e
+  | Ok () -> Lwt.return_unit
 
 let write_errors () =
   let decompose buf =
