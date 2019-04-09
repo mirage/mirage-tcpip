@@ -54,7 +54,7 @@ let test_keepalive_miss_everything () =
 let suite_1 = [
   "correct number of keepalives", `Quick, test_keepalive_sequence;
   "we don't try to send old keepalives", `Quick, test_keepalive_miss_probes;
-  "check we close if we miss all probes", `Quick, test_keepalive_miss_everything;
+  "check we close if we miss all probes", `Slow, test_keepalive_miss_everything;
 ]
 
 let suite_1 =
@@ -136,7 +136,7 @@ let test_tcp_keepalive_timeout () =
     Test_connect.test_tcp_keepalive_timeout
 
 let suite_2 = [
-  "check that TCP keepalives detect a network failure", `Quick,
+  "check that TCP keepalives detect a network failure", `Slow,
   test_tcp_keepalive_timeout;
 ]
 

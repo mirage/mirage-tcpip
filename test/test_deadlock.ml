@@ -149,5 +149,5 @@ let run_vnetif () =
   test_digest c1 c2
 
 let suite = [
-  "test tcp deadlock with slow receiver", `Quick, run_vnetif
+  "test tcp deadlock with slow receiver", `Slow, run_vnetif
 ]
