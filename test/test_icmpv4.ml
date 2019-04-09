@@ -98,6 +98,7 @@ let echo_request () =
   let echo_request = Cstruct.create 2048 in
   Icmpv4_packet.Marshal.into_cstruct req echo_request ~payload:request_payload >>=? fun () ->
   Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.len request_payload);
+  let echo_request = Cstruct.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Cstruct.len request_payload) in
   let check buf =
     let open Icmpv4_packet in
     Log.debug (fun f -> f "Incoming ICMP message: %a" Cstruct.hexdump_pp buf);
@@ -114,12 +115,15 @@ let echo_request () =
       Alcotest.(check cstruct) "icmp echo-reply payload" payload request_payload;
       Lwt.return_unit
   in
-  Lwt.pick [
-    icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
-    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
-                             ~dst buf);
-    slowly (Icmp.write speaker.icmp ~dst:listener_address echo_request);
-  ]
+  Lwt.async (fun () -> Lwt.pick [
+    icmp_listen listener (fun ~src ~dst buf ->
+        Logs.debug (fun f -> f "listener's ICMP listener invoked");
+        Icmp.input listener.icmp ~src ~dst buf);
+    icmp_listen speaker (fun ~src:_ ~dst:_ -> check)
+  ]);
+  Icmp.write speaker.icmp ~dst:listener_address echo_request >>= function
+  | Error e -> Alcotest.failf "ICMP echo request write: %a" Icmp.pp_error e
+  | Ok () -> Lwt.return_unit
 
 let echo_silent () =
   let open Icmpv4_packet in
