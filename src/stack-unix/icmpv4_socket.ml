@@ -95,7 +95,7 @@ let listen _t addr fn =
         let receive_buffer = Cstruct.create 4096 in
         recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
         (* trim the buffer to the amount of data actually received *)
-        let receive_buffer = Cstruct.set_len receive_buffer len in
+        let receive_buffer = Cstruct.sub receive_buffer 0 len in
         (* On macOS the IP length field is set to a very large value (16384) which
            probably reflects some kernel datastructure size rather than the real
            on-the-wire size. This confuses our IPv4 parser so we correct the size
