@@ -92,7 +92,9 @@ let echo_request () =
   inform_arp listener speaker_address (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                             subheader = Id_and_seq (id_no, seq_no)}) in
-  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:request_payload in
+  let echo_request = Cstruct.create 2048 in
+  Icmpv4_packet.Marshal.into_cstruct req echo_request ~payload:request_payload >>=? fun () ->
+  Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.len request_payload);
   let check buf =
     let open Icmpv4_packet in
     Printf.printf "Incoming ICMP message: ";
