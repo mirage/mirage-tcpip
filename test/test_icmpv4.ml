@@ -1,5 +1,8 @@
 open Common
 
+let src = Logs.Src.create "test_icmpv4" ~doc:"ICMP tests"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
@@ -97,7 +100,7 @@ let echo_request () =
   Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.len request_payload);
   let check buf =
     let open Icmpv4_packet in
-    Printf.printf "Incoming ICMP message: ";
+    Log.debug (fun f -> f "Incoming ICMP message: %a" Cstruct.hexdump_pp buf);
     Cstruct.hexdump buf;
     Unmarshal.of_cstruct buf >>=? fun (reply, payload) ->
     match reply.subheader with
