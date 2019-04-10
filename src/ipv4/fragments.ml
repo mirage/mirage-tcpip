@@ -137,11 +137,18 @@ let process cache ts (packet : Ipv4_packet.t) payload =
     match Cache.find key cache with
     | None ->
       Log.debug (fun m -> m "%a none found, inserting into cache" Ipv4_packet.pp packet) ;
-      Cache.add key (ts, packet.options, not more, 1, [(offset, payload)]) cache, None
-    | Some ((ts', options, finished, cnt, frags), cache') ->
+      let cache' =
+        Cache.add key (ts, packet.options, not more, 1, [(offset, payload)]) cache
+      in
+      Cache.trim cache', None
+    | Some (ts', options, finished, cnt, frags) ->
+      let cache' = Cache.promote key cache in
       if Int64.sub ts ts' >= max_duration then begin
         Log.warn (fun m -> m "%a found some, but timestamp exceeded duration %a, dropping old segments and inserting new segment into cache" Ipv4_packet.pp packet Duration.pp max_duration) ;
-        Cache.add key (ts, packet.options, not more, 1, [(offset, payload)]) cache, None
+        let cache' =
+          Cache.add key (ts, packet.options, not more, 1, [(offset, payload)]) cache
+        in
+        Cache.trim cache', None
       end else
         let all_frags = insert_sorted (offset, payload) frags
         and try_reassemble = finished || not more
@@ -151,7 +158,10 @@ let process cache ts (packet : Ipv4_packet.t) payload =
                       cnt finished more try_reassemble) ;
         let maybe_add_to_cache c =
           if cnt < max_number_of_fragments then
-            Cache.add key (ts', options', try_reassemble, succ cnt, all_frags) c
+            let cache' =
+              Cache.add key (ts', options', try_reassemble, succ cnt, all_frags) c
+            in
+            Cache.trim cache'
           else
             (Log.warn (fun m -> m "%a dropping from cache, maximum number of fragments exceeded"
                           Ipv4_packet.pp packet) ;
