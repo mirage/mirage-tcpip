@@ -1,4 +1,11 @@
+### v3.7.4 (2019-04-11)
+
+* ipv4 reassembly requires lru 0.3.0 now (#406 by @hannesm)
+* ICMP test maintenance (#405 by @yomimono @linse)
+* remove usage of Cstruct.set_len (use Cstruct.sub with offset 0 instead) (#403 by @hannesm)
+
 ### v3.7.3 (2019-04-06)
+
 * fix ICMPv4 checksum calculation (#401 by @yomimono)
 
 ### v3.7.2 (2019-03-29)
