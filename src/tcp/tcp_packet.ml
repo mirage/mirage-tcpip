@@ -140,7 +140,7 @@ module Marshal = struct
                                                      the tcp header *)
     let options_buf = Cstruct.shift buf sizeof_tcp in
     let options_len = Options.marshal options_buf t.options in
-    let buf = Cstruct.set_len buf (sizeof_tcp + options_len) in
+    let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     buf
 end
