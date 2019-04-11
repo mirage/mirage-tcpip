@@ -1,5 +1,8 @@
 open Common
 
+let src = Logs.Src.create "test_icmpv4" ~doc:"ICMP tests"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
@@ -41,9 +44,6 @@ let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
 let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
 let header_size = Ethernet_wire.sizeof_ethernet
-
-let slowly fn =
-  Time.sleep_ns (Duration.of_ms 100) >>= fun () -> fn >>= fun _ -> Time.sleep_ns (Duration.of_ms 100)
 
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ())
@@ -92,10 +92,13 @@ let echo_request () =
   inform_arp listener speaker_address (mac_of_stack speaker);
   let req = Icmpv4_packet.({code = 0x00; ty = Icmpv4_wire.Echo_request;
                             subheader = Id_and_seq (id_no, seq_no)}) in
-  let echo_request = Icmpv4_packet.Marshal.make_cstruct req ~payload:request_payload in
+  let echo_request = Cstruct.create 2048 in
+  Icmpv4_packet.Marshal.into_cstruct req echo_request ~payload:request_payload >>=? fun () ->
+  Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.len request_payload);
+  let echo_request = Cstruct.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Cstruct.len request_payload) in
   let check buf =
     let open Icmpv4_packet in
-    Printf.printf "Incoming ICMP message: ";
+    Log.debug (fun f -> f "Incoming ICMP message: %a" Cstruct.hexdump_pp buf);
     Cstruct.hexdump buf;
     Unmarshal.of_cstruct buf >>=? fun (reply, payload) ->
     match reply.subheader with
@@ -109,12 +112,15 @@ let echo_request () =
       Alcotest.(check cstruct) "icmp echo-reply payload" payload request_payload;
       Lwt.return_unit
   in
-  Lwt.pick [
-    icmp_listen speaker (fun ~src:_ ~dst:_ -> check); (* should get reply back *)
-    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
-                             ~dst buf);
-    slowly (Icmp.write speaker.icmp ~dst:listener_address echo_request);
-  ]
+  Lwt.async (fun () -> Lwt.pick [
+    icmp_listen listener (fun ~src ~dst buf ->
+        Logs.debug (fun f -> f "listener's ICMP listener invoked");
+        Icmp.input listener.icmp ~src ~dst buf);
+    icmp_listen speaker (fun ~src:_ ~dst:_ -> check)
+  ]);
+  Icmp.write speaker.icmp ~dst:listener_address echo_request >>= function
+  | Error e -> Alcotest.failf "ICMP echo request write: %a" Icmp.pp_error e
+  | Ok () -> Lwt.return_unit
 
 let echo_silent () =
   let open Icmpv4_packet in
@@ -138,12 +144,14 @@ let echo_silent () =
   inform_arp listener speaker_address (mac_of_stack speaker);
   (* set up an ARP mapping so the listener is more likely to see the echo-request *)
   inform_arp speaker nobody_home (mac_of_stack listener);
+  Lwt.async (fun () ->
   Lwt.pick [
-    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src
-                             ~dst buf);
+    icmp_listen listener (fun ~src ~dst buf -> Icmp.input listener.icmp ~src ~dst buf);
     icmp_listen speaker (fun ~src:_ ~dst:_ -> check);
-    slowly (Icmp.write speaker.icmp ~dst:nobody_home echo_request);
-  ]
+  ]);
+  Icmp.write speaker.icmp ~dst:nobody_home echo_request >>= function
+  | Error e -> Alcotest.failf "ICMP echo request write: %a" Icmp.pp_error e
+  | Ok () -> Lwt.return_unit
 
 let write_errors () =
   let decompose buf =

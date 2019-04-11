@@ -232,7 +232,7 @@ let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
     "tcp_iperf_two_stacks_drop_1sec_after_1mb.pcap"
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let amt_quick = 10_000_000
+let amt_quick = 100_000
 let amt_slow  = amt_quick * 100
 
 let suite = [
