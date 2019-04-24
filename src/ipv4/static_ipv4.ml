@@ -147,17 +147,25 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
       end else (* error out, as described in the semantics *)
         Lwt.return (Error `Would_fragment)
 
-  (* TODO: ought we to check to make sure the destination is relevant here?  currently we'll process all incoming packets, regardless of destination address *)
   let input t ~tcp ~udp ~default buf =
     match Ipv4_packet.Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
       Lwt.return_unit
     | Ok (packet, payload) ->
-      if Cstruct.len payload = 0 then
-        (Log.info (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
-         Lwt.return_unit)
-      else
+      let of_interest ip =
+        Ipaddr.V4.(compare ip t.ip = 0
+                   || compare ip broadcast = 0
+                   || compare ip (Prefix.broadcast t.network) = 0)
+      in
+      if not (of_interest packet.dst) then begin
+        Log.debug (fun m -> m "dropping IP fragment not for us or broadcast %a"
+                      Ipv4_packet.pp packet);
+        Lwt.return_unit
+      end else if Cstruct.len payload = 0 then begin
+        Log.debug (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
+        Lwt.return_unit
+      end else
         let ts = C.elapsed_ns t.clock in
         let cache, res = Fragments.process t.cache ts packet payload in
         t.cache <- cache ;
