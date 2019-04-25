@@ -32,9 +32,8 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
 
   let write t ~dst buf = writev t ~dst [buf]
 
-  let input t ~src ~dst buf =
+  let input t ~src ~dst:_ buf =
     let open Icmpv4_packet in
-    let should_reply t dst = List.mem dst @@ IP.get_ip t.ip in
     MProf.Trace.label "icmp_input";
     match Unmarshal.of_cstruct buf with
     | Error s ->
@@ -56,7 +55,7 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
         Log.debug (fun f ->
             f "ICMP echo-request received: %a (payload %a)"
               Icmpv4_packet.pp message Cstruct.hexdump_pp payload);
-        if t.echo_reply && should_reply t dst then begin
+        if t.echo_reply then begin
           let icmp = {
             code = 0x00;
             ty   = Icmpv4_wire.Echo_reply;
