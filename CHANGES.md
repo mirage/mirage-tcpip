@@ -1,3 +1,7 @@
+### v3.7.5 (2019-05-03)
+
+* drop IPv4 packets which destination address is not us or broadcast (#407 by @hannesm)
+
 ### v3.7.4 (2019-04-11)
 
 * ipv4 reassembly requires lru 0.3.0 now (#406 by @hannesm)
