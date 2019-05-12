@@ -23,17 +23,17 @@ val value: counter -> int
 (** The counter value. [value t] is [{!incr} t] - [{!decrs} t].*)
 
 type t = {
-  tcp_flows   : counter;
   tcp_listens : counter;
   tcp_channels: counter;
   tcp_connects: counter;
   tcp_timers  : counter;
+  mutable total_established : int;
+  mutable total_passive_connections : int;
+  mutable total_active_connections : int;
+  mutable total_timers  : int;
 }
 
 val pp: Format.formatter -> t -> unit
-
-val incr_flow: unit -> unit
-val decr_flow: unit -> unit
 
 val incr_listen: unit -> unit
 val decr_listen: unit -> unit

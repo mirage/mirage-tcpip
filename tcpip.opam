@@ -55,6 +55,7 @@ depends: [
   "arp" {with-test & >= "2.3.0"}
   "ipaddr-cstruct" {with-test}
   "lru" {>= "0.3.0"}
+  "metrics"
 ]
 depopts: [
   "ocaml-freestanding"

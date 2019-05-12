@@ -5,6 +5,6 @@
   (backend bisect_ppx))
  (libraries logs mirage-protocols ipaddr cstruct lwt-dllist
    mirage-profile tcpip duration randomconv fmt mirage-time mirage-clock
-   mirage-random)
+   mirage-random metrics)
  (preprocess
   (pps ppx_cstruct)))
