@@ -34,6 +34,8 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
   type ipaddr = Ipaddr.V4.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
+  let pp_ipaddr = Ipaddr.V4.pp
+
   type t = {
     ethif : Ethernet.t;
     arp : Arpv4.t;
@@ -209,10 +211,6 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto len
 
   let src t ~dst:_ = t.ip
-
-  type uipaddr = Ipaddr.t
-  let to_uipaddr ip = Ipaddr.V4 ip
-  let of_uipaddr = Ipaddr.to_v4
 
   let mtu t = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 

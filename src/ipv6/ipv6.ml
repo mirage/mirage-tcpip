@@ -30,6 +30,8 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
   type ipaddr   = Ipaddr.V6.t
   type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
 
+  let pp_ipaddr = Ipaddr.V6.pp
+
   type t =
     { ethif : E.t;
       clock : C.t;
@@ -138,10 +140,6 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
     Cstruct.set_uint8 ph 38 0;
     Cstruct.set_uint8 ph 39 (Ipv6_wire.protocol_to_int proto);
     ph
-
-  type uipaddr = I.t
-  let to_uipaddr ip = I.V6 ip
-  let of_uipaddr ip = Some (I.to_v6 ip)
 
   let (>>=?) (x,f) g = match x with
     | Some x -> f x >>= g
