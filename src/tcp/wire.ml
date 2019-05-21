@@ -41,9 +41,8 @@ module Make (Ip:Mirage_protocols_lwt.IP) = struct
   let dst_port t = t.dst_port
 
   let pp ppf t =
-    let uip = Ip.to_uipaddr in
     Fmt.pf ppf "remote %a,%d to local %a, %d"
-      Ipaddr.pp (uip t.dst) t.dst_port Ipaddr.pp (uip t.src) t.src_port
+      Ip.pp_ipaddr t.dst t.dst_port Ip.pp_ipaddr t.src t.src_port
 
   let xmit ~ip { src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false)
       ?(fin=false) ?(psh=false)
