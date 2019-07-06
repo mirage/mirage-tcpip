@@ -1,3 +1,6 @@
+### dev
+* opam: ensure Xen bindings are built with right mirage-xen-ocaml CFLAGS (@avsm)
+
 ### v3.7.5 (2019-05-03)
 
 * drop IPv4 packets which destination address is not us or broadcast (#407 by @hannesm)
