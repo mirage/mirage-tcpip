@@ -19,8 +19,7 @@
  (targets c_flags_xen.sexp)
  (deps
   (:< ../config/discover.exe))
- (action
-  (run %{<} -ocamlc %{ocamlc})))
+ (action (run %{<})))
 
 (rule
  (targets checksum_stubs_xen.c)

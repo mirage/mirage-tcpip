@@ -1,9 +1,4 @@
-open Base
-open Stdio
-module C = Configurator
-
-let write_sexp fn sexp =
-  Out_channel.write_all fn ~data:(Sexp.to_string sexp)
+module C = Configurator.V1
 
 let () =
   (* Extend the pkg-config path rather than overwriting it.
@@ -23,7 +18,8 @@ let () =
       match C.Pkg_config.get c with
       | None -> default
       | Some pc ->
-        Option.value (C.Pkg_config.query pc ~package:"mirage-xen-ocaml") ~default
+        (match C.Pkg_config.query pc ~package:"mirage-xen-ocaml" with
+         | None -> default
+         | Some c -> c)
     in
-
-    write_sexp "c_flags_xen.sexp" (sexp_of_list sexp_of_string conf.cflags))
+    C.Flags.write_sexp "c_flags_xen.sexp" conf.cflags)
