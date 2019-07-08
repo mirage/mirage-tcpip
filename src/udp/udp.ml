@@ -19,8 +19,6 @@ open Lwt.Infix
 let src = Logs.Src.create "udp" ~doc:"Mirage UDP"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let pp_ips = Format.pp_print_list Ipaddr.pp
-
 module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
 
   type 'a io = 'a Lwt.t
@@ -36,8 +34,7 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
     ip : Ip.t;
   }
 
-  let pp_ip fmt a =
-    Ipaddr.pp fmt (Ip.to_uipaddr a)
+  let pp_ip = Ip.pp_ipaddr
 
   (* TODO: ought we to check to make sure the destination is relevant
      here?  Currently we process all incoming packets without making
@@ -83,14 +80,12 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
     writev ?src_port ~dst ~dst_port t [buf]
 
   let connect ip =
-    let ips = List.map Ip.to_uipaddr @@ Ip.get_ip ip in
-    Log.info (fun f -> f "UDP interface connected on %a" pp_ips ips);
+    Log.info (fun f -> f "UDP interface connected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip ip);
     let t = { ip } in
     Lwt.return t
 
   let disconnect t =
-    let ips = List.map Ip.to_uipaddr @@ Ip.get_ip t.ip in
-    Log.info (fun f -> f "UDP interface disconnected on %a" pp_ips ips);
+    Log.info (fun f -> f "UDP interface disconnected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip t.ip);
     Lwt.return_unit
 
 end

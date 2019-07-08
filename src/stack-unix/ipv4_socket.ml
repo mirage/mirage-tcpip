@@ -23,12 +23,10 @@ type error = Mirage_protocols.Ip.error
 type ipaddr = Ipaddr.V4.t
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
-type uipaddr = Ipaddr.t
 
 let pp_error = Mirage_protocols.Ip.pp_error
+let pp_ipaddr = Ipaddr.V4.pp
 
-let to_uipaddr ip = Ipaddr.V4 ip
-let of_uipaddr = Ipaddr.to_v4
 let mtu _ = 1500 - Ipv4_wire.sizeof_ipv4
 
 let id _ = ()
