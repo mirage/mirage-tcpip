@@ -1,4 +1,5 @@
-### dev
+### v3.7.6 (2019-07-08)
+
 * opam: ensure Xen bindings are built with right mirage-xen-ocaml CFLAGS (@avsm)
 * opam: correctly register mirage-xen-ocaml as a depopt (@avsm)
 * use mirage-protocols-3.0 interface for ipaddr printing (#408 @yomimono @linse)
