@@ -700,15 +700,15 @@ struct
   | `Timeout ->
     Log.debug (fun fmt ->
       fmt "Timeout attempting to connect to %a:%d\n%!"
-        Ipaddr.pp (Ip.to_uipaddr daddr) dport)
+        Ip.pp_ipaddr daddr dport)
   | `Refused ->
     Log.debug (fun fmt ->
       fmt "Refused connection to %a:%d\n%!"
-        Ipaddr.pp (Ip.to_uipaddr daddr) dport)
+        Ip.pp_ipaddr daddr dport)
   | e ->
     Log.debug (fun fmt ->
       fmt "%a error connecting to %a:%d\n%!"
-        pp_error e Ipaddr.pp (Ip.to_uipaddr daddr) dport)
+        pp_error e Ip.pp_ipaddr daddr dport)
 
   let create_connection ?keepalive tcp (daddr, dport) =
     connect ?keepalive tcp ~dst:daddr ~dst_port:dport >>= function

@@ -25,10 +25,7 @@ type error = [ `Unimplemented | `Unknown of string ]
 type ipaddr = Ipaddr.V6.t
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
-type uipaddr = Ipaddr.t
 
-let to_uipaddr ip = Ipaddr.V6 ip
-let of_uipaddr ip = Some (Ipaddr.to_v6 ip)
 let mtu _ = 1500 - Ipv6_wire.sizeof_ipv6
 
 let id _ = ()
