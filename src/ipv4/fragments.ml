@@ -124,7 +124,6 @@ let max_number_of_fragments = 16
 let max_duration = Duration.of_sec 10
 
 let process cache ts (packet : Ipv4_packet.t) payload =
-  Log.debug (fun m -> m "process called with off %x" packet.off) ;
   let add_trim key value cache =
     let cache' = Cache.add key value cache in
     Cache.trim cache'
