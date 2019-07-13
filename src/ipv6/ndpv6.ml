@@ -110,16 +110,10 @@ let ipaddr_to_cstruct_raw i cs off =
   Cstruct.BE.set_uint32 cs (12 + off) d
 
 let macaddr_to_cstruct_raw x cs off =
-  Cstruct.blit_from_string (Macaddr.to_bytes x) 0 cs off 6
-
-let macaddr_of_cstruct cs =
-  if Cstruct.len cs <> 6 then invalid_arg "macaddr_of_cstruct";
-  match Macaddr.of_bytes (Cstruct.to_string cs) with
-  | Ok x -> x
-  | Error _ -> assert false
+  Cstruct.blit_from_string (Macaddr.to_octets x) 0 cs off 6
 
 let interface_addr mac =
-  let bmac = Macaddr.to_bytes mac in
+  let bmac = Macaddr.to_octets mac in
   let c i = Char.code (String.get bmac i) in
   Ipaddr.make
     0 0 0 0
@@ -137,7 +131,7 @@ let multicast_mac =
   fun ip ->
     let _, _, _, n = Ipaddr.to_int32 ip in
     Cstruct.BE.set_uint32 pbuf 2 n;
-    Macaddr.of_bytes_exn (Cstruct.to_string pbuf)
+    Macaddr_cstruct.of_cstruct_exn pbuf
 
 (* vary the reachable time by some random factor between 0.5 and 1.5 *)
 let compute_reachable_time r reachable_time =
@@ -746,9 +740,9 @@ module Parser = struct
       let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
       match Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt with
       | 1, 1 ->
-        SLLA (macaddr_of_cstruct (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+        SLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
       | 2, 1 ->
-        TLLA (macaddr_of_cstruct (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+        TLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
       | 5, 1 ->
         MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4)) :: parse_options1 opts
       | 3, 4 ->
