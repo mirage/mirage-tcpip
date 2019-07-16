@@ -33,8 +33,9 @@ depends: [
   "mirage-protocols" {>= "3.0.0"}
   "mirage-protocols-lwt" {>= "3.0.0"}
   "mirage-time-lwt" {>= "1.0.0"}
-  "ipaddr" {>= "3.0.0"}
-  "macaddr"
+  "ipaddr" {>= "4.0.0"}
+  "macaddr" {>="4.0.0"}
+  "macaddr-cstruct"
   "mirage-profile" {>= "0.5"}
   "fmt"
   "lwt" {>= "3.0.0"}

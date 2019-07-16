@@ -1,6 +1,6 @@
 (* RFC 1112: 01-00-5E-00-00-00 ORed with lower 23 bits of the ip address *)
 let mac_of_multicast ip =
-  let ipb = Ipaddr.V4.to_bytes ip in
+  let ipb = Ipaddr.V4.to_octets ip in
   let macb = Bytes.create 6 in
   Bytes.set macb 0 (Char.chr 0x01);
   Bytes.set macb 1 (Char.chr 0x00);
@@ -8,7 +8,7 @@ let mac_of_multicast ip =
   Bytes.set macb 3 (Char.chr ((Char.code ipb.[1]) land 0x7F));
   Bytes.set macb 4 (String.get ipb 2);
   Bytes.set macb 5 (String.get ipb 3);
-  Macaddr.of_bytes_exn (Bytes.to_string macb)
+  Macaddr.of_octets_exn (Bytes.to_string macb)
 
 type routing_error = [ `Local | `Gateway ]
 

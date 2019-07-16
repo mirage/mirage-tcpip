@@ -1,3 +1,7 @@
+### dev
+
+* support ipaddr/macaddr.4.0.0 interfaces (@avsm)
+
 ### v3.7.6 (2019-07-08)
 
 * opam: ensure Xen bindings are built with right mirage-xen-ocaml CFLAGS (@avsm)
