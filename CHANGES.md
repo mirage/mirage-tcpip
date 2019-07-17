@@ -1,6 +1,7 @@
-### dev
+### v3.7.7 (2019-07-16)
 
 * support ipaddr/macaddr.4.0.0 interfaces (@avsm)
+* remove extraneous debug messages from Ipv4.Fragments (@hannesm, #410)
 
 ### v3.7.6 (2019-07-08)
 
