@@ -111,7 +111,7 @@ let basic_reassembly_timeout () =
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Lwt.return_unit
 
-let reassembly_out_of_orfer () =
+let reassembly_out_of_order () =
   let more_frags = { test_packet with off = mf } in
   let off_packet = { test_packet with off = 2 } in
   let cache, res = Fragments.process empty_cache 0L off_packet gray in
@@ -121,7 +121,7 @@ let reassembly_out_of_orfer () =
               (snd @@ Fragments.process cache 0L more_frags black)) ;
   Lwt.return_unit
 
-let reassembly_multiple_out_of_orfer packets final_payload () =
+let reassembly_multiple_out_of_order packets final_payload () =
   let _, res = List.fold_left (fun (cache, res) (off, payload) ->
       Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
       let packet = { test_packet with off } in
@@ -202,6 +202,45 @@ let rec permutations = function
   | x::xs -> List.fold_left (fun acc p -> acc @ ins_all_positions x p ) []
                (permutations xs)
 
+let fragment_simple () =
+  let hdr =
+    { Ipv4_packet.src = Ipaddr.V4.localhost ; dst = Ipaddr.V4.localhost ;
+      id = 0x42 ; off = 0 ; ttl = 10 ; proto = 10 ; options = Cstruct.empty }
+  in
+  let payload = Cstruct.create 1030 in
+  let fs = Fragments.fragment ~mtu:36 hdr payload in
+  (* 16 byte per packet -> 64 fragments (a 16 byte) + 1 (6 byte) *)
+  Alcotest.(check int __LOC__ 65 (List.length fs));
+  let second, last = List.hd fs, List.(hd (rev fs)) in
+  Alcotest.(check int __LOC__ 26 (Cstruct.len last));
+  match
+    Ipv4_packet.Unmarshal.of_cstruct second,
+    Ipv4_packet.Unmarshal.of_cstruct last
+  with
+  | Error e, _ -> Alcotest.fail ("failed to decode second fragment " ^ e)
+  | _, Error e -> Alcotest.fail ("failed to decode last fragment " ^ e)
+  | Ok (hdr, _payload), Ok (hdr', _payload') ->
+    Alcotest.(check int __LOC__ (0x2000 lor 2) hdr.Ipv4_packet.off);
+    Alcotest.(check int __LOC__ 0x42 hdr.Ipv4_packet.id);
+    Alcotest.(check int __LOC__ 130 hdr'.Ipv4_packet.off);
+    Alcotest.(check int __LOC__ 0x42 hdr'.Ipv4_packet.id);
+    let fs' = Fragments.fragment ~mtu:36 hdr (Cstruct.sub payload 0 1024) in
+    (* 16 byte per packet -> 64 fragments (a 16 byte) *)
+    Alcotest.(check int __LOC__ 64 (List.length fs'));
+    let second', last' = List.hd fs', List.(hd (rev fs')) in
+    Alcotest.(check int __LOC__ 36 (Cstruct.len last'));
+    match
+      Ipv4_packet.Unmarshal.of_cstruct second',
+      Ipv4_packet.Unmarshal.of_cstruct last'
+    with
+    | Error e, _ -> Alcotest.fail ("failed to decode second fragment' " ^ e)
+    | _, Error e -> Alcotest.fail ("failed to decode last fragment' " ^ e)
+    | Ok (hdr'', _payload''), Ok (hdr''', _payload''') ->
+      Alcotest.(check int __LOC__ (0x2000 lor 2) hdr''.Ipv4_packet.off);
+      Alcotest.(check int __LOC__ 0x42 hdr''.Ipv4_packet.id);
+      Alcotest.(check int __LOC__ 128 hdr'''.Ipv4_packet.off);
+      Alcotest.(check int __LOC__ 0x42 hdr'''.Ipv4_packet.id)
+
 let suite = [
   "unmarshal ip datagram with options", `Quick, test_unmarshal_with_options;
   "unmarshal ip datagram without options", `Quick, test_unmarshal_without_options;
@@ -212,12 +251,12 @@ let suite = [
     [ 0 ; 1 ; 2 ; 10 ; 100 ; 1000 ; 5000 ; 10000 ] @ [
     "basic reassembly", `Quick, basic_reassembly;
     "basic reassembly timeout", `Quick, basic_reassembly_timeout;
-    "reassembly out of order", `Quick, reassembly_out_of_orfer ;
+    "reassembly out of order", `Quick, reassembly_out_of_order ;
     "other ip flow", `Quick, basic_other_ip_flow ;
     "maximum amount of fragments", `Quick, max_fragment ] @
     List.mapi (fun i (packets, final) ->
       Printf.sprintf "ressembly multiple %d" i, `Quick,
-      reassembly_multiple_out_of_orfer packets final)
+      reassembly_multiple_out_of_order packets final)
     ([
       ([ (mf, white); (2, black) ], Cstruct.concat [white;black]);
       ([ (mf, black); (2, white) ], Cstruct.concat [black;white]);
@@ -259,4 +298,6 @@ let suite = [
       permutations [ (mf, gray); (4 lor mf, white); (4 lor mf, black); (6, gray)] @
       permutations [ (mf, gray); (1 lor mf, white); (3 lor mf, black); (5, gray)] @
       permutations [ (mf, gray); (2 lor mf, white); (4 lor mf, black); (7, gray)]
-    )
+    ) @ [
+    "simple fragment", `Quick, (fun () -> Lwt.return (fragment_simple ()))
+  ]
