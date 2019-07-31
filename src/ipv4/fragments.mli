@@ -33,3 +33,5 @@ val max_duration : int64
 
 val process : Cache.t -> int64 -> Ipv4_packet.t -> Cstruct.t ->
   Cache.t * (Ipv4_packet.t * Cstruct.t) option
+
+val fragment : mtu:int -> Ipv4_packet.t -> Cstruct.t -> Cstruct.t list

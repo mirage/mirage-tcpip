@@ -180,3 +180,38 @@ let process cache ts (packet : Ipv4_packet.t) payload =
           | Error Hole -> maybe_add_to_cache cache', None
         else
           maybe_add_to_cache cache', None
+
+(* TODO hdr.options is a Cstruct.t atm, but instead we need to parse all the
+   options, and distinguish based on the first bit -- only these with the bit
+   set should be copied into all fragments (see RFC 791) *)
+let fragment ~mtu hdr payload =
+  let rec frag1 acc hdr hdr_buf offset data_size payload =
+    let more = Cstruct.len payload > data_size in
+    let hdr' =
+      let off = offset / 8 lor (if more then 0x2000 else 0) in
+      { hdr with Ipv4_packet.off }
+    in
+    let this_payload, rest =
+      if more then Cstruct.split payload data_size else payload, Cstruct.empty
+    in
+    let payload_len = Cstruct.len this_payload in
+    Ipv4_wire.set_ipv4_csum hdr_buf 0;
+    (match Ipv4_packet.Marshal.into_cstruct ~payload_len hdr' hdr_buf with
+     | Error msg -> invalid_arg msg
+     | Ok () -> ());
+    let acc' = Cstruct.append hdr_buf this_payload :: acc in
+    if more then
+      let offset = offset + data_size in
+      (frag1[@tailcall]) acc' hdr hdr_buf offset data_size rest
+    else
+      acc'
+  in
+  let hdr_size =
+    (* padded to 4 byte boundary *)
+    let opt_size = (Cstruct.len hdr.Ipv4_packet.options + 3) / 4 * 4 in
+    opt_size + Ipv4_wire.sizeof_ipv4
+  in
+  let data_size = mtu - hdr_size in
+  assert (data_size mod 8 = 0);
+  assert (data_size > 0);
+  List.rev (frag1 [] hdr (Cstruct.create hdr_size) data_size data_size payload)
