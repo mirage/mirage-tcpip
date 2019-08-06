@@ -214,7 +214,11 @@ let fragment ~mtu hdr payload =
     let opt_size = (Cstruct.len hdr.Ipv4_packet.options + 3) / 4 * 4 in
     opt_size + Ipv4_wire.sizeof_ipv4
   in
-  let data_size = mtu - hdr_size in
-  assert (data_size mod 8 = 0);
-  assert (data_size > 0);
-  List.rev (frag1 [] hdr (Cstruct.create hdr_size) data_size data_size payload)
+  let data_size =
+    let full = mtu - hdr_size in
+    (full / 8) * 8
+  in
+  if data_size <= 0 then
+    []
+  else
+    List.rev (frag1 [] hdr (Cstruct.create hdr_size) data_size data_size payload)
