@@ -1,3 +1,7 @@
+### v3.7.8 (2019-08-12)
+
+* provide Fragments.fragment for the write side of fragmentation, use in Static_ipv4 (#415, @hannesm)
+
 ### v3.7.7 (2019-07-16)
 
 * support ipaddr/macaddr.4.0.0 interfaces (@avsm)
