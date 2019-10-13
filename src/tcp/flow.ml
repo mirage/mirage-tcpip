@@ -668,6 +668,10 @@ struct
           | Error (`No_route _s) ->
             (* normal mechanism for recovery is fine *)
             connecttimer t id tx_isn options window (count + 1)
+          | Error `Would_fragment ->
+            (* this should not happen, if we've a transport that fragments syn.. *)
+            Log.err (fun m -> m "syn retransmission timer returned would fragment");
+            Lwt.return_unit
         )
       else Lwt.return_unit
 
@@ -692,7 +696,7 @@ struct
     Hashtbl.add t.connects id (wakener, tx_isn, keepalive);
     Stats.incr_connect ();
     Tx.send_syn t id ~tx_isn ~options ~window >>= function
-    | Ok () | Error (`No_route _) (* keep trying *) ->
+    | Ok () | Error _ (* keep trying *) ->
       Lwt.async (fun () -> connecttimer t id tx_isn options window 0);
       th
 

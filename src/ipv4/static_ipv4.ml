@@ -26,7 +26,6 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
   type error = [ Mirage_protocols.Ip.error | `Would_fragment | `Ethif of Ethernet.error ]
   let pp_error ppf = function
     | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
-    | `Would_fragment -> Fmt.string ppf "would fragment, but fragmentation is disabled"
     | `Ethif e -> Ethernet.pp_error ppf e
 
   type 'a io = 'a Lwt.t
@@ -178,11 +177,6 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
       Lwt.return t
 
   let disconnect _ = Lwt.return_unit
-
-  let set_ip t ip =
-    t.ip <- ip;
-    (* Inform ARP layer of new IP *)
-    Arpv4.set_ips t.arp [ip]
 
   let get_ip t = [t.ip]
 
