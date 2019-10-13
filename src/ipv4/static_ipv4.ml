@@ -43,7 +43,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
     mutable ip: Ipaddr.V4.t;
     network: Ipaddr.V4.Prefix.t;
     mutable gateway: Ipaddr.V4.t option;
-    mutable cache: Fragments.Cache.t;
+    cache: Fragments.Cache.t;
   }
 
   let write t ?(fragment = true) ?(ttl = 38) ?src dst proto ?(size = 0) headerf bufs =
@@ -151,9 +151,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
         Lwt.return_unit
       end else
         let ts = C.elapsed_ns t.clock in
-        let cache, res = Fragments.process t.cache ts packet payload in
-        t.cache <- cache ;
-        match res with
+        match Fragments.process t.cache ts packet payload with
         | None -> Lwt.return_unit
         | Some (packet, payload) ->
           let src, dst = packet.src, packet.dst in
@@ -175,7 +173,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
       Arpv4.set_ips arp [ip] >>= fun () ->
       (* TODO currently hardcoded to 256KB, should be configurable
          and maybe limited per-src/dst-ip as well? *)
-      let cache = Fragments.Cache.empty (1024 * 256) in
+      let cache = Fragments.Cache.create ~random:true (1024 * 256) in
       let t = { ethif; arp; ip; clock; network; gateway ; cache } in
       Lwt.return t
 

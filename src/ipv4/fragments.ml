@@ -58,16 +58,12 @@ end
 module K = struct
   type t = Ipaddr.V4.t * Ipaddr.V4.t * int * int
 
-  let compare (src, dst, proto, id) (src', dst', proto', id') =
-    let (&&&) a b = match a with 0 -> b | x -> x in
-    let int_cmp : int -> int -> int = compare in
-    Ipaddr.V4.compare src src' &&&
-    Ipaddr.V4.compare dst dst' &&&
-    int_cmp proto proto' &&&
-    int_cmp id id'
+  let equal a b = a = b
+
+  let hash r k = Hashtbl.seeded_hash r k
 end
 
-module Cache = Lru.F.Make(K)(V)
+module Cache = Lru.M.MakeSeeded(K)(V)
 
 (* insert_sorted inserts a fragment in a list, sort is by frag_start, descending *)
 let rec insert_sorted ((frag_start, _) as frag) = function
@@ -125,12 +121,12 @@ let max_duration = Duration.of_sec 10
 
 let process cache ts (packet : Ipv4_packet.t) payload =
   let add_trim key value cache =
-    let cache' = Cache.add key value cache in
-    Cache.trim cache'
+    Cache.add key value cache;
+    Cache.trim cache
   in
   if packet.off land 0x3FFF = 0 then (* ignore reserved and don't fragment *)
     (* fastpath *)
-    cache, Some (packet, payload)
+    Some (packet, payload)
   else
     let offset, more =
       (packet.off land 0x1FFF) lsl 3, (* of 8 byte blocks *)
@@ -141,13 +137,15 @@ let process cache ts (packet : Ipv4_packet.t) payload =
     match Cache.find key cache with
     | None ->
       Log.debug (fun m -> m "%a none found, inserting into cache" Ipv4_packet.pp packet) ;
-      add_trim key v cache, None
+      add_trim key v cache;
+      None
     | Some (ts', options, finished, cnt, frags) ->
       if Int64.sub ts ts' >= max_duration then begin
         Log.warn (fun m -> m "%a found some, but timestamp exceeded duration %a, dropping old segments and inserting new segment into cache" Ipv4_packet.pp packet Duration.pp max_duration) ;
-        add_trim key v cache, None
-      end else
-        let cache' = Cache.promote key cache in
+        add_trim key v cache;
+        None
+      end else begin
+        Cache.promote key cache;
         let all_frags = insert_sorted (offset, payload) frags
         and try_reassemble = finished || not more
         and options' = if offset = 0 then packet.options else options
@@ -167,7 +165,8 @@ let process cache ts (packet : Ipv4_packet.t) payload =
           | Ok p ->
             Log.debug (fun m -> m "%a reassembled to payload %d" Ipv4_packet.pp packet (Cstruct.len p)) ;
             let packet' = { packet with options = options' ; off = 0 } in
-            Cache.remove key cache', Some (packet', p)
+            Cache.remove key cache;
+            Some (packet', p)
           | Error Bad ->
             Log.warn (fun m -> m "%a dropping from cache, bad fragments (%a)"
                          Ipv4_packet.pp packet
@@ -176,10 +175,16 @@ let process cache ts (packet : Ipv4_packet.t) payload =
             Log.debug (fun m -> m "full fragments: %a"
                           Fmt.(list ~sep:(unit "@.") Cstruct.hexdump_pp)
                           (List.map snd all_frags)) ;
-            Cache.remove key cache', None
-          | Error Hole -> maybe_add_to_cache cache', None
-        else
-          maybe_add_to_cache cache', None
+            Cache.remove key cache;
+            None
+          | Error Hole ->
+            maybe_add_to_cache cache;
+            None
+        else begin
+          maybe_add_to_cache cache;
+          None
+        end
+      end
 
 (* TODO hdr.options is a Cstruct.t atm, but instead we need to parse all the
    options, and distinguish based on the first bit -- only these with the bit
