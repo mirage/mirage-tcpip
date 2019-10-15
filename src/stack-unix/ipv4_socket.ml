@@ -16,7 +16,6 @@
 
 open Lwt
 
-type id = string
 type t = Ipaddr.V4.t option
 type +'a io = 'a Lwt.t
 type error = Mirage_protocols.Ip.error
@@ -29,20 +28,12 @@ let pp_ipaddr = Ipaddr.V4.pp
 
 let mtu _ = 1500 - Ipv4_wire.sizeof_ipv4
 
-let id _ = ()
 let disconnect _ = return_unit
 let connect _ = return_unit
 
-let input_arpv4 _ _ = fail (Failure "Not implemented")
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
-let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
 let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ = fail (Failure "Not implemented")
 
 let get_ip _ = [Ipaddr.V4.of_string_exn "0.0.0.0"]
-let set_ip _ _ = fail (Failure "Not implemented")
-let get_ip_netmasks _ = [Ipaddr.V4.of_string_exn "255.255.255.0"]
-let get_ip_gateways _ = raise (Failure "Not implemented")
-let set_ip_netmask _ _ = fail (Failure "Not implemented")
-let set_ip_gateways _ _ = fail (Failure "Not implemented")
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

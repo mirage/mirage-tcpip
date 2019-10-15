@@ -23,14 +23,14 @@ module Make(IP : Mirage_protocols_lwt.IPV4) = struct
 
   let disconnect _ = Lwt.return_unit
 
-  let writev t ~dst bufs =
-    IP.write t.ip dst `ICMP (fun _ -> 0) bufs >|= function
+  let writev t ~dst ?ttl bufs =
+    IP.write t.ip dst ?ttl `ICMP (fun _ -> 0) bufs >|= function
     | Ok () -> Ok ()
     | Error e ->
       Log.warn (fun f -> f "Error sending IP packet: %a" IP.pp_error e);
       Error (`Ip e)
 
-  let write t ~dst buf = writev t ~dst [buf]
+  let write t ~dst ?ttl buf = writev t ~dst ?ttl [buf]
 
   let input t ~src ~dst:_ buf =
     let open Icmpv4_packet in

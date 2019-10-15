@@ -51,7 +51,7 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
       | Some fn ->
         fn ~src ~dst ~src_port payload
 
-  let writev ?src_port ~dst ~dst_port t bufs =
+  let writev ?src_port ?ttl ~dst ~dst_port t bufs =
     let src_port = match src_port with
       | None   -> Randomconv.int ~bound:65535 (fun x -> Random.generate x)
       | Some p -> p
@@ -68,7 +68,7 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
         Logs.err (fun m -> m "error while assembling udp header: %s, ignoring" msg);
         8
     in
-    Ip.write t.ip dst `UDP ~size:8 fill_hdr bufs >|= function
+    Ip.write t.ip dst ?ttl `UDP ~size:8 fill_hdr bufs >|= function
     | Ok () -> Ok ()
     | Error e ->
       Log.err (fun f -> f "IP module couldn't send UDP packet to %a: %a"
@@ -76,8 +76,8 @@ module Make(Ip: Mirage_protocols_lwt.IP)(Random:Mirage_random.C) = struct
       (* we're supposed to make our best effort, and we did *)
       Ok ()
 
-  let write ?src_port ~dst ~dst_port t buf =
-    writev ?src_port ~dst ~dst_port t [buf]
+  let write ?src_port ?ttl ~dst ~dst_port t buf =
+    writev ?src_port ?ttl ~dst ~dst_port t [buf]
 
   let connect ip =
     Log.info (fun f -> f "UDP interface connected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip ip);
