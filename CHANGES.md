@@ -1,3 +1,11 @@
+### v3.7.9 (2019-10-15)
+
+* Add ?ttl:int parameter to Udp and Icmp write (#416 @phaer)
+* Ipv4.Fragments use a Lru.M.t instead of Lru.F.t (#418 @hannesm)
+* Adapt to mirage-protocols 3.1.0 changes (#419 @hannesm)
+  - removed IP.set_ip
+  - added `Would_fragment to Ip.error
+
 ### v3.7.8 (2019-08-12)
 
 * provide Fragments.fragment for the write side of fragmentation, use in Static_ipv4 (#415, @hannesm)
