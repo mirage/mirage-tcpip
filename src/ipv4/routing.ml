@@ -12,7 +12,7 @@ let mac_of_multicast ip =
 
 type routing_error = [ `Local | `Gateway ]
 
-module Make(Log : Logs.LOG) (A : Mirage_protocols_lwt.ARP) = struct
+module Make(Log : Logs.LOG) (A : Mirage_protocols.ARP) = struct
 
   open Lwt.Infix
 

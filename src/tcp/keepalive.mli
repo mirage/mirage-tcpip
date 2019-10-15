@@ -44,11 +44,11 @@ val next: configuration:Mirage_protocols.Keepalive.t -> ns:int64 -> state -> act
     that we last received a packet [ns] nanoseconds ago and the new state
     of the connection *)
 
-module Make(T:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK): sig
+module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK): sig
   type t
   (** A keep-alive timer *)
 
-  val create: Mirage_protocols.Keepalive.t -> ([ `SendProbe | `Close] -> unit Lwt.t) -> Clock.t -> t
+  val create: Mirage_protocols.Keepalive.t -> ([ `SendProbe | `Close] -> unit Lwt.t) -> t
   (** [create configuration f clock] returns a keep-alive timer which will call
       [f] in future depending on both the [configuration] and any calls to
       [refresh] *)

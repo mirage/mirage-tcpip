@@ -1,19 +1,14 @@
 open Lwt.Infix
 
-module Make(E : Mirage_protocols_lwt.ETHERNET)(Time : Mirage_time_lwt.S) = struct
+module Make(E : Mirage_protocols.ETHERNET)(Time : Mirage_time.S) = struct
   module A = Arp.Make(E)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
   type error = Mirage_protocols.Arp.error
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type macaddr = Macaddr.t
-  type ipaddr = Ipaddr.V4.t
-  type repr = string
 
   type t = {
     base : A.t;
-    table : (Ipaddr.V4.t, macaddr) Hashtbl.t;
+    table : (Ipaddr.V4.t, Macaddr.t) Hashtbl.t;
   }
 
   let pp_error = Mirage_protocols.Arp.pp_error
@@ -22,16 +17,11 @@ module Make(E : Mirage_protocols_lwt.ETHERNET)(Time : Mirage_time_lwt.S) = struc
   let set_ips t = A.set_ips t.base
   let get_ips t = A.get_ips t.base
 
-  let to_repr t =
-    let print ip entry acc =
-      let key = Ipaddr.V4.to_string ip in
-      let entry = Macaddr.to_string entry in
-      Printf.sprintf "%sIP %s : MAC %s\n" acc key entry
+  let pp ppf t =
+    let print ip entry =
+      Fmt.pf ppf "IP %a : MAC %a" Ipaddr.V4.pp ip Macaddr.pp entry
     in
-    Lwt.return (Hashtbl.fold print t.table "")
-
-  let pp fmt repr =
-    Format.fprintf fmt "%s" repr
+    Hashtbl.iter print t.table
 
   let connect e = A.connect e >>= fun base ->
     Lwt.return ({ base; table = (Hashtbl.create 7) })

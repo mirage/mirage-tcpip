@@ -50,11 +50,10 @@ let create_sut_stack backend =
   VNETIF_STACK.create_stack backend sut_ip netmask gateway
 
 let create_raw_stack ip backend =
-  Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   A.connect ethif >>= fun arpv4 ->
-  I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway clock ethif arpv4 >>= fun ip ->
+  I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 
 type 'state fsm_result =

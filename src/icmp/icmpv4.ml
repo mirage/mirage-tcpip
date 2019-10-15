@@ -3,10 +3,8 @@ open Lwt.Infix
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP : Mirage_protocols_lwt.IPV4) = struct
+module Make(IP : Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t) = struct
 
-  type buffer = Cstruct.t
-  type 'a io = 'a Lwt.t
   type ipaddr = Ipaddr.V4.t
 
   type t = {

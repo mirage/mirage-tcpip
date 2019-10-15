@@ -155,16 +155,16 @@ let tx_mss t =
 
 module Make(Clock:Mirage_clock.MCLOCK) = struct
   (* Advance transmitted packet sequence number *)
-  let tx_advance clock t b =
+  let tx_advance t b =
     if not t.rtt_timer_on && not t.fast_recovery then begin
       t.rtt_timer_on <- true;
       t.rtt_timer_seq <- t.tx_nxt;
-      t.rtt_timer_starttime <- Clock.elapsed_ns clock;
+      t.rtt_timer_starttime <- Clock.elapsed_ns ();
     end;
     t.tx_nxt <- Sequence.add t.tx_nxt b
 
   (* An ACK was received - use it to adjust cwnd *)
-  let tx_ack clock t r win =
+  let tx_ack t r win =
     set_tx_wnd t win;
     if t.fast_recovery then begin
       if Sequence.gt r t.snd_una then
@@ -182,7 +182,7 @@ module Make(Clock:Mirage_clock.MCLOCK) = struct
         t.snd_una <- r;
         if t.rtt_timer_on && Sequence.gt r t.rtt_timer_seq then begin
           t.rtt_timer_on <- false;
-          let rtt_m = Int64.sub (Clock.elapsed_ns clock) t.rtt_timer_starttime in
+          let rtt_m = Int64.sub (Clock.elapsed_ns ()) t.rtt_timer_starttime in
           if t.rtt_timer_reset then begin
             t.rtt_timer_reset <- false;
             t.rttvar <- Int64.div rtt_m 2L;

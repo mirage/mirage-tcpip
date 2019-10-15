@@ -24,7 +24,7 @@
     the Rtx queue to ack messages or close channels.
 *)
 
-module Rx (T:Mirage_time_lwt.S) : sig
+module Rx (T:Mirage_time.S) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }
   (** Individual received TCP segment *)
@@ -56,7 +56,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) : sig
+module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
 
   type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
@@ -65,7 +65,7 @@ module Tx (Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) : sig
   (** Queue of pre-transmission segments *)
 
   val create:
-    clock:Clock.t -> xmit:('a, 'b) xmit -> wnd:Window.t -> state:State.t ->
+    xmit:('a, 'b) xmit -> wnd:Window.t -> state:State.t ->
     rx_ack:Sequence.t Lwt_mvar.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->
     tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t

@@ -9,7 +9,6 @@ module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
 module Udp = Udp.Make(Ip)(Mirage_random_test)
 
 type stack = {
-  clock : Mclock.t;
   backend : B.t;
   netif : V.t;
   ethif : E.t;
@@ -23,13 +22,12 @@ let get_stack ?(backend = B.create ~use_async_readers:true
   let open Lwt.Infix in
   let network = Ipaddr.V4.Prefix.make 24 ip in
   let gateway = None in
-  Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif >>= fun arp ->
-  Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
+  Ip.connect ~ip ~network ~gateway ethif arp >>= fun ip ->
   Udp.connect ip >>= fun udp ->
-  Lwt.return { clock; backend; netif; ethif; arp; ip; udp }
+  Lwt.return { backend; netif; ethif; arp; ip; udp }
 
 let fails msg f args =
   match f args with

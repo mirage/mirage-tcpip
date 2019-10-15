@@ -28,10 +28,9 @@ let get_stack backend address =
   let ip = [address] in
   let netmask = [Ipaddr.V6.Prefix.make 24 address] in
   let gateways = [] in
-  Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  Ipv6.connect ~ip ~netmask ~gateways ethif clock >>= fun ip ->
+  Ipv6.connect ~ip ~netmask ~gateways ethif >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; ip; udp }
 

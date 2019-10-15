@@ -50,11 +50,10 @@ let get_stack ?(backend = B.create ~use_async_readers:true
                   ip =
   let network = Ipaddr.V4.Prefix.make 24 listener_address in
   let gateway = None in
-  Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif >>= fun arp ->
-  Ip.connect ~ip ~network ~gateway clock ethif arp >>= fun ip ->
+  Ip.connect ~ip ~network ~gateway ethif arp >>= fun ip ->
   Icmp.connect ip >>= fun icmp ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }

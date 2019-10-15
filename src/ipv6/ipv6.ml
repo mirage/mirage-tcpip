@@ -21,20 +21,17 @@ module I = Ipaddr
 
 open Lwt.Infix
 
-module Make (E : Mirage_protocols_lwt.ETHERNET)
-            (R : Mirage_random.C)
-            (T : Mirage_time_lwt.S)
-            (C : Mirage_clock_lwt.MCLOCK) = struct
-  type 'a io    = 'a Lwt.t
-  type buffer   = Cstruct.t
+module Make (E : Mirage_protocols.ETHERNET)
+            (R : Mirage_random.S)
+            (T : Mirage_time.S)
+            (C : Mirage_clock.MCLOCK) = struct
   type ipaddr   = Ipaddr.V6.t
-  type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V6.pp
 
   type t =
     { ethif : E.t;
-      clock : C.t;
       mutable ctx : Ndpv6.context }
 
   type error = [ Mirage_protocols.Ip.error | `Ethif of E.error ]
@@ -50,7 +47,7 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
 
   let start_ticking t =
     let rec loop () =
-      let now = C.elapsed_ns t.clock in
+      let now = C.elapsed_ns () in
       let ctx, outs = Ndpv6.tick ~now t.ctx in
       t.ctx <- ctx;
       Lwt_list.iter_s (output_ign t) outs (* MCP: replace with propagation *) >>= fun () ->
@@ -61,7 +58,7 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
   let mtu t = E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
 
   let write t ?fragment:_ ?ttl:_ ?src:_ dst proto ?(size = 0) headerf bufs =
-    let now = C.elapsed_ns t.clock in
+    let now = C.elapsed_ns () in
     (* TODO fragmentation! *)
     let payload = Cstruct.concat bufs in
     let size' = size + Cstruct.len payload in
@@ -92,7 +89,7 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
     Lwt_list.fold_left_s fail_any (Ok ()) outs
 
   let input t ~tcp ~udp ~default buf =
-    let now = C.elapsed_ns t.clock in
+    let now = C.elapsed_ns () in
     let _, outs, actions = Ndpv6.handle ~now ~random:R.generate t.ctx buf in
     Lwt_list.iter_s (function
         | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
@@ -108,7 +105,7 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
   let src t ~dst = Ndpv6.select_source t.ctx dst
 
   let set_ip t ip =
-    let now = C.elapsed_ns t.clock in
+    let now = C.elapsed_ns () in
     let ctx, outs = Ndpv6.add_ip ~now t.ctx ip in
     t.ctx <- ctx;
     (* MCP: replace the below *)
@@ -118,13 +115,13 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
     Ndpv6.get_ip t.ctx
 
   let set_ip_gateways t ips =
-    let now = C.elapsed_ns t.clock in
+    let now = C.elapsed_ns () in
     let ctx = Ndpv6.add_routers ~now t.ctx ips in
     t.ctx <- ctx;
     Lwt.return_unit
 
   let set_ip_netmask t pfx =
-    let now = C.elapsed_ns t.clock in
+    let now = C.elapsed_ns () in
     let ctx = Ndpv6.add_prefix ~now t.ctx pfx in
     t.ctx <- ctx;
     Lwt.return_unit
@@ -145,11 +142,11 @@ module Make (E : Mirage_protocols_lwt.ETHERNET)
     | Some x -> f x >>= g
     | None -> g ()
 
-  let connect ?ip ?netmask ?gateways ethif clock =
+  let connect ?ip ?netmask ?gateways ethif =
     Log.info (fun f -> f "IP6: Starting");
-    let now = C.elapsed_ns clock in
+    let now = C.elapsed_ns () in
     let ctx, outs = Ndpv6.local ~now ~random:R.generate (E.mac ethif) in
-    let t = {ctx; clock; ethif} in
+    let t = {ctx; ethif} in
     (* MCP: replace this error swallowing with proper propagation *)
     Lwt_list.iter_s (output_ign t) outs >>= fun () ->
     (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->

@@ -20,28 +20,24 @@ let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
-module type UDPV4_DIRECT = Mirage_protocols_lwt.UDPV4
-  with type ipinput = direct_ipv4_input
+module type UDPV4_DIRECT = Mirage_protocols.UDP
+  with type ipaddr = Ipaddr.V4.t
+   and type ipinput = direct_ipv4_input
 
-module type TCPV4_DIRECT = Mirage_protocols_lwt.TCPV4
-  with type ipinput = direct_ipv4_input
+module type TCPV4_DIRECT = Mirage_protocols.TCP
+  with type ipaddr = Ipaddr.V4.t
+   and type ipinput = direct_ipv4_input
 
 module Make
     (Time     : Mirage_time.S)
-    (Random   : Mirage_random.C)
-    (Netif    : Mirage_net_lwt.S)
-    (Ethernet : Mirage_protocols_lwt.ETHERNET)
-    (Arpv4    : Mirage_protocols_lwt.ARP)
-    (Ipv4     : Mirage_protocols_lwt.IPV4)
-    (Icmpv4   : Mirage_protocols_lwt.ICMPV4)
+    (Random   : Mirage_random.S)
+    (Netif    : Mirage_net.S)
+    (Ethernet : Mirage_protocols.ETHERNET)
+    (Arpv4    : Mirage_protocols.ARP)
+    (Ipv4     : Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t)
+    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
     (Udpv4    : UDPV4_DIRECT)
     (Tcpv4    : TCPV4_DIRECT) = struct
-  type +'a io = 'a Lwt.t
-  type buffer = Cstruct.t
-  type ipv4addr = Ipaddr.V4.t
-  type tcpv4 = Tcpv4.t
-  type udpv4 = Udpv4.t
-  type ipv4 = Ipv4.t
 
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4

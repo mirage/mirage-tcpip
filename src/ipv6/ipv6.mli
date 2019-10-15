@@ -14,14 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (E : Mirage_protocols_lwt.ETHERNET)
-            (R : Mirage_random.C)
-            (T : Mirage_time_lwt.S)
-            (Clock : Mirage_clock_lwt.MCLOCK) : sig
-  include Mirage_protocols_lwt.IPV6
+module Make (E : Mirage_protocols.ETHERNET)
+            (R : Mirage_random.S)
+            (T : Mirage_time.S)
+            (Clock : Mirage_clock.MCLOCK) : sig
+  include Mirage_protocols.IP with type ipaddr = Ipaddr.V6.t
   val connect :
     ?ip:Ipaddr.V6.t list ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
-    E.t -> Clock.t -> t Lwt.t
+    E.t -> t Lwt.t
 end

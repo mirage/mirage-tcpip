@@ -20,7 +20,7 @@ open Lwt.Infix
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip:Mirage_protocols_lwt.IP)(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.C) =
+module Make(Ip:Mirage_protocols.IP)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
 struct
 
   module RXS = Segment.Rx(Time)
@@ -71,7 +71,6 @@ struct
 
   type t = {
     ip : Ip.t;
-    clock : Clock.t;
     mutable localport : int;
     channels: (WIRE.t, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
@@ -353,7 +352,7 @@ struct
     let on_close () = clearpcb t id tx_isn in
     let state = State.t ~on_close in
     let txq, _tx_t =
-      TXS.create ~clock:t.clock ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
+      TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
     (* The user application transmit buffer *)
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
@@ -369,7 +368,7 @@ struct
           Log.warn (fun f -> f "using keep-alives can cause excessive memory consumption: https://github.com/mirage/mirage-tcpip/issues/367");
           emitted_keepalive_warning := true
         end;
-        Some (KEEPALIVE.create config (keepalive_cb t id wnd state urx) t.clock) in
+        Some (KEEPALIVE.create config (keepalive_cb t id wnd state urx)) in
     (* Construct basic PCB in Syn_received state *)
     let pcb = { state; rxq; txq; wnd; id; ack; urx; utx; keepalive } in
     (* Compose the overall thread from the various tx/rx threads
@@ -720,14 +719,14 @@ struct
     | Ok (fl, _) -> Lwt.return (Ok fl)
 
   (* Construct the main TCP thread *)
-  let connect ip clock =
+  let connect ip =
     let localport =
       1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Random.generate)
     in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    Lwt.return { clock; ip; localport; channels; listens; connects }
+    Lwt.return { ip; localport; channels; listens; connects }
 
   let disconnect _ = Lwt.return_unit
 end

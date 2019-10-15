@@ -26,7 +26,7 @@ module Rx : sig
   val monitor: t -> int32 Lwt_mvar.t -> unit
 end
 
-module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) : sig
+module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
 
   type t
 
