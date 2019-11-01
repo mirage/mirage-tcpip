@@ -49,11 +49,10 @@ let next ~configuration ~ns state =
       end
   end
 
-  module Make(T:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
+  module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
     type t = {
       configuration: Mirage_protocols.Keepalive.t;
       callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
-      clock: Clock.t;
       mutable state: state;
       mutable timer: unit Lwt.t;
       mutable start: int64;
@@ -62,7 +61,7 @@ let next ~configuration ~ns state =
 
     let rec restart t =
       let open Lwt.Infix in
-      let ns = Int64.sub (Clock.elapsed_ns t.clock) t.start in
+      let ns = Int64.sub (Clock.elapsed_ns ()) t.start in
       match next ~configuration:t.configuration ~ns t.state with
       | `Wait ns, state ->
         T.sleep_ns ns >>= fun () ->
@@ -76,16 +75,16 @@ let next ~configuration ~ns state =
         t.callback `Close >>= fun () ->
         Lwt.return_unit
 
-    let create configuration callback clock =
+    let create configuration callback =
       let state = alive in
       let timer = Lwt.return_unit in
-      let start = Clock.elapsed_ns clock in
-      let t = { configuration; callback; clock; state; timer; start } in
+      let start = Clock.elapsed_ns () in
+      let t = { configuration; callback; state; timer; start } in
       t.timer <- restart t;
       t
 
     let refresh t =
-      t.start <- Clock.elapsed_ns t.clock;
+      t.start <- Clock.elapsed_ns ();
       t.state <- alive;
       Lwt.cancel t.timer;
       t.timer <- restart t

@@ -55,7 +55,7 @@ let rec reset_seq segs =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
 *)
-module Rx(Time:Mirage_time_lwt.S) = struct
+module Rx(Time:Mirage_time.S) = struct
   open Tcp_packet
   module StateTick = State.Make(Time)
 
@@ -232,7 +232,7 @@ type tx_flags = (* At most one of Syn/Fin/Rst/Psh allowed *)
   | Rst
   | Psh
 
-module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
+module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
 
   module StateTick = State.Make(Time)
   module TT = Tcptimer.Make(Time)
@@ -266,7 +266,6 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
                                       with this queue *)
     tx_wnd_update: int Lwt_mvar.t; (* Received updates to the transmit window *)
     rexmit_timer: Tcptimer.t;      (* Retransmission timer for this connection *)
-    clock: Clock.t;                (* whom to ask for the time *)
     mutable dup_acks: int;         (* dup ack count for re-xmits *)
   }
 
@@ -350,7 +349,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
     let rec tx_ack_t () =
       let serviceack dupack ack_len seq win =
         let partleft = clearsegs q ack_len q.segs in
-        TX.tx_ack q.clock q.wnd (Sequence.sub seq partleft) win;
+        TX.tx_ack q.wnd (Sequence.sub seq partleft) win;
         match dupack || Window.fast_rec q.wnd with
         | true ->
           q.dup_acks <- q.dup_acks + 1;
@@ -403,14 +402,14 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
     in
     tx_ack_t ()
 
-  let create ~clock ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
+  let create ~xmit ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update =
     let segs = Lwt_dllist.create () in
     let dup_acks = 0 in
     let expire = ontimer xmit state segs wnd in
     let period_ns = Window.rto wnd in
     let rexmit_timer = TT.t ~period_ns ~expire in
     let q =
-      { clock; xmit; wnd; state; rx_ack; segs; tx_wnd_update;
+      { xmit; wnd; state; rx_ack; segs; tx_wnd_update;
         rexmit_timer; dup_acks }
     in
     let t = rto_t q tx_ack in
@@ -430,7 +429,7 @@ module Tx (Time:Mirage_time_lwt.S) (Clock:Mirage_clock.MCLOCK) = struct
     let seq = Window.tx_nxt wnd in
     let seg = { data; flags; seq } in
     let seq_len = len seg in
-    TX.tx_advance q.clock q.wnd seq_len;
+    TX.tx_advance q.wnd seq_len;
     (* Queue up segment just sent for retransmission if needed *)
     let q_rexmit () =
       match Sequence.(gt seq_len zero) with

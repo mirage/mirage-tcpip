@@ -1,8 +1,6 @@
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
-type buffer = Cstruct.t
-type 'a io = 'a Lwt.t
 
 type t = unit
 

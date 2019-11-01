@@ -20,7 +20,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
-module Make (Ip:Mirage_protocols_lwt.IP) = struct
+module Make (Ip:Mirage_protocols.IP) = struct
 
   type error = Mirage_protocols.Ip.error
 

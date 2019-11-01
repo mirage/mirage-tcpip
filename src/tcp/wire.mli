@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (Ip:Mirage_protocols_lwt.IP) : sig
+module Make (Ip:Mirage_protocols.IP) : sig
 
   type error = Mirage_protocols.Ip.error
   (** The type for TCP wire errors. *)

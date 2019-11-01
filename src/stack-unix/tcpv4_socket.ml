@@ -16,11 +16,9 @@
 
 open Lwt
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
-type +'a io = 'a Lwt.t
-type ipinput = unit io
+type ipinput = unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)

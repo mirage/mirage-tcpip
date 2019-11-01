@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Mirage_protocols_lwt.TCP
+include Mirage_protocols.TCP
   with type ipaddr = Ipaddr.V4.t
    and type ipinput = unit Lwt.t
    and type flow = Lwt_unix.file_descr

@@ -29,8 +29,8 @@ val rx_nxt : t -> Sequence.t
 val rx_nxt_inseq : t -> Sequence.t
 
 module Make(C:Mirage_clock.MCLOCK) : sig
-  val tx_advance : C.t -> t -> Sequence.t -> unit
-  val tx_ack: C.t -> t -> Sequence.t -> int -> unit
+  val tx_advance : t -> Sequence.t -> unit
+  val tx_ack: t -> Sequence.t -> int -> unit
 end
 
 val tx_nxt : t -> Sequence.t

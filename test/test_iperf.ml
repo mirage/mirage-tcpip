@@ -24,10 +24,9 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   module V = VNETIF_STACK (B)
 
-  let netmask = 24
-  let gw = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
-  let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
-  let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
+  let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
+  let client_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.101/24"
+  let server_ip = Ipaddr.V4.Prefix.of_address_string_exn "10.0.0.100/24"
 
   type stats = {
     mutable bytes: int64;
@@ -45,8 +44,8 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   }
 
   let default_network ?(backend = B.create ()) () =
-    V.create_stack backend client_ip netmask gw >>= fun client ->
-    V.create_stack backend server_ip netmask gw >>= fun server ->
+    V.create_stack ~ip:client_ip ~gateway backend >>= fun client ->
+    V.create_stack ~ip:server_ip ~gateway backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =
@@ -118,11 +117,11 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     st.bin_packets <- 0L;
     Lwt.return_unit
 
-  let iperf clock _s server_done_u flow =
+  let iperf _s server_done_u flow =
     (* debug is too much for us here *)
     Logs.set_level ~all:true (Some Logs.Info);
     Logs.info (fun f -> f  "Iperf server: Received connection.");
-    let t0 = Clock.elapsed_ns clock in
+    let t0 = Clock.elapsed_ns () in
     let st = {
       bytes=0L; packets=0L; bin_bytes=0L; bin_packets=0L; start_time = t0;
       last_time = t0
@@ -130,7 +129,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let rec iperf_h flow =
       V.Stackv4.TCPV4.read flow >|= Rresult.R.get_ok >>= function
       | `Eof ->
-        let ts_now = Clock.elapsed_ns clock in
+        let ts_now = Clock.elapsed_ns () in
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
@@ -145,7 +144,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
           st.bin_packets <- (Int64.add st.bin_packets 1L);
-          let ts_now = Clock.elapsed_ns clock in
+          let ts_now = Clock.elapsed_ns () in
           (if (Int64.sub ts_now st.last_time >= 1L) then
              print_data st ts_now
            else
@@ -180,8 +179,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
          Ipaddr.V4.pp (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
          port);
-       Mclock.connect () >>= fun clock ->
-       V.Stackv4.listen_tcpv4 server_s ~port (iperf clock server_s server_done_u);
+       V.Stackv4.listen_tcpv4 server_s ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->
 

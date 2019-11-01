@@ -21,26 +21,18 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 type socket_ipv4_input = unit Lwt.t
 
-module type UDPV4_SOCKET = Mirage_protocols_lwt.UDP
+module type UDPV4_SOCKET = Mirage_protocols.UDP
   with type ipinput = socket_ipv4_input
 
-module type TCPV4_SOCKET = Mirage_protocols_lwt.TCP
+module type TCPV4_SOCKET = Mirage_protocols.TCP
   with type ipinput = socket_ipv4_input
 
 module Tcpv4 = Tcpv4_socket
 module Udpv4 = Udpv4_socket
 
-type +'a io = 'a Lwt.t
-type buffer = Cstruct.t
-type ipv4addr = Ipaddr.V4.t
-
 module TCPV4 = Tcpv4_socket
 module UDPV4 = Udpv4_socket
 module IPV4  = Ipv4_socket
-
-type udpv4 = Udpv4_socket.t
-type tcpv4 = Tcpv4_socket.t
-type ipv4  = Ipaddr.V4.t option
 
 type t = {
   udpv4 : Udpv4.t;

@@ -37,8 +37,8 @@ module Sequence = Tcp.Sequence
 
 let sut_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
 let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
-let netmask = 24
-let gateway = Some (Ipaddr.V4.of_string_exn "10.0.0.1")
+let network = Ipaddr.V4.Prefix.make 24 server_ip
+let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
 
 let header_size = Ethernet_wire.sizeof_ethernet
 
@@ -47,14 +47,13 @@ let options = []
 let window = 5120
 
 let create_sut_stack backend =
-  VNETIF_STACK.create_stack backend sut_ip netmask gateway
+  VNETIF_STACK.create_stack ~ip:(network, sut_ip) ~gateway backend
 
 let create_raw_stack ip backend =
-  Mclock.connect () >>= fun clock ->
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   A.connect ethif >>= fun arpv4 ->
-  I.connect ~ip ~network:(Ipaddr.V4.Prefix.make netmask ip) ~gateway clock ethif arpv4 >>= fun ip ->
+  I.connect ~ip:(network, ip) ~gateway ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 
 type 'state fsm_result =

@@ -14,12 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (IP:Mirage_protocols_lwt.IP)
-            (TM:Mirage_time_lwt.S)
+module Make (IP:Mirage_protocols.IP)
+            (TM:Mirage_time.S)
             (C:Mirage_clock.MCLOCK)
-            (R:Mirage_random.C) : sig
-  include Mirage_protocols_lwt.TCP
+            (R:Mirage_random.S) : sig
+  include Mirage_protocols.TCP
     with type ipaddr = IP.ipaddr
      and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
-  val connect : IP.t -> C.t -> t Lwt.t
+  val connect : IP.t -> t Lwt.t
 end

@@ -111,7 +111,7 @@ end
    to decide how to throttle or breakup its data production with this
    information.
 *)
-module Tx(Time:Mirage_time_lwt.S)(Clock:Mirage_clock.MCLOCK) = struct
+module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
 
   module TXS = Segment.Tx(Time)(Clock)
 

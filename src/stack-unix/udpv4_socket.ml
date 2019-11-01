@@ -14,15 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
-type +'a io = 'a Lwt.t
 type ip = Ipaddr.V4.t option (* source ip and port *)
 type ipinput = unit Lwt.t
-type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> buffer -> unit io
+type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr; (* source ip to bind to *)
@@ -53,10 +51,9 @@ let connect (id:ip) =
       | None -> Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any
       | Some ip -> Ipaddr_unix.V4.to_inet_addr ip
     in { interface; listen_fds }
-  in return t
+  in Lwt.return t
 
-let disconnect _ =
-  return_unit
+let disconnect _ = Lwt.return_unit
 
 let id { interface; _ } =
   Some (Ipaddr_unix.V4.of_inet_addr_exn interface)
@@ -72,8 +69,8 @@ let write ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let rec write_to_fd fd buf =
     Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
     >>= function
-    | n when n = Cstruct.len buf -> return @@ Ok ()
-    | 0 -> return @@ Error `Sendto_failed
+    | n when n = Cstruct.len buf -> Lwt.return @@ Ok ()
+    | 0 -> Lwt.return @@ Error `Sendto_failed
     | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
   in
   ( match src_port with

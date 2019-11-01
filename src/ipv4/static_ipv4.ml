@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_protocols_lwt.ETHERNET) (Arpv4 : Mirage_protocols_lwt.ARP) = struct
+module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_protocols.ETHERNET) (Arpv4 : Mirage_protocols.ARP) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
@@ -28,17 +28,14 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
     | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
     | `Ethif e -> Ethernet.pp_error ppf e
 
-  type 'a io = 'a Lwt.t
-  type buffer = Cstruct.t
   type ipaddr = Ipaddr.V4.t
-  type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit Lwt.t
+  type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V4.pp
 
   type t = {
     ethif : Ethernet.t;
     arp : Arpv4.t;
-    clock : C.t;
     mutable ip: Ipaddr.V4.t;
     network: Ipaddr.V4.Prefix.t;
     mutable gateway: Ipaddr.V4.t option;
@@ -149,7 +146,7 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
         Log.debug (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
         Lwt.return_unit
       end else
-        let ts = C.elapsed_ns t.clock in
+        let ts = C.elapsed_ns () in
         match Fragments.process t.cache ts packet payload with
         | None -> Lwt.return_unit
         | Some (packet, payload) ->
@@ -159,22 +156,12 @@ module Make (R: Mirage_random.C) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | Some `UDP -> udp ~src ~dst payload
           | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
-  let connect
-      ?(ip=Ipaddr.V4.any)
-      ?(network=Ipaddr.V4.Prefix.make 0 Ipaddr.V4.any)
-      ?(gateway=None) clock ethif arp =
-    match Ipaddr.V4.Prefix.mem ip network with
-    | false ->
-      Log.warn (fun f -> f "IPv4: ip %a is not in the prefix %a"
-                   Ipaddr.V4.pp ip Ipaddr.V4.Prefix.pp network);
-      Lwt.fail_with "given IP is not in the network provided"
-    | true ->
-      Arpv4.set_ips arp [ip] >>= fun () ->
-      (* TODO currently hardcoded to 256KB, should be configurable
-         and maybe limited per-src/dst-ip as well? *)
-      let cache = Fragments.Cache.create ~random:true (1024 * 256) in
-      let t = { ethif; arp; ip; clock; network; gateway ; cache } in
-      Lwt.return t
+  let connect ~ip:(network, ip) ?gateway ethif arp =
+    Arpv4.set_ips arp [ip] >>= fun () ->
+    (* TODO currently hardcoded to 256KB, should be configurable
+          and maybe limited per-src/dst-ip as well? *)
+    let cache = Fragments.Cache.create ~random:true (1024 * 256) in
+    Lwt.return { ethif; arp; ip; network; gateway ; cache }
 
   let disconnect _ = Lwt.return_unit
 
