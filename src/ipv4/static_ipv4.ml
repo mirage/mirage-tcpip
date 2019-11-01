@@ -156,11 +156,12 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | Some `UDP -> udp ~src ~dst payload
           | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
-  let connect ~ip:(network, ip) ?gateway ethif arp =
+  let connect
+      ~ip:(network, ip) ?gateway ?(fragment_cache_size = 1024 * 256) ethif arp =
     Arpv4.set_ips arp [ip] >>= fun () ->
     (* TODO currently hardcoded to 256KB, should be configurable
           and maybe limited per-src/dst-ip as well? *)
-    let cache = Fragments.Cache.create ~random:true (1024 * 256) in
+    let cache = Fragments.Cache.create ~random:true fragment_cache_size in
     Lwt.return { ethif; arp; ip; network; gateway ; cache }
 
   let disconnect _ = Lwt.return_unit

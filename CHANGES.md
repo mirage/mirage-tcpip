@@ -1,3 +1,18 @@
+### v4.0.0 (2019-11-01)
+
+* Adapt to mirage-protocols 4.0.0, mirage-net 3.0.0, mirage-time 2.0.0,
+  mirage-clock 3.0.0, mirage-stack 2.0.0 interface changes (#420 @hannesm)
+* Revise Static_ipv4.connect signature (for more safety):
+  val connect : ip:(Ipaddr.V4.Prefix.t * Ipaddr.V4.t) -> ?gateway:Ipaddr.V4.t ->
+                ?fragment_cache_size:int -> E.t -> A.t -> t Lwt.t
+  it used to be:
+  val connect : ?ip:Ipaddr.V4.t -> ?network:Ipaddr.V4.Prefix.t ->
+                ?gateway:Ipaddr.V4.t option -> C.t -> E.t -> A.t -> t Lwt.t
+  The clock `C.t` is gone (due to mirage-clock 3.0.0), `~ip` and `~network` are
+  now required and passed as pair `~ip`. The optional argument `?gateway` is
+  of type Ipaddr.V4.t. The new optional labeled argument `~fragment_cache_size`
+  specifies the byte size of the IPv4 fragment cache (#420 @hannesm)
+
 ### v3.7.9 (2019-10-15)
 
 * Add ?ttl:int parameter to Udp and Icmp write (#416 @phaer)
