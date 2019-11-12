@@ -5,7 +5,6 @@ sudo: false
 env:
   global:
   - POST_INSTALL_HOOK="sh ./.travis-ci.sh"
-  - EXTRA_REMOTES="https://github.com/hannesm/mirage-dev.git#easy"
   - PACKAGE=tcpip
   matrix:
   - DISTRO=alpine OCAML_VERSION=4.06 EXTRA_ENV="MIRAGE_MODE=xen"
