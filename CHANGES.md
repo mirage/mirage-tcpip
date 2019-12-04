@@ -1,3 +1,7 @@
+### dev
+
+* Add a dependency on dune-configurator to support dune 2.0.0 (@avsm)
+
 ### v4.0.0 (2019-11-01)
 
 * Adapt to mirage-protocols 4.0.0, mirage-net 3.0.0, mirage-time 2.0.0,
