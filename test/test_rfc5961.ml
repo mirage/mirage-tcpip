@@ -100,7 +100,7 @@ let run backend fsm sut () =
             ~ipv6:(fun _buf ->
               Logs.debug (fun f -> f "IPv6 packet -- dropping");
               Lwt.return_unit)
-            ethif) ));
+            ethif) ) >|= fun _ -> ());
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
   Lwt.pick [
