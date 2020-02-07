@@ -64,88 +64,69 @@ let gray =
   Cstruct.memset buf 0x55 ;
   buf
 
-let below_max = Int64.sub Fragments.max_duration 1L
+let empty_cache = Fragments.Cache.empty 1000
 
 let basic_fragments payload () =
-  let cache = Fragments.Cache.create 1000 in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               (Some (test_packet, payload))
-              (Fragments.process cache 0L test_packet payload));
+              (snd @@ Fragments.process empty_cache 0L test_packet payload)) ;
   let off_packet = { test_packet with off = 1 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               None
-              (Fragments.process cache 0L off_packet payload));
+              (snd @@ Fragments.process empty_cache 0L off_packet payload)) ;
   Lwt.return_unit
 
 let basic_reassembly () =
-  let empty_cache = Fragments.Cache.create 1000 in
   let more_frags = { test_packet with off = mf } in
-  let res = Fragments.process empty_cache 0L more_frags black in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let off_packet = { test_packet with off = 2 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) "reassembly of two segments works"
               (Some (test_packet, Cstruct.append black white))
-              (Fragments.process empty_cache 0L off_packet white));
+              (snd @@ Fragments.process cache 0L off_packet white)) ;
   Lwt.return_unit
 
 let basic_reassembly_timeout () =
-  let cache = Fragments.Cache.create 1000 in
   let more_frags = { test_packet with off = mf } in
-  let res = Fragments.process cache 0L more_frags black in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let off_packet = { test_packet with off = 2 } in
+  let below_max = Int64.sub Fragments.max_duration 1L in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) "even after just before max duration"
+              (Some (test_packet, Cstruct.append black white))
+              (snd @@ Fragments.process cache below_max off_packet white)) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) "none after max duration"
               None
-              (Fragments.process cache Fragments.max_duration off_packet white));
-  Lwt.return_unit
-
-let multiple_reassembly () =
-  let cache = Fragments.Cache.create 1000 in
-  let more_frags = { test_packet with off = mf } in
-  let res = Fragments.process cache 0L more_frags black in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+              (snd @@ Fragments.process cache Fragments.max_duration off_packet white)) ;
   let more_off_packet = { test_packet with off = mf lor 2 } in
-  let res = Fragments.process cache below_max more_off_packet gray in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let cache, res = Fragments.process cache below_max more_off_packet gray in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   let final_packet = { test_packet with off = 4 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               (Some (test_packet, Cstruct.concat [ black; gray; white]))
-              (Fragments.process cache below_max final_packet white));
-  Lwt.return_unit
-
-let multiple_reassembly_timeout () =
-  let cache = Fragments.Cache.create 1000 in
-  let more_frags = { test_packet with off = mf } in
-  let res = Fragments.process cache 0L more_frags black in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
-  let more_off_packet = { test_packet with off = mf lor 2 } in
-  let res = Fragments.process cache below_max more_off_packet gray in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
-  let final_packet = { test_packet with off = 4 } in
+              (snd @@ Fragments.process cache below_max final_packet white)) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               None
-              (Fragments.process cache Fragments.max_duration final_packet white));
+              (snd @@ Fragments.process cache Fragments.max_duration off_packet white)) ;
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Lwt.return_unit
 
 let reassembly_out_of_order () =
-  let cache = Fragments.Cache.create 1000 in
   let more_frags = { test_packet with off = mf } in
   let off_packet = { test_packet with off = 2 } in
-  let res = Fragments.process cache 0L off_packet gray in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let cache, res = Fragments.process empty_cache 0L off_packet gray in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) "reassembly of two segments works"
               (Some (test_packet, Cstruct.append black gray))
-              (Fragments.process cache 0L more_frags black));
+              (snd @@ Fragments.process cache 0L more_frags black)) ;
   Lwt.return_unit
 
 let reassembly_multiple_out_of_order packets final_payload () =
-  let cache = Fragments.Cache.create 1000 in
-  let res = List.fold_left (fun res (off, payload) ->
-      Alcotest.(check (option (pair ipv4_packet cstruct))
-                  __LOC__ None res);
+  let _, res = List.fold_left (fun (cache, res) (off, payload) ->
+      Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
       let packet = { test_packet with off } in
       Fragments.process cache 0L packet payload)
-      None packets
+      (empty_cache, None) packets
   in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               (Some (test_packet, final_payload))
@@ -153,63 +134,59 @@ let reassembly_multiple_out_of_order packets final_payload () =
   Lwt.return_unit
 
 let basic_overlaps () =
-  let cache = Fragments.Cache.create 1000 in
   let more_frags = { test_packet with off = mf } in
   let off_packet = { test_packet with off = 1 } in
-  let res = Fragments.process cache 0L off_packet black in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let cache, res = Fragments.process empty_cache 0L off_packet black in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (Fragments.process cache 0L more_frags white));
+              (snd @@ Fragments.process cache 0L more_frags white)) ;
   Lwt.return_unit
 
 let basic_other_ip_flow () =
-  let cache = Fragments.Cache.create 1000 in
   let more_frags = { test_packet with off = mf } in
-  let res = Fragments.process cache 0L more_frags black in
+  let cache, res = Fragments.process empty_cache 0L more_frags black in
   let off_packet = { test_packet with off = 2 ; src = Ipaddr.V4.of_string_exn "127.0.0.2" } in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (Fragments.process cache 0L off_packet white));
+              (snd @@ Fragments.process cache 0L off_packet white)) ;
   let off_packet' = { test_packet with off = 2 ; proto = 25 } in
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None
-              (Fragments.process cache 0L off_packet' white));
+              (snd @@ Fragments.process cache 0L off_packet' white)) ;
   Lwt.return_unit
 
 let max_fragment () =
-  let cache = Fragments.Cache.create 1000 in
   let all_16 = [ white; gray; black; white;
                  white; gray; black; white;
                  white; gray; black; white;
                  white; gray; black ; gray ]
   in
-  let res, off =
-    List.fold_left (fun (res, off) payload ->
-        Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let (cache, res), off =
+    List.fold_left (fun ((cache, res), off) payload ->
+        Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
         let r = Fragments.process cache 0L { test_packet with off = off lor mf } payload in
         (r, Cstruct.len payload / 8 + off))
-      (None, 0)
+      ((empty_cache, None), 0)
       all_16
   in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               (Some (test_packet, Cstruct.concat (all_16 @ [white ])))
-              (Fragments.process cache 0L { test_packet with off } white));
-  let res = Fragments.process cache 0L { test_packet with off = off lor mf } white in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+              (snd @@ Fragments.process cache 0L { test_packet with off } white)) ;
+  let cache, res = Fragments.process cache 0L { test_packet with off = off lor mf } white in
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__
               None
-              (Fragments.process cache 0L { test_packet with off = off + 2 } black));
+              (snd @@ Fragments.process cache 0L { test_packet with off = off + 2 } black)) ;
   Lwt.return_unit
 
 let none_returned packets () =
-  let cache = Fragments.Cache.create 1000 in
-  let res = List.fold_left (fun res (off, payload) ->
-      Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  let _, res = List.fold_left (fun (cache, res) (off, payload) ->
+      Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
       let packet = { test_packet with off } in
       Fragments.process cache 0L packet payload)
-      None packets
+      (empty_cache, None) packets
   in
-  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res);
+  Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
   Lwt.return_unit
 
 let ins_all_positions x l =
@@ -274,8 +251,6 @@ let suite = [
     [ 0 ; 1 ; 2 ; 10 ; 100 ; 1000 ; 5000 ; 10000 ] @ [
     "basic reassembly", `Quick, basic_reassembly;
     "basic reassembly timeout", `Quick, basic_reassembly_timeout;
-    "multiple reassembly", `Quick, multiple_reassembly;
-    "multiple reassembly timeout", `Quick, multiple_reassembly_timeout;
     "reassembly out of order", `Quick, reassembly_out_of_order ;
     "other ip flow", `Quick, basic_other_ip_flow ;
     "maximum amount of fragments", `Quick, max_fragment ] @
