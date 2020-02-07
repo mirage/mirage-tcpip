@@ -51,7 +51,6 @@ let send_echo_requests ~stack ~payload ~dst () =
 (* Return a thread and a receiver callback. The thread is woken up when we have
    received [count] packets *)
 let make_receiver ~count ~payload () =
-  let open Lwt.Infix in
   let finished_t, finished_u = Lwt.task () in
   let callback buf =
     Log.debug (fun f -> f "Received IP %a" Cstruct.hexdump_pp buf);
@@ -70,7 +69,7 @@ let make_receiver ~count ~payload () =
           | Next_hop_mtu _ | Pointer _ | Address _ | Unused ->
             Log.err (fun f -> f "received an ICMP message which wasn't an echo-request or reply");
             Lwt.return_unit
-          | Id_and_seq (id, seq) ->
+          | Id_and_seq (_id, seq) ->
             if reply.code <> 0
             then Log.err (fun f -> f "received an ICMP ECHO_REQUEST with reply.code=%d" reply.code);
             if not(Cstruct.equal payload received_payload)
