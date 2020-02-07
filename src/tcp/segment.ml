@@ -307,7 +307,10 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
                   fmt "TCP retransmission triggered by timer! seq = %d"
                     (Sequence.to_int rexmit_seg.seq));
               Lwt.async
-                (fun () -> xmit ~flags ~wnd ~options ~seq rexmit_seg.data);
+                (fun () ->
+                   xmit ~flags ~wnd ~options ~seq rexmit_seg.data
+                   (* TODO should this return value really be ignored? *)
+                   >|= fun (_: ('a,'b) result) -> () );
               Window.alert_fast_rexmit wnd rexmit_seg.seq;
               Window.backoff_rto wnd;
               Log.debug (fun fmt -> fmt "Backed off! %a" Window.pp wnd);
