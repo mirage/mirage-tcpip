@@ -9,11 +9,6 @@ let pp_error ppf (`Ip s) = Fmt.string ppf s
 
 let is_win32 = Sys.os_type = "Win32"
 
-let sock_icmp =
-  (* Windows uses SOCK_RAW protocol 1 for ICMP
-     Unix uses SOCK_DGRAM protocol 1 for ICMP *)
-  if is_win32 then Lwt_unix.SOCK_RAW else Lwt_unix.SOCK_DGRAM
-
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 let port = 0 (* port isn't meaningful in this context *)
 
@@ -52,7 +47,7 @@ let write _t ~dst ?ttl:_ttl buf =
   let flags = [] in
   let ipproto_icmp = 1 in (* according to BSD /etc/protocols *)
   let port = 0 in (* port isn't meaningful in this context *)
-  let fd = socket PF_INET sock_icmp ipproto_icmp in
+  let fd = socket PF_INET SOCK_RAW ipproto_icmp in
   let in_addr = Unix.inet_addr_of_string (Ipaddr.V4.to_string dst) in
   let sockaddr = ADDR_INET (in_addr, port) in
   Lwt.catch (fun () ->
@@ -83,7 +78,7 @@ let input t ~src ~dst:_ buf =
     | _, _ -> Lwt.return_unit
 
 let listen _t addr fn =
-  let fd = Lwt_unix.socket PF_INET sock_icmp ipproto_icmp in
+  let fd = Lwt_unix.socket PF_INET SOCK_RAW ipproto_icmp in
   Lwt.finalize
     (fun () ->
       let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
