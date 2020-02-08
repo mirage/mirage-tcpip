@@ -1,6 +1,15 @@
-### dev
+### v4.1.0 (2020-02-08)
 
-* Add a dependency on dune-configurator to support dune 2.0.0 (@avsm)
+* Revert "Ipv4.Fragments use a Lru.M.t instead of Lru.F.t" (#423 by @hannesm)
+  A Lru.M.t allocates a Hashtbl.t of size = capacity (= 256 * 1024 in our case),
+  this leads to excessive ~2MB memory consumption for each Fragment cache,
+  reported by @xaki23 in mirage/qubes-mirage-firewall#93
+* use SOCK_RAW for an ICMP socket in the unix sockets API (previously used
+  SOCK_DGRAM which did not work)
+  reported by @justinc1 in #358, fixed in #424 by @hannesm
+* tcp is now compatible with lwt >= 5.0.0 (where Lwt.async requires a function
+  of (unit -> unit Lwt.t) (#370 #425 @cfcs @hannesm, issue #392 @emillon)
+* Add a dependency on dune-configurator to support dune 2.0.0 (#421 @avsm)
 
 ### v4.0.0 (2019-11-01)
 
