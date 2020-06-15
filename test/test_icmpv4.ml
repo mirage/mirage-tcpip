@@ -48,11 +48,11 @@ let header_size = Ethernet_wire.sizeof_ethernet
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt_main.yield ()) ())
                   ip =
-  let network = Ipaddr.V4.Prefix.make 24 listener_address in
+  let cidr = Ipaddr.V4.Prefix.make 24 ip in
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif >>= fun arp ->
-  Ip.connect ~ip:(network, ip) ethif arp >>= fun ip ->
+  Ip.connect ~cidr ethif arp >>= fun ip ->
   Icmp.connect ip >>= fun icmp ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; arp; ip; icmp; udp }

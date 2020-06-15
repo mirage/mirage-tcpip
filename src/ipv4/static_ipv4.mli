@@ -17,10 +17,10 @@
 module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (E: Mirage_protocols.ETHERNET) (A: Mirage_protocols.ARP) : sig
   include Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t
 
-  val connect : ip:(Ipaddr.V4.Prefix.t * Ipaddr.V4.t) -> ?gateway:Ipaddr.V4.t ->
+  val connect : cidr:Ipaddr.V4.Prefix.t -> ?gateway:Ipaddr.V4.t ->
     ?fragment_cache_size:int -> E.t -> A.t -> t Lwt.t
-  (** [connect ~ip ~gateway ~fragment_cache_size eth arp] connects the ipv4
-      device using [ip] and [gateway] for network communication. The size of
+  (** [connect ~cidr ~gateway ~fragment_cache_size eth arp] connects the ipv4
+      device using [cidr] and [gateway] for network communication. The size of
       the IPv4 fragment cache (for reassembly) can be provided in byte-size of
       fragments (defaults to 256kB). *)
 end
