@@ -37,13 +37,14 @@ struct
   type stack = TCPIP.t
 
   let server_ip = Ipaddr.V4.of_string_exn "192.168.10.10"
+  let server_cidr = Ipaddr.V4.Prefix.make 24 server_ip
   let client_ip = Ipaddr.V4.of_string_exn "192.168.10.20"
-  let network   = Ipaddr.V4.Prefix.make 24 server_ip
+  let client_cidr = Ipaddr.V4.Prefix.make 24 client_ip
 
-  let make ~ip ?gateway netif =
+  let make ~cidr ?gateway netif =
     ETHIF.connect netif >>= fun ethif ->
     ARPV4.connect ethif >>= fun arpv4 ->
-    IPV4.connect ~ip:(network, ip) ?gateway ethif arpv4 >>= fun ipv4 ->
+    IPV4.connect ~cidr ?gateway ethif arpv4 >>= fun ipv4 ->
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
     UDPV4.connect ipv4 >>= fun udpv4 ->
     TCPV4.connect ipv4 >>= fun tcpv4 ->
@@ -55,8 +56,8 @@ struct
   let tcpip t = t
 
   let make role netif = match role with
-    | `Server -> make ~ip:server_ip netif
-    | `Client -> make ~ip:client_ip netif
+    | `Server -> make ~cidr:server_cidr netif
+    | `Client -> make ~cidr:client_cidr netif
 
   type conn = M.NETIF.t
 

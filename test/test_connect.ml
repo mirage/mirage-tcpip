@@ -26,9 +26,8 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
-  let client_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
-  let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
-  let network = Ipaddr.V4.Prefix.make 24 client_ip
+  let client_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
+  let server_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.100/24"
   let test_string = "Hello world from Mirage 123456789...."
   let backend = V.create_backend ()
 
@@ -62,16 +61,16 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
       (Lwt_unix.sleep timeout >>= fun () ->
        failf "connect test timedout after %f seconds" timeout) ;
 
-      (V.create_stack ~ip:(network, server_ip) ~gateway backend >>= fun s1 ->
+      (V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
        V.Stackv4.listen_tcpv4 s1 ~port:80 (fun f -> accept f test_string);
        V.Stackv4.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
-       V.create_stack ~ip:(network, client_ip) ~gateway backend >>= fun s2 ->
+       V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
        Lwt.pick [
        V.Stackv4.listen s2;
        (let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
-       or_error "connect" conn (server_ip, 80) >>= fun flow ->
+       or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80) >>= fun flow ->
        Log.debug (fun f -> f "Connected to other end...");
 
        V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function

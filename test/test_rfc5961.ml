@@ -35,9 +35,9 @@ module Tcp_wire = Tcp.Tcp_wire
 module Tcp_unmarshal = Tcp.Tcp_packet.Unmarshal
 module Sequence = Tcp.Sequence
 
-let sut_ip = Ipaddr.V4.of_string_exn "10.0.0.101"
+let sut_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
 let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
-let network = Ipaddr.V4.Prefix.make 24 server_ip
+let server_cidr = Ipaddr.V4.Prefix.make 24 server_ip
 let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
 
 let header_size = Ethernet_wire.sizeof_ethernet
@@ -47,13 +47,13 @@ let options = []
 let window = 5120
 
 let create_sut_stack backend =
-  VNETIF_STACK.create_stack ~ip:(network, sut_ip) ~gateway backend
+  VNETIF_STACK.create_stack ~cidr:sut_cidr ~gateway backend
 
-let create_raw_stack ip backend =
+let create_raw_stack backend =
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   A.connect ethif >>= fun arpv4 ->
-  I.connect ~ip:(network, ip) ~gateway ethif arpv4 >>= fun ip ->
+  I.connect ~cidr:server_cidr ~gateway ethif arpv4 >>= fun ip ->
   Lwt.return (netif, ethif, arpv4, ip)
 
 type 'state fsm_result =
@@ -67,7 +67,7 @@ type 'state fsm_result =
 let run backend fsm sut () =
   let initial_state, fsm_handler = fsm in
   create_sut_stack backend >>= fun stackv4 ->
-  create_raw_stack server_ip backend >>= fun (netif, ethif, arp, rawip) ->
+  create_raw_stack backend >>= fun (netif, ethif, arp, rawip) ->
   let error_mbox = Lwt_mvar.create_empty () in
   let stream, pushf = Lwt_stream.create () in
   Lwt.pick [

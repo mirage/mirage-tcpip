@@ -1,8 +1,7 @@
 open Lwt.Infix
 
-let server_ip = Ipaddr.V4.of_string_exn "192.168.1.254"
-let client_ip = Ipaddr.V4.of_string_exn "192.168.1.10"
-let network = Ipaddr.V4.Prefix.make 24 server_ip
+let server_cidr = Ipaddr.V4.Prefix.of_string_exn "192.168.1.254/24"
+let client_cidr = Ipaddr.V4.Prefix.of_string_exn "192.168.1.10/24"
 
 let server_port = 7
 
@@ -34,8 +33,8 @@ let read_one flow =
 let get_stacks ?client_mtu ?server_mtu backend =
   let or_default = function | None -> default_mtu | Some n -> n in
   let client_mtu, server_mtu = or_default client_mtu, or_default server_mtu in
-  Stack.create_stack ~ip:(network, client_ip) ~mtu:client_mtu backend >>= fun client ->
-  Stack.create_stack ~ip:(network, server_ip) ~mtu:server_mtu backend >>= fun server ->
+  Stack.create_stack ~cidr:client_cidr ~mtu:client_mtu backend >>= fun client ->
+  Stack.create_stack ~cidr:server_cidr ~mtu:server_mtu backend >>= fun server ->
   let max_mtu = max client_mtu server_mtu in
   Backend.set_mtu max_mtu;
   Lwt.return (server, client)
@@ -45,7 +44,7 @@ let start_server ~f server =
   Stack.Stackv4.listen server
 
 let start_client client =
-  Stack.Stackv4.TCPV4.create_connection (Stack.Stackv4.tcpv4 client) (server_ip, server_port) >>= function
+  Stack.Stackv4.TCPV4.create_connection (Stack.Stackv4.tcpv4 client) (Ipaddr.V4.Prefix.address server_cidr, server_port) >>= function
   | Ok connection -> Lwt.return connection
   | Error e -> err_fail e
 

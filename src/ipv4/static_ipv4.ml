@@ -36,14 +36,13 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
   type t = {
     ethif : Ethernet.t;
     arp : Arpv4.t;
-    mutable ip: Ipaddr.V4.t;
-    network: Ipaddr.V4.Prefix.t;
-    mutable gateway: Ipaddr.V4.t option;
+    cidr: Ipaddr.V4.Prefix.t;
+    gateway: Ipaddr.V4.t option;
     mutable cache: Fragments.Cache.t;
   }
 
   let write t ?(fragment = true) ?(ttl = 38) ?src dst proto ?(size = 0) headerf bufs =
-    Routing.destination_mac t.network t.gateway t.arp dst >>= function
+    Routing.destination_mac t.cidr t.gateway t.arp dst >>= function
     | Error `Local ->
       Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp dst);
       Lwt.return @@ Error (`No_route "no response for IP on local network")
@@ -73,7 +72,7 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | false, true -> assert false (* handled by conditional above *)
         in
         let hdr =
-          let src = match src with None -> t.ip | Some x -> x in
+          let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
           let id = if multiple then Randomconv.int16 R.generate else 0 in
           Ipv4_packet.{
             options = Cstruct.empty ;
@@ -134,9 +133,9 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
       Lwt.return_unit
     | Ok (packet, payload) ->
       let of_interest ip =
-        Ipaddr.V4.(compare ip t.ip = 0
+        Ipaddr.V4.(compare ip (Prefix.address t.cidr) = 0
                    || compare ip broadcast = 0
-                   || compare ip (Prefix.broadcast t.network) = 0)
+                   || compare ip (Prefix.broadcast t.cidr) = 0)
       in
       if not (of_interest packet.dst) then begin
         Log.debug (fun m -> m "dropping IP fragment not for us or broadcast %a"
@@ -159,22 +158,20 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
   let connect
-      ~ip:(network, ip) ?gateway ?(fragment_cache_size = 1024 * 256) ethif arp =
-    Arpv4.set_ips arp [ip] >>= fun () ->
-    (* TODO currently hardcoded to 256KB, should be configurable
-          and maybe limited per-src/dst-ip as well? *)
+      ~cidr ?gateway ?(fragment_cache_size = 1024 * 256) ethif arp =
+    Arpv4.set_ips arp [Ipaddr.V4.Prefix.address cidr] >>= fun () ->
     let cache = Fragments.Cache.empty fragment_cache_size in
-    Lwt.return { ethif; arp; ip; network; gateway ; cache }
+    Lwt.return { ethif; arp; cidr; gateway; cache }
 
   let disconnect _ = Lwt.return_unit
 
-  let get_ip t = [t.ip]
+  let get_ip t = [Ipaddr.V4.Prefix.address t.cidr]
 
   let pseudoheader t ?src dst proto len =
-    let src = match src with None -> t.ip | Some x -> x in
+    let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto len
 
-  let src t ~dst:_ = t.ip
+  let src t ~dst:_ = Ipaddr.V4.Prefix.address t.cidr
 
   let mtu t = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 
