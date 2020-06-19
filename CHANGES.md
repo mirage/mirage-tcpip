@@ -1,3 +1,9 @@
+### v5.0.0 (2020-06-19)
+
+* Static_ipv4.connect API change: takes a cidr:Ipaddr.V4.Prefix.t instead of
+  ip:Ipaddr.V4.t and network:Ipaddr.V4.Prefix.t (#426 @hannesm)
+* Adapt to ipaddr 5.0.0 API changes (#426 @hannesm)
+
 ### v4.1.0 (2020-02-08)
 
 * Revert "Ipv4.Fragments use a Lru.M.t instead of Lru.F.t" (#423 by @hannesm)
