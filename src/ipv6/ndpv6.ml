@@ -158,14 +158,14 @@ module Allocate = struct
     let size' = size + Ipv6_wire.sizeof_ipv6 in
     let fill ipbuf =
       Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
+      Ipv6_wire.set_ipv6_len ipbuf size;
       ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
       ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
       Ipv6_wire.set_ipv6_hlim ipbuf hlim;
       Ipv6_wire.set_ipv6_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
       let hdr, payload = Cstruct.split ipbuf Ipv6_wire.sizeof_ipv6 in
       let len' = fillf hdr payload in
-      Ipv6_wire.set_ipv6_len ipbuf len';
-      assert (len' <= size') ;
+      assert (len' = size) ;
       len' + Ipv6_wire.sizeof_ipv6
     in
     (size', fill)
