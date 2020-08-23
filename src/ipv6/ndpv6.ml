@@ -165,7 +165,6 @@ module Allocate = struct
       Ipv6_wire.set_ipv6_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
       let hdr, payload = Cstruct.split ipbuf Ipv6_wire.sizeof_ipv6 in
       let len' = fillf hdr payload in
-      assert (len' = size) ;
       len' + Ipv6_wire.sizeof_ipv6
     in
     (size', fill)
