@@ -234,8 +234,8 @@ module Allocate = struct
       Ipv6_wire.set_pingv6_id icmpbuf id;
       Ipv6_wire.set_pingv6_seq icmpbuf seq;
       Ipv6_wire.set_pingv6_csum icmpbuf 0;
-      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr (icmpbuf :: data :: []);
       Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.len data);
+      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim ~proto:`ICMP ~size fillf
