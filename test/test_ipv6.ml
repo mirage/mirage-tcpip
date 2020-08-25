@@ -52,7 +52,6 @@ let udp_message = (Cstruct.of_string "hello on UDP over IPv6")
 let check_for_one_udp_packet on_received_one ~src ~dst buf =
   (match Udp_packet.Unmarshal.of_cstruct buf with
   | Ok (_, payload) ->
-    Printf.fprintf stderr "Receiver got UDP from src=%s dst=%s payload='%s'\n%!" (Ipaddr.V6.to_string src) (Ipaddr.V6.to_string dst) (Cstruct.to_string payload); 
     Alcotest.(check ip) "sender address" (Ipaddr.V6.of_string_exn "fc00::23") src;
     Alcotest.(check ip) "receiver address" (Ipaddr.V6.of_string_exn "fc00::45") dst;
     Alcotest.(check cstruct) "payload is correct" udp_message payload

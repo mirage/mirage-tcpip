@@ -43,9 +43,9 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     client : V.Stackv4.t;
   }
 
-  let default_network ?(backend = B.create ()) () =
-    V.create_stack ~cidr:client_cidr ~gateway backend >>= fun client ->
-    V.create_stack ~cidr:server_cidr ~gateway backend >>= fun server ->
+  let default_network ?mtu ?(backend = B.create ()) () =
+    V.create_stack ?mtu ~cidr:client_cidr ~gateway backend >>= fun client ->
+    V.create_stack ?mtu ~cidr:server_cidr ~gateway backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =
@@ -196,8 +196,11 @@ let test_tcp_iperf_two_stacks_basic amt timeout () =
     (Test.tcp_iperf ~server ~client amt timeout)
 
 let test_tcp_iperf_two_stacks_mtu amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Mtu_enforced) in
-  Test.default_network () >>= fun { backend; Test.client; Test.server } ->
+  let mtu = 1500 in
+  let module Test = Test_iperf (Vnetif_backends.Frame_size_enforced) in
+  let backend = Vnetif_backends.Frame_size_enforced.create () in
+  Vnetif_backends.Frame_size_enforced.set_max_ip_mtu backend mtu;
+  Test.default_network ?mtu:(Some mtu) ?backend:(Some backend) () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
     (Printf.sprintf "tcp_iperf_two_stacks_mtu_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
