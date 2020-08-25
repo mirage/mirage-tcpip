@@ -71,6 +71,7 @@ struct
 
   type t = {
     ip : Ip.t;
+    mutable active : bool ;
     mutable localport : int;
     channels: (WIRE.t, connection) Hashtbl.t;
     (* server connections the process of connecting - SYN-ACK sent
@@ -537,19 +538,23 @@ struct
         >>= fun _ -> Lwt.return_unit (* if send fails, who cares *)
 
   let input_no_pcb t listeners (parsed, payload) id =
-    let { sequence; Tcp_packet.ack_number; window; options; syn; fin; rst; ack; _ } = parsed in
-    match rst, syn, ack with
-    | true, _, _ -> process_reset t id ~ack ~ack_number
-    | false, true, true ->
-      process_synack t id ~ack_number ~sequence ~tx_wnd:window ~options ~syn ~fin
-    | false, true , false -> process_syn t id ~listeners ~tx_wnd:window
-			       ~ack_number ~sequence ~options ~syn ~fin
-    | false, false, true  ->
-      let open RXS in
-      process_ack t id ~pkt:{ header = parsed; payload}
-    | false, false, false ->
-      Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
+    if not t.active then
+      (* TODO: eventually send an RST? *)
       Lwt.return_unit
+    else
+      let { sequence; Tcp_packet.ack_number; window; options; syn; fin; rst; ack; _ } = parsed in
+      match rst, syn, ack with
+      | true, _, _ -> process_reset t id ~ack ~ack_number
+      | false, true, true ->
+        process_synack t id ~ack_number ~sequence ~tx_wnd:window ~options ~syn ~fin
+      | false, true , false -> process_syn t id ~listeners ~tx_wnd:window
+			         ~ack_number ~sequence ~options ~syn ~fin
+      | false, false, true  ->
+        let open RXS in
+        process_ack t id ~pkt:{ header = parsed; payload}
+      | false, false, false ->
+        Log.debug (fun f -> f "incoming packet matches no connection table entry and has no useful flags set; dropping it");
+        Lwt.return_unit
 
   (* Main input function for TCP packets *)
   let input t ~listeners ~src ~dst data =
@@ -714,9 +719,12 @@ struct
         pp_error e Ip.pp_ipaddr daddr dport)
 
   let create_connection ?keepalive tcp (daddr, dport) =
-    connect ?keepalive tcp ~dst:daddr ~dst_port:dport >>= function
-    | Error e -> log_failure daddr dport e; Lwt.return @@ Error e
-    | Ok (fl, _) -> Lwt.return (Ok fl)
+    if not tcp.active then
+      Lwt.return (Error `Timeout) (* TODO: custom error variant *)
+    else
+      connect ?keepalive tcp ~dst:daddr ~dst_port:dport >>= function
+      | Error e -> log_failure daddr dport e; Lwt.return @@ Error e
+      | Ok (fl, _) -> Lwt.return (Ok fl)
 
   (* Construct the main TCP thread *)
   let connect ip =
@@ -726,7 +734,13 @@ struct
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    Lwt.return { ip; localport; channels; listens; connects }
+    Lwt.return { ip; active = true; localport; channels; listens; connects }
 
-  let disconnect _ = Lwt.return_unit
+  let disconnect t =
+    t.active <- false;
+    let conns = Hashtbl.fold (fun _ (pcb, _) acc -> pcb :: acc) t.channels [] in
+    Lwt_list.iter_p close conns >|= fun () ->
+    Hashtbl.reset t.listens;
+    Hashtbl.reset t.connects
+    (* TODO: should there be Lwt tasks being cancelled? *)
 end
