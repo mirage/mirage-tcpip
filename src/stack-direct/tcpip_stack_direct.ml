@@ -53,6 +53,7 @@ module Make
     tcpv4 : Tcpv4.t;
     udpv4_listeners: (int, Udpv4.callback) Hashtbl.t;
     tcpv4_listeners: (int, Tcpv4.listener) Hashtbl.t;
+    mutable task : unit Lwt.t option;
   }
 
   let pp fmt t =
@@ -85,51 +86,57 @@ module Make
     with Not_found -> None
 
   let listen t =
-    Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-    let ethif_listener = Ethernet.input
-        ~arpv4:(Arpv4.input t.arpv4)
-        ~ipv4:(
-          Ipv4.input
-            ~tcp:(Tcpv4.input t.tcpv4
-                    ~listeners:(tcpv4_listeners t))
-            ~udp:(Udpv4.input t.udpv4
-                    ~listeners:(udpv4_listeners t))
-            ~default:(fun ~proto ~src ~dst buf ->
-                match proto with
-                | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
-                | _ -> Lwt.return_unit)
-            t.ipv4)
-        ~ipv6:(fun _ -> Lwt.return_unit)
-        t.ethif
-    in
-    Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
-    >>= function
-    | Error e ->
-      Log.warn (fun p -> p "%a" Netif.pp_error e) ;
-      (* XXX: error should be passed to the caller *)
-      Lwt.return_unit
-    | Ok _res ->
-      let nstat = Netif.get_stats_counters t.netif in
-      let open Mirage_net in
-      Log.info (fun f ->
-          f "listening loop of interface %s terminated regularly:@ %Lu bytes \
-             (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-            (Macaddr.to_string (Netif.mac t.netif))
-            nstat.rx_bytes nstat.rx_pkts
-            nstat.tx_bytes nstat.tx_pkts) ;
-      Lwt.return_unit
+    Lwt.catch (fun () ->
+        Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
+        let ethif_listener = Ethernet.input
+            ~arpv4:(Arpv4.input t.arpv4)
+            ~ipv4:(
+              Ipv4.input
+                ~tcp:(Tcpv4.input t.tcpv4
+                        ~listeners:(tcpv4_listeners t))
+                ~udp:(Udpv4.input t.udpv4
+                        ~listeners:(udpv4_listeners t))
+                ~default:(fun ~proto ~src ~dst buf ->
+                    match proto with
+                    | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
+                    | _ -> Lwt.return_unit)
+                t.ipv4)
+            ~ipv6:(fun _ -> Lwt.return_unit)
+            t.ethif
+        in
+        Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
+        >>= function
+        | Error e ->
+          Log.warn (fun p -> p "%a" Netif.pp_error e) ;
+          (* XXX: error should be passed to the caller *)
+          Lwt.return_unit
+        | Ok _res ->
+          let nstat = Netif.get_stats_counters t.netif in
+          let open Mirage_net in
+          Log.info (fun f ->
+              f "listening loop of interface %s terminated regularly:@ %Lu bytes \
+                 (%lu packets) received, %Lu bytes (%lu packets) sent@ "
+                (Macaddr.to_string (Netif.mac t.netif))
+                nstat.rx_bytes nstat.rx_pkts
+                nstat.tx_bytes nstat.tx_pkts) ;
+          Lwt.return_unit)
+      (function
+        | Lwt.Canceled ->
+          Log.info (fun f -> f "listen of %a cancelled" pp t);
+          Lwt.return_unit
+        | e -> Lwt.fail e)
 
   let connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let udpv4_listeners = Hashtbl.create 7 in
     let tcpv4_listeners = Hashtbl.create 7 in
     let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4;
-              udpv4_listeners; tcpv4_listeners } in
+              udpv4_listeners; tcpv4_listeners; task = None } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.async (fun () -> listen t);
+    Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
     Lwt.return t
 
   let disconnect t =
-    (* TODO: kill the listening thread *)
-    Log.info (fun f -> f "disconnect called (currently a noop): %a" pp t);
+    Log.info (fun f -> f "disconnect called: %a" pp t);
+    (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
 end
