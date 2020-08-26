@@ -90,7 +90,8 @@ module Make (E : Mirage_protocols.ETHERNET)
 
   let input t ~tcp ~udp ~default buf =
     let now = C.elapsed_ns () in
-    let _, outs, actions = Ndpv6.handle ~now ~random:R.generate t.ctx buf in
+    let ctx, outs, actions = Ndpv6.handle ~now ~random:R.generate t.ctx buf in
+    t.ctx <- ctx;
     Lwt_list.iter_s (function
         | `Tcp (src, dst, buf) -> tcp ~src ~dst buf
         | `Udp (src, dst, buf) -> udp ~src ~dst buf

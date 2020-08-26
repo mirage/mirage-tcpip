@@ -35,6 +35,7 @@ let run test () =
   Lwt_main.run (test ())
 
 let () =
+  Printexc.record_backtrace true;
   (* someone has to call Mirage_random_test.initialize () *)
   Mirage_random_test.initialize ();
   (* enable logging to stdout for all modules *)

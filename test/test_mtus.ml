@@ -5,7 +5,7 @@ let client_cidr = Ipaddr.V4.Prefix.of_string_exn "192.168.1.10/24"
 
 let server_port = 7
 
-module Backend = Vnetif_backends.Mtu_enforced
+module Backend = Vnetif_backends.Frame_size_enforced
 module Stack = Vnetif_common.VNETIF_STACK(Backend)
 
 let default_mtu = 1500
@@ -36,7 +36,7 @@ let get_stacks ?client_mtu ?server_mtu backend =
   Stack.create_stack ~cidr:client_cidr ~mtu:client_mtu backend >>= fun client ->
   Stack.create_stack ~cidr:server_cidr ~mtu:server_mtu backend >>= fun server ->
   let max_mtu = max client_mtu server_mtu in
-  Backend.set_mtu max_mtu;
+  Backend.set_max_ip_mtu backend max_mtu;
   Lwt.return (server, client)
 
 let start_server ~f server =

@@ -158,13 +158,13 @@ module Allocate = struct
     let size' = size + Ipv6_wire.sizeof_ipv6 in
     let fill ipbuf =
       Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
+      Ipv6_wire.set_ipv6_len ipbuf size;
       ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
       ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
       Ipv6_wire.set_ipv6_hlim ipbuf hlim;
       Ipv6_wire.set_ipv6_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
       let hdr, payload = Cstruct.split ipbuf Ipv6_wire.sizeof_ipv6 in
       let len' = fillf hdr payload in
-      assert (len' <= size') ;
       len' + Ipv6_wire.sizeof_ipv6
     in
     (size', fill)
@@ -233,8 +233,8 @@ module Allocate = struct
       Ipv6_wire.set_pingv6_id icmpbuf id;
       Ipv6_wire.set_pingv6_seq icmpbuf seq;
       Ipv6_wire.set_pingv6_csum icmpbuf 0;
-      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr (icmpbuf :: data :: []);
       Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.len data);
+      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim ~proto:`ICMP ~size fillf

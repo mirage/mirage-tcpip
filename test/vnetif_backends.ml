@@ -21,23 +21,49 @@ module type Backend = sig
   val create : unit -> t
 end
 
-(** This backend enforces an MTU. *)
-module Mtu_enforced = struct
+(** This backend enforces an Ethernet frame size. *)
+module Frame_size_enforced = struct
   module X = Basic_backend.Make
-  include X
+  type t = {
+    xt : X.t;
+    mutable frame_size : int;
+  }
 
-  let mtu = ref 1500
+  type macaddr = X.macaddr
+  type 'a io = 'a X.io
+  type buffer = X.buffer
+  type id = X.id
+
+  let register t =
+    X.register t.xt
+
+  let unregister t id =
+    X.unregister t.xt id
+
+  let mac t id =
+    X.mac t.xt id
+
+  let set_listen_fn t id buf =
+    X.set_listen_fn t.xt id buf
+
+  let unregister_and_flush t id =
+    X.unregister_and_flush t.xt id
 
   let write t id ~size fill =
-    if size > !mtu then
+    if size > t.frame_size then
       Lwt.return (Error `Invalid_length)
     else
-      X.write t id ~size fill
+      X.write t.xt id ~size fill
 
-  let set_mtu m = mtu := m
+  let set_frame_size t m = t.frame_size <- m
+  let set_max_ip_mtu t m = t.frame_size <- m + Ethernet_wire.sizeof_ethernet
+
+  let create ~frame_size () =
+    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in
+    { xt ; frame_size }
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    create ~frame_size:(1500 + Ethernet_wire.sizeof_ethernet) ()
 
 end
 
