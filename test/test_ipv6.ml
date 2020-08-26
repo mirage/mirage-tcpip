@@ -47,7 +47,7 @@ let listen ?(tcp = noop) ?(udp = noop) ?(default = noop) stack =
           ~udp:udp
           ~default:(fun ~proto:_ -> default))) >>= fun _ -> Lwt.return_unit
 
-let udp_message = (Cstruct.of_string "hello on UDP over IPv6")
+let udp_message = Cstruct.of_string "hello on UDP over IPv6"
 
 let check_for_one_udp_packet on_received_one ~src ~dst buf =
   (match Udp_packet.Unmarshal.of_cstruct buf with
@@ -62,7 +62,7 @@ let check_for_one_udp_packet on_received_one ~src ~dst buf =
 let send_forever sender receiver_address udp_message =
   let rec loop () =
     (* Check that we have an IP before sending *)
-    if (List.length (Ipv6.get_ip sender.ip)) >= 1 then
+    if List.length (Ipv6.get_ip sender.ip) >= 1 then
     begin
             Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
             >|= Rresult.R.get_ok
