@@ -17,7 +17,9 @@ module Make(Log : Logs.LOG) (A : Mirage_protocols.ARP) = struct
   open Lwt.Infix
 
   let destination_mac network gateway arp = function
-    |ip when ip = Ipaddr.V4.broadcast || ip = Ipaddr.V4.any -> (* Broadcast *)
+    |ip when Ipaddr.V4.(compare ip broadcast) = 0
+          || Ipaddr.V4.(compare ip any) = 0
+          || Ipaddr.V4.(compare (Prefix.broadcast network) ip) = 0 -> (* Broadcast *)
       Lwt.return @@ Ok Macaddr.broadcast
     |ip when Ipaddr.V4.is_multicast ip ->
       Lwt.return @@ Ok (mac_of_multicast ip)
