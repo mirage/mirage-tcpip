@@ -63,8 +63,8 @@ let test_unmarshal_simple_options () =
 
 let test_unmarshal_stops_at_eof () =
   let buf = Cstruct.create 14 in
-  let ts1 = (Int32.of_int 0xabad1dea) in
-  let ts2 = (Int32.of_int 0xc0ffee33) in
+  let ts1 = 0xabad1deal in
+  let ts2 = 0xc0ffee33l in
   Cstruct.memset buf 0;
   Cstruct.set_uint8 buf 0 4; (* sack_ok *)
   Cstruct.set_uint8 buf 1 2; (* length of two *)
