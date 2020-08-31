@@ -106,12 +106,13 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   let print_data st ts_now =
     let server = Int64.sub ts_now st.start_time in
-    let rate =
-      Int64.(div (div st.bin_bytes (sub ts_now st.last_time))) 125L
+    let rate_in_mbps =
+        let t_in_s = Int64.(to_float (sub ts_now st.last_time)) /. 1_000_000_000. in
+        (Int64.to_float st.bin_bytes) /. t_in_s /. 125000.
     in
     let live_words = Gc.((stat()).live_words) in
-    Logs.debug (fun f -> f  "Iperf server: t = %.0Lu, rate = %.0Lu KBits/ns, totbytes = %Ld, \
-                             live_words = %d" server rate st.bytes live_words);
+    Logs.info (fun f -> f  "Iperf server: t = %.0Lu, avg_rate = %0.2f MBits/s, totbytes = %Ld, \
+                             live_words = %d" server rate_in_mbps st.bytes live_words);
     st.last_time <- ts_now;
     st.bin_bytes <- 0L;
     st.bin_packets <- 0L;
@@ -145,7 +146,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
           st.bin_packets <- (Int64.add st.bin_packets 1L);
           let ts_now = Clock.elapsed_ns () in
-          (if (Int64.sub ts_now st.last_time >= 1L) then
+          (if (Int64.sub ts_now st.last_time >= 1_000_000_000L) then
              print_data st ts_now
            else
              Lwt.return_unit) >>= fun () ->
@@ -234,7 +235,7 @@ let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
     (Test.tcp_iperf ~server ~client amt timeout)
 
 let amt_quick = 100_000
-let amt_slow  = amt_quick * 100
+let amt_slow  = amt_quick * 1000
 
 let suite = [
 
