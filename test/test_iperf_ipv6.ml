@@ -20,13 +20,12 @@ open Common
 open Vnetif_common
 open Lwt.Infix
 
-module Test_iperf (B : Vnetif_backends.Backend) = struct
+module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
 
   module V = VNETIF_STACK (B)
 
-  let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
-  let client_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
-  let server_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.100/24"
+  let client_ip = Ipaddr.V6.of_string_exn "fc00::23"
+  let server_ip =  Ipaddr.V6.of_string_exn "fc00::45"
 
   type stats = {
     mutable bytes: int64;
@@ -39,13 +38,13 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
 
   type network = {
     backend : B.t;
-    server : V.Stackv4.t;
-    client : V.Stackv4.t;
+    server : V.Stackv6.t;
+    client : V.Stackv6.t;
   }
 
   let default_network ?mtu ?(backend = B.create ()) () =
-    V.create_stack ?mtu ~cidr:client_cidr ~gateway backend >>= fun client ->
-    V.create_stack ?mtu ~cidr:server_cidr ~gateway backend >>= fun server ->
+      V.create_stack_v6 ?mtu ?ip:(Some [client_ip]) backend >>= fun client ->
+      V.create_stack_v6 ?mtu ?ip:(Some [server_ip]) backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =
@@ -61,26 +60,26 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   let err_eof () = failf "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
-    let ip  = Ipaddr.V4.to_string ip in
+    let err = Format.asprintf "%a" V.Stackv6.TCP.pp_error e in
+    let ip  = Ipaddr.V6.to_string ip in
     failf "Unable to connect to %s:%d: %s" ip port err
 
   let err_write e () =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
+    let err = Format.asprintf "%a" V.Stackv6.TCP.pp_write_error e in
     failf "Error while writing to TCP flow: %s" err
 
   let err_read e () =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
+    let err = Format.asprintf "%a" V.Stackv6.TCP.pp_error e in
     failf "Error in server while reading: %s" err
 
   let write_and_check flow buf =
-    V.Stackv4.TCPV4.write flow buf >>= function
+    V.Stackv6.TCP.write flow buf >>= function
     | Ok ()          -> Lwt.return_unit
-    | Error `Closed -> V.Stackv4.TCPV4.close flow >>= err_eof
-    | Error e -> V.Stackv4.TCPV4.close flow >>= err_write e
+    | Error `Closed -> V.Stackv6.TCP.close flow >>= err_eof
+    | Error e -> V.Stackv6.TCP.close flow >>= err_write e
 
   let tcp_connect t (ip, port) =
-    V.Stackv4.TCPV4.create_connection t (ip, port) >>= function
+    V.Stackv6.TCP.create_connection t (ip, port) >>= function
     | Error e -> err_connect e ip port ()
     | Ok f    -> Lwt.return f
 
@@ -96,10 +95,10 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       loop (amt / mlen) >>= fun () ->
       let a = Cstruct.sub a 0 (amt - (mlen * (amt/mlen))) in
       write_and_check flow a >>= fun () ->
-      V.Stackv4.TCPV4.close flow
+      V.Stackv6.TCP.close flow
     in
     Logs.info (fun f -> f  "Iperf client: Attempting connection.");
-    tcp_connect (V.Stackv4.tcpv4 s) (dest_ip, dport) >>= fun flow ->
+    tcp_connect (V.Stackv6.tcp s) (dest_ip, dport) >>= fun flow ->
     iperftx flow >>= fun () ->
     Logs.debug (fun f -> f  "Iperf client: Done.");
     Lwt.return_unit
@@ -128,14 +127,14 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       last_time = t0
     } in
     let rec iperf_h flow =
-      V.Stackv4.TCPV4.read flow >|= Rresult.R.get_ok >>= function
+      V.Stackv6.TCP.read flow >|= Rresult.R.get_ok >>= function
       | `Eof ->
         let ts_now = Clock.elapsed_ns () in
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
         print_data st ts_now >>= fun () ->
-        V.Stackv4.TCPV4.close flow >>= fun () ->
+        V.Stackv6.TCP.close flow >>= fun () ->
         Logs.info (fun f -> f  "Iperf server: Done - closed connection.");
         Lwt.return_unit
       | `Data data ->
@@ -164,7 +163,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let server_done, server_done_u = Lwt.wait () in
     let server_s, client_s = server, client in
 
-    let ip_of s = V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 s) |> List.hd in
+    let ip_of s = V.Stackv6.IP.get_ip (V.Stackv6.ip s) |> List.hd in
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
@@ -173,65 +172,65 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (server_ready >>= fun () ->
        Lwt_unix.sleep 0.1 >>= fun () -> (* Give server 0.1 s to call listen *)
        Logs.info (fun f -> f  "I am client with IP %a, trying to connect to server @ %a:%d"
-         Ipaddr.V4.pp (ip_of client_s) Ipaddr.V4.pp (ip_of server_s) port);
-       Lwt.async (fun () -> V.Stackv4.listen client_s);
+         Ipaddr.V6.pp (ip_of client_s) Ipaddr.V6.pp (ip_of server_s) port);
+       Lwt.async (fun () -> V.Stackv6.listen client_s);
        iperfclient client_s amt (ip_of server) port);
 
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
-         Ipaddr.V4.pp (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
+         Ipaddr.V6.pp (V.Stackv6.IP.get_ip (V.Stackv6.ip server_s) |> List.hd)
          port);
-       V.Stackv4.listen_tcpv4 server_s ~port (iperf server_s server_done_u);
+       V.Stackv6.listen_tcp server_s ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();
-       V.Stackv4.listen server_s) ] >>= fun () ->
+       V.Stackv6.listen server_s) ] >>= fun () ->
 
     Logs.info (fun f -> f  "Waiting for server_done...");
     server_done >>= fun () ->
     Lwt.return_unit (* exit cleanly *)
 end
 
-let test_tcp_iperf_two_stacks_basic amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Basic) in
+let test_tcp_iperf_ipv6_two_stacks_basic amt timeout () =
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Basic) in
   Test.default_network () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    (Printf.sprintf "tcp_iperf_two_stacks_basic_%d.pcap" amt)
+    (Printf.sprintf "tcp_iperf_ipv6_two_stacks_basic_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let test_tcp_iperf_two_stacks_mtu amt timeout () =
+let test_tcp_iperf_ipv6_two_stacks_mtu amt timeout () =
   let mtu = 1500 in
-  let module Test = Test_iperf (Vnetif_backends.Frame_size_enforced) in
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Frame_size_enforced) in
   let backend = Vnetif_backends.Frame_size_enforced.create () in
   Vnetif_backends.Frame_size_enforced.set_max_ip_mtu backend mtu;
   Test.default_network ?mtu:(Some mtu) ?backend:(Some backend) () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    (Printf.sprintf "tcp_iperf_two_stacks_mtu_%d.pcap" amt)
+    (Printf.sprintf "tcp_iperf_ipv6_two_stacks_mtu_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let test_tcp_iperf_two_stacks_trailing_bytes amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Trailing_bytes) in
+let test_tcp_iperf_ipv6_two_stacks_trailing_bytes amt timeout () =
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Trailing_bytes) in
   Test.default_network () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    (Printf.sprintf "tcp_iperf_two_stacks_trailing_bytes_%d.pcap" amt)
+    (Printf.sprintf "tcp_iperf_ipv6_two_stacks_trailing_bytes_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let test_tcp_iperf_two_stacks_uniform_packet_loss amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Uniform_packet_loss) in
+let test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss amt timeout () =
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Uniform_packet_loss) in
   Test.default_network () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    (Printf.sprintf "tcp_iperf_two_stacks_uniform_packet_loss_%d.pcap" amt)
+    (Printf.sprintf "tcp_iperf_ipv6_two_stacks_uniform_packet_loss_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Uniform_no_payload_packet_loss) in
+let test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt timeout () =
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Uniform_no_payload_packet_loss) in
   Test.default_network () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    (Printf.sprintf "tcp_iperf_two_stacks_uniform_packet_loss_no_payload_%d.pcap" amt)
+    (Printf.sprintf "tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload_%d.pcap" amt)
     (Test.tcp_iperf ~server ~client amt timeout)
 
-let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
-  let module Test = Test_iperf (Vnetif_backends.Drop_1_second_after_1_megabyte) in
+let test_tcp_iperf_ipv6_two_stacks_drop_1sec_after_1mb amt timeout () =
+  let module Test = Test_iperf_ipv6 (Vnetif_backends.Drop_1_second_after_1_megabyte) in
   Test.default_network () >>= fun { backend; Test.client; Test.server } ->
   Test.V.record_pcap backend
-    "tcp_iperf_two_stacks_drop_1sec_after_1mb.pcap"
+    "tcp_iperf_ipv6_two_stacks_drop_1sec_after_1mb.pcap"
     (Test.tcp_iperf ~server ~client amt timeout)
 
 let amt_quick = 100_000
@@ -240,30 +239,30 @@ let amt_slow  = amt_quick * 1000
 let suite = [
 
   "iperf with two stacks, basic tests", `Quick,
-  test_tcp_iperf_two_stacks_basic amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_basic amt_quick 120.0;
 
   "iperf with two stacks, over an MTU-enforcing backend", `Quick,
-  test_tcp_iperf_two_stacks_mtu amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_mtu amt_quick 120.0;
 
   "iperf with two stacks, testing trailing_bytes", `Quick,
-  test_tcp_iperf_two_stacks_trailing_bytes amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_trailing_bytes amt_quick 120.0;
 
   "iperf with two stacks and uniform packet loss", `Quick,
-  test_tcp_iperf_two_stacks_uniform_packet_loss amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss amt_quick 120.0;
 
   "iperf with two stacks and uniform packet loss of packets with no payload", `Quick,
-  test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt_quick 120.0;
 
   "iperf with two stacks and uniform packet loss of packets with no payload, longer", `Slow,
-  test_tcp_iperf_two_stacks_uniform_packet_loss_no_payload amt_slow 240.0;
+  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt_slow 240.0;
 
   "iperf with two stacks, basic tests, longer", `Slow,
-  test_tcp_iperf_two_stacks_basic amt_slow 240.0;
+  test_tcp_iperf_ipv6_two_stacks_basic amt_slow 240.0;
 
   "iperf with two stacks and uniform packet loss, longer", `Slow,
-  test_tcp_iperf_two_stacks_uniform_packet_loss amt_slow 240.0;
+  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss amt_slow 240.0;
 
   "iperf with two stacks drop 1 sec after 1 mb", `Quick,
-  test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt_quick 120.0;
+  test_tcp_iperf_ipv6_two_stacks_drop_1sec_after_1mb amt_quick 120.0;
 
 ]

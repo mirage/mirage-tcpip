@@ -47,3 +47,34 @@ module Make
       ARP) are functioning, so that if the user wishes to establish outbound
       connections, they will be able to do so. *)
 end
+
+type direct_ipv6_input = src:Ipaddr.V6.t -> dst:Ipaddr.V6.t -> Cstruct.t -> unit Lwt.t
+
+module type UDPV6_DIRECT = Mirage_protocols.UDP
+  with type ipaddr = Ipaddr.V6.t
+   and type ipinput = direct_ipv6_input
+
+module type TCPV6_DIRECT = Mirage_protocols.TCP
+  with type ipaddr = Ipaddr.V6.t
+   and type ipinput = direct_ipv6_input
+
+module MakeV6
+    (Time     : Mirage_time.S)
+    (Random   : Mirage_random.S)
+    (Netif    : Mirage_net.S)
+    (Ethernet : Mirage_protocols.ETHERNET)
+    (Ipv6     : Mirage_protocols.IP with type ipaddr = Ipaddr.V6.t)
+    (Udpv6    : UDPV6_DIRECT)
+    (Tcpv6    : TCPV6_DIRECT) : sig
+  include Mirage_stack.V6
+    with module IP = Ipv6
+     and module TCP = Tcpv6
+     and module UDP = Udpv6
+
+  val connect : Netif.t -> Ethernet.t -> Ipv6.t -> Udpv6.t -> Tcpv6.t -> t Lwt.t
+  (** [connect] assembles the arguments into a network stack, then calls
+      `listen` on the assembled stack before returning it to the caller.  The
+      initial `listen` functions to ensure that the lower-level layers are 
+      functioning, so that if the user wishes to establish outbound connections,
+      they will be able to do so. *)
+end

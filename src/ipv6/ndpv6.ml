@@ -993,24 +993,27 @@ module Parser = struct
     loop (poff+2)
 
   let packet is_my_addr buf =
-    let src = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_src buf) in
-    let dst = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
-
-    (* TODO check version = 6 *)
-
-    (* Log.debug (fun f -> f "IPv6 packet received from %s to %s" *)
-    (* Ipaddr.pp src) Ipaddr.pp dst); *)
-
-    if Ipaddr.Prefix.(mem src multicast) then begin
-      Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
+    if Cstruct.len buf < Ipv6_wire.sizeof_ipv6 then begin
+      Log.debug (fun m -> m "short IPv6 packet received, dropping");
       Drop
-    end else
-    if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
-      Log.debug (fun f -> f "IP6: Dropping packet, not for me");
+    end else if Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l <> 0x60000000l then begin
+      Log.debug (fun m -> m "version in IPv6 packet not 6");
       Drop
+    end else begin
+      let buf = Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf) in
+      let src = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_src buf) in
+      let dst = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
+      if Ipaddr.Prefix.(mem src multicast) then begin
+        Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
+        Drop
+      end else
+      if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
+        Log.debug (fun f -> f "IP6: Dropping packet, not for me");
+        Drop
+      end
+      else
+        parse_extension ~src ~dst buf true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
     end
-    else
-      parse_extension ~src ~dst buf true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
 end
 
 type event =
