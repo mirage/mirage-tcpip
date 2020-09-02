@@ -4,7 +4,7 @@ module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
 
-module Ipv6 = Ipv6.Make(E)(Mirage_random_test)(Time)(Mclock)
+module Ipv6 = Ipv6.Make(V)(E)(Mirage_random_test)(Time)(Mclock)
 module Udp = Udp.Make(Ipv6)(Mirage_random_test)
 open Lwt.Infix
 
@@ -30,7 +30,7 @@ let get_stack backend address =
   let gateways = [] in
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  Ipv6.connect ~ip ~netmask ~gateways ethif >>= fun ip ->
+  Ipv6.connect ~ip ~netmask ~gateways netif ethif >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; ip; udp }
 
@@ -61,14 +61,8 @@ let check_for_one_udp_packet on_received_one ~src ~dst buf =
 
 let send_forever sender receiver_address udp_message =
   let rec loop () =
-    (* Check that we have an IP before sending *)
-    if List.length (Ipv6.get_ip sender.ip) >= 1 then
-    begin
-            Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
-            >|= Rresult.R.get_ok
-    end else
-            Lwt.return_unit
-    >>= fun () ->
+    Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
+    >|= Rresult.R.get_ok >>= fun () ->
     Time.sleep_ns (Duration.of_ms 50) >>= fun () ->
     loop () in
   loop ()
