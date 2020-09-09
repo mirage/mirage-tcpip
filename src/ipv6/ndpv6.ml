@@ -169,17 +169,19 @@ module Allocate = struct
     in
     (size', fill)
 
-  let ns ~mac ~src ~dst ~tgt =
-    let size = Ipv6_wire.sizeof_ns + Ipv6_wire.sizeof_llopt in
+  let ns ~specified ~mac ~src ~dst ~tgt =
+    let size = Ipv6_wire.sizeof_ns + if specified then Ipv6_wire.sizeof_llopt else 0 in
     let fillf hdr icmpbuf =
       let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
       Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
       Ipv6_wire.set_ns_code icmpbuf 0;
       Ipv6_wire.set_ns_reserved icmpbuf 0l;
       ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_ns_target icmpbuf) 0;
-      Ipv6_wire.set_llopt_ty optbuf  1;
-      Ipv6_wire.set_llopt_len optbuf  1;
-      macaddr_to_cstruct_raw mac optbuf 2;
+      if specified then begin
+        Ipv6_wire.set_llopt_ty optbuf  1;
+        Ipv6_wire.set_llopt_len optbuf  1;
+        macaddr_to_cstruct_raw mac optbuf 2;
+      end;
       Ipv6_wire.set_icmpv6_csum icmpbuf 0;
       Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
@@ -1047,13 +1049,13 @@ let next_hop ctx ip =
 let rec process_actions ~now ctx actions =
   let aux ctx = function
     | SendNS (unspec, dst, tgt) ->
-      let src = match unspec with
-        | `Unspecified -> Ipaddr.unspecified
-        | `Specified -> AddressList.select_source ctx.address_list ~dst
+      let src, specified = match unspec with
+        | `Unspecified -> Ipaddr.unspecified, false
+        | `Specified -> AddressList.select_source ctx.address_list ~dst, true
       in
       Log.debug (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
         Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt);
-      let size, fillf = Allocate.ns ~mac:ctx.mac ~src ~dst ~tgt in
+      let size, fillf = Allocate.ns ~specified ~mac:ctx.mac ~src ~dst ~tgt in
       send' ~now ctx dst size fillf
     | SendNA (src, dst, tgt, sol) ->
       let sol = match sol with `Solicited -> true | `Unsolicited -> false in
@@ -1210,12 +1212,18 @@ let handle_ns ~now:_ ctx ~src ~dst ns =
     | None ->
       ctx, []
   in
-  if AddressList.is_my_addr ctx.address_list ns.ns_target then
-    let src = ns.ns_target and dst = src in
-(*     (\* Log.debug (fun f -> f "Sending NA to %a from %a with target address %a" *\) *)
-(*       (\* Ipaddr.pp dst Ipaddr.pp src Ipaddr.pp target); *\) *)
-    ctx, SendNA (src, dst, ns.ns_target, `Solicited) :: actions
-  else
+  if AddressList.is_my_addr ctx.address_list ns.ns_target then begin
+    let src = ns.ns_target
+    and dst, sol =
+      if Ipaddr.(compare src unspecified = 0) then
+        Ipaddr.link_nodes, `Unsolicited
+      else
+        src, `Solicited
+    in
+    (* Log.debug (fun f -> f "Sending NA to %a from %a with target address %a"
+                  Ipaddr.pp dst Ipaddr.pp src Ipaddr.pp ns.ns_target); *)
+    ctx, SendNA (src, dst, ns.ns_target, sol) :: actions
+  end else
     ctx, actions
 
 let handle_na ~now ctx ~src ~dst na =

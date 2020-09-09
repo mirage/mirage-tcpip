@@ -169,10 +169,17 @@ module Make (N : Mirage_net.S)
         ~ipv4:(fun _ -> Lwt.return_unit)
         ~ipv6:(input t ~tcp:noop ~udp:noop ~default:(fun ~proto:_ -> noop))
     in
+    let timeout = T.sleep_ns (Duration.of_sec 3) in
     Lwt.pick [
       (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
-      task
-    ] >|= fun () ->
-    t
+      task ;
+      timeout
+    ] >>= fun () ->
+    match get_ip t with
+    | [] -> Lwt.fail_with "IP6 not started, couldn't assign IP"
+    | ips ->
+      Log.info (fun f -> f "IP6: Started with %a"
+                   Fmt.(list ~sep:(unit ",@ ") Ipaddr.V6.pp) ips);
+      Lwt.return t
 
 end
