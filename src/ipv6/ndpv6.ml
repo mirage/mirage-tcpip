@@ -995,7 +995,7 @@ module Parser = struct
     loop (poff+2)
 
   let packet is_my_addr buf =
-    if Cstruct.len buf < Ipv6_wire.sizeof_ipv6 then begin
+    if Cstruct.len buf < Ipv6_wire.sizeof_ipv6 || Cstruct.len buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf then begin
       Log.debug (fun m -> m "short IPv6 packet received, dropping");
       Drop
     end else if Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l <> 0x60000000l then begin
