@@ -5,7 +5,7 @@
    pcap-format duration mirage-random rresult mirage-protocols
    mirage-stack arp arp-mirage ethernet tcpip.ipv4 tcpip.tcp tcpip.udp
    tcpip.stack-direct tcpip.icmpv4 tcpip.udpv4-socket tcpip.tcpv4-socket
-   tcpip.icmpv4-socket tcpip.stack-socket tcpip.ipv6))
+   tcpip.icmpv4-socket tcpip.stack-socket tcpip.ipv6 ipaddr-cstruct))
 
 (alias
  (name runtest)

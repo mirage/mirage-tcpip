@@ -83,6 +83,69 @@ let pass_udp_traffic () =
       Alcotest.fail "UDP packet should have been received";
   ]
 
+let create_ethernet backend =
+  V.connect backend >>= fun netif ->
+  E.connect netif >|= fun ethif ->
+  (fun ipv6 ->
+     V.listen netif ~header_size:Ethernet_wire.sizeof_ethernet
+       (E.input ethif
+          ~arpv4:(fun _ -> Lwt.return_unit)
+          ~ipv4:(fun _ -> Lwt.return_unit)
+          ~ipv6) >|= fun _ -> ()),
+  (fun dst ?size f -> E.write ethif dst `IPv6 ?size f)
+
+let solicited_node_prefix =
+  Ipaddr.V6.(Prefix.make 104 (of_int16 (0xff02, 0, 0, 0, 0, 1, 0xff00, 0)))
+
+let dad_na_is_sent () =
+  let address = Ipaddr.V6.of_string_exn "fc00::23" in
+  let backend = B.create () in
+  get_stack backend address >>= fun stack ->
+  create_ethernet backend >>= fun (listen_raw, write_raw) ->
+  let received_one, on_received_one = Lwt.task () in
+  let nd_size = Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_ns in
+  let nd buf =
+    Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
+    Ipv6_wire.set_ipv6_len buf Ipv6_wire.sizeof_ns;
+    Ipaddr_cstruct.V6.write_cstruct_exn Ipaddr.V6.unspecified (Cstruct.shift buf 8);
+    Ipaddr_cstruct.V6.write_cstruct_exn (Ipaddr.V6.Prefix.network_address solicited_node_prefix address) (Cstruct.shift buf 24);
+    Ipv6_wire.set_ipv6_hlim buf 255;
+    Ipv6_wire.set_ipv6_nhdr buf (Ipv6_wire.protocol_to_int `ICMP);
+    let icmpbuf = Cstruct.shift buf Ipv6_wire.sizeof_ipv6 in
+    Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
+    Ipv6_wire.set_ns_code icmpbuf 0;
+    Ipv6_wire.set_ns_reserved icmpbuf 0l;
+    Ipaddr_cstruct.V6.write_cstruct_exn address (Cstruct.shift icmpbuf 6);
+    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
+    Ipv6_wire.set_icmpv6_csum icmpbuf @@ Ndpv6.checksum buf [];
+    nd_size
+  and is_na buf =
+    let icmpbuf = Cstruct.shift buf Ipv6_wire.sizeof_ipv6 in
+    Ipv6_wire.get_ipv6_version_flow buf = 0x60000000l && (* IPv6 *)
+    Ipaddr.V6.compare
+      (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 8))
+      address = 0 &&
+    Ipaddr.V6.compare
+      (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 24))
+      Ipaddr.V6.link_nodes = 0 &&
+    Ipv6_wire.get_ipv6_hlim buf = 255 &&
+    Ipv6_wire.get_ipv6_nhdr buf = Ipv6_wire.protocol_to_int `ICMP &&
+    Ipv6_wire.get_ns_ty icmpbuf = 136 &&
+    Ipv6_wire.get_ns_code icmpbuf = 0
+  in
+  Lwt.pick [
+    listen stack;
+    listen_raw (fun buf ->
+        if is_na buf then
+          Lwt.wakeup_later on_received_one ();
+        Lwt.return_unit);
+    (write_raw (E.mac stack.ethif) ~size:nd_size nd >|= fun _ -> ());
+    received_one;
+    (Time.sleep_ns (Duration.of_ms 1000) >>= fun () ->
+     Alcotest.fail "NA packet should have been received")
+  ]
+
 let suite = [
   "Send a UDP packet from one IPV6 stack and check it is received by another", `Quick, pass_udp_traffic;
+  "NA is sent when a ND is received", `Quick, dad_na_is_sent;
 ]
