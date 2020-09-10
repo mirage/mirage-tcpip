@@ -154,11 +154,6 @@ module Make (N : Mirage_net.S)
     let now = C.elapsed_ns () in
     let ctx, outs = Ndpv6.local ~now ~random:R.generate (E.mac ethif) in
     let t = {ctx; ethif} in
-    (* MCP: replace this error swallowing with proper propagation *)
-    Lwt_list.iter_s (output_ign t) outs >>= fun () ->
-    (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->
-    (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
-    (gateways, set_ip_gateways t) >>=? fun () ->
     let task, u = Lwt.task () in
     Lwt.async (fun () -> start_ticking t u);
     (* call listen until we're good in respect to DAD *)
@@ -171,8 +166,13 @@ module Make (N : Mirage_net.S)
     in
     let timeout = T.sleep_ns (Duration.of_sec 3) in
     Lwt.pick [
+      (* MCP: replace this error swallowing with proper propagation *)
+      (Lwt_list.iter_s (output_ign t) outs >>= fun () ->
+       (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->
+       (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
+       (gateways, set_ip_gateways t) >>=? fun () ->
+       task) ;
       (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
-      task ;
       timeout
     ] >>= fun () ->
     match get_ip t with
