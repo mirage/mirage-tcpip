@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
@@ -26,13 +26,13 @@ type t = {
 
 include Tcp_socket
 
-let connect id =
+let connect addr =
   let t =
-    match id with
+    match addr with
     | None -> { interface=None }
     | Some ip -> { interface=Some (Ipaddr_unix.V4.to_inet_addr ip) }
   in
-  return t
+  Lwt.return t
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -54,7 +54,7 @@ let create_connection ?keepalive _t (dst,dst_port) =
         | None -> ()
         | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
           Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
-      return (Ok fd))
+      Lwt.return (Ok fd))
     (fun exn ->
        Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >>= fun () ->
-       return (Error (`Exn exn)))
+       Lwt.return (Error (`Exn exn)))

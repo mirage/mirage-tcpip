@@ -25,6 +25,8 @@ type t = {
   interface: Unix.inet_addr option;    (* source ip to bind to *)
 }
 
+include Tcp_socket
+
 let connect addr =
   let t =
     match addr with
@@ -50,12 +52,10 @@ let create_connection ?keepalive _t (dst,dst_port) =
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
       >>= fun () ->
       ( match keepalive with
-      | None -> ()
-      | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
-        Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
+        | None -> ()
+        | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+          Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
       Lwt.return (Ok fd))
     (fun exn ->
        Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >>= fun () ->
        Lwt.return (Error (`Exn exn)))
-
-include Tcp_socket

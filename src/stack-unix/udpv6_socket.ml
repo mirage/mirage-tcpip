@@ -15,15 +15,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.V6.t
 type flow = Lwt_unix.file_descr
-type +'a io = 'a Lwt.t
 type ip = Ipaddr.V6.t option (* source ip and port *)
 type ipinput = unit Lwt.t
-type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> buffer -> unit io
+type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr; (* source ip to bind to *)
@@ -35,12 +33,12 @@ let get_udpv6_listening_fd {listen_fds;interface} port =
     Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface,port))
+    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
     >>= fun () ->
-    Hashtbl.add listen_fds (interface,port) fd;
+    Hashtbl.add listen_fds (interface, port) fd;
     Lwt.return fd
 
-(** IO operation errors *)
+
 type error = [`Sendto_failed]
 
 let pp_error ppf = function
@@ -54,10 +52,9 @@ let connect (id:ip) =
       | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
       | Some ip -> Ipaddr_unix.V6.to_inet_addr ip
     in { interface; listen_fds }
-  in return t
+  in Lwt.return t
 
-let disconnect _ =
-  return_unit
+let disconnect _ = Lwt.return_unit
 
 let id { interface; _ } =
   Some (Ipaddr_unix.V6.of_inet_addr_exn interface)
