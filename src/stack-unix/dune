@@ -67,5 +67,5 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.tcpv4-socket
-   tcpip.udpv4-socket tcpip.ipv4 tcpip.ipv6 tcpip.icmpv4 mirage-protocols
-   mirage-stack))
+   tcpip.udpv4-socket tcpip.ipv4 tcpip.tcpv6-socket tcpip.udpv6-socket
+   tcpip.ipv6 tcpip.icmpv4 mirage-protocols mirage-stack))

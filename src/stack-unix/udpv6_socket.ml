@@ -41,9 +41,10 @@ let get_udpv6_listening_fd {listen_fds;interface} port =
     Lwt.return fd
 
 (** IO operation errors *)
-type error = [
-  | `Unknown of string (** an undiagnosed error *)
-]
+type error = [`Sendto_failed]
+
+let pp_error ppf = function
+  | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
 
 let connect (id:ip) =
   let t =
@@ -67,12 +68,17 @@ let id { interface; _ } =
   let t, _ = Lwt.task () in
   t
 
-let write ?source_port ~dest_ip ~dest_port t buf =
+let write ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
-  ( match source_port with
+  let rec write_to_fd fd buf =
+    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
+    >>= function
+    | n when n = Cstruct.len buf -> Lwt.return @@ Ok ()
+    | 0 -> Lwt.return @@ Error `Sendto_failed
+    | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
+  in
+  ( match src_port with
     | None -> get_udpv6_listening_fd t 0
     | Some port -> get_udpv6_listening_fd t port )
   >>= fun fd ->
-  Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dest_ip), dest_port))
-  >>= fun _ ->
-  return_unit
+  write_to_fd fd buf

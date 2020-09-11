@@ -34,6 +34,6 @@ let connect _ = return_unit
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
 let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ = fail (Failure "Not implemented")
 
-let get_ip _ = [Ipaddr.V4.of_string_exn "0.0.0.0"]
+let get_ip _ = [Ipaddr.V4.any]
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

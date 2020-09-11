@@ -14,8 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Mirage_stack.V4
-  with module UDPV4 = Udpv4_socket
-   and module TCPV4 = Tcpv4_socket
-   and module IPV4  = Ipv4_socket
-val connect : Ipaddr.V4.t list -> Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
+module V4 : sig
+  include Mirage_stack.V4
+    with module UDPV4 = Udpv4_socket
+     and module TCPV4 = Tcpv4_socket
+     and module IPV4  = Ipv4_socket
+  val connect : Ipaddr.V4.t list -> Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
+end
+
+module V6 : sig
+  include Mirage_stack.V6
+    with module UDP = Udpv6_socket
+     and module TCP = Tcpv6_socket
+     and module IP  = Ipv6_socket
+  val connect : Ipaddr.V6.t list -> Udpv6_socket.t -> Tcpv6_socket.t -> t Lwt.t
+end

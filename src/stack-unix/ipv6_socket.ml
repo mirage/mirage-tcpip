@@ -17,14 +17,15 @@
 
 open Lwt
 
-type id = string
-type ip = unit
 type t = unit
 type +'a io = 'a Lwt.t
-type error = [ `Unimplemented | `Unknown of string ]
+type error = Mirage_protocols.Ip.error
 type ipaddr = Ipaddr.V6.t
 type buffer = Cstruct.t
 type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
+
+let pp_error = Mirage_protocols.Ip.pp_error
+let pp_ipaddr = Ipaddr.V6.pp
 
 let mtu _ = 1500 - Ipv6_wire.sizeof_ipv6
 
@@ -33,14 +34,8 @@ let disconnect () = return_unit
 let connect () = return_unit
 
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
-let allocate_frame _ ~dst:_ ~proto:_ = raise (Failure "Not implemented")
-let write _ _ _ = fail (Failure "Not implemented")
-let writev _ _ _ = fail (Failure "Not implemented")
+let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ = fail (Failure "Not implemented")
 
-let get_ip _ = Ipaddr.V6.of_string_exn "::"
-let set_ip _ _ = fail (Failure "Not implemented")
-let get_ip_gateways _ = raise (Failure "Not implemented")
-let set_ip_gateways _ _ = fail (Failure "Not implemented")
-
-let checksum _ _ = raise (Failure "Not implemented")
+let get_ip _ = [Ipaddr.V6.unspecified]
 let src _ ~dst:_ = raise (Failure "Not implemented")
+let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Stack = Tcpip_stack_socket
+module Stack = Tcpip_stack_socket.V4
 module Time = Vnetif_common.Time
 
 type stack_stack = {
