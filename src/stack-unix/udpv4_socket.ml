@@ -64,7 +64,7 @@ let id { interface; _ } =
   let t, _ = Lwt.task () in
   t
 
-let write ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
+let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
   let rec write_to_fd fd buf =
     Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
