@@ -44,7 +44,7 @@ module Make (Ip:Mirage_protocols.IP) = struct
     Fmt.pf ppf "remote %a,%d to local %a, %d"
       Ip.pp_ipaddr t.dst t.dst_port Ip.pp_ipaddr t.src t.src_port
 
-  let xmit ~ip { src_port; dst_port; dst; _ } ?(rst=false) ?(syn=false)
+  let xmit ~ip { src_port; dst_port; src; dst } ?(rst=false) ?(syn=false)
       ?(fin=false) ?(psh=false)
       ~rx_ack ~seq ~window ~options payload
     =
@@ -62,7 +62,7 @@ module Make (Ip:Mirage_protocols.IP) = struct
     (* Make a TCP/IP header frame *)
     let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload in
     let fill_buffer buf =
-      let pseudoheader = Ip.pseudoheader ip dst `TCP tcp_size in
+      let pseudoheader = Ip.pseudoheader ip ~src dst `TCP tcp_size in
       match Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload with
       | Error s ->
         Log.err (fun l -> l "Error writing TCP packet header: %s" s) ;
@@ -75,7 +75,7 @@ module Make (Ip:Mirage_protocols.IP) = struct
           (Cstruct.len payload + if syn then 1 else 0) ;
         tcp_size
     in
-    Ip.write ip ~fragment:false dst `TCP ~size:tcp_size fill_buffer [] >|= function
+    Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer [] >|= function
     | Ok () -> Ok ()
     (* swallow errors so normal recovery mechanisms can be used *)
     (* For errors which aren't transient, or are too long-lived for TCP to recover
