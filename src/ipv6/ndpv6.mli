@@ -55,9 +55,9 @@ val handle : now:time -> random:(int -> Cstruct.t) -> context -> buffer ->
     packets to be sent and [evs] is a list of packets to be passed to the higher
     layers (udp, tcp, etc) for further processing. *)
 
-val send : now:time -> context -> ipaddr -> Mirage_protocols.Ip.proto ->
+val send : now:time -> context -> ?src:ipaddr -> ipaddr -> Mirage_protocols.Ip.proto ->
   int -> (buffer -> buffer -> int) -> context * (Macaddr.t * int * (buffer -> int)) list
-(** [send ~now ctx ip proto size fillf] starts route resolution and assembles an
+(** [send ~now ctx ?src dst proto size fillf] starts route resolution and assembles an
     ipv6 packet of [size] for sending with header and body passed to [fillf].
     It returns a pair [ctx', dst_size_fills] where [ctx'] is the updated
     context and [dst, size, fillf] is a list of packets to be sent, specified

@@ -1104,8 +1104,8 @@ and send' ~now ctx dst size fillf =
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
 
-let send ~now ctx dst proto size fillf =
-  let src = AddressList.select_source ctx.address_list ~dst in
+let send ~now ctx ?src dst proto size fillf =
+  let src = match src with None -> AddressList.select_source ctx.address_list ~dst | Some s -> s in
   let siz, fill = Allocate.hdr ~hlim:ctx.cur_hop_limit ~src ~dst ~proto ~size fillf in
   send' ~now ctx dst siz fill
 

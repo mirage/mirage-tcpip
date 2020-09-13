@@ -63,7 +63,7 @@ module Make (N : Mirage_net.S)
 
   let mtu t = E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
 
-  let write t ?fragment:_ ?ttl:_ ?src:_ dst proto ?(size = 0) headerf bufs =
+  let write t ?fragment:_ ?ttl:_ ?src dst proto ?(size = 0) headerf bufs =
     let now = C.elapsed_ns () in
     (* TODO fragmentation! *)
     let payload = Cstruct.concat bufs in
@@ -77,7 +77,7 @@ module Make (N : Mirage_net.S)
       Cstruct.blit payload 0 buf h_len (Cstruct.len payload);
       h_len + Cstruct.len payload
     in
-    let ctx, outs = Ndpv6.send ~now t.ctx dst proto size' fillf in
+    let ctx, outs = Ndpv6.send ~now t.ctx ?src dst proto size' fillf in
     t.ctx <- ctx;
     let fail_any progress data =
       let squeal = function
