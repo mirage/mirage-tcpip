@@ -1,3 +1,17 @@
+### v5.0.1 (2020-09-22)
+
+* Assorted IPv6 improvements (#428 #431 #432 @MagnusS @hannesm)
+  - set length in packets to be sent
+  - preserve updated ctx from Ndv6.handle
+  - fix ICMP checksum computation
+  - implement Mirage_stack.V6 signature
+  - add connect, mtu, iperf tests
+  - fix DAD protocol implementation (and test it)
+  - avoid out of bounds accesses of IPv6 packets (check length before accessing)
+* Fix 32 bit issues (@MagnusS)
+* Implement stack-direct and tcp disconnect: tear down existing connections (#429 @hannesm)
+* Treat broadcast address of network as broadcast as well (#430 @hannesm, reported in #427)
+
 ### v5.0.0 (2020-06-19)
 
 * Static_ipv4.connect API change: takes a cidr:Ipaddr.V4.Prefix.t instead of
