@@ -76,7 +76,7 @@ struct
   module U4 = Udp.Make(Ip4)(Mirage_random_test)
   module T4 = Tcp.Flow.Make(Ip4)(Time)(Clock)(Mirage_random_test)
 
-  module Ip6 = Ipv6.Make(V)(E)(Mirage_random_test)(Time)(Clock)
+  module Ip6 = Ipv6.Make(E)(Mirage_random_test)(Time)(Clock)
   module U6 = Udp.Make(Ip6)(Mirage_random_test)
   module T6 = Tcp.Flow.Make(Ip6)(Time)(Clock)(Mirage_random_test)
 
@@ -88,6 +88,15 @@ struct
 
   let create_backend () =
     B.create ()
+
+  let rec wait_for_ipv6 t () =
+    (* Wait for IP to be valid *)
+    if List.length (Ip6.get_ip (Stackv6.ip t)) >= 1 then
+    begin
+            Lwt.return t
+    end else
+    Time.sleep_ns (Duration.of_ms 50) >>= fun () ->
+    wait_for_ipv6 t ()
 
   let create_stack ?mtu ~cidr ?gateway backend =
     let size_limit = match mtu with None -> None | Some x -> Some x in
@@ -104,10 +113,11 @@ struct
     let size_limit = match mtu with None -> None | Some x -> Some x in
     V.connect ?size_limit backend >>= fun netif ->
     E.connect netif >>= fun ethif ->
-    Ip6.connect ?ip ?netmask ?gateways netif ethif >>= fun ipv6 ->
+    Ip6.connect ?ip ?netmask ?gateways ethif >>= fun ipv6 ->
     U6.connect ipv6 >>= fun udpv6 ->
     T6.connect ipv6 >>= fun tcpv6 ->
-    Stackv6.connect netif ethif ipv6 udpv6 tcpv6
+    Stackv6.connect netif ethif ipv6 udpv6 tcpv6 >>= fun s ->
+    wait_for_ipv6 s ()
 
   let create_backend_listener backend listenf =
     match (B.register backend) with

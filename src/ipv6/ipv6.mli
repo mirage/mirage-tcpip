@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (N : Mirage_net.S)
-            (E : Mirage_protocols.ETHERNET)
+module Make (E : Mirage_protocols.ETHERNET)
             (R : Mirage_random.S)
             (T : Mirage_time.S)
             (Clock : Mirage_clock.MCLOCK) : sig
@@ -24,5 +23,5 @@ module Make (N : Mirage_net.S)
     ?ip:Ipaddr.V6.t list ->
     ?netmask:Ipaddr.V6.Prefix.t list ->
     ?gateways:Ipaddr.V6.t list ->
-    N.t -> E.t -> t Lwt.t
+    E.t -> t Lwt.t
 end

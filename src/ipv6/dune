@@ -1,8 +1,8 @@
 (library
  (name tcpip_ipv6)
  (public_name tcpip.ipv6)
- (libraries logs mirage-protocols mirage-time mirage-net macaddr-cstruct
+ (libraries logs mirage-protocols mirage-time macaddr-cstruct
    mirage-clock duration ipaddr cstruct rresult mirage-random tcpip
-   randomconv ethernet)
+   randomconv)
  (preprocess (pps ppx_cstruct))
  (wrapped false))
