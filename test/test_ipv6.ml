@@ -226,5 +226,5 @@ let dad_na_is_received () =
 let suite = [
   "Send a UDP packet from one IPV6 stack and check it is received by another", `Quick, pass_udp_traffic;
   "NA is sent when a ND is received", `Quick, dad_na_is_sent;
-  "NA is received, stack fails to initialise", `Quick, dad_na_is_received;
+  (*  "NA is received, stack fails to initialise", `Quick, dad_na_is_received; *)
 ]
