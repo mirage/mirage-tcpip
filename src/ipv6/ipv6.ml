@@ -61,7 +61,7 @@ module Make (N : Mirage_net.S)
     in
     loop (Some u)
 
-  let mtu t = E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
+  let mtu t ~dst:_ = E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
 
   let write t ?fragment:_ ?ttl:_ ?src dst proto ?(size = 0) headerf bufs =
     let now = C.elapsed_ns () in

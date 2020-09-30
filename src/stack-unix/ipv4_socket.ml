@@ -22,7 +22,7 @@ type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 let pp_error = Mirage_protocols.Ip.pp_error
 let pp_ipaddr = Ipaddr.V4.pp
 
-let mtu _ = 1500 - Ipv4_wire.sizeof_ipv4
+let mtu _ ~dst:_ = 1500 - Ipv4_wire.sizeof_ipv4
 
 let disconnect _ = Lwt.return_unit
 let connect _ = Lwt.return_unit

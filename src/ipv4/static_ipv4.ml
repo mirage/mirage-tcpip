@@ -176,6 +176,6 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
 
   let src t ~dst:_ = Ipaddr.V4.Prefix.address t.cidr
 
-  let mtu t = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
+  let mtu t ~dst:_ = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 
 end

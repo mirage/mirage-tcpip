@@ -23,7 +23,7 @@ type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 let pp_error = Mirage_protocols.Ip.pp_error
 let pp_ipaddr = Ipaddr.V6.pp
 
-let mtu _ = 1500 - Ipv6_wire.sizeof_ipv6
+let mtu _ ~dst:_ = 1500 - Ipv6_wire.sizeof_ipv6
 
 let disconnect () = Lwt.return_unit
 let connect () = Lwt.return_unit

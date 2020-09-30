@@ -376,9 +376,9 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
     List.map (fun ip -> Ipaddr.V4 ip) (Ipv4.get_ip t.ipv4) @
     List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.get_ip t.ipv6)
 
-  let mtu t =
-    (* TODO incorrect for IPv4 *)
-    Ipv6.mtu t.ipv6
+  let mtu t ~dst = match dst with
+    | Ipaddr.V4 dst -> Ipv4.mtu t.ipv4 ~dst
+    | Ipaddr.V6 dst -> Ipv6.mtu t.ipv6 ~dst
 end
 
 module MakeV4V6
