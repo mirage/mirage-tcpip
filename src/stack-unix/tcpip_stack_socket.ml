@@ -168,6 +168,7 @@ module V6 = struct
     else
       let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+      Lwt_unix.(setsockopt fd IPV6_ONLY true);
       (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
       let interface = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
       (* FIXME: we should not ignore the result *)
@@ -207,6 +208,107 @@ module V6 = struct
     | [ip] when (Ipaddr.V6.compare Ipaddr.V6.unspecified ip) = 0 -> Lwt.return_unit
     | l ->
       let pp_iplist fmt l = Format.pp_print_list Ipaddr.V6.pp fmt l in
+      Log.warn (fun f -> f
+                   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
+      Lwt.return_unit
+
+  let connect ips udp tcp =
+    Log.info (fun f -> f "Manager: connect");
+    let t = { tcp; udp } in
+    Log.info (fun f -> f "Manager: configuring");
+    configure t ips >|= fun () ->
+    t
+
+  let disconnect _ = Lwt.return_unit
+end
+
+module V4V6 = struct
+  module TCP = Tcpv4v6_socket
+  module UDP = Udpv4v6_socket
+  module IP  = Ipv4v6_socket
+
+  type t = {
+    udp : UDP.t;
+    tcp : TCP.t;
+  }
+
+  let udp { udp; _ } = udp
+  let tcp { tcp; _ } = tcp
+  let ip _ = ()
+
+  let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
+
+  let listen_udp t ~port callback =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (err_invalid_port port))
+    else
+      (* FIXME: we should not ignore the result *)
+      Lwt.async (fun () ->
+          UDP.get_udpv4v6_listening_fd t.udp port >>= fun fd ->
+          let buf = Cstruct.create 4096 in
+          let rec loop () =
+            (* TODO cancellation *)
+            Lwt.catch (fun () ->
+                Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
+                let buf = Cstruct.sub buf 0 len in
+                (match sa with
+                 | Lwt_unix.ADDR_INET (addr, src_port) ->
+                   let src = Ipaddr_unix.of_inet_addr addr in
+                   let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
+                   callback ~src ~dst ~src_port buf
+                 | _ -> Lwt.return_unit))
+              (fun exn ->
+                 Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
+                 Lwt.return_unit) >>= fun () ->
+            loop ()
+          in
+          loop ())
+
+  let listen_tcp ?keepalive _t ~port callback =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (err_invalid_port port))
+    else
+      let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+      Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+      Lwt_unix.(setsockopt fd IPV6_ONLY false);
+      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
+      let interface = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
+      (* FIXME: we should not ignore the result *)
+      Lwt.async (fun () ->
+          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port)) >>= fun () ->
+          Lwt_unix.listen fd 10;
+          (* TODO cancellation *)
+          let rec loop () =
+            Lwt.catch (fun () ->
+                Lwt_unix.accept fd >|= fun (afd, _) ->
+                (match keepalive with
+                 | None -> ()
+                 | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+                   Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
+                Lwt.async
+                  (fun () ->
+                     Lwt.catch
+                       (fun () -> callback afd)
+                       (fun exn ->
+                          Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                          Lwt.return_unit)))
+              (fun exn ->
+                 Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
+                 Lwt.return_unit) >>= fun () ->
+            loop ()
+          in
+          loop ())
+
+  let listen _t =
+    let t, _ = Lwt.task () in
+    t (* TODO cancellation *)
+
+  (* List of IP addresses to bind to *)
+  let configure _t addrs =
+    match addrs with
+    | [] -> Lwt.return_unit
+    | l ->
+      let pp_iplist fmt l = Format.pp_print_list Ipaddr.pp fmt l in
       Log.warn (fun f -> f
                    "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
       Lwt.return_unit

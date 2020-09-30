@@ -27,6 +27,15 @@
  (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols))
 
 (library
+ (name udpv4v6_socket)
+ (public_name tcpip.udpv4v6-socket)
+ (modules udpv4v6_socket)
+ (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols))
+
+(library
  (name tcp_socket_options)
  (public_name tcpip.tcp_socket_options)
  (modules tcp_socket_options)
@@ -60,12 +69,23 @@
    tcpv4_socket tcp_socket_options))
 
 (library
+ (name tcpv4v6_socket)
+ (public_name tcpip.tcpv4v6-socket)
+ (modules tcpv4v6_socket)
+ (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
+   tcpv4_socket tcp_socket_options))
+
+(library
  (name tcpip_stack_socket)
  (public_name tcpip.stack-socket)
- (modules tcpip_stack_socket ipv4_socket ipv6_socket)
+ (modules tcpip_stack_socket ipv4_socket ipv6_socket ipv4v6_socket)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
  (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.tcpv4-socket
    tcpip.udpv4-socket tcpip.ipv4 tcpip.tcpv6-socket tcpip.udpv6-socket
-   tcpip.ipv6 tcpip.icmpv4 mirage-protocols mirage-stack))
+   tcpip.ipv6 tcpip.tcpv4v6-socket tcpip.udpv4v6-socket tcpip.icmpv4
+   mirage-protocols mirage-stack))

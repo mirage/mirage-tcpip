@@ -17,9 +17,9 @@
 
 open Lwt.Infix
 
-type ipaddr = Ipaddr.V6.t
+type ipaddr = Ipaddr.t
 type flow = Lwt_unix.file_descr
-type ip = Ipaddr.V6.t option (* source ip and port *)
+type ip = Ipaddr.t option (* source ip and port *)
 type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
@@ -28,12 +28,12 @@ type t = {
   listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
 }
 
-let get_udpv6_listening_fd {listen_fds;interface} port =
+let get_udpv4v6_listening_fd {listen_fds;interface} port =
   try
     Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.(setsockopt fd IPV6_ONLY true);
+    Lwt_unix.(setsockopt fd IPV6_ONLY false);
     Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
     >>= fun () ->
     Hashtbl.add listen_fds (interface, port) fd;
@@ -51,7 +51,7 @@ let connect (id:ip) =
     let interface =
       match id with
       | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
-      | Some ip -> Ipaddr_unix.V6.to_inet_addr ip
+      | Some ip -> Ipaddr_unix.to_inet_addr ip
     in { interface; listen_fds }
   in Lwt.return t
 
@@ -69,14 +69,14 @@ let id { interface; _ } =
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
   let rec write_to_fd fd buf =
-    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
+    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
     >>= function
     | n when n = Cstruct.len buf -> Lwt.return @@ Ok ()
     | 0 -> Lwt.return @@ Error `Sendto_failed
     | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
   in
   ( match src_port with
-    | None -> get_udpv6_listening_fd t 0
-    | Some port -> get_udpv6_listening_fd t port )
+    | None -> get_udpv4v6_listening_fd t 0
+    | Some port -> get_udpv4v6_listening_fd t port )
   >>= fun fd ->
   write_to_fd fd buf

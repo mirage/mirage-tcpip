@@ -46,7 +46,8 @@ let dst fd =
     end
 
 let create_connection ?keepalive _t (dst,dst_port) =
-  let fd = Lwt_unix.socket Lwt_unix.PF_INET6 Lwt_unix.SOCK_STREAM 0 in
+  let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+  Lwt_unix.(setsockopt fd IPV6_ONLY true);
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))

@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2014 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2014 Nicolas Ojeda Bar <n.oje.bar@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,26 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module V4 : sig
-  include Mirage_stack.V4
-    with module UDPV4 = Udpv4_socket
-     and module TCPV4 = Tcpv4_socket
-     and module IPV4  = Ipv4_socket
-  val connect : Ipaddr.V4.t list -> Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
-end
+include Mirage_protocols.TCP
+  with type ipaddr = Ipaddr.t
+   and type ipinput = unit Lwt.t
+   and type flow = Lwt_unix.file_descr
+   and type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
+   and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
-module V6 : sig
-  include Mirage_stack.V6
-    with module UDP = Udpv6_socket
-     and module TCP = Tcpv6_socket
-     and module IP  = Ipv6_socket
-  val connect : Ipaddr.V6.t list -> Udpv6_socket.t -> Tcpv6_socket.t -> t Lwt.t
-end
-
-module V4V6 : sig
-  include Mirage_stack.V4V6
-    with module UDP = Udpv4v6_socket
-     and module TCP = Tcpv4v6_socket
-     and module IP  = Ipv4v6_socket
-  val connect : Ipaddr.t list -> Udpv4v6_socket.t -> Tcpv4v6_socket.t -> t Lwt.t
-end
+val connect : Ipaddr.t option -> t Lwt.t

@@ -42,7 +42,7 @@ let recvfrom' fd buf flags =
     Lwt.return (n, sockaddr)
   end else Lwt_cstruct.recvfrom fd buf flags
 
-let write _t ~dst ?ttl:_ttl buf =
+let write _t ?src:_ ~dst ?ttl:_ttl buf =
   let open Lwt_unix in
   let flags = [] in
   let ipproto_icmp = 1 in (* according to BSD /etc/protocols *)
