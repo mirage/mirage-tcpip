@@ -61,17 +61,15 @@ module V4 = struct
           in
           loop ())
 
-  let listen_tcpv4 ?keepalive _t ~port callback =
+  let listen_tcpv4 ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
       let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
-      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
-      let interface = Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any in
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port)) >>= fun () ->
+          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udpv4.interface, port)) >>= fun () ->
           Lwt_unix.listen fd 10;
           (* TODO cancellation *)
           let rec loop () =
@@ -148,18 +146,16 @@ module V6 = struct
           in
           loop ())
 
-  let listen_tcp ?keepalive _t ~port callback =
+  let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
       let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
       Lwt_unix.(setsockopt fd IPV6_ONLY true);
-      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
-      let interface = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port)) >>= fun () ->
+          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udp.interface, port)) >>= fun () ->
           Lwt_unix.listen fd 10;
           (* TODO cancellation *)
           let rec loop () =
@@ -236,18 +232,16 @@ module V4V6 = struct
           in
           loop ())
 
-  let listen_tcp ?keepalive _t ~port callback =
+  let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
       let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
       Lwt_unix.(setsockopt fd IPV6_ONLY false);
-      (* TODO: as elsewhere in the module, we bind all available addresses; it would be better not to do so if the user has requested it *)
-      let interface = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port)) >>= fun () ->
+          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udp.interface, port)) >>= fun () ->
           Lwt_unix.listen fd 10;
           (* TODO cancellation *)
           let rec loop () =

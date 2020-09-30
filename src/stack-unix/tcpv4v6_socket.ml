@@ -28,16 +28,19 @@ type t = {
 include Tcp_socket
 
 let connect ipv4 ipv6 =
-  let t =
-    let interface =
-      match ipv4, ipv6 with
-      | None, None -> None
-      | _, Some ip -> Some (Ipaddr_unix.V6.to_inet_addr ip)
-      | Some ip, _ -> Some (Ipaddr_unix.V4.to_inet_addr ip)
-    in
-    { interface }
-  in
-  Lwt.return t
+  begin
+    match ipv6, Ipaddr.V4.(compare ipv4 any) with
+    | None, 0 -> Lwt.return None
+    | None, _ -> Lwt.return (Some (Ipaddr_unix.V4.to_inet_addr ipv4))
+    | Some x, 0 ->
+      if Ipaddr.V6.(compare unspecified x = 0) then
+        Lwt.return None
+      else
+        Lwt.return (Some (Ipaddr_unix.V6.to_inet_addr x))
+    | _ ->
+      Lwt.fail_with "Both IPv4 and IPv6 address provided to the socket stack"
+  end >|= fun interface ->
+  {interface}
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -46,11 +49,8 @@ let dst fd =
   | Unix.ADDR_INET (ia,port) -> Ipaddr_unix.of_inet_addr ia,port
 
 let create_connection ?keepalive _t (dst,dst_port) =
-  let family = match dst with
-    | Ipaddr.V4 _ -> Lwt_unix.PF_INET
-    | Ipaddr.V6 _ -> Lwt_unix.PF_INET6
-  in
-  let fd = Lwt_unix.(socket family SOCK_STREAM 0) in
+  let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+  Lwt_unix.(setsockopt fd IPV6_ONLY false);
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
