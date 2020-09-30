@@ -21,21 +21,34 @@ type ipaddr = Ipaddr.t
 type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
+let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
+
 type t = {
-  interface: Unix.inet_addr; (* source ip to bind to *)
-  listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
+  interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr ]; (* source ip to bind to *)
+  listen_fds: (int,Lwt_unix.file_descr * Lwt_unix.file_descr option) Hashtbl.t; (* UDP fds bound to a particular port *)
 }
 
 let get_udpv4v6_listening_fd {listen_fds;interface} port =
   try
-    Lwt.return @@ Hashtbl.find listen_fds (interface,port)
+    Lwt.return
+      (match Hashtbl.find listen_fds port with
+       | fd, None -> [ fd ]
+       | fd, Some fd' -> [ fd ; fd' ])
   with Not_found ->
-    let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.(setsockopt fd IPV6_ONLY false);
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
-    >>= fun () ->
-    Hashtbl.add listen_fds (interface, port) fd;
-    Lwt.return fd
+    (match interface with
+     | `Any ->
+       let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd IPV6_ONLY false);
+       Lwt.return ((fd, None), [ fd ])
+     | `Ip (v4, v6) ->
+       let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+       Lwt_unix.bind fd (Lwt_unix.ADDR_INET (v4, port)) >>= fun () ->
+       let fd' = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd' IPV6_ONLY true);
+       Lwt_unix.bind fd' (Lwt_unix.ADDR_INET (v6, port)) >|= fun () ->
+       ((fd, Some fd'), [ fd ; fd' ])) >|= fun (fds, r) ->
+    Hashtbl.add listen_fds port fds;
+    r
 
 
 type error = [`Sendto_failed]
@@ -44,21 +57,44 @@ let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
 
 let connect ipv4 ipv6 =
-  begin
-    let v4 = Ipaddr.V4.Prefix.address ipv4 in
+  let v4 = Ipaddr.V4.Prefix.address ipv4 in
+  let v4_unix = Ipaddr_unix.V4.to_inet_addr v4 in
+  let interface =
     match ipv6, Ipaddr.V4.(compare v4 any) with
-    | None, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified)
-    | None, _ -> Lwt.return (Ipaddr_unix.V4.to_inet_addr v4)
-    | Some x, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address x))
-    | _ ->
-      Lwt.fail_with "Both IPv4 and IPv6 address provided to the socket stack"
-  end >|= fun interface ->
+    | None, 0 -> `Any
+    | None, _ -> `Ip (v4_unix, any_v6)
+    | Some x, v4_any ->
+      let v6 = Ipaddr.V6.Prefix.address x in
+      if Ipaddr.V6.(compare v6 unspecified = 0) && v4_any = 0 then
+        `Any
+      else
+        `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
+  in
   let listen_fds = Hashtbl.create 7 in
-  { interface; listen_fds }
+  Lwt.return { interface; listen_fds }
 
 let disconnect _ = Lwt.return_unit
 
 let input ~listeners:_ _ = Lwt.return_unit
+
+let create_socket t ?port dst =
+  let bind fd proj dfl = match t.interface, port with
+    | `Any, None -> Lwt.return_unit
+    | `Any, Some p -> Lwt_unix.bind fd (Lwt_unix.ADDR_INET (dfl, p))
+    | `Ip p, _ ->
+      let port = match port with None -> 0 | Some p -> p in
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (proj p, port))
+  in
+  match dst with
+  | Ipaddr.V4 _ ->
+    let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+    bind fd fst (Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any) >|= fun () ->
+    fd
+  | Ipaddr.V6 _ ->
+    let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+    Lwt_unix.(setsockopt fd IPV6_ONLY true);
+    bind fd snd any_v6 >|= fun () ->
+    fd
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
@@ -69,8 +105,7 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
     | 0 -> Lwt.return @@ Error `Sendto_failed
     | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
   in
-  ( match src_port with
-    | None -> get_udpv4v6_listening_fd t 0
-    | Some port -> get_udpv4v6_listening_fd t port )
-  >>= fun fd ->
-  write_to_fd fd buf
+  create_socket t ?port:src_port dst >>= fun fd ->
+  write_to_fd fd buf >>= fun r ->
+  Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >|= fun () ->
+  r

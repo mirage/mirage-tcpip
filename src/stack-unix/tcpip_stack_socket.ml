@@ -212,58 +212,72 @@ module V4V6 = struct
     else
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          UDP.get_udpv4v6_listening_fd t.udp port >>= fun fd ->
-          let buf = Cstruct.create 4096 in
-          let rec loop () =
-            (* TODO cancellation *)
-            Lwt.catch (fun () ->
-                Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
-                let buf = Cstruct.sub buf 0 len in
-                (match sa with
-                 | Lwt_unix.ADDR_INET (addr, src_port) ->
-                   let src = Ipaddr_unix.of_inet_addr addr in
-                   let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
-                   callback ~src ~dst ~src_port buf
-                 | _ -> Lwt.return_unit))
-              (fun exn ->
-                 Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
-          in
-          loop ())
+          UDP.get_udpv4v6_listening_fd t.udp port >|= fun fds ->
+          List.iter (fun fd ->
+              Lwt.async (fun () ->
+                  let buf = Cstruct.create 4096 in
+                  let rec loop () =
+                    (* TODO cancellation *)
+                    Lwt.catch (fun () ->
+                        Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
+                        let buf = Cstruct.sub buf 0 len in
+                        (match sa with
+                         | Lwt_unix.ADDR_INET (addr, src_port) ->
+                           let src = Ipaddr_unix.of_inet_addr addr in
+                           let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
+                           callback ~src ~dst ~src_port buf
+                         | _ -> Lwt.return_unit))
+                      (fun exn ->
+                         Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
+                         Lwt.return_unit) >>= fun () ->
+                    loop ()
+                  in
+                  loop ())) fds)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
-      let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
-      Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
-      Lwt_unix.(setsockopt fd IPV6_ONLY false);
-      (* FIXME: we should not ignore the result *)
-      Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udp.interface, port)) >>= fun () ->
-          Lwt_unix.listen fd 10;
-          (* TODO cancellation *)
-          let rec loop () =
-            Lwt.catch (fun () ->
-                Lwt_unix.accept fd >|= fun (afd, _) ->
-                (match keepalive with
-                 | None -> ()
-                 | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
-                   Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
-                Lwt.async
-                  (fun () ->
-                     Lwt.catch
-                       (fun () -> callback afd)
-                       (fun exn ->
-                          Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                          Lwt.return_unit)))
-              (fun exn ->
-                 Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
-          in
-          loop ())
+      let fds =
+        match t.udp.interface with
+        | `Any ->
+          let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+          Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+          Lwt_unix.(setsockopt fd IPV6_ONLY false);
+          [ (fd, Lwt_unix.ADDR_INET (UDP.any_v6, port)) ]
+        | `Ip (v4, v6) ->
+          let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+          Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+          let fd' = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+          Lwt_unix.setsockopt fd' Lwt_unix.SO_REUSEADDR true;
+          [ (fd, Lwt_unix.ADDR_INET (v4, port)) ; (fd', Lwt_unix.ADDR_INET (v6, port)) ]
+      in
+      List.iter (fun (fd, addr) ->
+          (* FIXME: we should not ignore the result *)
+          Lwt.async (fun () ->
+              Lwt_unix.bind fd addr >>= fun () ->
+              Lwt_unix.listen fd 10;
+              (* TODO cancellation *)
+              let rec loop () =
+                Lwt.catch (fun () ->
+                    Lwt_unix.accept fd >|= fun (afd, _) ->
+                    (match keepalive with
+                     | None -> ()
+                     | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+                       Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
+                    Lwt.async
+                      (fun () ->
+                         Lwt.catch
+                           (fun () -> callback afd)
+                           (fun exn ->
+                              Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                              Lwt.return_unit)))
+                  (fun exn ->
+                     Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
+                     Lwt.return_unit) >>= fun () ->
+                loop ()
+              in
+              loop ())) fds
 
   let listen _t =
     let t, _ = Lwt.task () in

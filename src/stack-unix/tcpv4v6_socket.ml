@@ -22,22 +22,27 @@ type flow = Lwt_unix.file_descr
 type ipinput = unit Lwt.t
 
 type t = {
-  interface: Unix.inet_addr;    (* source ip to bind to *)
+  interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr ];    (* source ip to bind to *)
 }
 
 include Tcp_socket
 
 let connect ipv4 ipv6 =
-  begin
+  let interface =
     let v4 = Ipaddr.V4.Prefix.address ipv4 in
+    let v4_unix = Ipaddr_unix.V4.to_inet_addr v4 in
+    let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
     match ipv6, Ipaddr.V4.(compare v4 any) with
-    | None, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified)
-    | None, _ -> Lwt.return (Ipaddr_unix.V4.to_inet_addr v4)
-    | Some x, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address x))
-    | _ ->
-      Lwt.fail_with "Both IPv4 and IPv6 address provided to the socket stack"
-  end >|= fun interface ->
-  {interface}
+    | None, 0 -> `Any
+    | None, _ -> `Ip (v4_unix, any_v6)
+    | Some x, v4_any ->
+      let v6 = Ipaddr.V6.Prefix.address x in
+      if Ipaddr.V6.(compare v6 unspecified = 0) && v4_any = 0 then
+        `Any
+      else
+        `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
+  in
+  Lwt.return {interface}
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -46,10 +51,15 @@ let dst fd =
   | Unix.ADDR_INET (ia,port) -> Ipaddr_unix.of_inet_addr ia,port
 
 let create_connection ?keepalive t (dst,dst_port) =
-  let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
-  Lwt_unix.(setsockopt fd IPV6_ONLY false);
+  let family, proj = match dst with
+    | Ipaddr.V4 _ -> Lwt_unix.PF_INET, fst
+    | Ipaddr.V6 _ -> Lwt_unix.PF_INET6, snd
+  in
+  let fd = Lwt_unix.(socket family SOCK_STREAM 0) in
   Lwt.catch (fun () ->
-      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.interface, 0)) >>= fun () ->
+      (match t.interface with
+       | `Any -> Lwt.return_unit
+       | `Ip p -> Lwt_unix.bind fd (Lwt_unix.ADDR_INET (proj p, 0))) >>= fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
       >>= fun () ->
