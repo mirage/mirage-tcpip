@@ -45,10 +45,11 @@ let pp_error ppf = function
 
 let connect ipv4 ipv6 =
   begin
-    match ipv6, Ipaddr.V4.(compare ipv4 any) with
+    let v4 = Ipaddr.V4.Prefix.address ipv4 in
+    match ipv6, Ipaddr.V4.(compare v4 any) with
     | None, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified)
-    | None, _ -> Lwt.return (Ipaddr_unix.V4.to_inet_addr ipv4)
-    | Some x, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr x)
+    | None, _ -> Lwt.return (Ipaddr_unix.V4.to_inet_addr v4)
+    | Some x, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address x))
     | _ ->
       Lwt.fail_with "Both IPv4 and IPv6 address provided to the socket stack"
   end >|= fun interface ->

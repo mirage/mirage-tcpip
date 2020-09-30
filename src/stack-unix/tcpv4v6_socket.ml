@@ -22,21 +22,18 @@ type flow = Lwt_unix.file_descr
 type ipinput = unit Lwt.t
 
 type t = {
-  interface: Unix.inet_addr option;    (* source ip to bind to *)
+  interface: Unix.inet_addr;    (* source ip to bind to *)
 }
 
 include Tcp_socket
 
 let connect ipv4 ipv6 =
   begin
-    match ipv6, Ipaddr.V4.(compare ipv4 any) with
-    | None, 0 -> Lwt.return None
-    | None, _ -> Lwt.return (Some (Ipaddr_unix.V4.to_inet_addr ipv4))
-    | Some x, 0 ->
-      if Ipaddr.V6.(compare unspecified x = 0) then
-        Lwt.return None
-      else
-        Lwt.return (Some (Ipaddr_unix.V6.to_inet_addr x))
+    let v4 = Ipaddr.V4.Prefix.address ipv4 in
+    match ipv6, Ipaddr.V4.(compare v4 any) with
+    | None, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified)
+    | None, _ -> Lwt.return (Ipaddr_unix.V4.to_inet_addr v4)
+    | Some x, 0 -> Lwt.return (Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address x))
     | _ ->
       Lwt.fail_with "Both IPv4 and IPv6 address provided to the socket stack"
   end >|= fun interface ->
@@ -48,10 +45,11 @@ let dst fd =
     raise (Failure "unexpected: got a unix instead of tcp sock")
   | Unix.ADDR_INET (ia,port) -> Ipaddr_unix.of_inet_addr ia,port
 
-let create_connection ?keepalive _t (dst,dst_port) =
+let create_connection ?keepalive t (dst,dst_port) =
   let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
   Lwt_unix.(setsockopt fd IPV6_ONLY false);
   Lwt.catch (fun () ->
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.interface, 0)) >>= fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
       >>= fun () ->

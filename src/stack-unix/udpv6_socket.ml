@@ -49,9 +49,11 @@ let connect id =
     let interface =
       match id with
       | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
-      | Some ip -> Ipaddr_unix.V6.to_inet_addr ip
-    in { interface; listen_fds }
-  in Lwt.return t
+      | Some ip -> Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address ip)
+    in
+    { interface; listen_fds }
+  in
+  Lwt.return t
 
 let disconnect _ = Lwt.return_unit
 

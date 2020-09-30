@@ -21,17 +21,13 @@ type flow = Lwt_unix.file_descr
 type ipinput = unit Lwt.t
 
 type t = {
-  interface: Unix.inet_addr option;    (* source ip to bind to *)
+  interface: Unix.inet_addr;    (* source ip to bind to *)
 }
 
 include Tcp_socket
 
 let connect addr =
-  let t =
-    match addr with
-    | None -> { interface=None }
-    | Some ip -> { interface=Some (Ipaddr_unix.V4.to_inet_addr ip) }
-  in
+  let t = { interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address addr) } in
   Lwt.return t
 
 let dst fd =
@@ -44,9 +40,10 @@ let dst fd =
       | Some ip -> ip,port
     end
 
-let create_connection ?keepalive _t (dst,dst_port) =
+let create_connection ?keepalive t (dst,dst_port) =
   let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
   Lwt.catch (fun () ->
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.interface, 0)) >>= fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
       >>= fun () ->
