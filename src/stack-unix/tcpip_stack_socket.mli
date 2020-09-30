@@ -19,7 +19,7 @@ module V4 : sig
     with module UDPV4 = Udpv4_socket
      and module TCPV4 = Tcpv4_socket
      and module IPV4  = Ipv4_socket
-  val connect : Ipaddr.V4.t list -> Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
+  val connect : Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
 end
 
 module V6 : sig
@@ -27,7 +27,7 @@ module V6 : sig
     with module UDP = Udpv6_socket
      and module TCP = Tcpv6_socket
      and module IP  = Ipv6_socket
-  val connect : Ipaddr.V6.t list -> Udpv6_socket.t -> Tcpv6_socket.t -> t Lwt.t
+  val connect : Udpv6_socket.t -> Tcpv6_socket.t -> t Lwt.t
 end
 
 module V4V6 : sig
@@ -35,5 +35,5 @@ module V4V6 : sig
     with module UDP = Udpv4v6_socket
      and module TCP = Tcpv4v6_socket
      and module IP  = Ipv4v6_socket
-  val connect : Ipaddr.t list -> Udpv4v6_socket.t -> Tcpv4v6_socket.t -> t Lwt.t
+  val connect : Udpv4v6_socket.t -> Tcpv4v6_socket.t -> t Lwt.t
 end

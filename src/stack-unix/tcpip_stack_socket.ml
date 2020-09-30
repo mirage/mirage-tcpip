@@ -33,17 +33,6 @@ module V4 = struct
   let tcpv4 { tcpv4; _ } = tcpv4
   let ipv4 _ = None
 
-  (* List of IP addresses to bind to *)
-  let configure _t addrs =
-    match addrs with
-    | [] -> Lwt.return_unit
-    | [ip] when (Ipaddr.V4.compare Ipaddr.V4.any ip) = 0 -> Lwt.return_unit
-    | l ->
-      let pp_iplist fmt l = Format.pp_print_list Ipaddr.V4.pp fmt l in
-      Log.warn (fun f -> f
-                   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
-      Lwt.return_unit
-
   let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
 
   let listen_udpv4 t ~port callback =
@@ -110,12 +99,9 @@ module V4 = struct
     let t, _ = Lwt.task () in
     t (* TODO cancellation *)
 
-  let connect ips udpv4 tcpv4 =
-    Log.info (fun f -> f "Manager: connect");
-    let t = { tcpv4; udpv4 } in
-    Log.info (fun f -> f "Manager: configuring");
-    configure t ips >|= fun () ->
-    t
+  let connect udpv4 tcpv4 =
+    Log.info (fun f -> f "IPv4 socket stack: connect");
+    Lwt.return { tcpv4; udpv4 }
 
   let disconnect _ = Lwt.return_unit
 end
@@ -201,23 +187,9 @@ module V6 = struct
     let t, _ = Lwt.task () in
     t (* TODO cancellation *)
 
-  (* List of IP addresses to bind to *)
-  let configure _t addrs =
-    match addrs with
-    | [] -> Lwt.return_unit
-    | [ip] when (Ipaddr.V6.compare Ipaddr.V6.unspecified ip) = 0 -> Lwt.return_unit
-    | l ->
-      let pp_iplist fmt l = Format.pp_print_list Ipaddr.V6.pp fmt l in
-      Log.warn (fun f -> f
-                   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
-      Lwt.return_unit
-
-  let connect ips udp tcp =
-    Log.info (fun f -> f "Manager: connect");
-    let t = { tcp; udp } in
-    Log.info (fun f -> f "Manager: configuring");
-    configure t ips >|= fun () ->
-    t
+  let connect udp tcp =
+    Log.info (fun f -> f "IPv6 socket stack: connect");
+    Lwt.return { tcp; udp }
 
   let disconnect _ = Lwt.return_unit
 end
@@ -303,22 +275,9 @@ module V4V6 = struct
     let t, _ = Lwt.task () in
     t (* TODO cancellation *)
 
-  (* List of IP addresses to bind to *)
-  let configure _t addrs =
-    match addrs with
-    | [] -> Lwt.return_unit
-    | l ->
-      let pp_iplist fmt l = Format.pp_print_list Ipaddr.pp fmt l in
-      Log.warn (fun f -> f
-                   "Manager: sockets currently bind to all available IPs. IPs %a were specified, but this will be ignored" pp_iplist l);
-      Lwt.return_unit
-
-  let connect ips udp tcp =
-    Log.info (fun f -> f "Manager: connect");
-    let t = { tcp; udp } in
-    Log.info (fun f -> f "Manager: configuring");
-    configure t ips >|= fun () ->
-    t
+  let connect udp tcp =
+    Log.info (fun f -> f "Dual IPv4 and IPv6 socket stack: connect");
+    Lwt.return { tcp; udp }
 
   let disconnect _ = Lwt.return_unit
 end
