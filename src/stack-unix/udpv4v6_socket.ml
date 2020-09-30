@@ -18,8 +18,6 @@
 open Lwt.Infix
 
 type ipaddr = Ipaddr.t
-type flow = Lwt_unix.file_descr
-type ip = Ipaddr.t option (* source ip and port *)
 type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
@@ -28,12 +26,18 @@ type t = {
   listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
 }
 
-let get_udpv4v6_listening_fd {listen_fds;interface} port =
+let get_udpv4v6_listening_fd {listen_fds;interface} ?dst port =
   try
     Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
-    let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.(setsockopt fd IPV6_ONLY false);
+    let family, sockopt =
+      match dst with
+      | Some (Ipaddr.V4 _) -> Lwt_unix.PF_INET, false
+      | Some (Ipaddr.V6 _) -> Lwt_unix.PF_INET6, false
+      | None -> Lwt_unix.PF_INET6, true
+    in
+    let fd = Lwt_unix.(socket family SOCK_DGRAM 0) in
+    if sockopt then Lwt_unix.(setsockopt fd IPV6_ONLY false);
     Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
     >>= fun () ->
     Hashtbl.add listen_fds (interface, port) fd;
@@ -45,26 +49,21 @@ type error = [`Sendto_failed]
 let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
 
-let connect (id:ip) =
+let connect ipv4 ipv6 =
   let t =
     let listen_fds = Hashtbl.create 7 in
     let interface =
-      match id with
-      | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
-      | Some ip -> Ipaddr_unix.to_inet_addr ip
+      (* TODO handle Some _, Some _ case appropriately? *)
+      match ipv4, ipv6 with
+      | None, None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
+      | _, Some ip -> Ipaddr_unix.V6.to_inet_addr ip
+      | Some ip, _ -> Ipaddr_unix.V4.to_inet_addr ip
     in { interface; listen_fds }
   in Lwt.return t
 
 let disconnect _ = Lwt.return_unit
 
-let id { interface; _ } =
-  Some (Ipaddr_unix.V6.of_inet_addr_exn interface)
-
-(* FIXME: how does this work at all ?? *)
- let input ~listeners:_ _ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
+let input ~listeners:_ _ = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
@@ -76,7 +75,7 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
     | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
   in
   ( match src_port with
-    | None -> get_udpv4v6_listening_fd t 0
-    | Some port -> get_udpv4v6_listening_fd t port )
+    | None -> get_udpv4v6_listening_fd t ~dst 0
+    | Some port -> get_udpv4v6_listening_fd t ~dst port )
   >>= fun fd ->
   write_to_fd fd buf

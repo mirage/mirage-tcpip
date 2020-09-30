@@ -27,11 +27,15 @@ type t = {
 
 include Tcp_socket
 
-let connect addr =
+let connect ipv4 ipv6 =
   let t =
-    match addr with
-    | None -> { interface=None }
-    | Some ip -> { interface=Some (Ipaddr_unix.to_inet_addr ip) }
+    let interface =
+      match ipv4, ipv6 with
+      | None, None -> None
+      | _, Some ip -> Some (Ipaddr_unix.V6.to_inet_addr ip)
+      | Some ip, _ -> Some (Ipaddr_unix.V4.to_inet_addr ip)
+    in
+    { interface }
   in
   Lwt.return t
 
@@ -42,8 +46,11 @@ let dst fd =
   | Unix.ADDR_INET (ia,port) -> Ipaddr_unix.of_inet_addr ia,port
 
 let create_connection ?keepalive _t (dst,dst_port) =
-  let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
-  Lwt_unix.(setsockopt fd IPV6_ONLY false);
+  let family = match dst with
+    | Ipaddr.V4 _ -> Lwt_unix.PF_INET
+    | Ipaddr.V6 _ -> Lwt_unix.PF_INET6
+  in
+  let fd = Lwt_unix.(socket family SOCK_STREAM 0) in
   Lwt.catch (fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))

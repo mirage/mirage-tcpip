@@ -18,8 +18,6 @@
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V6.t
-type flow = Lwt_unix.file_descr
-type ip = Ipaddr.V6.t option (* source ip and port *)
 type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
@@ -45,7 +43,7 @@ type error = [`Sendto_failed]
 let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
 
-let connect (id:ip) =
+let connect id =
   let t =
     let listen_fds = Hashtbl.create 7 in
     let interface =
@@ -57,14 +55,7 @@ let connect (id:ip) =
 
 let disconnect _ = Lwt.return_unit
 
-let id { interface; _ } =
-  Some (Ipaddr_unix.V6.of_inet_addr_exn interface)
-
-(* FIXME: how does this work at all ?? *)
- let input ~listeners:_ _ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
+let input ~listeners:_ _ = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in

@@ -31,7 +31,7 @@ module V4 = struct
 
   let udpv4 { udpv4; _ } = udpv4
   let tcpv4 { tcpv4; _ } = tcpv4
-  let ipv4 _ = None
+  let ipv4 _ = ()
 
   let err_invalid_port p = Printf.sprintf "invalid port number (%d)" p
 

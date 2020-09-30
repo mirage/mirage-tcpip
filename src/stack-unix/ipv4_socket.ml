@@ -14,25 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-
-type t = Ipaddr.V4.t option
-type +'a io = 'a Lwt.t
+type t = unit
 type error = Mirage_protocols.Ip.error
 type ipaddr = Ipaddr.V4.t
-type buffer = Cstruct.t
-type callback = src:ipaddr -> dst:ipaddr -> buffer -> unit io
+type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
 let pp_error = Mirage_protocols.Ip.pp_error
 let pp_ipaddr = Ipaddr.V4.pp
 
 let mtu _ = 1500 - Ipv4_wire.sizeof_ipv4
 
-let disconnect _ = return_unit
-let connect _ = return_unit
+let disconnect _ = Lwt.return_unit
+let connect _ = Lwt.return_unit
 
-let input _ ~tcp:_ ~udp:_ ~default:_ _ = return_unit
-let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ = fail (Failure "Not implemented")
+let input _ ~tcp:_ ~udp:_ ~default:_ _ = Lwt.return_unit
+let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
+  Lwt.fail (Failure "Not implemented")
 
 let get_ip _ = [Ipaddr.V4.any]
 let src _ ~dst:_ = raise (Failure "Not implemented")
