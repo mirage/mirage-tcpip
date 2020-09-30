@@ -111,27 +111,8 @@ module Make (N : Mirage_net.S)
 
   let src t ~dst = Ndpv6.select_source t.ctx dst
 
-  let set_ip t ip =
-    let now = C.elapsed_ns () in
-    let ctx, outs = Ndpv6.add_ip ~now t.ctx ip in
-    t.ctx <- ctx;
-    (* MCP: replace the below *)
-    Lwt_list.iter_s (output_ign t) outs
-
   let get_ip t =
     Ndpv6.get_ip t.ctx
-
-  let set_ip_gateways t ips =
-    let now = C.elapsed_ns () in
-    let ctx = Ndpv6.add_routers ~now t.ctx ips in
-    t.ctx <- ctx;
-    Lwt.return_unit
-
-  let set_ip_netmask t pfx =
-    let now = C.elapsed_ns () in
-    let ctx = Ndpv6.add_prefix ~now t.ctx pfx in
-    t.ctx <- ctx;
-    Lwt.return_unit
 
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
@@ -145,14 +126,21 @@ module Make (N : Mirage_net.S)
     Cstruct.set_uint8 ph 39 (Ipv6_wire.protocol_to_int proto);
     ph
 
-  let (>>=?) (x,f) g = match x with
-    | Some x -> f x >>= g
-    | None -> g ()
-
-  let connect ?ip ?netmask ?gateways netif ethif =
+  let connect ?cidr ?gateway netif ethif =
     Log.info (fun f -> f "IP6: Starting");
     let now = C.elapsed_ns () in
     let ctx, outs = Ndpv6.local ~now ~random:R.generate (E.mac ethif) in
+    let ctx, outs = match cidr with
+      | None -> ctx, outs
+      | Some p ->
+        let ctx, outs' = Ndpv6.add_ip ~now ctx (Ipaddr.V6.Prefix.address p) in
+        let ctx = Ndpv6.add_prefix ~now ctx (Ipaddr.V6.Prefix.prefix p) in
+        ctx, outs @ outs'
+    in
+    let ctx = match gateway with
+      | None -> ctx
+      | Some ip -> Ndpv6.add_routers ~now ctx [ip]
+    in
     let t = {ctx; ethif} in
     let task, u = Lwt.task () in
     Lwt.async (fun () -> start_ticking t u);
@@ -168,9 +156,6 @@ module Make (N : Mirage_net.S)
     Lwt.pick [
       (* MCP: replace this error swallowing with proper propagation *)
       (Lwt_list.iter_s (output_ign t) outs >>= fun () ->
-       (ip, Lwt_list.iter_s (set_ip t)) >>=? fun () ->
-       (netmask, Lwt_list.iter_s (set_ip_netmask t)) >>=? fun () ->
-       (gateways, set_ip_gateways t) >>=? fun () ->
        task) ;
       (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
       timeout
