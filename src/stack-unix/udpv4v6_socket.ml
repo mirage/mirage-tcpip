@@ -39,7 +39,8 @@ let get_udpv4v6_listening_fd {listen_fds;interface} port =
      | `Any ->
        let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
        Lwt_unix.(setsockopt fd IPV6_ONLY false);
-       Lwt.return ((fd, None), [ fd ])
+       Lwt_unix.bind fd (Lwt_unix.ADDR_INET (any_v6, port)) >|= fun () ->
+       ((fd, None), [ fd ])
      | `Ip (v4, v6) ->
        let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (v4, port)) >>= fun () ->
