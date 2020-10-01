@@ -21,6 +21,7 @@ module Make (N : Mirage_net.S)
             (Clock : Mirage_clock.MCLOCK) : sig
   include Mirage_protocols.IP with type ipaddr = Ipaddr.V6.t
   val connect :
+    ?no_init:bool ->
     ?handle_ra:bool ->
     ?cidr:Ipaddr.V6.Prefix.t ->
     ?gateway:Ipaddr.V6.t ->

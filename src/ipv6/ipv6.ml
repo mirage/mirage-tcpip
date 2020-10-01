@@ -126,7 +126,7 @@ module Make (N : Mirage_net.S)
     Cstruct.set_uint8 ph 39 (Ipv6_wire.protocol_to_int proto);
     ph
 
-  let connect ?(handle_ra = true) ?cidr ?gateway netif ethif =
+  let connect ?(no_init = false) ?(handle_ra = true) ?cidr ?gateway netif ethif =
     Log.info (fun f -> f "IP6: Starting");
     let now = C.elapsed_ns () in
     let ctx, outs = Ndpv6.local ~handle_ra ~now ~random:R.generate (E.mac ethif) in
@@ -142,29 +142,32 @@ module Make (N : Mirage_net.S)
       | Some ip -> Ndpv6.add_routers ~now ctx [ip]
     in
     let t = {ctx; ethif} in
-    let task, u = Lwt.task () in
-    Lwt.async (fun () -> start_ticking t u);
-    (* call listen until we're good in respect to DAD *)
-    let ethif_listener =
-      let noop ~src:_ ~dst:_ _ = Lwt.return_unit in
-      E.input ethif
-        ~arpv4:(fun _ -> Lwt.return_unit)
-        ~ipv4:(fun _ -> Lwt.return_unit)
-        ~ipv6:(input t ~tcp:noop ~udp:noop ~default:(fun ~proto:_ -> noop))
-    in
-    let timeout = T.sleep_ns (Duration.of_sec 3) in
-    Lwt.pick [
-      (* MCP: replace this error swallowing with proper propagation *)
-      (Lwt_list.iter_s (output_ign t) outs >>= fun () ->
-       task) ;
-      (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
-      timeout
-    ] >>= fun () ->
-    let expected_ips = match cidr with None -> 1 | Some _ -> 2 in
-    match get_ip t with
-    | ips when List.length ips = expected_ips ->
-      Log.info (fun f -> f "IP6: Started with %a"
-                   Fmt.(list ~sep:(unit ",@ ") Ipaddr.V6.pp) ips);
+    if no_init then
       Lwt.return t
-    | _ -> Lwt.fail_with "IP6 not started, couldn't assign IP addresses"
+    else
+      let task, u = Lwt.task () in
+      Lwt.async (fun () -> start_ticking t u);
+      (* call listen until we're good in respect to DAD *)
+      let ethif_listener =
+        let noop ~src:_ ~dst:_ _ = Lwt.return_unit in
+        E.input ethif
+          ~arpv4:(fun _ -> Lwt.return_unit)
+          ~ipv4:(fun _ -> Lwt.return_unit)
+          ~ipv6:(input t ~tcp:noop ~udp:noop ~default:(fun ~proto:_ -> noop))
+      in
+      let timeout = T.sleep_ns (Duration.of_sec 3) in
+      Lwt.pick [
+        (* MCP: replace this error swallowing with proper propagation *)
+        (Lwt_list.iter_s (output_ign t) outs >>= fun () ->
+         task) ;
+        (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
+        timeout
+      ] >>= fun () ->
+      let expected_ips = match cidr with None -> 1 | Some _ -> 2 in
+      match get_ip t with
+      | ips when List.length ips = expected_ips ->
+        Log.info (fun f -> f "IP6: Started with %a"
+                     Fmt.(list ~sep:(unit ",@ ") Ipaddr.V6.pp) ips);
+        Lwt.return t
+      | _ -> Lwt.fail_with "IP6 not started, couldn't assign IP addresses"
 end
