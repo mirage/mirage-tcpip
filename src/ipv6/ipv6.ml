@@ -160,11 +160,11 @@ module Make (N : Mirage_net.S)
       (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
       timeout
     ] >>= fun () ->
+    let expected_ips = match cidr with None -> 1 | Some _ -> 2 in
     match get_ip t with
-    | [] -> Lwt.fail_with "IP6 not started, couldn't assign IP"
-    | ips ->
+    | ips when List.length ips = expected_ips ->
       Log.info (fun f -> f "IP6: Started with %a"
                    Fmt.(list ~sep:(unit ",@ ") Ipaddr.V6.pp) ips);
       Lwt.return t
-
+    | _ -> Lwt.fail_with "IP6 not started, couldn't assign IP addresses"
 end
