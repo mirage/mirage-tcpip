@@ -281,9 +281,13 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
     | `Ipv6 e -> Ipv6.pp_error ppf e
     | `Msg m -> Fmt.string ppf m
 
-  type t = { ipv4 : Ipv4.t ; ipv6 : Ipv6.t }
+  type t = { ipv4 : Ipv4.t ; ipv4_only : bool ; ipv6 : Ipv6.t ; ipv6_only : bool }
 
-  let connect ipv4 ipv6 = Lwt.return { ipv4 ; ipv6 }
+  let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
+    if ipv4_only && ipv6_only then
+      Lwt.fail_with "cannot configure stack with both IPv4 only and IPv6 only"
+    else
+      Lwt.return { ipv4 ; ipv4_only ; ipv6 ; ipv6_only }
 
   let disconnect _ = Lwt.return_unit
 
@@ -298,9 +302,9 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
     fun buf ->
       if Cstruct.len buf >= 1 then
         let v = Cstruct.get_uint8 buf 0 lsr 4 in
-        if v = 4 then
+        if v = 4 && not t.ipv6_only then
           Ipv4.input t.ipv4 ~tcp:tcp4 ~udp:udp4 ~default:default4 buf
-        else if v = 6 then
+        else if v = 6 && not t.ipv4_only then
           Ipv6.input t.ipv6 ~tcp:tcp6 ~udp:udp6 ~default:default6 buf
         else
           Lwt.return_unit
@@ -310,7 +314,7 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
   let write t ?fragment ?ttl ?src dst proto ?size headerf bufs =
     match dst with
     | Ipaddr.V4 dst ->
-      begin
+      if not t.ipv6_only then
         match
           match src with
           | None -> Ok None
@@ -322,9 +326,12 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
           Ipv4.write t.ipv4 ?fragment ?ttl ?src dst proto ?size headerf bufs >|= function
           | Ok () -> Ok ()
           | Error e -> Error (`Ipv4 e)
+      else begin
+        Log.warn (fun m -> m "attempted to write an IPv4 packet in a v6 only stack");
+        Lwt.return (Ok ())
       end
     | Ipaddr.V6 dst ->
-      begin
+      if not t.ipv4_only then
         match
           match src with
           | None -> Ok None
@@ -336,6 +343,9 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
           Ipv6.write t.ipv6 ?fragment ?ttl ?src dst proto ?size headerf bufs >|= function
           | Ok () -> Ok ()
           | Error e -> Error (`Ipv6 e)
+      else begin
+        Log.warn (fun m -> m "attempted to write an IPv6 packet in a v4 only stack");
+        Lwt.return (Ok ())
       end
 
   let pseudoheader t ?src dst proto len =
@@ -345,7 +355,7 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
         match src with
         | None -> None
         | Some (Ipaddr.V4 src) -> Some src
-        | _ -> None (* TODO *)
+        | _ -> None (* cannot happen *)
       in
       Ipv4.pseudoheader t.ipv4 ?src dst proto len
     | Ipaddr.V6 dst ->
@@ -353,7 +363,7 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
         match src with
         | None -> None
         | Some (Ipaddr.V6 src) -> Some src
-        | _ -> None (* TODO *)
+        | _ -> None (* cannot happen *)
       in
       Ipv6.pseudoheader t.ipv6 ?src dst proto len
 

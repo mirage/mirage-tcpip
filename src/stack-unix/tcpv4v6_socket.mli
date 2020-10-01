@@ -22,4 +22,4 @@ include Mirage_protocols.TCP
    and type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
    and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
-val connect : Ipaddr.V4.Prefix.t -> Ipaddr.V6.Prefix.t option -> t Lwt.t
+val connect : ipv4_only:bool -> ipv6_only:bool -> Ipaddr.V4.Prefix.t -> Ipaddr.V6.Prefix.t option -> t Lwt.t

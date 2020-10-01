@@ -92,7 +92,7 @@ module type TCPV4V6_DIRECT = Mirage_protocols.TCP
 module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) : sig
   include Mirage_protocols.IP with type ipaddr = Ipaddr.t
 
-  val connect : Ipv4.t -> Ipv6.t -> t Lwt.t
+  val connect : ipv4_only:bool -> ipv6_only:bool -> Ipv4.t -> Ipv6.t -> t Lwt.t
 end
 
 module MakeV4V6

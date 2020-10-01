@@ -26,7 +26,9 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let client_address = Ipaddr.V6.of_string_exn "fc00::23"
+  let client_cidr = Ipaddr.V6.Prefix.make 64 client_address
   let server_address = Ipaddr.V6.of_string_exn "fc00::45"
+  let server_cidr = Ipaddr.V6.Prefix.make 64 server_address
   let test_string = "Hello world from Mirage 123456789...."
   let backend = V.create_backend ()
 
@@ -60,12 +62,12 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
       (Lwt_unix.sleep timeout >>= fun () ->
        failf "connect test timedout after %f seconds" timeout) ;
 
-      (V.create_stack_v6 ~ip:[server_address] backend >>= fun s1 ->
+      (V.create_stack_v6 ~cidr:server_cidr backend >>= fun s1 ->
        V.Stackv6.listen_tcp s1 ~port:80 (fun f -> accept f test_string);
        V.Stackv6.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
-       V.create_stack_v6 ~ip:[client_address] backend >>= fun s2 ->
+       V.create_stack_v6 ~cidr:client_cidr backend >>= fun s2 ->
        Lwt.pick [
        V.Stackv6.listen s2;
        (let conn = V.Stackv6.TCP.create_connection (V.Stackv6.tcp s2) in

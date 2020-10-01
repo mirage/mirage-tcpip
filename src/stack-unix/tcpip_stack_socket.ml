@@ -242,15 +242,25 @@ module V4V6 = struct
         match t.udp.interface with
         | `Any ->
           let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
-          Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+          Lwt_unix.(setsockopt fd SO_REUSEADDR true);
           Lwt_unix.(setsockopt fd IPV6_ONLY false);
           [ (fd, Lwt_unix.ADDR_INET (UDP.any_v6, port)) ]
         | `Ip (v4, v6) ->
           let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
-          Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+          Lwt_unix.(setsockopt fd SO_REUSEADDR true);
           let fd' = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
-          Lwt_unix.setsockopt fd' Lwt_unix.SO_REUSEADDR true;
+          Lwt_unix.(setsockopt fd' SO_REUSEADDR true);
+          Lwt_unix.(setsockopt fd' IPV6_ONLY true);
           [ (fd, Lwt_unix.ADDR_INET (v4, port)) ; (fd', Lwt_unix.ADDR_INET (v6, port)) ]
+        | `V4_only ip ->
+          let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+          Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+          [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
+        | `V6_only ip ->
+          let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+          Lwt_unix.(setsockopt fd SO_REUSEADDR true);
+          Lwt_unix.(setsockopt fd IPV6_ONLY true);
+          [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
       in
       List.iter (fun (fd, addr) ->
           (* FIXME: we should not ignore the result *)

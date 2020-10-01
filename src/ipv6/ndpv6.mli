@@ -30,9 +30,9 @@ type event =
 
 type context
 
-val local : now:time -> random:(int -> Cstruct.t) -> Macaddr.t ->
+val local : handle_ra:bool -> now:time -> random:(int -> Cstruct.t) -> Macaddr.t ->
   context * (Macaddr.t * int * (buffer -> int)) list
-(** [local ~now ~random mac] is a pair [ctx, outs] where [ctx] is a local IPv6 context
+(** [local ~handle_ra ~now ~random mac] is a pair [ctx, outs] where [ctx] is a local IPv6 context
     associated to the hardware address [mac].  [outs] is a list of ethif packets
     to be sent. *)
 
