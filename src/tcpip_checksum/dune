@@ -2,31 +2,8 @@
  (name tcpip)
  (public_name tcpip)
  (modules tcpip_checksum)
- (libraries cstruct tcpip.unix)
+ (libraries cstruct)
  (wrapped false))
-
-(library
- (name tcpip_xen)
- (public_name tcpip.xen)
- (libraries tcpip)
- (modules tcpip_xen)
- (c_names checksum_stubs_xen)
- (c_flags
-  (:include c_flags_xen.sexp))
- (wrapped false))
-
-(rule
- (targets c_flags_xen.sexp)
- (deps
-  (:< ../config/discover.exe))
- (action (run %{<})))
-
-(rule
- (targets checksum_stubs_xen.c)
- (deps
-  (:< checksum_stubs.c))
- (action
-  (copy# %{<} %{targets})))
 
 (library
  (name tcpip_unix)
