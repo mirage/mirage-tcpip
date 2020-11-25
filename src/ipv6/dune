@@ -1,6 +1,8 @@
 (library
  (name tcpip_ipv6)
  (public_name tcpip.ipv6)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries logs mirage-protocols mirage-time mirage-net macaddr-cstruct
    mirage-clock duration ipaddr cstruct rresult mirage-random tcpip
    randomconv ethernet)

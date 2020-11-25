@@ -3,6 +3,8 @@
  (public_name tcpip.icmpv4-socket)
  (modules icmpv4_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt tcpip.icmpv4 tcpip.ipv4
    tcpip.ipv6 mirage-protocols))
 
@@ -11,6 +13,8 @@
  (public_name tcpip.udpv4-socket)
  (modules udpv4_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols))
 
 (library
@@ -18,6 +22,8 @@
  (public_name tcpip.udpv6-socket)
  (modules udpv6_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols))
 
 (library
@@ -29,6 +35,8 @@
   (names tcp_socket_options_stubs)
   (flags :standard))
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix duration))
 
 (library
@@ -36,6 +44,8 @@
  (public_name tcpip.tcpv4-socket)
  (modules tcpv4_socket tcp_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
    tcp_socket_options))
 
@@ -44,6 +54,8 @@
  (public_name tcpip.tcpv6-socket)
  (modules tcpv6_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
    tcpv4_socket tcp_socket_options))
 
@@ -52,6 +64,8 @@
  (public_name tcpip.stack-socket)
  (modules tcpip_stack_socket ipv4_socket ipv6_socket)
  (wrapped false)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.tcpv4-socket
    tcpip.udpv4-socket tcpip.ipv4 tcpip.ipv6 tcpip.icmpv4 mirage-protocols
    mirage-stack))

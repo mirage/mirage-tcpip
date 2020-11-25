@@ -1,6 +1,8 @@
 (library
  (name tcpip_icmpv4)
  (public_name tcpip.icmpv4)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries mirage-protocols rresult logs tcpip mirage-profile tcpip.udp)
  (preprocess
   (pps ppx_cstruct))
