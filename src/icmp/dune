@@ -2,5 +2,6 @@
  (name tcpip_icmpv4)
  (public_name tcpip.icmpv4)
  (libraries mirage-protocols rresult logs tcpip mirage-profile tcpip.udp)
- (preprocess (pps ppx_cstruct))
+ (preprocess
+  (pps ppx_cstruct))
  (wrapped false))

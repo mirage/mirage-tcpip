@@ -2,6 +2,7 @@
  (name tcp)
  (public_name tcpip.tcp)
  (libraries logs mirage-protocols ipaddr cstruct lwt-dllist rresult
-   mirage-profile tcpip duration randomconv fmt mirage-time
-   mirage-clock mirage-random)
- (preprocess (pps ppx_cstruct)))
+   mirage-profile tcpip duration randomconv fmt mirage-time mirage-clock
+   mirage-random)
+ (preprocess
+  (pps ppx_cstruct)))

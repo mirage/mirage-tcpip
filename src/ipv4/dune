@@ -1,7 +1,8 @@
 (library
  (name tcpip_ipv4)
  (public_name tcpip.ipv4)
- (libraries logs mirage-protocols ipaddr cstruct rresult tcpip
-   tcpip.udp mirage-random mirage-clock randomconv lru)
- (preprocess (pps ppx_cstruct))
+ (libraries logs mirage-protocols ipaddr cstruct rresult tcpip tcpip.udp
+   mirage-random mirage-clock randomconv lru)
+ (preprocess
+  (pps ppx_cstruct))
  (wrapped false))
