@@ -250,8 +250,8 @@ let suite = [
   "iperf with two stacks and uniform packet loss", `Quick,
   test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss amt_quick 120.0;
 
-  "iperf with two stacks and uniform packet loss of packets with no payload", `Quick,
-  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt_quick 120.0;
+  "iperf with two stacks and uniform packet loss of packets with no payload", `Slow,
+  test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt_quick 240.0;
 
   "iperf with two stacks and uniform packet loss of packets with no payload, longer", `Slow,
   test_tcp_iperf_ipv6_two_stacks_uniform_packet_loss_no_payload amt_slow 240.0;
