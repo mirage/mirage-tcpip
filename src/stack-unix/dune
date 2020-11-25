@@ -24,7 +24,10 @@
  (name tcp_socket_options)
  (public_name tcpip.tcp_socket_options)
  (modules tcp_socket_options)
- (c_names tcp_socket_options_stubs)
+ (foreign_stubs
+  (language c)
+  (names tcp_socket_options_stubs)
+  (flags :standard))
  (wrapped false)
  (libraries lwt.unix duration))
 

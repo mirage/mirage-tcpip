@@ -9,5 +9,8 @@
  (name tcpip_unix)
  (public_name tcpip.unix)
  (modules tcpip_unix)
- (c_names checksum_stubs)
+ (foreign_stubs
+  (language c)
+  (names checksum_stubs)
+  (flags :standard))
  (wrapped false))
