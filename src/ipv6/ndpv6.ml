@@ -1035,7 +1035,8 @@ type context =
     base_reachable_time : time;
     reachable_time : time;
     retrans_timer : time;
-    packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t }
+    packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t;
+    handle_ra : bool }
 
 let next_hop ctx ip =
   if PrefixList.is_local ctx.prefix_list ip then
@@ -1104,12 +1105,12 @@ and send' ~now ctx dst size fillf =
       let ctx = {ctx with packet_queue} in
       process_actions ~now ctx actions
 
-let send ~now ctx dst proto size fillf =
-  let src = AddressList.select_source ctx.address_list ~dst in
+let send ~now ctx ?src dst proto size fillf =
+  let src = match src with None -> AddressList.select_source ctx.address_list ~dst | Some s -> s in
   let siz, fill = Allocate.hdr ~hlim:ctx.cur_hop_limit ~src ~dst ~proto ~size fillf in
   send' ~now ctx dst siz fill
 
-let local ~now ~random mac =
+let local ~handle_ra ~now ~random mac =
   let ctx =
     { neighbor_cache = NeighborCache.empty;
       prefix_list = PrefixList.link_local;
@@ -1121,7 +1122,8 @@ let local ~now ~random mac =
       base_reachable_time  = Defaults.reachable_time;
       reachable_time = compute_reachable_time random Defaults.reachable_time;
       retrans_timer = Defaults.retrans_timer;
-      packet_queue = PacketQueue.empty 3 }
+      packet_queue = PacketQueue.empty 3;
+      handle_ra }
   in
   let ip = link_local_addr mac in
   let address_list, actions =
@@ -1247,9 +1249,14 @@ let handle ~now ~random ctx buf =
   let open Parser in
   match packet (AddressList.is_my_addr ctx.address_list) buf with
   | RA (src, dst, ra) ->
-    let ctx, actions = handle_ra ~now ~random ctx ~src ~dst ra in
-    let ctx, bufs = process_actions ~now ctx actions in
-    ctx, bufs, []
+    if ctx.handle_ra then
+      let ctx, actions = handle_ra ~now ~random ctx ~src ~dst ra in
+      let ctx, bufs = process_actions ~now ctx actions in
+      ctx, bufs, []
+    else begin
+      Log.info (fun m -> m "Ignoring router advertisement (stack is configured to not handle them)");
+      ctx, [], []
+    end
   | NS (src, dst, ns) ->
     let ctx, actions = handle_ns ~now ctx ~src ~dst ns in
     let ctx, bufs = process_actions ~now ctx actions in

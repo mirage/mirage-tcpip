@@ -316,7 +316,7 @@ struct
   let emitted_keepalive_warning = ref false
 
   let new_pcb t params id keepalive =
-    let mtu_mss = Ip.mtu t.ip - Tcp_wire.sizeof_tcp in
+    let mtu_mss = Ip.mtu t.ip ~dst:(WIRE.dst id) - Tcp_wire.sizeof_tcp in
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
       params
     in
@@ -413,7 +413,7 @@ struct
     Hashtbl.add t.listens id (params.tx_isn, (pushf, (pcb, th)));
     Stats.incr_listen ();
     (* Queue a SYN ACK for transmission *)
-    let options = Options.MSS (Ip.mtu t.ip - Tcp_wire.sizeof_tcp) :: opts in
+    let options = Options.MSS (Ip.mtu t.ip ~dst:(WIRE.dst id) - Tcp_wire.sizeof_tcp) :: opts in
     TXS.output ~flags:Segment.Syn ~options pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
 
@@ -685,7 +685,7 @@ struct
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
-      Options.MSS (Ip.mtu t.ip - Tcp_wire.sizeof_tcp) :: Options.Window_size_shift rx_wnd_scaleoffer :: []
+      Options.MSS (Ip.mtu t.ip ~dst - Tcp_wire.sizeof_tcp) :: Options.Window_size_shift rx_wnd_scaleoffer :: []
     in
     let window = 5840 in
     let th, wakener = MProf.Trace.named_task "TCP connect" in

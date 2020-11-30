@@ -158,10 +158,13 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
           | Some `ICMP | None -> default ~proto:packet.proto ~src ~dst payload
 
   let connect
-      ~cidr ?gateway ?(fragment_cache_size = 1024 * 256) ethif arp =
-    Arpv4.set_ips arp [Ipaddr.V4.Prefix.address cidr] >>= fun () ->
+      ?(no_init = false) ~cidr ?gateway ?(fragment_cache_size = 1024 * 256) ethif arp =
+    (if no_init then
+       Lwt.return_unit
+     else
+       Arpv4.set_ips arp [Ipaddr.V4.Prefix.address cidr]) >|= fun () ->
     let cache = Fragments.Cache.empty fragment_cache_size in
-    Lwt.return { ethif; arp; cidr; gateway; cache }
+    { ethif; arp; cidr; gateway; cache }
 
   let disconnect _ = Lwt.return_unit
 
@@ -173,6 +176,6 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
 
   let src t ~dst:_ = Ipaddr.V4.Prefix.address t.cidr
 
-  let mtu t = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
+  let mtu t ~dst:_ = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 
 end

@@ -14,26 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module V4 : sig
-  include Mirage_stack.V4
-    with module UDPV4 = Udpv4_socket
-     and module TCPV4 = Tcpv4_socket
-     and module IPV4  = Ipv4_socket
-  val connect : Udpv4_socket.t -> Tcpv4_socket.t -> t Lwt.t
-end
+type t = unit
+type error = Mirage_protocols.Ip.error
+type ipaddr = Ipaddr.t
+type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
-module V6 : sig
-  include Mirage_stack.V6
-    with module UDP = Udpv6_socket
-     and module TCP = Tcpv6_socket
-     and module IP  = Ipv6_socket
-  val connect : Udpv6_socket.t -> Tcpv6_socket.t -> t Lwt.t
-end
+let pp_error = Mirage_protocols.Ip.pp_error
+let pp_ipaddr = Ipaddr.pp
 
-module V4V6 : sig
-  include Mirage_stack.V4V6
-    with module UDP = Udpv4v6_socket
-     and module TCP = Tcpv4v6_socket
-     and module IP  = Ipv4v6_socket
-  val connect : Udpv4v6_socket.t -> Tcpv4v6_socket.t -> t Lwt.t
-end
+let mtu _ ~dst = match dst with
+  | Ipaddr.V4 _ -> 1500 - Ipv4_wire.sizeof_ipv4
+  | Ipaddr.V6 _ -> 1500 - Ipv6_wire.sizeof_ipv6
+
+let disconnect _ = Lwt.return_unit
+let connect _ = Lwt.return_unit
+
+let input _ ~tcp:_ ~udp:_ ~default:_ _ = Lwt.return_unit
+let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
+  Lwt.fail (Failure "Not implemented")
+
+let get_ip _ = [Ipaddr.V6 Ipaddr.V6.unspecified]
+let src _ ~dst:_ = raise (Failure "Not implemented")
+let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

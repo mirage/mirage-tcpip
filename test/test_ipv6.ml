@@ -25,12 +25,10 @@ type stack = {
 }
 
 let get_stack backend address =
-  let ip = [address] in
-  let netmask = [Ipaddr.V6.Prefix.make 24 address] in
-  let gateways = [] in
+  let cidr = Ipaddr.V6.Prefix.make 64 address in
   V.connect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
-  Ipv6.connect ~ip ~netmask ~gateways netif ethif >>= fun ip ->
+  Ipv6.connect ~cidr netif ethif >>= fun ip ->
   Udp.connect ip >>= fun udp ->
   Lwt.return { backend; netif; ethif; ip; udp }
 

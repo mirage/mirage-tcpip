@@ -43,11 +43,10 @@ sig
   val create_stack : ?mtu:int -> cidr:Ipaddr.V4.Prefix.t ->
     ?gateway:Ipaddr.V4.t -> backend -> Stackv4.t Lwt.t
 
-  (** [create_stack backend ?mtu ip netmask gateway] adds a listener
+  (** [create_stack ?mtu ?cidr ?gateway backend] adds a listener
       function to the backend *)
-  val create_stack_v6 : ?mtu:int -> ?ip:Ipaddr.V6.t list ->
-    ?netmask:Ipaddr.V6.Prefix.t list ->
-    ?gateways:Ipaddr.V6.t list -> backend -> Stackv6.t Lwt.t
+  val create_stack_v6 : ?mtu:int -> ?cidr:Ipaddr.V6.Prefix.t ->
+    ?gateway:Ipaddr.V6.t -> backend -> Stackv6.t Lwt.t
 
   val create_backend_listener : backend -> (buffer -> unit io) -> id
 
@@ -100,11 +99,11 @@ struct
     T4.connect ipv4 >>= fun tcpv4 ->
     Stackv4.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
 
-  let create_stack_v6 ?mtu ?ip ?netmask ?gateways backend =
+  let create_stack_v6 ?mtu ?cidr ?gateway backend =
     let size_limit = match mtu with None -> None | Some x -> Some x in
     V.connect ?size_limit backend >>= fun netif ->
     E.connect netif >>= fun ethif ->
-    Ip6.connect ?ip ?netmask ?gateways netif ethif >>= fun ipv6 ->
+    Ip6.connect ?cidr ?gateway netif ethif >>= fun ipv6 ->
     U6.connect ipv6 >>= fun udpv6 ->
     T6.connect ipv6 >>= fun tcpv6 ->
     Stackv6.connect netif ethif ipv6 udpv6 tcpv6

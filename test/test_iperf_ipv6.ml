@@ -25,7 +25,9 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let client_ip = Ipaddr.V6.of_string_exn "fc00::23"
+  let client_cidr = Ipaddr.V6.Prefix.make 64 client_ip
   let server_ip =  Ipaddr.V6.of_string_exn "fc00::45"
+  let server_cidr =  Ipaddr.V6.Prefix.make 64 server_ip
 
   type stats = {
     mutable bytes: int64;
@@ -43,8 +45,8 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
   }
 
   let default_network ?mtu ?(backend = B.create ()) () =
-      V.create_stack_v6 ?mtu ?ip:(Some [client_ip]) backend >>= fun client ->
-      V.create_stack_v6 ?mtu ?ip:(Some [server_ip]) backend >>= fun server ->
+      V.create_stack_v6 ?mtu ~cidr:client_cidr backend >>= fun client ->
+      V.create_stack_v6 ?mtu ~cidr:server_cidr backend >>= fun server ->
       Lwt.return {backend; server; client}
 
   let msg =

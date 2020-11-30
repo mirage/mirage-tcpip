@@ -15,15 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.V6.t
-type flow = Lwt_unix.file_descr
-type +'a io = 'a Lwt.t
-type ip = Ipaddr.V6.t option (* source ip and port *)
 type ipinput = unit Lwt.t
-type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> buffer -> unit io
+type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr; (* source ip to bind to *)
@@ -35,44 +31,45 @@ let get_udpv6_listening_fd {listen_fds;interface} port =
     Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface,port))
+    Lwt_unix.(setsockopt fd IPV6_ONLY true);
+    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
     >>= fun () ->
-    Hashtbl.add listen_fds (interface,port) fd;
+    Hashtbl.add listen_fds (interface, port) fd;
     Lwt.return fd
 
-(** IO operation errors *)
-type error = [
-  | `Unknown of string (** an undiagnosed error *)
-]
 
-let connect (id:ip) =
+type error = [`Sendto_failed]
+
+let pp_error ppf = function
+  | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
+
+let connect id =
   let t =
     let listen_fds = Hashtbl.create 7 in
     let interface =
       match id with
       | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
-      | Some ip -> Ipaddr_unix.V6.to_inet_addr ip
-    in { interface; listen_fds }
-  in return t
+      | Some ip -> Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address ip)
+    in
+    { interface; listen_fds }
+  in
+  Lwt.return t
 
-let disconnect _ =
-  return_unit
+let disconnect _ = Lwt.return_unit
 
-let id { interface; _ } =
-  Some (Ipaddr_unix.V6.of_inet_addr_exn interface)
+let input ~listeners:_ _ = Lwt.return_unit
 
-(* FIXME: how does this work at all ?? *)
- let input ~listeners:_ _ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
-
-let write ?source_port ~dest_ip ~dest_port t buf =
+let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
-  ( match source_port with
+  let rec write_to_fd fd buf =
+    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
+    >>= function
+    | n when n = Cstruct.len buf -> Lwt.return @@ Ok ()
+    | 0 -> Lwt.return @@ Error `Sendto_failed
+    | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
+  in
+  ( match src_port with
     | None -> get_udpv6_listening_fd t 0
     | Some port -> get_udpv6_listening_fd t port )
   >>= fun fd ->
-  Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dest_ip), dest_port))
-  >>= fun _ ->
-  return_unit
+  write_to_fd fd buf

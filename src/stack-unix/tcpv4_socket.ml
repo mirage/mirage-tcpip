@@ -14,25 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
 type ipinput = unit Lwt.t
 
 type t = {
-  interface: Unix.inet_addr option;    (* source ip to bind to *)
+  interface: Unix.inet_addr;    (* source ip to bind to *)
 }
 
 include Tcp_socket
 
-let connect id =
-  let t =
-    match id with
-    | None -> { interface=None }
-    | Some ip -> { interface=Some (Ipaddr_unix.V4.to_inet_addr ip) }
-  in
-  return t
+let connect addr =
+  let t = { interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address addr) } in
+  Lwt.return t
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -44,9 +40,10 @@ let dst fd =
       | Some ip -> ip,port
     end
 
-let create_connection ?keepalive _t (dst,dst_port) =
-  let fd = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
+let create_connection ?keepalive t (dst,dst_port) =
+  let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
   Lwt.catch (fun () ->
+      Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.interface, 0)) >>= fun () ->
       Lwt_unix.connect fd
         (Lwt_unix.ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
       >>= fun () ->
@@ -54,7 +51,7 @@ let create_connection ?keepalive _t (dst,dst_port) =
         | None -> ()
         | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
           Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
-      return (Ok fd))
+      Lwt.return (Ok fd))
     (fun exn ->
        Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >>= fun () ->
-       return (Error (`Exn exn)))
+       Lwt.return (Error (`Exn exn)))

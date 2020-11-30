@@ -74,7 +74,46 @@ module MakeV6
   val connect : Netif.t -> Ethernet.t -> Ipv6.t -> Udpv6.t -> Tcpv6.t -> t Lwt.t
   (** [connect] assembles the arguments into a network stack, then calls
       `listen` on the assembled stack before returning it to the caller.  The
-      initial `listen` functions to ensure that the lower-level layers are 
+      initial `listen` functions to ensure that the lower-level layers are
+      functioning, so that if the user wishes to establish outbound connections,
+      they will be able to do so. *)
+end
+
+type direct_ipv4v6_input = src:Ipaddr.t -> dst:Ipaddr.t -> Cstruct.t -> unit Lwt.t
+
+module type UDPV4V6_DIRECT = Mirage_protocols.UDP
+  with type ipaddr = Ipaddr.t
+   and type ipinput = direct_ipv4v6_input
+
+module type TCPV4V6_DIRECT = Mirage_protocols.TCP
+  with type ipaddr = Ipaddr.t
+   and type ipinput = direct_ipv4v6_input
+
+module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) : sig
+  include Mirage_protocols.IP with type ipaddr = Ipaddr.t
+
+  val connect : ipv4_only:bool -> ipv6_only:bool -> Ipv4.t -> Ipv6.t -> t Lwt.t
+end
+
+module MakeV4V6
+    (Time     : Mirage_time.S)
+    (Random   : Mirage_random.S)
+    (Netif    : Mirage_net.S)
+    (Ethernet : Mirage_protocols.ETHERNET)
+    (Arpv4    : Mirage_protocols.ARP)
+    (Ip       : Mirage_protocols.IP with type ipaddr = Ipaddr.t)
+    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
+    (Udp      : UDPV4V6_DIRECT)
+    (Tcp      : TCPV4V6_DIRECT) : sig
+  include Mirage_stack.V4V6
+    with module IP = Ip
+     and module TCP = Tcp
+     and module UDP = Udp
+
+  val connect : Netif.t -> Ethernet.t -> Arpv4.t -> Ip.t -> Icmpv4.t -> Udp.t -> Tcp.t -> t Lwt.t
+  (** [connect] assembles the arguments into a network stack, then calls
+      `listen` on the assembled stack before returning it to the caller.  The
+      initial `listen` functions to ensure that the lower-level layers are
       functioning, so that if the user wishes to establish outbound connections,
       they will be able to do so. *)
 end

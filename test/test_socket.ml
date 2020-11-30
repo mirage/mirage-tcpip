@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-module Stack = Tcpip_stack_socket
+module Stack = Tcpip_stack_socket.V4
 module Time = Vnetif_common.Time
 
 type stack_stack = {
@@ -16,12 +16,13 @@ let or_fail_str ~str f args =
   | `Error _ -> Alcotest.fail str
 
 let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
+let localhost_cidr = Ipaddr.V4.Prefix.make 32 localhost
 
-let make_stack ~ip =
-  Tcpv4_socket.connect (Some ip) >>= fun tcp ->
-  Udpv4_socket.connect (Some ip) >>= fun udp ->
+let make_stack ~cidr =
+  Tcpv4_socket.connect cidr >>= fun tcp ->
+  Udpv4_socket.connect cidr >>= fun udp ->
   Icmpv4_socket.connect () >>= fun icmp ->
-  Stack.connect [ip] udp tcp >>= fun stack ->
+  Stack.connect udp tcp >>= fun stack ->
   Lwt.return { stack; icmp; udp; tcp }
 
 let two_connect_tcp () =
@@ -33,8 +34,8 @@ let two_connect_tcp () =
       Lwt.return_unit
   in
   let server_port = 14041 in
-  make_stack ~ip:localhost >>= fun server ->
-  make_stack ~ip:localhost >>= fun client ->
+  make_stack ~cidr:localhost_cidr >>= fun server ->
+  make_stack ~cidr:localhost_cidr >>= fun client ->
 
   Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
@@ -46,8 +47,8 @@ let two_connect_tcp () =
   ]
 
 let icmp_echo_request () =
-  make_stack ~ip:localhost >>= fun server ->
-  make_stack ~ip:localhost >>= fun client ->
+  make_stack ~cidr:localhost_cidr >>= fun server ->
+  make_stack ~cidr:localhost_cidr >>= fun client ->
   let echo_request = Icmpv4_packet.(Marshal.make_cstruct
                                       ~payload:(Cstruct.create 0)
                                       { ty = Icmpv4_wire.Echo_request;

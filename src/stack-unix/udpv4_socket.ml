@@ -17,8 +17,6 @@
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
-type flow = Lwt_unix.file_descr
-type ip = Ipaddr.V4.t option (* source ip and port *)
 type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
@@ -43,28 +41,19 @@ type error = [`Sendto_failed]
 let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
 
-let connect (id:ip) =
+let connect ip =
   let t =
     let listen_fds = Hashtbl.create 7 in
-    let interface =
-      match id with
-      | None -> Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any
-      | Some ip -> Ipaddr_unix.V4.to_inet_addr ip
-    in { interface; listen_fds }
-  in Lwt.return t
+    let interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address ip) in
+    { interface; listen_fds }
+  in
+  Lwt.return t
 
 let disconnect _ = Lwt.return_unit
 
-let id { interface; _ } =
-  Some (Ipaddr_unix.V4.of_inet_addr_exn interface)
+let input ~listeners:_ _ = Lwt.return_unit
 
-(* FIXME: how does this work at all ?? *)
- let input ~listeners:_ _ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
-
-let write ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
+let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
   let rec write_to_fd fd buf =
     Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
