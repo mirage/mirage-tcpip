@@ -1,3 +1,15 @@
+### v6.0.0 (2020-11-30)
+
+* Dual IPv4 and IPv6 socket and direct stack support, now requires
+  mirage-stack 2.2.0 and mirage-protocols 5.0.0 (#433 @hannesm)
+* The above change also unified arguments passed to connect functions which
+  are API-breaking changes
+* IPv6 waits for timeout after sending neighbour advertisement (for duplicate
+  address detection)
+* Remove Xen cross-compilation runes, with mirage-xen 6.0.0 they're provided
+  by mirage-xen (#434 @hannesm)
+* Move to dune 2.7.0 (and bisect instrumentation if desired) (#436 @hannesm)
+
 ### v5.0.1 (2020-09-22)
 
 * Assorted IPv6 improvements (#428 #431 #432 @MagnusS @hannesm)
