@@ -1,6 +1,9 @@
 (library
  (name tcpip_udpv4)
  (public_name tcpip.udp)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries mirage-protocols mirage-random rresult logs tcpip randomconv)
- (preprocess (pps ppx_cstruct))
+ (preprocess
+  (pps ppx_cstruct))
  (wrapped false))

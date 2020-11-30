@@ -19,7 +19,8 @@ build: [
 ]
 conflicts: [ "mirage-xen" {< "6.0.0"} ]
 depends: [
-  "dune"
+  "dune" {>= "2.7.0"}
+  "bisect_ppx" {dev & >= "2.5.0"}
   "ocaml" {>= "4.06.0"}
   "rresult" {>= "0.5.0"}
   "cstruct" {>= "3.2.0"}
@@ -28,7 +29,7 @@ depends: [
   "mirage-clock" {>= "3.0.0"}
   "mirage-random" {>= "2.0.0"}
   "mirage-stack" {>= "2.1.0"}
-  "mirage-protocols" {>= "4.0.0"}
+  "mirage-protocols" {>= "4.0.0" & < "5.0.0"}
   "mirage-time" {>= "2.0.0"}
   "ipaddr" {>= "5.0.0"}
   "macaddr" {>="4.0.0"}

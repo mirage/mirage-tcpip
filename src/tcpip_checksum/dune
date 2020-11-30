@@ -2,6 +2,8 @@
  (name tcpip)
  (public_name tcpip)
  (modules tcpip_checksum)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries cstruct)
  (wrapped false))
 
@@ -9,5 +11,10 @@
  (name tcpip_unix)
  (public_name tcpip.unix)
  (modules tcpip_unix)
- (c_names checksum_stubs)
+ (instrumentation
+  (backend bisect_ppx))
+ (foreign_stubs
+  (language c)
+  (names checksum_stubs)
+  (flags :standard))
  (wrapped false))
