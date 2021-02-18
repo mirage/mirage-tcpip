@@ -1,0 +1,14 @@
+(copy_files# ../src/tcpip_checksum/*.c)
+
+(rule
+ (deps Makefile checksum_stubs.c)
+ (targets libtcpip_freestanding_stubs.a)
+ (action
+  (no-infer
+   (progn
+    (run %{make})))))
+
+(install
+ (package tcpip)
+ (section lib)
+ (files libtcpip_freestanding_stubs.a))

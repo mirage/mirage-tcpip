@@ -19,6 +19,7 @@ build: [
 ]
 conflicts: [ "mirage-xen" {< "6.0.0"} ]
 depends: [
+  "conf-pkg-config" {build}
   "dune" {>= "2.7.0"}
   "bisect_ppx" {dev & >= "2.5.0"}
   "ocaml" {>= "4.06.0"}
@@ -52,6 +53,9 @@ depends: [
   "arp" {with-test & >= "2.3.0"}
   "ipaddr-cstruct" {with-test}
   "lru" {>= "0.3.0"}
+]
+depopts: [
+  "ocaml-freestanding"
 ]
 synopsis: "OCaml TCP/IP networking stack, used in MirageOS"
 description: """
