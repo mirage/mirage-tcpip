@@ -1,3 +1,0 @@
-# JBUILDER_GEN
-
-xen_linkopts = "-L@tcpip/xen -ltcpip_xen_stubs"
