@@ -67,10 +67,10 @@ module V4 = struct
     else
       let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+      Unix.bind (Lwt_unix.unix_file_descr fd) (Unix.ADDR_INET (t.udpv4.interface, port));
+      Lwt_unix.listen fd 10;
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udpv4.interface, port)) >>= fun () ->
-          Lwt_unix.listen fd 10;
           (* TODO cancellation *)
           let rec loop () =
             Lwt.catch (fun () ->
@@ -153,10 +153,10 @@ module V6 = struct
       let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
       Lwt_unix.(setsockopt fd IPV6_ONLY true);
+      Unix.bind (Lwt_unix.unix_file_descr fd) (Lwt_unix.ADDR_INET (t.udp.interface, port));
+      Lwt_unix.listen fd 10;
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          Lwt_unix.bind fd (Lwt_unix.ADDR_INET (t.udp.interface, port)) >>= fun () ->
-          Lwt_unix.listen fd 10;
           (* TODO cancellation *)
           let rec loop () =
             Lwt.catch (fun () ->
@@ -263,10 +263,10 @@ module V4V6 = struct
           [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
       in
       List.iter (fun (fd, addr) ->
+          Unix.bind (Lwt_unix.unix_file_descr fd) addr;
+          Lwt_unix.listen fd 10;
           (* FIXME: we should not ignore the result *)
           Lwt.async (fun () ->
-              Lwt_unix.bind fd addr >>= fun () ->
-              Lwt_unix.listen fd 10;
               (* TODO cancellation *)
               let rec loop () =
                 Lwt.catch (fun () ->

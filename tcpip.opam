@@ -25,6 +25,7 @@ depends: [
   "rresult" {>= "0.5.0"}
   "cstruct" {>= "3.2.0"}
   "cstruct-lwt"
+  "ppx_cstruct"
   "mirage-net" {>= "3.0.0"}
   "mirage-clock" {>= "3.0.0"}
   "mirage-random" {>= "2.0.0"}
