@@ -7,7 +7,6 @@ env:
   - POST_INSTALL_HOOK="sh ./.travis-ci.sh"
   - PACKAGE=tcpip
   matrix:
-  - DISTRO=alpine OCAML_VERSION=4.08 EXTRA_ENV="MIRAGE_MODE=xen"
   - DISTRO=alpine OCAML_VERSION=4.09 EXTRA_ENV="MIRAGE_MODE=unix"
   - DISTRO=alpine OCAML_VERSION=4.10 EXTRA_ENV="MIRAGE_MODE=qubes"
   - DISTRO=alpine OCAML_VERSION=4.10 EXTRA_ENV="MIRAGE_MODE=virtio"
