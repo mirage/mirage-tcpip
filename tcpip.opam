@@ -17,7 +17,10 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
-conflicts: [ "mirage-xen" {< "6.0.0"} ]
+conflicts: [
+  "mirage-xen" {< "6.0.0"}
+  "ocaml-freestanding" {< "0.4.1"}
+]
 depends: [
   "conf-pkg-config" {build}
   "dune" {>= "2.7.0"}
