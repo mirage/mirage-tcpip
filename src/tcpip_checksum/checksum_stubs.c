@@ -69,7 +69,7 @@ ones_complement_checksum_bigarray(unsigned char *addr, size_t ofs, size_t count,
 }
 
 CAMLprim value
-caml_tcpip_ones_complement_checksum(value v_cstruct)
+caml_mirage_tcpip_ones_complement_checksum(value v_cstruct)
 {
   CAMLparam1(v_cstruct);
   CAMLlocal3(v_ba, v_ofs, v_len);
@@ -86,7 +86,7 @@ caml_tcpip_ones_complement_checksum(value v_cstruct)
  * forward as 16-byte 1s complement addition if there are more buffers in
  * the chain. */
 CAMLprim value
-caml_tcpip_ones_complement_checksum_list(value v_cstruct_list)
+caml_mirage_tcpip_ones_complement_checksum_list(value v_cstruct_list)
 {
   CAMLparam1(v_cstruct_list);
   CAMLlocal4(v_hd, v_ba, v_ofs, v_len);
@@ -264,7 +264,7 @@ checksum_bigarray(unsigned char *addr, size_t ofs, size_t count, uint32_t sum)
 }
 
 CAMLprim value
-caml_tcpip_ones_complement_checksum(value v_cstruct)
+caml_mirage_tcpip_ones_complement_checksum(value v_cstruct)
 {
   CAMLparam1(v_cstruct);
   CAMLlocal3(v_ba, v_ofs, v_len);
@@ -283,7 +283,7 @@ caml_tcpip_ones_complement_checksum(value v_cstruct)
  * forward as 16-byte 1s complement addition if there are more buffers in
  * the chain. */
 CAMLprim value
-caml_tcpip_ones_complement_checksum_list(value v_cstruct_list)
+caml_mirage_tcpip_ones_complement_checksum_list(value v_cstruct_list)
 {
   CAMLparam1(v_cstruct_list);
   CAMLlocal4(v_hd, v_ba, v_ofs, v_len);

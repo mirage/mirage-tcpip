@@ -5,16 +5,13 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries cstruct)
- (wrapped false))
-
-(library
- (name tcpip_unix)
- (public_name tcpip.unix)
- (modules tcpip_unix)
- (instrumentation
-  (backend bisect_ppx))
  (foreign_stubs
   (language c)
   (names checksum_stubs)
   (flags :standard))
  (wrapped false))
+
+(library
+ (name tcpip_unix)
+ (public_name tcpip.unix)
+ (modules tcpip_unix))
