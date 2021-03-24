@@ -27,8 +27,8 @@ module V4 = struct
   type t = {
     udpv4 : UDPV4.t;
     tcpv4 : TCPV4.t;
-    stop : [ `Stopped ] Lwt.u;
-    switched_off : [ `Stopped ] Lwt.t;
+    stop : unit Lwt.u;
+    switched_off : unit Lwt.t;
   }
 
   let udpv4 { udpv4; _ } = udpv4
@@ -46,7 +46,7 @@ module V4 = struct
           UDPV4.get_udpv4_listening_fd t.udpv4 port >>= fun fd ->
           let buf = Cstruct.create 4096 in
           let rec loop () =
-            (* TODO cancellation *)
+            if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
                 let buf = Cstruct.sub buf 0 len in
@@ -61,7 +61,8 @@ module V4 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)
+          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () ->
+          Lwt_unix.close fd)
 
   let listen_tcpv4 ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -76,6 +77,7 @@ module V4 = struct
           (* TODO cancellation *)
           let rec loop () =
             Lwt.catch (fun () ->
+                if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                 Lwt_unix.accept fd >|= fun (afd, _) ->
                 (match keepalive with
                  | None -> ()
@@ -93,16 +95,16 @@ module V4 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)
+          Lwt.catch loop (fun _-> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
 
-  let listen t = t.switched_off >>= fun `Stopped -> Lwt.return_unit
+  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
 
   let connect udpv4 tcpv4 =
     Log.info (fun f -> f "IPv4 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
     Lwt.return { tcpv4; udpv4; stop; switched_off; }
 
-  let disconnect t = Lwt.wakeup_later t.stop `Stopped ; Lwt.return_unit
+  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
 end
 
 module V6 = struct
@@ -113,8 +115,8 @@ module V6 = struct
   type t = {
     udp : UDP.t;
     tcp : TCP.t;
-    stop : [ `Stopped ] Lwt.u;
-    switched_off : [ `Stopped ] Lwt.t;
+    stop : unit Lwt.u;
+    switched_off : unit Lwt.t;
   }
 
   let udp { udp; _ } = udp
@@ -132,7 +134,7 @@ module V6 = struct
           UDP.get_udpv6_listening_fd t.udp port >>= fun fd ->
           let buf = Cstruct.create 4096 in
           let rec loop () =
-            (* TODO cancellation *)
+            if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
                 let buf = Cstruct.sub buf 0 len in
@@ -147,7 +149,7 @@ module V6 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)
+          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -162,6 +164,7 @@ module V6 = struct
       Lwt.async (fun () ->
           (* TODO cancellation *)
           let rec loop () =
+            if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_unix.accept fd >|= fun (afd, _) ->
                 (match keepalive with
@@ -180,16 +183,16 @@ module V6 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)
+          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
 
-  let listen t = t.switched_off >>= fun `Stopped -> Lwt.return_unit
+  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
 
   let connect udp tcp =
     Log.info (fun f -> f "IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
     Lwt.return { tcp; udp; stop; switched_off; }
 
-  let disconnect t = Lwt.wakeup_later t.stop `Stopped ; Lwt.return_unit
+  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
 end
 
 module V4V6 = struct
@@ -200,8 +203,8 @@ module V4V6 = struct
   type t = {
     udp : UDP.t;
     tcp : TCP.t;
-    stop : [ `Stopped ] Lwt.u;
-    switched_off : [ `Stopped ] Lwt.t;
+    stop : unit Lwt.u;
+    switched_off : unit Lwt.t;
   }
 
   let udp { udp; _ } = udp
@@ -221,7 +224,7 @@ module V4V6 = struct
               Lwt.async (fun () ->
                   let buf = Cstruct.create 4096 in
                   let rec loop () =
-                    (* TODO cancellation *)
+                    if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                     Lwt.catch (fun () ->
                         Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
                         let buf = Cstruct.sub buf 0 len in
@@ -236,7 +239,7 @@ module V4V6 = struct
                          Lwt.return_unit) >>= fun () ->
                     loop ()
                   in
-                  Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)) fds)
+                  Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)) fds)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -273,6 +276,7 @@ module V4V6 = struct
           Lwt.async (fun () ->
               (* TODO cancellation *)
               let rec loop () =
+                if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                 Lwt.catch (fun () ->
                     Lwt_unix.accept fd >|= fun (afd, _) ->
                     (match keepalive with
@@ -291,14 +295,14 @@ module V4V6 = struct
                      Lwt.return_unit) >>= fun () ->
                 loop ()
               in
-              Lwt.pick [ t.switched_off; loop () ] >>= fun `Stopped -> Lwt_unix.close fd)) fds
+              Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)) fds
 
-  let listen t = t.switched_off >>= fun `Stopped -> Lwt.return_unit
+  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
 
   let connect udp tcp =
     Log.info (fun f -> f "Dual IPv4 and IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
     Lwt.return { tcp; udp; stop; switched_off; }
 
-  let disconnect t = Lwt.wakeup_later t.stop `Stopped ; Lwt.return_unit
+  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
 end
