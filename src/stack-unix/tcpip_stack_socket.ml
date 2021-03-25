@@ -19,6 +19,10 @@ open Lwt.Infix
 let src = Logs.Src.create "tcpip-stack-socket" ~doc:"Platform's native TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let ignore_canceled = function
+  | Lwt.Canceled -> Lwt.return_unit
+  | exn -> raise exn
+
 module V4 = struct
   module TCPV4 = Tcpv4_socket
   module UDPV4 = Udpv4_socket
@@ -61,7 +65,7 @@ module V4 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () ->
+          Lwt.catch loop ignore_canceled >>= fun () ->
           Lwt_unix.close fd)
 
   let listen_tcpv4 ?keepalive t ~port callback =
@@ -76,8 +80,8 @@ module V4 = struct
       Lwt.async (fun () ->
           (* TODO cancellation *)
           let rec loop () =
+            if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
-                if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                 Lwt_unix.accept fd >|= fun (afd, _) ->
                 (match keepalive with
                  | None -> ()
@@ -95,7 +99,7 @@ module V4 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.catch loop (fun _-> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
 
   let listen t = t.switched_off
 
@@ -149,7 +153,7 @@ module V6 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -183,9 +187,9 @@ module V6 = struct
                  Lwt.return_unit) >>= fun () ->
             loop ()
           in
-          Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
 
-  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
+  let listen t = t.switched_off
 
   let connect udp tcp =
     Log.info (fun f -> f "IPv6 socket stack: connect");
@@ -239,7 +243,7 @@ module V4V6 = struct
                          Lwt.return_unit) >>= fun () ->
                     loop ()
                   in
-                  Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)) fds)
+                  Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)) fds)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -295,9 +299,9 @@ module V4V6 = struct
                      Lwt.return_unit) >>= fun () ->
                 loop ()
               in
-              Lwt.catch loop (fun _ -> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)) fds
+              Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)) fds
 
-  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
+  let listen t = t.switched_off
 
   let connect udp tcp =
     Log.info (fun f -> f "Dual IPv4 and IPv6 socket stack: connect");
