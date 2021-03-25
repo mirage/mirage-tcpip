@@ -97,7 +97,7 @@ module V4 = struct
           in
           Lwt.catch loop (fun _-> Lwt.return_unit) >>= fun () -> Lwt_unix.close fd)
 
-  let listen t = t.switched_off >>= fun () -> Lwt.return_unit
+  let listen t = t.switched_off
 
   let connect udpv4 tcpv4 =
     Log.info (fun f -> f "IPv4 socket stack: connect");
