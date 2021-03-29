@@ -70,6 +70,6 @@ let icmp_echo_request () =
     !received_icmp; Lwt.return_unit
 
 let suite = [
-  "two sockets connect via TCP", `Quick, two_connect_tcp;
+  "two sockets connect via TCP", `Slow, two_connect_tcp;
   "icmp echo-requests are sent", `Slow, icmp_echo_request;
 ]
