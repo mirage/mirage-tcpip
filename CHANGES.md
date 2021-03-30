@@ -1,3 +1,21 @@
+### v6.1.0 (2020-03-17)
+
+* checksum stubs: Drop `caml_` from their name (@hannesm, #445)
+* Add cancelation on `tcpip.stack-socket` (@dinosaure, @talex5, @hannesm, #443)
+* Ensure that listen really binds the given socket before
+  creating a task on `tcpip.stack-socket` (@dinosaure, @hannesm, #439)
+* Add `ppx_cstruct` as a dependency (@hannesm, @dinosaure, #439)
+* Upgrade to ocamlformat.0.17.0 (@dinosaure, #442)
+* Drop the support of OCaml 4.08.0 (@dinosaure, #442)
+* Use the usual layout to compile freestanding C stubs and link them to
+  a Solo5 unikernel (@dinosaure, @hannesm, #441)
+  **breaking changes**
+  C stubs are prepended by `mirage_`. Symbols such as checksum's
+  symbols are `caml_mirage_tcpip_*` instead of `caml_tcpip_*`
+  `tcpip.unix` is a fake sub-package and user does not it anymore, he can
+  safely remove it from its project.
+* Conflict with `< ocaml-freestanding.0.4.1` (@hannesm, #441)
+
 ### v6.0.0 (2020-11-30)
 
 * Dual IPv4 and IPv6 socket and direct stack support, now requires
