@@ -3,9 +3,7 @@ open Common
 let check = Alcotest.(check @@ result (list options) string)
 
 let errors ?(check_msg = false) exp = function
-  | Ok opt ->
-    Fmt.kstrf Alcotest.fail "Ok %a when Error %s expected"
-      Tcp.Options.pps opt exp
+  | Ok opt -> failf "Ok %a when Error %s expected" Tcp.Options.pps opt exp
   | Error p -> if check_msg then
       Alcotest.(check string)
         "Error didn't give the expected error message" exp p
