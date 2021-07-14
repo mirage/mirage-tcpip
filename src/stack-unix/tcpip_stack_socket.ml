@@ -235,6 +235,11 @@ module V4V6 = struct
                         (match sa with
                          | Lwt_unix.ADDR_INET (addr, src_port) ->
                            let src = Ipaddr_unix.of_inet_addr addr in
+                           let src =
+                             match Ipaddr.to_v4 src with
+                             | None -> src
+                             | Some v4 -> Ipaddr.V4 v4
+                           in
                            let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
                            callback ~src ~dst ~src_port buf
                          | _ -> Lwt.return_unit))
