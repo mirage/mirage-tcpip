@@ -30,6 +30,7 @@ let get_udpv4_listening_fd {listen_fds;interface} port =
     Lwt.return @@ Hashtbl.find listen_fds (interface,port)
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+    Lwt_unix.(setsockopt fd SO_REUSEPORT true);
     Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
     >>= fun () ->
     Hashtbl.add listen_fds (interface, port) fd;
