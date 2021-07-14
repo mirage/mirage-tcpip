@@ -13,7 +13,7 @@ license: "ISC"
 tags: ["org:mirage"]
 
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
@@ -25,7 +25,7 @@ depends: [
   "conf-pkg-config" {build}
   "dune" {>= "2.7.0"}
   "bisect_ppx" {dev & >= "2.5.0"}
-  "ocaml" {>= "4.06.0"}
+  "ocaml" {>= "4.12.0"}
   "rresult" {>= "0.5.0"}
   "cstruct" {>= "3.2.0"}
   "cstruct-lwt"
@@ -41,7 +41,7 @@ depends: [
   "macaddr-cstruct"
   "mirage-profile" {>= "0.5"}
   "fmt"
-  "lwt" {>= "4.0.0"}
+  "lwt" {>= "5.4.0"}
   "lwt-dllist"
   "logs" {>= "0.6.0"}
   "duration"
