@@ -39,21 +39,26 @@ let get_udpv4v6_listening_fd {listen_fds;interface} port =
      | `Any ->
        let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
        Lwt_unix.(setsockopt fd IPV6_ONLY false);
+       Lwt_unix.(setsockopt fd SO_REUSEPORT true);
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (any_v6, port)) >|= fun () ->
        ((fd, None), [ fd ])
      | `Ip (v4, v6) ->
        let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd SO_REUSEPORT true);
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (v4, port)) >>= fun () ->
        let fd' = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd' SO_REUSEPORT true);
        Lwt_unix.(setsockopt fd' IPV6_ONLY true);
        Lwt_unix.bind fd' (Lwt_unix.ADDR_INET (v6, port)) >|= fun () ->
        ((fd, Some fd'), [ fd ; fd' ])
      | `V4_only ip ->
        let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd SO_REUSEPORT true);
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (ip, port)) >|= fun () ->
        ((fd, None), [ fd ])
      | `V6_only ip ->
        let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
+       Lwt_unix.(setsockopt fd SO_REUSEPORT true);
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (ip, port)) >|= fun () ->
        ((fd, None), [ fd ])) >|= fun (fds, r) ->
     Hashtbl.add listen_fds port fds;
@@ -109,11 +114,13 @@ let create_socket t ?port dst =
   match dst, t.interface with
   | Ipaddr.V4 _, (`Any | `Ip _ | `V4_only _) ->
     let fd = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
+    Lwt_unix.(setsockopt fd SO_REUSEPORT true);
     bind fd fst (Ipaddr_unix.V4.to_inet_addr Ipaddr.V4.any) >|= fun () ->
     Ok fd
   | Ipaddr.V6 _, (`Any | `Ip _ | `V6_only _) ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
     Lwt_unix.(setsockopt fd IPV6_ONLY true);
+    Lwt_unix.(setsockopt fd SO_REUSEPORT true);
     bind fd snd any_v6 >|= fun () ->
     Ok fd
   | _ -> Lwt.return (Error `Different_ip_version)
