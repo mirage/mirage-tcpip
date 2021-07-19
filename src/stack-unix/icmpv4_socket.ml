@@ -2,7 +2,9 @@ open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
 
-type t = unit
+type t = {
+  mutable listening_sockets : Lwt_unix.file_descr list
+}
 
 type error = [ `Ip of string ]
 let pp_error ppf (`Ip s) = Fmt.string ppf s
@@ -12,8 +14,15 @@ let is_win32 = Sys.os_type = "Win32"
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 let port = 0 (* port isn't meaningful in this context *)
 
-let connect () = Lwt.return_unit
-let disconnect () = Lwt.return_unit
+let safe_close fd =
+  Lwt.catch
+    (fun () -> Lwt_unix.close fd)
+    (function
+      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
+      | e -> Lwt.fail e)
+
+let connect () = Lwt.return { listening_sockets = [] }
+let disconnect t = Lwt_list.iter_p safe_close t.listening_sockets
 
 let pp_sockaddr fmt sa =
   let open Lwt_unix in
@@ -77,28 +86,24 @@ let input t ~src ~dst:_ buf =
       write t ~dst:src (Marshal.make_cstruct response ~payload) >>= fun _ -> Lwt.return_unit
     | _, _ -> Lwt.return_unit
 
-let listen _t addr fn =
+let listen t addr fn =
   let fd = Lwt_unix.socket PF_INET SOCK_RAW ipproto_icmp in
-  Lwt.finalize
-    (fun () ->
-      let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
-      Lwt_unix.bind fd sa >>= fun () ->
-      Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
-      let rec loop () =
-        let receive_buffer = Cstruct.create 4096 in
-        recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
-        (* trim the buffer to the amount of data actually received *)
-        let receive_buffer = Cstruct.sub receive_buffer 0 len in
-        (* On macOS the IP length field is set to a very large value (16384) which
-           probably reflects some kernel datastructure size rather than the real
-           on-the-wire size. This confuses our IPv4 parser so we correct the size
-           here. *)
-        let len = Ipv4_wire.get_ipv4_len receive_buffer in
-        Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.len receive_buffer));
-        Lwt.async (fun () -> fn receive_buffer);
-        loop ()
-      in
-      loop ()
-    ) (fun () ->
-      Lwt_unix.close fd
-    )
+  t.listening_sockets <- fd :: t.listening_sockets;
+  let sa = Lwt_unix.ADDR_INET (Unix.inet_addr_of_string (Ipaddr.V4.to_string addr), port) in
+  Lwt_unix.bind fd sa >>= fun () ->
+  Log.debug (fun f -> f "Bound ICMP file descriptor to %a" pp_sockaddr sa);
+  let rec loop () =
+    let receive_buffer = Cstruct.create 4096 in
+    recvfrom' fd receive_buffer [] >>= fun (len, _sockaddr) ->
+    (* trim the buffer to the amount of data actually received *)
+    let receive_buffer = Cstruct.sub receive_buffer 0 len in
+    (* On macOS the IP length field is set to a very large value (16384) which
+       probably reflects some kernel datastructure size rather than the real
+       on-the-wire size. This confuses our IPv4 parser so we correct the size
+       here. *)
+    let len = Ipv4_wire.get_ipv4_len receive_buffer in
+    Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.len receive_buffer));
+    Lwt.async (fun () -> fn receive_buffer);
+    loop ()
+  in
+  loop ()
