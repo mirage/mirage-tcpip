@@ -23,6 +23,7 @@ type ipinput = unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr;    (* source ip to bind to *)
+  mutable active_connections : Lwt_unix.file_descr list;
 }
 
 include Tcp_socket
@@ -33,7 +34,9 @@ let connect addr =
     | None -> Ipaddr.V6.unspecified
     | Some ip -> Ipaddr.V6.Prefix.address ip
   in
-  Lwt.return { interface = Ipaddr_unix.V6.to_inet_addr ip }
+  Lwt.return { interface = Ipaddr_unix.V6.to_inet_addr ip; active_connections = []; }
+
+let disconnect t = Lwt_list.iter_p close t.active_connections
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -57,7 +60,8 @@ let create_connection ?keepalive t (dst,dst_port) =
         | None -> ()
         | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
           Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
+      t.active_connections <- fd :: t.active_connections;
       Lwt.return (Ok fd))
     (fun exn ->
-       Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit) >>= fun () ->
+       close fd >>= fun () ->
        Lwt.return (Error (`Exn exn)))

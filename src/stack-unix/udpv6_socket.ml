@@ -26,22 +26,27 @@ type t = {
   listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
 }
 
-let get_udpv6_listening_fd {listen_fds;interface} port =
+let get_udpv6_listening_fd ?(preserve = true) {listen_fds;interface} port =
   try
-    Lwt.return @@ Hashtbl.find listen_fds (interface,port)
+    Lwt.return (false, Hashtbl.find listen_fds (interface,port))
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
     Lwt_unix.(setsockopt fd IPV6_ONLY true);
-    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port))
-    >>= fun () ->
-    Hashtbl.add listen_fds (interface, port) fd;
-    Lwt.return fd
-
+    Lwt_unix.bind fd (Lwt_unix.ADDR_INET (interface, port)) >|= fun () ->
+    if preserve then Hashtbl.add listen_fds (interface, port) fd;
+    (true, fd)
 
 type error = [`Sendto_failed]
 
 let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
+
+let close fd =
+  Lwt.catch
+    (fun () -> Lwt_unix.close fd)
+    (function
+      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
+      | e -> Lwt.fail e)
 
 let connect id =
   let t =
@@ -55,21 +60,24 @@ let connect id =
   in
   Lwt.return t
 
-let disconnect _ = Lwt.return_unit
+let disconnect t =
+  Hashtbl.fold (fun _ fd r -> r >>= fun () -> close fd) t.listen_fds Lwt.return_unit
 
 let input ~listeners:_ _ = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
   let rec write_to_fd fd buf =
-    Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
-    >>= function
-    | n when n = Cstruct.len buf -> Lwt.return @@ Ok ()
-    | 0 -> Lwt.return @@ Error `Sendto_failed
-    | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n)) (* keep trying *)
+    Lwt.catch (fun () ->
+      Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
+      >>= function
+      | n when n = Cstruct.len buf -> Lwt.return (Ok ())
+      | 0 -> Lwt.return (Error `Sendto_failed)
+      | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n))) (* keep trying *)
+    (fun _exn -> Lwt.return (Error `Sendto_failed))
   in
-  ( match src_port with
-    | None -> get_udpv6_listening_fd t 0
-    | Some port -> get_udpv6_listening_fd t port )
-  >>= fun fd ->
-  write_to_fd fd buf
+  let port = match src_port with None -> 0 | Some x -> x in
+  get_udpv6_listening_fd ~preserve:false t port >>= fun (created, fd) ->
+  write_to_fd fd buf >>= fun r ->
+  (if created then close fd else Lwt.return_unit) >|= fun () ->
+  r
