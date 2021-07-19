@@ -1,4 +1,16 @@
-### v6.1.0 (2020-03-17)
+### v6.2.0 (2021-07-19)
+
+* This allows to listen on the same port as sending via UDP in the dual socket
+  stack, and avoids file descriptor leaks in the socket stack.
+* Socket stack: avoid file descriptor leaks (remember opened file descriptors in
+  data structure, close them in disconnect)
+  (#449 @reynir @hannesm, fixes #446 #450)
+* Socket stack: convert an incoming packet on a dual socket to v4 source IP if
+  received via IPv4 (#451 @reynir @hannesm)
+* Allow freestanding compilation without opam (#447 @sternenseemann)
+* Adapt to alcotest 1.4.0 breaking change (#448 @CraigFE)
+
+### v6.1.0 (2021-03-17)
 
 * checksum stubs: Drop `caml_` from their name (@hannesm, #445)
 * Add cancelation on `tcpip.stack-socket` (@dinosaure, @talex5, @hannesm, #443)
