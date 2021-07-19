@@ -36,19 +36,24 @@ let two_connect_tcp () =
   let server_port = 14041 in
   make_stack ~cidr:localhost_cidr >>= fun server ->
   make_stack ~cidr:localhost_cidr >>= fun client ->
+  let teardown () =
+    Stack.disconnect server.stack >>= fun () ->
+    Stack.disconnect client.stack
+  in
 
   Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
     Stack.listen server.stack;
     Stack.TCPV4.create_connection client.tcp (localhost, server_port) >|= Rresult.R.get_ok >>= fun flow ->
     Stack.TCPV4.write flow (Cstruct.of_string "test!") >>= function
-    | Ok () -> Stack.TCPV4.close flow
-    | Error _ -> Alcotest.fail "Error writing to socket for TCP test"
+    | Ok () -> Stack.TCPV4.close flow >>= fun () -> teardown ()
+    | Error _ -> teardown () >>= fun () -> Alcotest.fail "Error writing to socket for TCP test"
   ]
 
 let icmp_echo_request () =
   make_stack ~cidr:localhost_cidr >>= fun server ->
   make_stack ~cidr:localhost_cidr >>= fun client ->
+
   let echo_request = Icmpv4_packet.(Marshal.make_cstruct
                                       ~payload:(Cstruct.create 0)
                                       { ty = Icmpv4_wire.Echo_request;
@@ -66,8 +71,13 @@ let icmp_echo_request () =
     Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
     Icmpv4_socket.write client.icmp ~dst:localhost echo_request >|= Rresult.R.get_ok >>= fun () ->
     Time.sleep_ns (Duration.of_sec 10);
-  ] >>= fun () -> Alcotest.(check int) "number of ICMP packets received by listener"  1
-    !received_icmp; Lwt.return_unit
+  ] >>= fun () ->
+  Stack.disconnect server.stack >>= fun () ->
+  Stack.disconnect client.stack >>= fun () ->
+  Icmpv4_socket.disconnect server.icmp >>= fun () ->
+  Icmpv4_socket.disconnect client.icmp >|= fun () ->
+  Alcotest.(check int) "number of ICMP packets received by listener"
+    1 !received_icmp
 
 let no_leak_fds_in_tcpv4 () =
   make_stack ~cidr:localhost_cidr >>= fun stack1 ->
