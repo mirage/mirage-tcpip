@@ -23,6 +23,8 @@ let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
   | exn -> raise exn
 
+let safe_close = Tcp_socket.close
+
 module V4 = struct
   module TCPV4 = Tcpv4_socket
   module UDPV4 = Udpv4_socket
@@ -33,6 +35,7 @@ module V4 = struct
     tcpv4 : TCPV4.t;
     stop : unit Lwt.u;
     switched_off : unit Lwt.t;
+    mutable active_fds : Lwt_unix.file_descr list;
   }
 
   let udpv4 { udpv4; _ } = udpv4
@@ -47,7 +50,7 @@ module V4 = struct
     else
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          UDPV4.get_udpv4_listening_fd t.udpv4 port >>= fun fd ->
+          UDPV4.get_udpv4_listening_fd t.udpv4 port >>= fun (_, fd) ->
           let buf = Cstruct.create 4096 in
           let rec loop () =
             if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
@@ -59,20 +62,27 @@ module V4 = struct
                    let src = Ipaddr_unix.V4.of_inet_addr_exn addr in
                    let dst = Ipaddr.V4.any in (* TODO *)
                    callback ~src ~dst ~src_port buf
-                 | _ -> Lwt.return_unit))
-              (fun exn ->
+                 | _ -> Lwt.return_unit) >|= fun () ->
+                 `Continue)
+             (function
+               | Unix.Unix_error (Unix.EBADF, _, _) ->
+                 Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                 Lwt.return `Stop
+               | exn ->
                  Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
+                 Lwt.return `Continue) >>= function
+            | `Continue -> loop ()
+            | `Stop -> Lwt.return_unit
           in
           Lwt.catch loop ignore_canceled >>= fun () ->
-          Lwt_unix.close fd)
+          safe_close fd)
 
   let listen_tcpv4 ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
       let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+      t.active_fds <- fd :: t.active_fds;
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
       Unix.bind (Lwt_unix.unix_file_descr fd) (Unix.ADDR_INET (t.udpv4.interface, port));
       Lwt_unix.listen fd 10;
@@ -83,6 +93,7 @@ module V4 = struct
             if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_unix.accept fd >|= fun (afd, _) ->
+                t.active_fds <- afd :: t.active_fds;
                 (match keepalive with
                  | None -> ()
                  | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
@@ -93,22 +104,32 @@ module V4 = struct
                        (fun () -> callback afd)
                        (fun exn ->
                           Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                          Lwt.return_unit)))
-              (fun exn ->
+                          safe_close afd));
+                `Continue)
+              (function
+               | Unix.Unix_error (Unix.EBADF, _, _) ->
+                 Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                 Lwt.return `Stop
+               | exn ->
                  Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
+                 Lwt.return `Continue) >>= function
+            | `Continue -> loop ()
+            | `Stop -> Lwt.return_unit
           in
-          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> safe_close fd)
 
   let listen t = t.switched_off
 
   let connect udpv4 tcpv4 =
     Log.info (fun f -> f "IPv4 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    Lwt.return { tcpv4; udpv4; stop; switched_off; }
+    Lwt.return { tcpv4; udpv4; stop; switched_off; active_fds = []; }
 
-  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
+  let disconnect t =
+    Lwt_list.iter_p safe_close t.active_fds >>= fun () ->
+    TCPV4.disconnect t.tcpv4 >>= fun () ->
+    UDPV4.disconnect t.udpv4 >|= fun () ->
+    Lwt.wakeup_later t.stop ()
 end
 
 module V6 = struct
@@ -121,6 +142,7 @@ module V6 = struct
     tcp : TCP.t;
     stop : unit Lwt.u;
     switched_off : unit Lwt.t;
+    mutable active_fds : Lwt_unix.file_descr list;
   }
 
   let udp { udp; _ } = udp
@@ -135,7 +157,7 @@ module V6 = struct
     else
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          UDP.get_udpv6_listening_fd t.udp port >>= fun fd ->
+          UDP.get_udpv6_listening_fd t.udp port >>= fun (_, fd) ->
           let buf = Cstruct.create 4096 in
           let rec loop () =
             if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
@@ -147,19 +169,26 @@ module V6 = struct
                    let src = Ipaddr_unix.V6.of_inet_addr_exn addr in
                    let dst = Ipaddr.V6.unspecified in (* TODO *)
                    callback ~src ~dst ~src_port buf
-                 | _ -> Lwt.return_unit))
-              (fun exn ->
+                 | _ -> Lwt.return_unit) >|= fun () ->
+                 `Continue)
+             (function
+               | Unix.Unix_error (Unix.EBADF, _, _) ->
+                 Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                 Lwt.return `Stop
+               | exn ->
                  Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
+                 Lwt.return `Continue) >>= function
+            | `Continue -> loop ()
+            | `Stop -> Lwt.return_unit
           in
-          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> safe_close fd)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (err_invalid_port port))
     else
       let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+      t.active_fds <- fd :: t.active_fds;
       Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
       Lwt_unix.(setsockopt fd IPV6_ONLY true);
       Unix.bind (Lwt_unix.unix_file_descr fd) (Lwt_unix.ADDR_INET (t.udp.interface, port));
@@ -171,6 +200,7 @@ module V6 = struct
             if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_unix.accept fd >|= fun (afd, _) ->
+                t.active_fds <- afd :: t.active_fds;
                 (match keepalive with
                  | None -> ()
                  | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
@@ -181,22 +211,32 @@ module V6 = struct
                        (fun () -> callback afd)
                        (fun exn ->
                           Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                          Lwt.return_unit)))
-              (fun exn ->
+                          safe_close afd));
+                `Continue)
+              (function
+               | Unix.Unix_error (Unix.EBADF, _, _) ->
+                 Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                 Lwt.return `Stop
+               | exn ->
                  Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
-                 Lwt.return_unit) >>= fun () ->
-            loop ()
+                 Lwt.return `Continue) >>= function
+            | `Continue -> loop ()
+            | `Stop -> Lwt.return_unit
           in
-          Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)
+          Lwt.catch loop ignore_canceled >>= fun () -> safe_close fd)
 
   let listen t = t.switched_off
 
   let connect udp tcp =
     Log.info (fun f -> f "IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    Lwt.return { tcp; udp; stop; switched_off; }
+    Lwt.return { tcp; udp; stop; switched_off; active_fds = []; }
 
-  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
+  let disconnect t =
+    Lwt_list.iter_p safe_close t.active_fds >>= fun () ->
+    TCP.disconnect t.tcp >>= fun () ->
+    UDP.disconnect t.udp >|= fun () ->
+    Lwt.wakeup_later t.stop ()
 end
 
 module V4V6 = struct
@@ -209,6 +249,7 @@ module V4V6 = struct
     tcp : TCP.t;
     stop : unit Lwt.u;
     switched_off : unit Lwt.t;
+    mutable active_fds : Lwt_unix.file_descr list;
   }
 
   let udp { udp; _ } = udp
@@ -223,7 +264,8 @@ module V4V6 = struct
     else
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
-          UDP.get_udpv4v6_listening_fd t.udp port >|= fun fds ->
+          UDP.get_udpv4v6_listening_fd t.udp port >|= fun (_, fds) ->
+          t.active_fds <- fds @ t.active_fds;
           List.iter (fun fd ->
               Lwt.async (fun () ->
                   let buf = Cstruct.create 4096 in
@@ -242,13 +284,19 @@ module V4V6 = struct
                            in
                            let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
                            callback ~src ~dst ~src_port buf
-                         | _ -> Lwt.return_unit))
-                      (fun exn ->
+                         | _ -> Lwt.return_unit) >|= fun () ->
+                        `Continue)
+                      (function
+                       | Unix.Unix_error (Unix.EBADF, _, _) ->
+                         Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                         Lwt.return `Stop
+                       | exn ->
                          Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
-                         Lwt.return_unit) >>= fun () ->
-                    loop ()
+                         Lwt.return `Continue) >>= function
+                    | `Continue -> loop ()
+                    | `Stop -> Lwt.return_unit
                   in
-                  Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)) fds)
+                  Lwt.catch loop ignore_canceled >>= fun () -> safe_close fd)) fds)
 
   let listen_tcp ?keepalive t ~port callback =
     if port < 0 || port > 65535 then
@@ -278,6 +326,7 @@ module V4V6 = struct
           Lwt_unix.(setsockopt fd IPV6_ONLY true);
           [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
       in
+      t.active_fds <- List.map fst fds @ t.active_fds;
       List.iter (fun (fd, addr) ->
           Unix.bind (Lwt_unix.unix_file_descr fd) addr;
           Lwt_unix.listen fd 10;
@@ -288,6 +337,7 @@ module V4V6 = struct
                 if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                 Lwt.catch (fun () ->
                     Lwt_unix.accept fd >|= fun (afd, _) ->
+                    t.active_fds <- afd :: t.active_fds;
                     (match keepalive with
                      | None -> ()
                      | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
@@ -298,20 +348,30 @@ module V4V6 = struct
                            (fun () -> callback afd)
                            (fun exn ->
                               Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                              Lwt.return_unit)))
-                  (fun exn ->
+                              safe_close afd));
+                    `Continue)
+                  (function
+                   | Unix.Unix_error (Unix.EBADF, _, _) ->
+                     Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                     Lwt.return `Stop
+                   | exn ->
                      Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
-                     Lwt.return_unit) >>= fun () ->
-                loop ()
+                     Lwt.return `Continue) >>= function
+                  | `Continue -> loop ()
+                  | `Stop -> Lwt.return_unit
               in
-              Lwt.catch loop ignore_canceled >>= fun () -> Lwt_unix.close fd)) fds
+              Lwt.catch loop ignore_canceled >>= fun () -> safe_close fd)) fds
 
   let listen t = t.switched_off
 
   let connect udp tcp =
     Log.info (fun f -> f "Dual IPv4 and IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    Lwt.return { tcp; udp; stop; switched_off; }
+    Lwt.return { tcp; udp; stop; switched_off; active_fds = [] }
 
-  let disconnect t = Lwt.wakeup_later t.stop () ; Lwt.return_unit
+  let disconnect t =
+    Lwt_list.iter_p safe_close t.active_fds >>= fun () ->
+    TCP.disconnect t.tcp >>= fun () ->
+    UDP.disconnect t.udp >|= fun () ->
+    Lwt.wakeup_later t.stop ()
 end

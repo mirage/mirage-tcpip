@@ -23,3 +23,5 @@ include Mirage_protocols.TCP
    and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
 val connect : Ipaddr.V6.Prefix.t option -> t Lwt.t
+
+val disconnect : t -> unit Lwt.t
