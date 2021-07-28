@@ -228,14 +228,14 @@ module Allocate = struct
 
   let pong ~src ~dst ~hlim ~id ~seq ~data =
     (* TODO data may exceed size, fragment? *)
-    let size = Ipv6_wire.sizeof_pingv6 + Cstruct.len data in
+    let size = Ipv6_wire.sizeof_pingv6 + Cstruct.length data in
     let fillf hdr icmpbuf =
       Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
       Ipv6_wire.set_pingv6_code icmpbuf 0;
       Ipv6_wire.set_pingv6_id icmpbuf id;
       Ipv6_wire.set_pingv6_seq icmpbuf seq;
       Ipv6_wire.set_pingv6_csum icmpbuf 0;
-      Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.len data);
+      Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.length data);
       Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
@@ -737,7 +737,7 @@ module Parser = struct
     | PREFIX of pfx
 
   let rec parse_options1 opts =
-    if Cstruct.len opts >= Ipv6_wire.sizeof_opt then
+    if Cstruct.length opts >= Ipv6_wire.sizeof_opt then
       (* TODO check for invalid len == 0 *)
       let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
       match Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt with
@@ -995,7 +995,7 @@ module Parser = struct
     loop (poff+2)
 
   let packet is_my_addr buf =
-    if Cstruct.len buf < Ipv6_wire.sizeof_ipv6 || Cstruct.len buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf then begin
+    if Cstruct.length buf < Ipv6_wire.sizeof_ipv6 || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf then begin
       Log.debug (fun m -> m "short IPv6 packet received, dropping");
       Drop
     end else if Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l <> 0x60000000l then begin

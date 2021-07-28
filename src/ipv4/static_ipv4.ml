@@ -122,7 +122,7 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
                 match acc with
                 | Error e -> Lwt.return (Error e)
                 | Ok () ->
-                  let l = Cstruct.len p in
+                  let l = Cstruct.length p in
                   writeout l (fun buf -> Cstruct.blit p 0 buf 0 l ; l))
               (Ok ()) remaining
 
@@ -141,7 +141,7 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_prot
         Log.debug (fun m -> m "dropping IP fragment not for us or broadcast %a"
                       Ipv4_packet.pp packet);
         Lwt.return_unit
-      end else if Cstruct.len payload = 0 then begin
+      end else if Cstruct.length payload = 0 then begin
         Log.debug (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
         Lwt.return_unit
       end else

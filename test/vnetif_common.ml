@@ -129,8 +129,8 @@ struct
     let pcap_record channel buffer =
       let pcap_buf = Cstruct.create Pcap.sizeof_pcap_packet in
       let time = Unix.gettimeofday () in
-      Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.len buffer));
-      Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.len buffer));
+      Pcap.LE.set_pcap_packet_incl_len pcap_buf (Int32.of_int (Cstruct.length buffer));
+      Pcap.LE.set_pcap_packet_orig_len pcap_buf (Int32.of_int (Cstruct.length buffer));
       Pcap.LE.set_pcap_packet_ts_sec pcap_buf (Int32.of_float time);
       let frac = (time -. (float_of_int (truncate time))) *. 1000000.0 in
       Pcap.LE.set_pcap_packet_ts_usec pcap_buf (Int32.of_float frac);

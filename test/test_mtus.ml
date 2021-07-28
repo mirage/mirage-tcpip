@@ -67,7 +67,7 @@ let big_server_response () =
   in
   Lwt.async (fun () -> start_server ~f server);
   start_client client >>= fun flow -> read_all flow [] >>= fun l ->
-  Alcotest.(check int) "received size matches sent size" (Cstruct.len response) (Cstruct.len (Cstruct.concat l));
+  Alcotest.(check int) "received size matches sent size" (Cstruct.length response) (Cstruct.length (Cstruct.concat l));
   Stack.Stackv4.TCPV4.close flow
 
 let big_client_request_chunked () =
@@ -95,7 +95,7 @@ let big_server_response_not_chunked () =
   in
   Lwt.async (fun () -> start_server ~f server);
   start_client client >>= fun flow -> read_one flow >>= fun buf ->
-  Alcotest.(check int) "received size matches sent size" (Cstruct.len response) (Cstruct.len buf);
+  Alcotest.(check int) "received size matches sent size" (Cstruct.length response) (Cstruct.length buf);
   Stack.Stackv4.TCPV4.close flow
 
 let long_comms amt timeout () =

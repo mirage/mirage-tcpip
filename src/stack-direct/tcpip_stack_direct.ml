@@ -300,7 +300,7 @@ module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = st
     and default6 ~proto ~src ~dst payload = default ~proto ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
     in
     fun buf ->
-      if Cstruct.len buf >= 1 then
+      if Cstruct.length buf >= 1 then
         let v = Cstruct.get_uint8 buf 0 lsr 4 in
         if v = 4 && not t.ipv6_only then
           Ipv4.input t.ipv4 ~tcp:tcp4 ~udp:udp4 ~default:default4 buf

@@ -137,7 +137,7 @@ let ack_for data =
   | Ok (packet, data) ->
     let open Tcp.Tcp_packet in
     let data_len =
-      Sequence.of_int ((Cstruct.len data) +
+      Sequence.of_int ((Cstruct.length data) +
 		       (if packet.fin then 1 else 0) +
 		       (if packet.syn then 1 else 0)) in
     let sequence = packet.sequence in
@@ -389,7 +389,7 @@ let data_repeated_ack_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
     | `WAIT_FOR_DATA_ACK ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data = Int32.(add 1000001l (of_int (Cstruct.len page))))  then
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data = Int32.(add 1000001l (of_int (Cstruct.length page))))  then
         Lwt.return Fsm_done
       else
         Lwt.return (Fsm_error "Ack for data expected") in

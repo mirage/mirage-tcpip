@@ -31,9 +31,9 @@ let rec write fd buf =
     (fun () ->
       Lwt_cstruct.write fd buf
       >>= function
-      | n when n = Cstruct.len buf -> return @@ Ok ()
+      | n when n = Cstruct.length buf -> return @@ Ok ()
       | 0 -> return @@ Error `Closed
-      | n -> write fd (Cstruct.sub buf n (Cstruct.len buf - n))
+      | n -> write fd (Cstruct.sub buf n (Cstruct.length buf - n))
     ) (function
       | Unix.Unix_error(Unix.EPIPE, _, _) -> return @@ Error `Closed
       | e -> return (Error (`Exn e)))

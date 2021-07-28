@@ -36,15 +36,15 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let sendto' fd buf flags dst =
   if is_win32 then begin
      (* Lwt on Win32 doesn't support Lwt_bytes.sendto *)
-     let bytes = Bytes.make (Cstruct.len buf) '\000' in
-     Cstruct.blit_to_bytes buf 0 bytes 0 (Cstruct.len buf);
+     let bytes = Bytes.make (Cstruct.length buf) '\000' in
+     Cstruct.blit_to_bytes buf 0 bytes 0 (Cstruct.length buf);
      Lwt_unix.sendto fd bytes 0 (Bytes.length bytes) flags dst
   end else Lwt_cstruct.sendto fd buf flags dst
 
 let recvfrom' fd buf flags =
   if is_win32 then begin
     (* Lwt on Win32 doesn't support Lwt_bytes.recvfrom *)
-    let bytes = Bytes.make (Cstruct.len buf) '\000' in
+    let bytes = Bytes.make (Cstruct.length buf) '\000' in
     Lwt_unix.recvfrom fd bytes 0 (Bytes.length bytes) flags
     >>= fun (n, sockaddr) ->
     Cstruct.blit_from_bytes bytes 0 buf 0 n;
@@ -61,8 +61,8 @@ let write _t ?src:_ ~dst ?ttl:_ttl buf =
   let sockaddr = ADDR_INET (in_addr, port) in
   Lwt.catch (fun () ->
     sendto' fd buf flags sockaddr >>= fun sent ->
-      if (sent <> (Cstruct.len buf)) then
-        Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Cstruct.len buf));
+      if (sent <> (Cstruct.length buf)) then
+        Log.debug (fun f -> f "short write: %d received vs %d expected" sent (Cstruct.length buf));
     Lwt_unix.close fd |> Lwt_result.ok
   ) (fun exn -> Lwt.return @@ Error (`Ip (Printexc.to_string exn)))
 
@@ -102,7 +102,7 @@ let listen t addr fn =
        on-the-wire size. This confuses our IPv4 parser so we correct the size
        here. *)
     let len = Ipv4_wire.get_ipv4_len receive_buffer in
-    Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.len receive_buffer));
+    Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.length receive_buffer));
     Lwt.async (fun () -> fn receive_buffer);
     loop ()
   in

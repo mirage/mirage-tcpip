@@ -126,9 +126,9 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
         let dst = match t.interface with `Any -> Ipaddr.(V6 (to_v6 dst)) | _ -> dst in
         Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.to_inet_addr dst), dst_port))
         >>= function
-        | n when n = Cstruct.len buf -> Lwt.return (Ok ())
+        | n when n = Cstruct.length buf -> Lwt.return (Ok ())
         | 0 -> Lwt.return (Error `Sendto_failed)
-        | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n))) (* keep trying *)
+        | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.length buf - n))) (* keep trying *)
       (fun _exn -> Lwt.return (Error `Sendto_failed))
   in
   let v4_or_v6 = match dst with Ipaddr.V4 _ -> `V4 | Ipaddr.V6 _ -> `V6 in

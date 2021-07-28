@@ -65,9 +65,9 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
     Lwt.catch (fun () ->
       Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V4.to_inet_addr dst), dst_port))
       >>= function
-      | n when n = Cstruct.len buf -> Lwt.return (Ok ())
+      | n when n = Cstruct.length buf -> Lwt.return (Ok ())
       | 0 -> Lwt.return (Error `Sendto_failed)
-      | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.len buf - n))) (* keep trying *)
+      | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.length buf - n))) (* keep trying *)
     (fun _exn -> Lwt.return (Error `Sendto_failed))
   in
   let port = match src_port with None -> 0 | Some x -> x in

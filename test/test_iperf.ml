@@ -140,7 +140,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
         Lwt.return_unit
       | `Data data ->
         begin
-          let l = Cstruct.len data in
+          let l = Cstruct.length data in
           st.bytes <- (Int64.add st.bytes (Int64.of_int l));
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
