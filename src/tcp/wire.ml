@@ -60,7 +60,7 @@ module Make (Ip:Mirage_protocols.IP) = struct
       }
     in
     (* Make a TCP/IP header frame *)
-    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.len payload in
+    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.length payload in
     let fill_buffer buf =
       let pseudoheader = Ip.pseudoheader ip ~src dst `TCP tcp_size in
       match Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload with
@@ -70,9 +70,9 @@ module Make (Ip:Mirage_protocols.IP) = struct
         (* TODO: better to avoid this entirely, now we're sending empty IP
              frame and drop the payload.. oops *)
       | Ok l ->
-        Cstruct.blit payload 0 buf l (Cstruct.len payload) ;
+        Cstruct.blit payload 0 buf l (Cstruct.length payload) ;
         MProf.Counter.increase count_tcp_to_ip
-          (Cstruct.len payload + if syn then 1 else 0) ;
+          (Cstruct.length payload + if syn then 1 else 0) ;
         tcp_size
     in
     Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer [] >|= function

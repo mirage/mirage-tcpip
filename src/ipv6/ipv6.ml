@@ -67,15 +67,15 @@ module Make (N : Mirage_net.S)
     let now = C.elapsed_ns () in
     (* TODO fragmentation! *)
     let payload = Cstruct.concat bufs in
-    let size' = size + Cstruct.len payload in
+    let size' = size + Cstruct.length payload in
     let fillf _ip6hdr buf =
       let h_len = headerf buf in
       if h_len > size then begin
         Log.err (fun m -> m "provided headerf exceeds size") ;
         invalid_arg "headerf exceeds size"
       end ;
-      Cstruct.blit payload 0 buf h_len (Cstruct.len payload);
-      h_len + Cstruct.len payload
+      Cstruct.blit payload 0 buf h_len (Cstruct.length payload);
+      h_len + Cstruct.length payload
     in
     let ctx, outs = Ndpv6.send ~now t.ctx ?src dst proto size' fillf in
     t.ctx <- ctx;

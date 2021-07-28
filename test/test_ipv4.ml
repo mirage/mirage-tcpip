@@ -7,8 +7,8 @@ let test_unmarshal_with_options () =
                             "\x00\xfa\x02\x00\x00\x00\x01\x03\x00\x00\x00\xe0\x00\x00\xfb") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
   | Ok ({Ipv4_packet.options ; _}, payload) ->
-      Alcotest.(check int) "options" (Cstruct.len options) 4;
-      Alcotest.(check int) "payload" (Cstruct.len payload) 16;
+      Alcotest.(check int) "options" (Cstruct.length options) 4;
+      Alcotest.(check int) "payload" (Cstruct.length payload) 16;
       Lwt.return_unit
   | _ ->
       Alcotest.fail "Fail to parse ip packet with options"
@@ -21,8 +21,8 @@ let test_unmarshal_without_options () =
                             "\x00\x00\x00\x00\x50\x04\x00\x00\xec\x27\x00\x00") 0 datagram 0 40;
   match Ipv4_packet.Unmarshal.of_cstruct datagram with
   | Ok ({Ipv4_packet.options ; _}, payload) ->
-      Alcotest.(check int) "options" (Cstruct.len options) 0;
-      Alcotest.(check int) "payload" (Cstruct.len payload) 20;
+      Alcotest.(check int) "options" (Cstruct.length options) 0;
+      Alcotest.(check int) "payload" (Cstruct.length payload) 20;
       Lwt.return_unit
   | _ ->
       Alcotest.fail "Fail to parse ip packet with options"
@@ -40,7 +40,7 @@ let test_size () =
   let ttl = 64 in
   let ip = { Ipv4_packet.src; dst; proto = 17; ttl; id = 0 ; off = 0 ; options = (Cstruct.of_string "aaaa") } in
   let payload = Cstruct.of_string "abcdefgh" in
-  let tmp = Ipv4_packet.Marshal.make_cstruct ~payload_len:(Cstruct.len payload) ip in
+  let tmp = Ipv4_packet.Marshal.make_cstruct ~payload_len:(Cstruct.length payload) ip in
   let tmp = Cstruct.concat [tmp; payload] in
   Ipv4_packet.Unmarshal.of_cstruct tmp
   |> Alcotest.(check (result (pair ipv4_packet cstruct) string)) "Loading an IP packet with IP options" (Ok (ip, payload));
@@ -164,7 +164,7 @@ let max_fragment () =
     List.fold_left (fun ((cache, res), off) payload ->
         Alcotest.(check (option (pair ipv4_packet cstruct)) __LOC__ None res) ;
         let r = Fragments.process cache 0L { test_packet with off = off lor mf } payload in
-        (r, Cstruct.len payload / 8 + off))
+        (r, Cstruct.length payload / 8 + off))
       ((empty_cache, None), 0)
       all_16
   in
@@ -212,7 +212,7 @@ let fragment_simple () =
   (* 16 byte per packet -> 64 fragments (a 16 byte) + 1 (6 byte) *)
   Alcotest.(check int __LOC__ 65 (List.length fs));
   let second, last = List.hd fs, List.(hd (rev fs)) in
-  Alcotest.(check int __LOC__ 26 (Cstruct.len last));
+  Alcotest.(check int __LOC__ 26 (Cstruct.length last));
   match
     Ipv4_packet.Unmarshal.of_cstruct second,
     Ipv4_packet.Unmarshal.of_cstruct last
@@ -228,7 +228,7 @@ let fragment_simple () =
     (* 16 byte per packet -> 64 fragments (a 16 byte) *)
     Alcotest.(check int __LOC__ 64 (List.length fs'));
     let second', last' = List.hd fs', List.(hd (rev fs')) in
-    Alcotest.(check int __LOC__ 36 (Cstruct.len last'));
+    Alcotest.(check int __LOC__ 36 (Cstruct.length last'));
     match
       Ipv4_packet.Unmarshal.of_cstruct second',
       Ipv4_packet.Unmarshal.of_cstruct last'

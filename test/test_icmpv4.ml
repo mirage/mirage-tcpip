@@ -92,8 +92,8 @@ let echo_request () =
                             subheader = Id_and_seq (id_no, seq_no)}) in
   let echo_request = Cstruct.create 2048 in
   Icmpv4_packet.Marshal.into_cstruct req echo_request ~payload:request_payload >>=? fun () ->
-  Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.len request_payload);
-  let echo_request = Cstruct.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Cstruct.len request_payload) in
+  Cstruct.blit request_payload 0 echo_request (Icmpv4_wire.sizeof_icmpv4) (Cstruct.length request_payload);
+  let echo_request = Cstruct.sub echo_request 0 (Icmpv4_wire.sizeof_icmpv4 + Cstruct.length request_payload) in
   let check buf =
     let open Icmpv4_packet in
     Log.debug (fun f -> f "Incoming ICMP message: %a" Cstruct.hexdump_pp buf);
@@ -188,7 +188,7 @@ let write_errors () =
       Unmarshal.of_cstruct buf >>= fun (icmp, icmp_payload) ->
       Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
       Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
-      match Cstruct.len icmp_payload with
+      match Cstruct.length icmp_payload with
       | 0 -> Alcotest.fail "Error message should've had a payload"
       | _n ->
         (* TODO: packet should have an IP header in it *)

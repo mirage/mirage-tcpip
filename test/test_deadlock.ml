@@ -98,7 +98,7 @@ let test_digest netif1 netif2 =
         [ read_digest [];
           begin
             let rec send_data data =
-              if Cstruct.len data < mtu then
+              if Cstruct.length data < mtu then
                 (TCPIP.TCPV4.write flow data >>= fun _ -> Lwt.return_unit)
               else
                 let sub, data = Cstruct.split data mtu in

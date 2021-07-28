@@ -94,18 +94,18 @@ type r = Bad | Hole
 let attempt_reassemble fragments =
   Log.debug (fun m -> m "reassemble %a"
                 Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", len ") int int))
-                (List.map (fun (off, data) -> off, Cstruct.len data) fragments)) ;
+                (List.map (fun (off, data) -> off, Cstruct.length data) fragments)) ;
   (* input: list of (offset, fragment) with decreasing offset *)
   (* output: maybe a cstruct.t if there are no gaps *)
   let len =
     (* List.hd is safe here, since we are never called with an empty list *)
     let off, data = List.hd fragments in
-    off + Cstruct.len data
+    off + Cstruct.length data
   in
   let rec check until = function
     | [] -> if until = 0 then Ok () else Error Hole
     | (start, d)::tl ->
-      let until' = start + (Cstruct.len d) in
+      let until' = start + (Cstruct.length d) in
       if until = until'
       then check start tl
       else if until' > until
@@ -115,7 +115,7 @@ let attempt_reassemble fragments =
   check len fragments >>= fun () ->
   let buf = Cstruct.create_unsafe len in
   List.iter (fun (off, data) ->
-      Cstruct.blit data 0 buf off (Cstruct.len data))
+      Cstruct.blit data 0 buf off (Cstruct.length data))
     fragments ;
   Ok buf
 
@@ -165,14 +165,14 @@ let process cache ts (packet : Ipv4_packet.t) payload =
         if try_reassemble then
           match attempt_reassemble all_frags with
           | Ok p ->
-            Log.debug (fun m -> m "%a reassembled to payload %d" Ipv4_packet.pp packet (Cstruct.len p)) ;
+            Log.debug (fun m -> m "%a reassembled to payload %d" Ipv4_packet.pp packet (Cstruct.length p)) ;
             let packet' = { packet with options = options' ; off = 0 } in
             Cache.remove key cache', Some (packet', p)
           | Error Bad ->
             Log.warn (fun m -> m "%a dropping from cache, bad fragments (%a)"
                          Ipv4_packet.pp packet
                          Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", ") int int))
-                         (List.map (fun (s, d) -> (s, Cstruct.len d)) all_frags)) ;
+                         (List.map (fun (s, d) -> (s, Cstruct.length d)) all_frags)) ;
             Log.debug (fun m -> m "full fragments: %a"
                           Fmt.(list ~sep:(unit "@.") Cstruct.hexdump_pp)
                           (List.map snd all_frags)) ;
@@ -186,7 +186,7 @@ let process cache ts (packet : Ipv4_packet.t) payload =
    set should be copied into all fragments (see RFC 791, 3.1, page 15) *)
 let fragment ~mtu hdr payload =
   let rec frag1 acc hdr hdr_buf offset data_size payload =
-    let more = Cstruct.len payload > data_size in
+    let more = Cstruct.length payload > data_size in
     let hdr' =
       (* off is 16 bit of IPv4 header, 0x2000 sets the more fragments bit *)
       let off = (offset / 8) lor (if more then 0x2000 else 0) in
@@ -195,7 +195,7 @@ let fragment ~mtu hdr payload =
     let this_payload, rest =
       if more then Cstruct.split payload data_size else payload, Cstruct.empty
     in
-    let payload_len = Cstruct.len this_payload in
+    let payload_len = Cstruct.length this_payload in
     Ipv4_wire.set_ipv4_csum hdr_buf 0;
     (match Ipv4_packet.Marshal.into_cstruct ~payload_len hdr' hdr_buf with
      (* hdr_buf is allocated with hdr_size (computed below) bytes, thus
@@ -211,7 +211,7 @@ let fragment ~mtu hdr payload =
   in
   let hdr_size =
     (* padded to 4 byte boundary *)
-    let opt_size = (Cstruct.len hdr.Ipv4_packet.options + 3) / 4 * 4 in
+    let opt_size = (Cstruct.length hdr.Ipv4_packet.options + 3) / 4 * 4 in
     opt_size + Ipv4_wire.sizeof_ipv4
   in
   let data_size =

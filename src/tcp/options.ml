@@ -55,7 +55,7 @@ let unmarshal buf =
          | 0 -> None   (* EOF *)
          | 1 -> Some 1 (* NOP *)
          | _option_type ->
-           match Cstruct.len buf with
+           match Cstruct.length buf with
            | 0 | 1 -> None
            | buffer_size ->
              let option_size = Cstruct.get_uint8 buf 1 in
@@ -70,7 +70,7 @@ let unmarshal buf =
          | 1 -> Ok Noop
          | option_number ->
            let option_length = Cstruct.get_uint8 buf 1 in
-           if Cstruct.len buf < option_length then
+           if Cstruct.length buf < option_length then
              report_error option_number
            else begin
              match option_number, option_length with
@@ -99,7 +99,7 @@ let unmarshal buf =
              (* Parse apparently well-formed but unrecognized
                 options *)
              | n, _ ->
-               Ok (Unknown (n, Cstruct.copy buf 2 (Cstruct.len buf - 2)))
+               Ok (Unknown (n, Cstruct.copy buf 2 (Cstruct.length buf - 2)))
            end
       ) buf in
   Cstruct.fold (fun a b ->

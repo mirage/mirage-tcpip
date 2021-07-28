@@ -10,7 +10,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let make_payload ~size () =
   let buf = Cstruct.create size in
   let pattern = "plz reply i'm so lonely" in
-  for i = 0 to Cstruct.len buf - 1 do
+  for i = 0 to Cstruct.length buf - 1 do
     Cstruct.set_char buf i pattern.[i mod (String.length pattern)]
   done;
   buf
@@ -81,7 +81,7 @@ let make_receiver ~count ~payload () =
               Hashtbl.remove seq_no_to_send_time seq;
               let ms = secs *. 1000.0 in
               Printf.printf "%d bytes from %s: icmp_seq=%d ttl=%d time=%f ms\n%!"
-                (Cstruct.len payload) (Ipaddr.V4.to_string ip.Ipv4_packet.src) seq ip.Ipv4_packet.ttl ms;
+                (Cstruct.length payload) (Ipaddr.V4.to_string ip.Ipv4_packet.src) seq ip.Ipv4_packet.ttl ms;
               incr nr_received;
               min_ms := min !min_ms ms;
               max_ms := max !max_ms ms;

@@ -37,12 +37,12 @@ module Unmarshal = struct
   let of_cstruct pkt =
     let open Tcp_wire in
     let check_len pkt =
-      if Cstruct.len pkt < sizeof_tcp then
+      if Cstruct.length pkt < sizeof_tcp then
         Error "packet too short to contain a TCP packet of any size"
       else
         Ok (Tcp_wire.get_data_offset pkt)
     in
-    let long_enough data_offset = if Cstruct.len pkt < data_offset then
+    let long_enough data_offset = if Cstruct.length pkt < data_offset then
         Error "packet too short to contain a TCP packet of the size claimed"
       else
         Ok ()
@@ -106,13 +106,13 @@ module Marshal = struct
 
   let into_cstruct ~pseudoheader ~payload t buf =
     let check_header_len () =
-      if (Cstruct.len buf) < sizeof_tcp then Error "Not enough space for a TCP header"
+      if (Cstruct.length buf) < sizeof_tcp then Error "Not enough space for a TCP header"
       else Ok ()
     in
     let check_overall_len header_length =
-      if (Cstruct.len buf) < header_length then
+      if (Cstruct.length buf) < header_length then
         Error (Printf.sprintf "Not enough space for TCP header: %d < %d"
-                 (Cstruct.len buf) header_length)
+                 (Cstruct.length buf) header_length)
       else Ok ()
     in
     let insert_options options_frame =

@@ -74,7 +74,7 @@ let marshal_marshal () =
   let buffer = Cstruct.create Udp_wire.sizeof_udp in
   let src = Ipaddr.V4.of_string_exn "127.0.0.1" in
   let dst = Ipaddr.V4.of_string_exn "127.0.0.1" in
-  let pseudoheader = Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`UDP (Cstruct.len buffer + Cstruct.len payload) in
+  let pseudoheader = Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`UDP (Cstruct.length buffer + Cstruct.length payload) in
   Udp_packet.Marshal.into_cstruct ~pseudoheader ~payload udp (Cstruct.shift buffer 1)
   |> Alcotest.check error_str "Buffer too short" (Error "Not enough space for a UDP header");
   Udp_packet.Marshal.into_cstruct ~pseudoheader ~payload udp buffer

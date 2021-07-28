@@ -594,7 +594,7 @@ struct
     match State.state pcb.state with
     (* but it's only appropriate to send data if the connection is ready for it *)
     | State.Established | State.Close_wait -> begin
-      let len = Cstruct.len data in
+      let len = Cstruct.length data in
       match write_available pcb with
       | 0 -> (* no room at all; we must wait *)
         write_wait_for pcb 1 >>= fun () ->

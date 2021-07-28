@@ -60,7 +60,7 @@ module Unmarshal = struct
   let of_cstruct buf =
     let open Rresult in
     let check_len () =
-      if Cstruct.len buf < sizeof_icmpv4 then
+      if Cstruct.length buf < sizeof_icmpv4 then
         Error "packet too short for ICMPv4 header"
       else Ok () in
     let check_ty () =
@@ -88,7 +88,7 @@ module Marshal = struct
     | Pointer byte -> set_uint32 buf 0 Int32.zero; Cstruct.set_uint8 buf 0 byte;
     | Address addr -> set_uint32 buf 0 (Ipaddr.V4.to_int32 addr)
     | Unused -> set_uint32 buf 0 Int32.zero
-  
+
   let unsafe_fill {ty; code; subheader} buf ~payload =
     set_icmpv4_ty buf (ty_to_int ty);
     set_icmpv4_code buf code;
@@ -98,7 +98,7 @@ module Marshal = struct
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
 
   let check_len buf =
-    if Cstruct.len buf < Icmpv4_wire.sizeof_icmpv4 then
+    if Cstruct.length buf < Icmpv4_wire.sizeof_icmpv4 then
       Error "Not enough space for ICMP header"
     else Ok ()
 

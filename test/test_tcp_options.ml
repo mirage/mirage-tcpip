@@ -54,7 +54,7 @@ let test_unmarshal_simple_options () =
   let kind = 18 in (* TODO: more canonically unknown option-kind *)
   Cstruct.blit_from_string data 0 unknown 2 (String.length data);
   Cstruct.set_uint8 unknown 0 kind;
-  Cstruct.set_uint8 unknown 1 (Cstruct.len unknown);
+  Cstruct.set_uint8 unknown 1 (Cstruct.length unknown);
   check "more"
     (Ok [Tcp.Options.Unknown (kind, data)])
     (Tcp.Options.unmarshal unknown)
@@ -178,7 +178,7 @@ let test_marshal_into_cstruct () =
   let payload = Cstruct.of_string "ab" in
   let pseudoheader =
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`TCP
-      (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.len payload)
+      (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.length payload)
   in
   let packet =
     Tcp.Tcp_packet.{
@@ -198,7 +198,7 @@ let test_marshal_into_cstruct () =
   in
   Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload packet buf
   |> Alcotest.(check (result int string)) "correct size written"
-    (Ok (Cstruct.len buf));
+    (Ok (Cstruct.length buf));
   let raw =Cstruct.concat [buf; payload]  in
   Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP ~ipv4_header
     ~transport_packet:raw
@@ -235,7 +235,7 @@ let test_marshal_without_padding () =
   let payload = Cstruct.of_string "\x02\x04\x05\xb4" in
   let pseudoheader =
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto:`TCP
-      (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.len payload)
+      (Tcp.Tcp_wire.sizeof_tcp + options_size + Cstruct.length payload)
   in
   let packet =
     Tcp.Tcp_packet.{
@@ -255,7 +255,7 @@ let test_marshal_without_padding () =
   in
   Tcp.Tcp_packet.Marshal.into_cstruct ~pseudoheader ~payload packet buf
   |> Alcotest.(check (result int string)) "correct size written"
-    (Ok (Cstruct.len buf));
+    (Ok (Cstruct.length buf));
   let raw =Cstruct.concat [buf; payload]  in
   Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP ~ipv4_header
     ~transport_packet:raw
