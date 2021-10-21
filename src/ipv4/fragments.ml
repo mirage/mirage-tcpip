@@ -93,7 +93,7 @@ type r = Bad | Hole
 
 let attempt_reassemble fragments =
   Log.debug (fun m -> m "reassemble %a"
-                Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", len ") int int))
+                Fmt.(list ~sep:(any "; ") (pair ~sep:(any ", len ") int int))
                 (List.map (fun (off, data) -> off, Cstruct.length data) fragments)) ;
   (* input: list of (offset, fragment) with decreasing offset *)
   (* output: maybe a cstruct.t if there are no gaps *)
@@ -171,10 +171,10 @@ let process cache ts (packet : Ipv4_packet.t) payload =
           | Error Bad ->
             Log.warn (fun m -> m "%a dropping from cache, bad fragments (%a)"
                          Ipv4_packet.pp packet
-                         Fmt.(list ~sep:(unit "; ") (pair ~sep:(unit ", ") int int))
+                         Fmt.(list ~sep:(any "; ") (pair ~sep:(any ", ") int int))
                          (List.map (fun (s, d) -> (s, Cstruct.length d)) all_frags)) ;
             Log.debug (fun m -> m "full fragments: %a"
-                          Fmt.(list ~sep:(unit "@.") Cstruct.hexdump_pp)
+                          Fmt.(list ~sep:(any "@.") Cstruct.hexdump_pp)
                           (List.map snd all_frags)) ;
             Cache.remove key cache', None
           | Error Hole -> maybe_add_to_cache cache', None
