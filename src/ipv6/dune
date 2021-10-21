@@ -4,8 +4,8 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries logs mirage-protocols mirage-time mirage-net macaddr-cstruct
-   mirage-clock duration ipaddr cstruct mirage-random tcpip
-   randomconv ethernet)
+   mirage-clock duration ipaddr cstruct mirage-random tcpip randomconv
+   ethernet)
  (preprocess
   (pps ppx_cstruct))
  (wrapped false))
