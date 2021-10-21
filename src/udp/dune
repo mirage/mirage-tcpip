@@ -3,7 +3,7 @@
  (public_name tcpip.udp)
  (instrumentation
   (backend bisect_ppx))
- (libraries mirage-protocols mirage-random rresult logs tcpip randomconv)
+ (libraries mirage-protocols mirage-random logs tcpip randomconv)
  (preprocess
   (pps ppx_cstruct))
  (wrapped false))

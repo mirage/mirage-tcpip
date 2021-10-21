@@ -93,19 +93,19 @@ module Unmarshal = struct
     | 17 -> Some `UDP
     | _  -> None
 
+  let ( let* ) = Result.bind
 
   let header_of_cstruct buf =
-    let open Rresult in
     let open Ipv4_wire in
     let check_version buf =
       let version n = (n land 0xf0) in
       match get_ipv4_hlen_version buf |> version with
-      | 0x40 -> Ok buf
+      | 0x40 -> Ok ()
       | n -> Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
     in
     let size_check buf =
       if (Cstruct.length buf < sizeof_ipv4) then Error "buffer sent to IPv4 parser had size < 20"
-      else Ok buf
+      else Ok ()
     in
     let get_header_length buf =
       let length_of_hlen_version n = (n land 0x0f) * 4 in
@@ -137,10 +137,12 @@ module Unmarshal = struct
       in
        Ok ({src; dst; id; off; ttl; proto; options;}, options_end)
     in
-    size_check buf >>= check_version >>= get_header_length >>= parse buf
+    let* () = size_check buf in
+    let* () = check_version buf in
+    let* hl = get_header_length buf in
+    parse buf hl
 
   let of_cstruct buf =
-    let open Rresult in
     let open Ipv4_wire in
     let parse buf options_end =
       let payload_len = (get_ipv4_len buf) - options_end in
@@ -152,8 +154,9 @@ module Unmarshal = struct
         Ok payload
       )
     in
-    header_of_cstruct buf >>= fun (header, options_end) ->
-    parse buf options_end >>= fun payload -> Ok (header, payload)
+    let* header, options_end = header_of_cstruct buf in
+    let* payload = parse buf options_end in
+    Ok (header, payload)
 
   let verify_transport_checksum ~proto ~ipv4_header ~transport_packet =
     (* note: it's not necessary to ensure padding to integral number of 16-bit fields here; ones_complement_list does this for us *)

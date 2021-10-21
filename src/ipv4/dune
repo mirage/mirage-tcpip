@@ -3,7 +3,7 @@
  (public_name tcpip.ipv4)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs mirage-protocols ipaddr cstruct rresult tcpip tcpip.udp
+ (libraries logs mirage-protocols ipaddr cstruct tcpip tcpip.udp
    mirage-random mirage-clock randomconv lru)
  (preprocess
   (pps ppx_cstruct))

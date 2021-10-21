@@ -102,12 +102,12 @@ let unmarshal buf =
                Ok (Unknown (n, Cstruct.copy buf 2 (Cstruct.length buf - 2)))
            end
       ) buf in
-  Cstruct.fold (fun a b ->
-      match a, b with
-      | Ok items, Ok item -> Ok (item :: items)
-      | _, Error s | Error s, _ -> Error s
-    ) i (Ok [])
-  |> Rresult.R.map List.rev
+  Result.map List.rev
+    (Cstruct.fold (fun a b ->
+         match a, b with
+         | Ok items, Ok item -> Ok (item :: items)
+         | _, Error s | Error s, _ -> Error s
+       ) i (Ok []))
 
 let size_of_option = function
   | Noop -> 1

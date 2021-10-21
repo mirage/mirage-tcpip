@@ -17,8 +17,6 @@
 let src = Logs.Src.create "ipv4-fragments" ~doc:"IPv4 fragmentation"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-open Rresult.R.Infix
-
 (* TODO:
 current state:
 
@@ -112,12 +110,14 @@ let attempt_reassemble fragments =
       then Error Bad
       else Error Hole
   in
-  check len fragments >>= fun () ->
-  let buf = Cstruct.create_unsafe len in
-  List.iter (fun (off, data) ->
-      Cstruct.blit data 0 buf off (Cstruct.length data))
-    fragments ;
-  Ok buf
+  Result.bind
+    (check len fragments)
+    (fun () ->
+       let buf = Cstruct.create_unsafe len in
+       List.iter (fun (off, data) ->
+           Cstruct.blit data 0 buf off (Cstruct.length data))
+         fragments ;
+       Ok buf)
 
 let max_number_of_fragments = 16
 
