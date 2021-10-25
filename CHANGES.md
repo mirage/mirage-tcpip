@@ -1,3 +1,11 @@
+### v6.3.0 (2021-10-25)
+
+* Use Cstruct.length instead of deprecated Cstruct.len (#454 @hannesm)
+* Avoid deprecated Fmt functions (#455 @hannesm)
+* Remove rresult dependency (#455 @hannesm)
+* Require OCaml 4.08
+* Record TCP statistics via metrics library (#455 @hannesm)
+
 ### v6.2.0 (2021-07-19)
 
 * This allows to listen on the same port as sending via UDP in the dual socket
