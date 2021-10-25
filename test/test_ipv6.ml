@@ -60,7 +60,7 @@ let check_for_one_udp_packet on_received_one ~src ~dst buf =
 let send_forever sender receiver_address udp_message =
   let rec loop () =
     Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
-    >|= Rresult.R.get_ok >>= fun () ->
+    >|= Result.get_ok >>= fun () ->
     Time.sleep_ns (Duration.of_ms 50) >>= fun () ->
     loop () in
   loop ()

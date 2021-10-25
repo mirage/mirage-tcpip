@@ -44,7 +44,7 @@ let two_connect_tcp () =
   Stack.listen_tcpv4 server.stack ~port:server_port announce;
   Lwt.pick [
     Stack.listen server.stack;
-    Stack.TCPV4.create_connection client.tcp (localhost, server_port) >|= Rresult.R.get_ok >>= fun flow ->
+    Stack.TCPV4.create_connection client.tcp (localhost, server_port) >|= Result.get_ok >>= fun flow ->
     Stack.TCPV4.write flow (Cstruct.of_string "test!") >>= function
     | Ok () -> Stack.TCPV4.close flow >>= fun () -> teardown ()
     | Error _ -> teardown () >>= fun () -> Alcotest.fail "Error writing to socket for TCP test"
@@ -69,7 +69,7 @@ let icmp_echo_request () =
   Lwt.pick [
     Icmpv4_socket.listen server.icmp localhost log_and_count;
     Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
-    Icmpv4_socket.write client.icmp ~dst:localhost echo_request >|= Rresult.R.get_ok >>= fun () ->
+    Icmpv4_socket.write client.icmp ~dst:localhost echo_request >|= Result.get_ok >>= fun () ->
     Time.sleep_ns (Duration.of_sec 10);
   ] >>= fun () ->
   Stack.disconnect server.stack >>= fun () ->

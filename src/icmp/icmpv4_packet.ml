@@ -39,6 +39,7 @@ let equal {code; ty; subheader} q =
   ty = q.ty &&
   subheader_eq (subheader, q.subheader)
 
+let ( let* ) = Result.bind
 
 module Unmarshal = struct
 
@@ -58,7 +59,6 @@ module Unmarshal = struct
     | Parameter_problem -> Pointer (Cstruct.get_uint8 buf 0)
 
   let of_cstruct buf =
-    let open Rresult in
     let check_len () =
       if Cstruct.length buf < sizeof_icmpv4 then
         Error "packet too short for ICMPv4 header"
@@ -69,7 +69,8 @@ module Unmarshal = struct
       | Some ty -> Ok ty
     in
     (* TODO: check checksum as well, and return an error if it's invalid *)
-    check_len () >>= check_ty >>= fun ty ->
+    let* () = check_len () in
+    let* ty = check_ty () in
     let code = get_icmpv4_code buf in
     let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
     let payload = Cstruct.shift buf sizeof_icmpv4 in
@@ -103,14 +104,12 @@ module Marshal = struct
     else Ok ()
 
   let into_cstruct t buf ~payload =
-    let open Rresult in
-    check_len buf >>= fun () ->
+    let* () = check_len buf in
     unsafe_fill t buf ~payload;
     Ok ()
 
   let make_cstruct t ~payload =
     let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
-    Cstruct.memset buf 0x00; (* can be removed once cstructs are zero'd by default *)
     unsafe_fill t buf ~payload;
     buf
 end

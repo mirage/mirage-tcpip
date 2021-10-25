@@ -29,9 +29,9 @@ let pp fmt t =
     Sequence.pp t.sequence Sequence.pp t.ack_number
     t.ack t.rst t.syn t.fin t.window Options.pps t.options
 
-module Unmarshal = struct
-  open Rresult
+let ( let* ) = Result.bind
 
+module Unmarshal = struct
   type error = string
 
   let of_cstruct pkt =
@@ -54,9 +54,9 @@ module Unmarshal = struct
         Error "data offset was unreasonably short; TCP header can't be valid"
       else (Ok [])
     in
-    check_len pkt >>= fun data_offset ->
-    long_enough data_offset >>= fun () ->
-    options data_offset pkt >>= fun options ->
+    let* data_offset = check_len pkt in
+    let* () = long_enough data_offset in
+    let* options = options data_offset pkt in
     let sequence = get_tcp_sequence pkt |> Sequence.of_int32 in
     let ack_number = get_tcp_ack_number pkt |> Sequence.of_int32 in
     let urg = get_urg pkt in
@@ -73,7 +73,6 @@ module Unmarshal = struct
           sequence; ack_number; src_port; dst_port }, data)
 end
 module Marshal = struct
-  open Rresult
   open Tcp_wire
 
   type error = string
@@ -127,9 +126,9 @@ module Marshal = struct
         | Invalid_argument s -> Error s
     in
     let options_frame = Cstruct.shift buf sizeof_tcp in
-    check_header_len () >>= fun () ->
-    insert_options options_frame >>= fun options_len ->
-    check_overall_len (sizeof_tcp + options_len) >>= fun () ->
+    let* () = check_header_len () in
+    let* options_len = insert_options options_frame in
+    let* () = check_overall_len (sizeof_tcp + options_len) in
     let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in
     unsafe_fill ~pseudoheader ~payload t buf options_len;
     Ok (sizeof_tcp + options_len)

@@ -1,6 +1,8 @@
 open Lwt.Infix
 
-let failf fmt = Fmt.kstrf (fun s -> Alcotest.fail s) fmt
+let failf fmt = Fmt.kstr (fun s -> Alcotest.fail s) fmt
+
+let ( let* ) = Result.bind
 
 let or_error name fn t =
   fn t >>= function

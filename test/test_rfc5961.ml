@@ -187,11 +187,11 @@ let blind_rst_on_syn_scenario =
         (* This -blind- reset must be ignored because of invalid ack. *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:(ack_from_past data 1)
           ~seq:(Sequence.of_int32 0l) ~window ~options (Cstruct.create 0)
-        >|= Rresult.R.get_ok >>= fun () ->
+        >|= Result.get_ok >>= fun () ->
         (* The syn-ack must be received and connection established *)
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -214,7 +214,7 @@ let connection_refused_scenario =
         (* refused *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return Fsm_done
       ) else
         Lwt.return (Fsm_error "Expected initial syn request") in
@@ -234,7 +234,7 @@ let blind_rst_on_established_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data) ~seq:(Sequence.of_int32 0l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -245,7 +245,7 @@ let blind_rst_on_established_scenario =
         let id = reply_id_from ~src ~dst data in
         WIRE.xmit ~ip id ~rst:true ~rx_ack:None ~seq:(Sequence.of_int32 10l)
           ~window ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE)
       ) else
         Lwt.return (Fsm_error "Expected final ack of three way handshake")
@@ -266,7 +266,7 @@ let rst_on_established_scenario =
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 0l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -276,7 +276,7 @@ let rst_on_established_scenario =
         (* This reset is acceptable and exactly in sequence. Must trigger a reset on the other end *)
         WIRE.xmit ~ip id ~rst:true ~rx_ack:None ~seq:(Sequence.of_int32 1l)
           ~window ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return Fsm_done
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance") in
@@ -302,7 +302,7 @@ let blind_syn_on_established_scenario =
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 0l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -314,7 +314,7 @@ let blind_syn_on_established_scenario =
            tear down the connection *)
         WIRE.xmit ~ip id ~syn:true ~rx_ack:None ~seq:(Sequence.of_int32 10l)
           ~window ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE)
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
@@ -336,7 +336,7 @@ let blind_data_injection_scenario =
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 1000000l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -348,7 +348,7 @@ let blind_data_injection_scenario =
         let invalid_ack =  ack_from_past data (window +100) in
         WIRE.xmit ~ip id ~rx_ack:invalid_ack ~seq:(Sequence.of_int32 1000001l)
           ~window ~options page
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE)
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
@@ -373,7 +373,7 @@ let data_repeated_ack_scenario =
         WIRE.xmit ~ip id ~syn:true ~rx_ack:(ack data)
           ~seq:(Sequence.of_int32 1000000l) ~window
           ~options (Cstruct.create 0)
-          >|= Rresult.R.get_ok >>= fun () ->
+          >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_ACK)
       ) else
         Lwt.return (Fsm_error "Expected initial syn request")
@@ -384,7 +384,7 @@ let data_repeated_ack_scenario =
         let valid_ack = ack_from_past data (window -100) in
         WIRE.xmit ~ip id ~rx_ack:valid_ack ~seq:(Sequence.of_int32 1000001l)
           ~window ~options page
-        >|= Rresult.R.get_ok >>= fun () ->
+        >|= Result.get_ok >>= fun () ->
         Lwt.return (Fsm_next `WAIT_FOR_DATA_ACK)
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")

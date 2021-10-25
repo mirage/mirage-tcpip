@@ -25,8 +25,7 @@ depends: [
   "conf-pkg-config" {build}
   "dune" {>= "2.7.0"}
   "bisect_ppx" {dev & >= "2.5.0"}
-  "ocaml" {>= "4.06.0"}
-  "rresult" {>= "0.5.0"}
+  "ocaml" {>= "4.08.0"}
   "cstruct" {>= "6.0.0"}
   "cstruct-lwt"
   "ppx_cstruct"
@@ -40,7 +39,7 @@ depends: [
   "macaddr" {>="4.0.0"}
   "macaddr-cstruct"
   "mirage-profile" {>= "0.5"}
-  "fmt"
+  "fmt" {>= "0.8.7"}
   "lwt" {>= "4.0.0"}
   "lwt-dllist"
   "logs" {>= "0.6.0"}
@@ -56,6 +55,7 @@ depends: [
   "arp" {with-test & >= "2.3.0"}
   "ipaddr-cstruct" {with-test}
   "lru" {>= "0.3.0"}
+  "metrics"
 ]
 depopts: [
   "ocaml-freestanding"

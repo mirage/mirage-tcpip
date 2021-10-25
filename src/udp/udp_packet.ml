@@ -14,8 +14,9 @@ module Unmarshal = struct
 
   type error = string
 
+  let ( let* ) = Result.bind
+
   let of_cstruct buf =
-    let open Rresult in
     let open Udp_wire in
     let check_header_length () =
       if Cstruct.length buf < sizeof_udp then Error "UDP header too short" else Ok ()
@@ -32,17 +33,15 @@ module Unmarshal = struct
         else Ok payload_len
       end
     in
-    check_header_length () >>= fun () ->
+    let* () = check_header_length () in
     let total_length_from_header = get_udp_length buf in
-    check_payload_length total_length_from_header (Cstruct.length buf) >>= fun payload_len ->
+    let* payload_len = check_payload_length total_length_from_header (Cstruct.length buf) in
     let src_port = Udp_wire.get_udp_source_port buf in
     let dst_port = Udp_wire.get_udp_dest_port buf in
     let payload = Cstruct.sub buf Udp_wire.sizeof_udp payload_len in
     Ok ({ src_port; dst_port; }, payload)
 end
 module Marshal = struct
-  open Rresult
-
   type error = string
 
   let unsafe_fill ~pseudoheader ~payload {src_port; dst_port} udp_buf len =
@@ -71,11 +70,12 @@ module Marshal = struct
       else
         Ok ()
     in
-    check_header_len () >>= fun () ->
-    let len = Cstruct.length payload + sizeof_udp in
-    let buf = Cstruct.sub udp_buf 0 Udp_wire.sizeof_udp in
-    unsafe_fill ~pseudoheader ~payload t buf len;
-    Ok ()
+    Result.bind (check_header_len ())
+      (fun () ->
+         let len = Cstruct.length payload + sizeof_udp in
+         let buf = Cstruct.sub udp_buf 0 Udp_wire.sizeof_udp in
+         unsafe_fill ~pseudoheader ~payload t buf len;
+         Ok ())
 
   let make_cstruct ~pseudoheader ~payload t =
     let buf = Cstruct.create Udp_wire.sizeof_udp in

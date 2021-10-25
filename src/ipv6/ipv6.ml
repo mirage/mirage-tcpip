@@ -167,7 +167,7 @@ module Make (N : Mirage_net.S)
       match get_ip t with
       | ips when List.length ips = expected_ips ->
         Log.info (fun f -> f "IP6: Started with %a"
-                     Fmt.(list ~sep:(unit ",@ ") Ipaddr.V6.pp) ips);
+                     Fmt.(list ~sep:(any ",@ ") Ipaddr.V6.pp) ips);
         Lwt.return t
       | _ -> Lwt.fail_with "IP6 not started, couldn't assign IP addresses"
 end

@@ -128,7 +128,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       last_time = t0
     } in
     let rec iperf_h flow =
-      V.Stackv4.TCPV4.read flow >|= Rresult.R.get_ok >>= function
+      V.Stackv4.TCPV4.read flow >|= Result.get_ok >>= function
       | `Eof ->
         let ts_now = Clock.elapsed_ns () in
         st.bin_bytes <- st.bytes;

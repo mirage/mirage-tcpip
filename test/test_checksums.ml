@@ -1,6 +1,4 @@
-open Rresult
-
-let unwrap_ipv4 buf = Ipv4_packet.Unmarshal.of_cstruct buf |> R.reword_error R.msg |> R.error_msg_to_invalid_arg
+let unwrap_ipv4 buf = Ipv4_packet.Unmarshal.of_cstruct buf |> Result.get_ok
 let verify_ipv4_udp = Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`UDP
 let verify_ipv4_tcp = Ipv4_packet.Unmarshal.verify_transport_checksum ~proto:`TCP
 

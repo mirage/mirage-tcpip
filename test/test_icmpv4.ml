@@ -153,13 +153,14 @@ let echo_silent () =
 
 let write_errors () =
   let decompose buf =
-    let (>>=) = Rresult.(>>=) in
     let open Ethernet_packet in
-    Unmarshal.of_cstruct buf >>= fun (ethernet_header, ethernet_payload) ->
+    let* ethernet_header, ethernet_payload = Unmarshal.of_cstruct buf in
     match ethernet_header.ethertype with
     | `IPv6 | `ARP -> Error "not an ipv4 packet"
     | `IPv4 ->
-      Ipv4_packet.Unmarshal.of_cstruct ethernet_payload >>= fun (ipv4_header, ipv4_payload) ->
+      let* ipv4_header, ipv4_payload =
+        Ipv4_packet.Unmarshal.of_cstruct ethernet_payload
+      in
       Ok { ethernet_header; ethernet_payload; ipv4_header; ipv4_payload }
   in
   (* for any incoming packet, reject it with would_fragment *)
@@ -177,15 +178,14 @@ let write_errors () =
             ~payload:decomposed.ethernet_payload in
         let header_and_payload = Cstruct.concat ([header ; decomposed.ethernet_payload]) in
         let open Ipv4_packet in
-        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload >|= Rresult.R.get_ok
+        Icmp.write stack.icmp ~dst:decomposed.ipv4_header.src header_and_payload >|= Result.get_ok
     in
     V.listen stack.netif ~header_size reject >|= fun _ -> ()
   in
   let check_packet buf : unit Lwt.t =
     let aux buf =
-      let (>>=) = Rresult.(>>=) in
       let open Icmpv4_packet in
-      Unmarshal.of_cstruct buf >>= fun (icmp, icmp_payload) ->
+      let* icmp, icmp_payload = Unmarshal.of_cstruct buf in
       Alcotest.check Alcotest.int "ICMP message type" 0x03 (Icmpv4_wire.ty_to_int icmp.ty);
       Alcotest.check Alcotest.int "ICMP message code" 0x04 icmp.code;
       match Cstruct.length icmp_payload with
@@ -206,7 +206,7 @@ let write_errors () =
                           V.disconnect stack.netif);
       Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
       Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload
-        >|= Rresult.R.get_ok >>= fun () ->
+        >|= Result.get_ok >>= fun () ->
         Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
       Alcotest.fail "writing thread completed first";
     ]
