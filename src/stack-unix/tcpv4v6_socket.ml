@@ -15,16 +15,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let src = Logs.Src.create "tcpv4v6-socket" ~doc:"TCP socket v4v6 (platform native)"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 open Lwt.Infix
 
 type ipaddr = Ipaddr.t
 type flow = Lwt_unix.file_descr
-type ipinput = unit Lwt.t
 
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ];    (* source ip to bind to *)
   mutable active_connections : Lwt_unix.file_descr list;
+  listen_sockets : (int, Lwt_unix.file_descr list) Hashtbl.t;
+  mutable switched_off : unit Lwt.t;
 }
+
+let set_switched_off t switched_off = t.switched_off <- switched_off
+
+let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 
 include Tcp_socket
 
@@ -32,7 +40,6 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
   let interface =
     let v4 = Ipaddr.V4.Prefix.address ipv4 in
     let v4_unix = Ipaddr_unix.V4.to_inet_addr v4 in
-    let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified in
     if ipv4_only then
       `V4_only v4_unix
     else if ipv6_only then
@@ -50,9 +57,12 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
         else
           `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
   in
-  Lwt.return {interface; active_connections = []}
+  Lwt.return {interface; active_connections = []; listen_sockets = Hashtbl.create 7; switched_off = Lwt.return_unit}
 
-let disconnect t = Lwt_list.iter_p close t.active_connections
+let disconnect t =
+  Lwt_list.iter_p close t.active_connections >>= fun () ->
+  Lwt_list.iter_p close
+    (Hashtbl.fold (fun _ fd acc -> fd @ acc) t.listen_sockets [])
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -97,3 +107,74 @@ let create_connection ?keepalive t (dst,dst_port) =
       (fun exn ->
          close fd >>= fun () ->
          Lwt.return (Error (`Exn exn)))
+
+let unlisten t ~port =
+  match Hashtbl.find_opt t.listen_sockets port with
+  | None -> ()
+  | Some fds ->
+    Hashtbl.remove t.listen_sockets port;
+    try List.iter (fun fd -> Unix.close (Lwt_unix.unix_file_descr fd)) fds with _ -> ()
+
+let listen t ~port ?keepalive callback =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port));
+  unlisten t ~port;
+  let fds =
+    match t.interface with
+    | `Any ->
+      let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+      Lwt_unix.(setsockopt fd SO_REUSEADDR true);
+      Lwt_unix.(setsockopt fd IPV6_ONLY false);
+      [ (fd, Lwt_unix.ADDR_INET (any_v6, port)) ]
+    | `Ip (v4, v6) ->
+      let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+      Lwt_unix.(setsockopt fd SO_REUSEADDR true);
+      let fd' = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+      Lwt_unix.(setsockopt fd' SO_REUSEADDR true);
+      Lwt_unix.(setsockopt fd' IPV6_ONLY true);
+      [ (fd, Lwt_unix.ADDR_INET (v4, port)) ; (fd', Lwt_unix.ADDR_INET (v6, port)) ]
+    | `V4_only ip ->
+      let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+      Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+      [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
+    | `V6_only ip ->
+      let fd = Lwt_unix.(socket PF_INET6 SOCK_STREAM 0) in
+      Lwt_unix.(setsockopt fd SO_REUSEADDR true);
+      Lwt_unix.(setsockopt fd IPV6_ONLY true);
+      [ (fd, Lwt_unix.ADDR_INET (ip, port)) ]
+  in
+  List.iter (fun (fd, addr) ->
+      Unix.bind (Lwt_unix.unix_file_descr fd) addr;
+      Hashtbl.replace t.listen_sockets port (List.map fst fds);
+      Lwt_unix.listen fd 10;
+      (* FIXME: we should not ignore the result *)
+      Lwt.async (fun () ->
+          (* TODO cancellation *)
+          let rec loop () =
+            if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
+            Lwt.catch (fun () ->
+                Lwt_unix.accept fd >|= fun (afd, _) ->
+                t.active_connections <- afd :: t.active_connections;
+                (match keepalive with
+                 | None -> ()
+                 | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+                   Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
+                Lwt.async
+                  (fun () ->
+                     Lwt.catch
+                       (fun () -> callback afd)
+                       (fun exn ->
+                          Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                          close afd));
+                `Continue)
+              (function
+                | Unix.Unix_error (Unix.EBADF, _, _) ->
+                  Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                  Lwt.return `Stop
+                | exn ->
+                  Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
+                  Lwt.return `Continue) >>= function
+            | `Continue -> loop ()
+            | `Stop -> Lwt.return_unit
+          in
+          Lwt.catch loop ignore_canceled >>= fun () -> close fd)) fds

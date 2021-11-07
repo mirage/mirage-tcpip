@@ -15,10 +15,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let src = Logs.Src.create "udpv4v6-socket" ~doc:"UDP socket v4v6 (platform native)"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 open Lwt.Infix
 
 type ipaddr = Ipaddr.t
-type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
@@ -26,9 +28,16 @@ let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ]; (* source ip to bind to *)
   listen_fds: (int, Lwt_unix.file_descr * Lwt_unix.file_descr option) Hashtbl.t; (* UDP fds bound to a particular port *)
+  mutable switched_off : unit Lwt.t;
 }
 
-let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;interface} port =
+let set_switched_off t switched_off = t.switched_off <- switched_off
+
+let ignore_canceled = function
+  | Lwt.Canceled -> Lwt.return_unit
+  | exn -> raise exn
+
+let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;interface;_} port =
   try
     Lwt.return
       (match Hashtbl.find listen_fds port with
@@ -108,7 +117,7 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
           `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
   in
   let listen_fds = Hashtbl.create 7 in
-  Lwt.return { interface; listen_fds }
+  Lwt.return { interface; listen_fds; switched_off = Lwt.return_unit }
 
 let disconnect t =
   Hashtbl.fold (fun _ (fd, fd') r ->
@@ -117,7 +126,7 @@ let disconnect t =
       match fd' with None -> Lwt.return_unit | Some fd -> close fd)
     t.listen_fds Lwt.return_unit
 
-let input ~listeners:_ _ = Lwt.return_unit
+let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
@@ -147,3 +156,50 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
          (if created then close fd else Lwt.return_unit) >|= fun () ->
          r)
   | _ -> Lwt.return (Error `Different_ip_version)
+
+let unlisten t ~port =
+  try
+    let fd, fd' = Hashtbl.find t.listen_fds port in
+    Hashtbl.remove t.listen_fds port;
+    (match fd' with None -> () | Some fd' -> Unix.close (Lwt_unix.unix_file_descr fd'));
+    Unix.close (Lwt_unix.unix_file_descr fd)
+  with _ -> ()
+
+let listen t ~port callback =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+  else
+    (* FIXME: we should not ignore the result *)
+    Lwt.async (fun () ->
+        get_udpv4v6_listening_fd t port >|= fun (_, fds) ->
+        List.iter (fun fd ->
+            Lwt.async (fun () ->
+                let buf = Cstruct.create 4096 in
+                let rec loop () =
+                  if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
+                  Lwt.catch (fun () ->
+                      Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
+                      let buf = Cstruct.sub buf 0 len in
+                      (match sa with
+                       | Lwt_unix.ADDR_INET (addr, src_port) ->
+                         let src = Ipaddr_unix.of_inet_addr addr in
+                         let src =
+                           match Ipaddr.to_v4 src with
+                           | None -> src
+                           | Some v4 -> Ipaddr.V4 v4
+                         in
+                         let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
+                         callback ~src ~dst ~src_port buf
+                       | _ -> Lwt.return_unit) >|= fun () ->
+                      `Continue)
+                    (function
+                      | Unix.Unix_error (Unix.EBADF, _, _) ->
+                        Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                        Lwt.return `Stop
+                      | exn ->
+                        Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
+                        Lwt.return `Continue) >>= function
+                  | `Continue -> loop ()
+                  | `Stop -> Lwt.return_unit
+                in
+                Lwt.catch loop ignore_canceled >>= fun () -> close fd)) fds)

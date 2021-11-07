@@ -20,6 +20,5 @@ module Make (IP:Mirage_protocols.IP)
             (R:Mirage_random.S) : sig
   include Mirage_protocols.TCP
     with type ipaddr = IP.ipaddr
-     and type ipinput = src:IP.ipaddr -> dst:IP.ipaddr -> Cstruct.t -> unit Lwt.t
   val connect : IP.t -> t Lwt.t
 end

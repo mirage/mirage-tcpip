@@ -15,18 +15,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let src = Logs.Src.create "udpv6-socket" ~doc:"UDP socket v6 (platform native)"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V6.t
-type ipinput = unit Lwt.t
 type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr; (* source ip to bind to *)
   listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
+  mutable switched_off : unit Lwt.t;
 }
 
-let get_udpv6_listening_fd ?(preserve = true) {listen_fds;interface} port =
+let set_switched_off t switched_off = t.switched_off <- switched_off
+
+let ignore_canceled = function
+  | Lwt.Canceled -> Lwt.return_unit
+  | exn -> raise exn
+
+let get_udpv6_listening_fd ?(preserve = true) {listen_fds;interface;_} port =
   try
     Lwt.return (false, Hashtbl.find listen_fds (interface,port))
   with Not_found ->
@@ -56,14 +65,14 @@ let connect id =
       | None -> Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
       | Some ip -> Ipaddr_unix.V6.to_inet_addr (Ipaddr.V6.Prefix.address ip)
     in
-    { interface; listen_fds }
+    { interface; listen_fds; switched_off = Lwt.return_unit }
   in
   Lwt.return t
 
 let disconnect t =
   Hashtbl.fold (fun _ fd r -> r >>= fun () -> close fd) t.listen_fds Lwt.return_unit
 
-let input ~listeners:_ _ = Lwt.return_unit
+let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
@@ -81,3 +90,42 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   write_to_fd fd buf >>= fun r ->
   (if created then close fd else Lwt.return_unit) >|= fun () ->
   r
+
+let unlisten t ~port =
+  try
+    let fd = Hashtbl.find t.listen_fds (t.interface, port) in
+    Hashtbl.remove t.listen_fds (t.interface, port);
+    Unix.close (Lwt_unix.unix_file_descr fd)
+  with _ -> ()
+
+let listen t ~port callback =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port));
+  unlisten t ~port;
+  (* FIXME: we should not ignore the result *)
+  Lwt.async (fun () ->
+      get_udpv6_listening_fd t port >>= fun (_, fd) ->
+      let buf = Cstruct.create 4096 in
+      let rec loop () =
+        if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
+        Lwt.catch (fun () ->
+            Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
+            let buf = Cstruct.sub buf 0 len in
+            (match sa with
+             | Lwt_unix.ADDR_INET (addr, src_port) ->
+               let src = Ipaddr_unix.V6.of_inet_addr_exn addr in
+               let dst = Ipaddr.V6.unspecified in (* TODO *)
+               callback ~src ~dst ~src_port buf
+             | _ -> Lwt.return_unit) >|= fun () ->
+            `Continue)
+          (function
+            | Unix.Unix_error (Unix.EBADF, _, _) ->
+              Log.warn (fun m -> m "error bad file descriptor in accept") ;
+              Lwt.return `Stop
+            | exn ->
+              Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
+              Lwt.return `Continue) >>= function
+        | `Continue -> loop ()
+        | `Stop -> Lwt.return_unit
+      in
+      Lwt.catch loop ignore_canceled >>= fun () -> close fd)

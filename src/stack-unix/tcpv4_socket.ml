@@ -14,15 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let src = Logs.Src.create "tcpv4-socket" ~doc:"TCP socket v4 (platform native)"
+module Log = (val Logs.src_log src : Logs.LOG)
+
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
 type flow = Lwt_unix.file_descr
-type ipinput = unit Lwt.t
 
 type t = {
   interface: Unix.inet_addr;    (* source ip to bind to *)
   mutable active_connections : Lwt_unix.file_descr list;
+  listen_sockets : (int, Lwt_unix.file_descr) Hashtbl.t;
+  mutable switched_off : unit Lwt.t;
 }
 
 include Tcp_socket
@@ -31,10 +35,17 @@ let connect addr =
   let t = {
     interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address addr);
     active_connections = [];
+    listen_sockets = Hashtbl.create 7;
+    switched_off = Lwt.return_unit;
   } in
   Lwt.return t
 
-let disconnect t = Lwt_list.iter_p close t.active_connections
+let set_switched_off t switched_off = t.switched_off <- switched_off
+
+let disconnect t =
+  Lwt_list.iter_p close t.active_connections >>= fun () ->
+  Lwt_list.iter_p close
+    (Hashtbl.fold (fun _ fd acc -> fd :: acc) t.listen_sockets [])
 
 let dst fd =
   match Lwt_unix.getpeername fd with
@@ -62,3 +73,51 @@ let create_connection ?keepalive t (dst,dst_port) =
     (fun exn ->
        close fd >|= fun () ->
        Error (`Exn exn))
+
+let unlisten t ~port =
+  match Hashtbl.find_opt t.listen_sockets port with
+  | None -> ()
+  | Some fd ->
+    Hashtbl.remove t.listen_sockets port;
+    try Unix.close (Lwt_unix.unix_file_descr fd) with _ -> ()
+
+let listen t ~port ?keepalive callback =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port));
+    unlisten t ~port;
+    let fd = Lwt_unix.(socket PF_INET SOCK_STREAM 0) in
+    Lwt_unix.setsockopt fd Lwt_unix.SO_REUSEADDR true;
+    Unix.bind (Lwt_unix.unix_file_descr fd) (Unix.ADDR_INET (t.interface, port));
+    Hashtbl.replace t.listen_sockets port fd;
+    Lwt_unix.listen fd 10;
+    (* FIXME: we should not ignore the result *)
+    Lwt.async (fun () ->
+        (* TODO cancellation *)
+        let rec loop () =
+          if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
+          Lwt.catch (fun () ->
+              Lwt_unix.accept fd >|= fun (afd, _) ->
+              t.active_connections <- afd :: t.active_connections;
+              (match keepalive with
+               | None -> ()
+               | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+                 Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
+              Lwt.async
+                (fun () ->
+                   Lwt.catch
+                     (fun () -> callback afd)
+                     (fun exn ->
+                        Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                        close afd));
+              `Continue)
+            (function
+              | Unix.Unix_error (Unix.EBADF, _, _) ->
+                Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                Lwt.return `Stop
+              | exn ->
+                Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
+                Lwt.return `Continue) >>= function
+          | `Continue -> loop ()
+          | `Stop -> Lwt.return_unit
+        in
+        Lwt.catch loop ignore_canceled >>= fun () -> close fd)

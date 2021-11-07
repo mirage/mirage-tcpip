@@ -22,7 +22,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Make(Ip: Mirage_protocols.IP)(Random:Mirage_random.S) = struct
 
   type ipaddr = Ip.ipaddr
-  type ipinput = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
   type error = [ `Ip of Ip.error ]
@@ -30,24 +29,32 @@ module Make(Ip: Mirage_protocols.IP)(Random:Mirage_random.S) = struct
 
   type t = {
     ip : Ip.t;
+    listeners : (int, callback) Hashtbl.t;
   }
 
   let pp_ip = Ip.pp_ipaddr
 
+  let listen t ~port callback =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+    else
+      Hashtbl.replace t.listeners port callback
+
+  let unlisten t ~port = Hashtbl.remove t.listeners port
+
   (* TODO: ought we to check to make sure the destination is relevant
      here?  Currently we process all incoming packets without making
      sure they're either unicast for us or otherwise interesting. *)
-  let input ~listeners _t ~src ~dst buf =
+  let input t ~src ~dst buf =
     match Udp_packet.Unmarshal.of_cstruct buf with
     | Error s ->
       Log.debug (fun f ->
           f "Discarding received UDP message: error parsing: %s" s);
       Lwt.return_unit
     | Ok ({ Udp_packet.src_port; dst_port}, payload) ->
-      match listeners ~dst_port with
+      match Hashtbl.find_opt t.listeners dst_port with
       | None    -> Lwt.return_unit
-      | Some fn ->
-        fn ~src ~dst ~src_port payload
+      | Some fn -> fn ~src ~dst ~src_port payload
 
   let writev ?src ?src_port ?ttl ~dst ~dst_port t bufs =
     let src_port = match src_port with
@@ -79,7 +86,7 @@ module Make(Ip: Mirage_protocols.IP)(Random:Mirage_random.S) = struct
 
   let connect ip =
     Log.info (fun f -> f "UDP interface connected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip ip);
-    let t = { ip } in
+    let t = { ip ; listeners = Hashtbl.create 7 } in
     Lwt.return t
 
   let disconnect t =
