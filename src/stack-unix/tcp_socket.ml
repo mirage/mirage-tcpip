@@ -11,6 +11,10 @@ let pp_write_error ppf = function
   | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
   | `Exn e -> Fmt.exn ppf e
 
+let ignore_canceled = function
+  | Lwt.Canceled -> Lwt.return_unit
+  | exn -> raise exn
+
 let disconnect _ =
   return_unit
 
@@ -61,13 +65,4 @@ let close fd =
       | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
       | e -> Lwt.fail e)
 
-type listener = {
-  process: Lwt_unix.file_descr -> unit Lwt.t;
-  keepalive: Mirage_protocols.Keepalive.t option;
-}
-
-(* FIXME: how does this work at all ?? *)
-let input _t ~listeners:_ =
-  (* TODO terminate when signalled by disconnect *)
-  let t, _ = Lwt.task () in
-  t
+let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit

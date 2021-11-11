@@ -17,9 +17,10 @@
 
 include Mirage_protocols.TCP
   with type ipaddr = Ipaddr.t
-   and type ipinput = unit Lwt.t
    and type flow = Lwt_unix.file_descr
    and type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
    and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
 
 val connect : ipv4_only:bool -> ipv6_only:bool -> Ipaddr.V4.Prefix.t -> Ipaddr.V6.Prefix.t option -> t Lwt.t
+
+val set_switched_off : t -> unit Lwt.t -> unit

@@ -45,9 +45,6 @@ struct
     | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
 
   type ipaddr = Ip.ipaddr
-  type buffer = Cstruct.t
-  type +'a io = 'a Lwt.t
-  type ipinput = src:ipaddr -> dst:ipaddr -> buffer -> unit io
 
   type pcb = {
     id: WIRE.t;
@@ -64,13 +61,9 @@ struct
   type flow = pcb
   type connection = flow * unit Lwt.t
 
-  type listener = {
-    process: flow -> unit io;
-    keepalive: Mirage_protocols.Keepalive.t option;
-  }
-
   type t = {
     ip : Ip.t;
+    listeners : (int, Mirage_protocols.Keepalive.t option * (flow -> unit Lwt.t)) Hashtbl.t ;
     mutable active : bool ;
     mutable localport : int;
     channels: (WIRE.t, connection) Hashtbl.t;
@@ -81,6 +74,14 @@ struct
     (* clients in the process of connecting *)
     connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Mirage_protocols.Keepalive.t option)) Hashtbl.t;
   }
+
+  let listen t ~port ?keepalive cb =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+    else
+      Hashtbl.replace t.listeners port (keepalive, cb)
+
+  let unlisten t ~port = Hashtbl.remove t.listeners port
 
   let _pp_pcb fmt pcb =
     Format.fprintf fmt "id=[%a] state=[%a]" WIRE.pp pcb.id State.pp pcb.state
@@ -491,10 +492,10 @@ struct
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
       >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
 
-  let process_syn t id ~listeners ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
+  let process_syn t id ~tx_wnd ~ack_number ~sequence ~options ~syn ~fin =
     log_with_stats "process-syn" t;
-    match listeners @@ WIRE.src_port id with
-    | Some { process; keepalive } ->
+    match Hashtbl.find_opt t.listeners (WIRE.src_port id) with
+    | Some (keepalive, process) ->
       let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
@@ -537,7 +538,7 @@ struct
         Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
         >>= fun _ -> Lwt.return_unit (* if send fails, who cares *)
 
-  let input_no_pcb t listeners (parsed, payload) id =
+  let input_no_pcb t (parsed, payload) id =
     if not t.active then
       (* TODO: eventually send an RST? *)
       Lwt.return_unit
@@ -547,7 +548,7 @@ struct
       | true, _, _ -> process_reset t id ~ack ~ack_number
       | false, true, true ->
         process_synack t id ~ack_number ~sequence ~tx_wnd:window ~options ~syn ~fin
-      | false, true , false -> process_syn t id ~listeners ~tx_wnd:window
+      | false, true , false -> process_syn t id ~tx_wnd:window
 			         ~ack_number ~sequence ~options ~syn ~fin
       | false, false, true  ->
         let open RXS in
@@ -557,7 +558,7 @@ struct
         Lwt.return_unit
 
   (* Main input function for TCP packets *)
-  let input t ~listeners ~src ~dst data =
+  let input t ~src ~dst data =
     let open Tcp_packet in
     match Unmarshal.of_cstruct data with
     | Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
@@ -571,7 +572,7 @@ struct
         (* PCB exists, so continue the connection state machine in tcp_input *)
         (Rx.input t RXS.({header = pkt; payload}))
         (* No existing PCB, so check if it is a SYN for a listening function *)
-        (input_no_pcb t listeners (pkt, payload))
+        (input_no_pcb t (pkt, payload))
 
   (* Blocking read on a PCB *)
   let read pcb =
@@ -734,7 +735,7 @@ struct
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
-    Lwt.return { ip; active = true; localport; channels; listens; connects }
+    Lwt.return { ip; listeners = Hashtbl.create 7; active = true; localport; channels; listens; connects }
 
   let disconnect t =
     t.active <- false;

@@ -14,15 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type direct_ipv4_input = src:Ipaddr.V4.t -> dst:Ipaddr.V4.t -> Cstruct.t -> unit Lwt.t
-
 module type UDPV4_DIRECT = Mirage_protocols.UDP
   with type ipaddr = Ipaddr.V4.t
-   and type ipinput = direct_ipv4_input
 
 module type TCPV4_DIRECT = Mirage_protocols.TCP
   with type ipaddr = Ipaddr.V4.t
-   and type ipinput = direct_ipv4_input
 
 module Make
     (Time     : Mirage_time.S)
@@ -48,15 +44,11 @@ module Make
       connections, they will be able to do so. *)
 end
 
-type direct_ipv6_input = src:Ipaddr.V6.t -> dst:Ipaddr.V6.t -> Cstruct.t -> unit Lwt.t
-
 module type UDPV6_DIRECT = Mirage_protocols.UDP
   with type ipaddr = Ipaddr.V6.t
-   and type ipinput = direct_ipv6_input
 
 module type TCPV6_DIRECT = Mirage_protocols.TCP
   with type ipaddr = Ipaddr.V6.t
-   and type ipinput = direct_ipv6_input
 
 module MakeV6
     (Time     : Mirage_time.S)
@@ -79,15 +71,11 @@ module MakeV6
       they will be able to do so. *)
 end
 
-type direct_ipv4v6_input = src:Ipaddr.t -> dst:Ipaddr.t -> Cstruct.t -> unit Lwt.t
-
 module type UDPV4V6_DIRECT = Mirage_protocols.UDP
   with type ipaddr = Ipaddr.t
-   and type ipinput = direct_ipv4v6_input
 
 module type TCPV4V6_DIRECT = Mirage_protocols.TCP
   with type ipaddr = Ipaddr.t
-   and type ipinput = direct_ipv4v6_input
 
 module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) : sig
   include Mirage_protocols.IP with type ipaddr = Ipaddr.t

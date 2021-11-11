@@ -1,3 +1,9 @@
+### v6.4.0 (2021-11-11)
+
+* Adapt to mirage-protocols 6.0.0 API (#457 @hannesm)
+* TCP and UDP now have a listen and unlisten function (fixes #452)
+* type ipinput (in TCP and UDP) and listener (in TCP) have been removed
+
 ### v6.3.0 (2021-10-25)
 
 * Use Cstruct.length instead of deprecated Cstruct.len (#454 @hannesm)
