@@ -181,7 +181,7 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
          Ipaddr.V6.pp (V.Stackv6.IP.get_ip (V.Stackv6.ip server_s) |> List.hd)
          port);
-       V.Stackv6.listen_tcp server_s ~port (iperf server_s server_done_u);
+       V.Stackv6.TCP.listen (V.Stackv6.tcp server_s) ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv6.listen server_s) ] >>= fun () ->
 

@@ -41,7 +41,7 @@ let two_connect_tcp () =
     Stack.disconnect client.stack
   in
 
-  Stack.listen_tcpv4 server.stack ~port:server_port announce;
+  Stack.TCPV4.listen (Stack.tcpv4 server.stack) ~port:server_port announce;
   Lwt.pick [
     Stack.listen server.stack;
     Stack.TCPV4.create_connection client.tcp (localhost, server_port) >|= Result.get_ok >>= fun flow ->
@@ -81,18 +81,18 @@ let icmp_echo_request () =
 
 let no_leak_fds_in_tcpv4 () =
   make_stack ~cidr:localhost_cidr >>= fun stack1 ->
-  Stack.listen_tcpv4 stack1.stack ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stack.TCPV4.listen (Stack.tcpv4 stack1.stack) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stack.disconnect stack1.stack >>= fun () ->
   make_stack ~cidr:localhost_cidr >>= fun stack2 ->
-  Stack.listen_tcpv4 stack2.stack ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stack.TCPV4.listen (Stack.tcpv4 stack2.stack) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stack.disconnect stack2.stack
 
 let no_leak_fds_in_udpv4 () =
   make_stack ~cidr:localhost_cidr >>= fun stack1 ->
-  Stack.listen_udpv4 stack1.stack ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stack.UDPV4.listen (Stack.udpv4 stack1.stack) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stack.disconnect stack1.stack >>= fun () ->
   make_stack ~cidr:localhost_cidr >>= fun stack2 ->
-  Stack.listen_udpv4 stack2.stack ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stack.UDPV4.listen (Stack.udpv4 stack2.stack) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stack.disconnect stack2.stack
 
 module Stackv6 = Tcpip_stack_socket.V6
@@ -105,18 +105,18 @@ let make_v6_stack () =
 
 let no_leak_fds_in_tcpv6 () =
   make_v6_stack () >>= fun stack1 ->
-  Stackv6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv6.TCP.listen (Stackv6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv6.disconnect stack1 >>= fun () ->
   make_v6_stack () >>= fun stack2 ->
-  Stackv6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv6.TCP.listen (Stackv6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv6.disconnect stack2
 
 let no_leak_fds_in_udpv6 () =
   make_v6_stack () >>= fun stack1 ->
-  Stackv6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv6.UDP.listen (Stackv6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv6.disconnect stack1 >>= fun () ->
   make_v6_stack () >>= fun stack2 ->
-  Stackv6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv6.UDP.listen (Stackv6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv6.disconnect stack2
 
 module Stackv4v6 = Tcpip_stack_socket.V4V6
@@ -131,84 +131,84 @@ let ip4_any = Ipaddr.V4.Prefix.global (* 0.0.0.0/0 *)
 
 let no_leak_fds_in_tcpv4v6 () =
   make_v4v6_stack false false ip4_any None >>= fun stack1 ->
-  Stackv4v6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false ip4_any None >>= fun stack2 ->
-  Stackv4v6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_udpv4v6 () =
   make_v4v6_stack false false ip4_any None >>= fun stack1 ->
-  Stackv4v6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false ip4_any None >>= fun stack2 ->
-  Stackv4v6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_tcpv4v6_2 () =
   make_v4v6_stack false false localhost_cidr None >>= fun stack1 ->
-  Stackv4v6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false localhost_cidr None >>= fun stack2 ->
-  Stackv4v6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_udpv4v6_2 () =
   make_v4v6_stack false false localhost_cidr None >>= fun stack1 ->
-  Stackv4v6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false localhost_cidr None >>= fun stack2 ->
-  Stackv4v6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let ip6_local = Some Ipaddr.V6.(Prefix.of_addr localhost)
 
 let no_leak_fds_in_tcpv4v6_3 () =
   make_v4v6_stack false false localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_udpv4v6_3 () =
   make_v4v6_stack false false localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false false localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_tcpv4v6_4 () =
   make_v4v6_stack true false localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack true false localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_udpv4v6_4 () =
   make_v4v6_stack true false localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack true false localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_tcpv4v6_5 () =
   make_v4v6_stack false true localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_tcp stack1 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack1) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false true localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_tcp stack2 ~port:1234 (fun _flow -> Lwt.return_unit);
+  Stackv4v6.TCP.listen (Stackv4v6.tcp stack2) ~port:1234 (fun _flow -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let no_leak_fds_in_udpv4v6_5 () =
   make_v4v6_stack false true localhost_cidr ip6_local >>= fun stack1 ->
-  Stackv4v6.listen_udp stack1 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack1) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack1 >>= fun () ->
   make_v4v6_stack false true localhost_cidr ip6_local >>= fun stack2 ->
-  Stackv4v6.listen_udp stack2 ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
+  Stackv4v6.UDP.listen (Stackv4v6.udp stack2) ~port:1234 (fun ~src:_ ~dst:_ ~src_port:_ _cs -> Lwt.return_unit);
   Stackv4v6.disconnect stack2
 
 let suite = [

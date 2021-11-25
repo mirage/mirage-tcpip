@@ -42,13 +42,13 @@ module Main (S: Mirage_stack.V4) = struct
 
   let start s =
     (* RFC 862 - read payloads and repeat them back *)
-    S.listen_tcpv4 s ~port:7 echo;
+    S.TCPV4.listen (S.tcpv4 s) ~port:7 echo;
 
     (* RFC 863 - discard all incoming data and never write a payload *)
-    S.listen_tcpv4 s ~port:9 discard;
+    S.TCPV4.listen (S.tcpv4 s) ~port:9 discard;
 
     (* RFC 864 - write data without regard for input *)
-    S.listen_tcpv4 s ~port:19 (fun flow -> chargen flow 75 0);
+    S.TCPV4.listen (S.tcpv4 s) ~port:19 (fun flow -> chargen flow 75 0);
 
     S.listen s
 

@@ -40,7 +40,7 @@ let get_stacks ?client_mtu ?server_mtu backend =
   Lwt.return (server, client)
 
 let start_server ~f server =
-  Stack.Stackv4.listen_tcpv4 server ~port:server_port f;
+  Stack.Stackv4.TCPV4.listen (Stack.Stackv4.tcpv4 server) ~port:server_port f;
   Stack.Stackv4.listen server
 
 let start_client client =

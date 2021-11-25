@@ -116,7 +116,7 @@ let test_digest netif1 netif2 =
           end
         ]
   in
-  TCPIP.listen_tcpv4 (TCPIP.tcpip client_stack) ~port
+  TCPIP.TCPV4.listen TCPIP.(tcpv4 (tcpip client_stack)) ~port
     (fun flow ->
        Client_log.debug (fun f -> f "client got conn");
        let rec consume () =
