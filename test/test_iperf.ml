@@ -180,7 +180,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
          Ipaddr.V4.pp (V.Stackv4.IPV4.get_ip (V.Stackv4.ipv4 server_s) |> List.hd)
          port);
-       V.Stackv4.listen_tcpv4 server_s ~port (iperf server_s server_done_u);
+       V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 server_s) ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();
        V.Stackv4.listen server_s) ] >>= fun () ->
 

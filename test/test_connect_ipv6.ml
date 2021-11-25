@@ -63,7 +63,7 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
        failf "connect test timedout after %f seconds" timeout) ;
 
       (V.create_stack_v6 ~cidr:server_cidr backend >>= fun s1 ->
-       V.Stackv6.listen_tcp s1 ~port:80 (fun f -> accept f test_string);
+       V.Stackv6.TCP.listen (V.Stackv6.tcp s1) ~port:80 (fun f -> accept f test_string);
        V.Stackv6.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->

@@ -101,7 +101,7 @@ module Test_connect = struct
         failf "connect test timedout after %f seconds" timeout) ;
 
       (V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
-        V.Stackv4.listen_tcpv4 s1 ~port:80 (fun f -> accept f);
+        V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 s1) ~port:80 (fun f -> accept f);
         V.Stackv4.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
