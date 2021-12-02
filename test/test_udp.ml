@@ -18,7 +18,7 @@ type stack = {
 }
 
 let get_stack ?(backend = B.create ~use_async_readers:true
-                  ~yield:(fun() -> Lwt_main.yield ()) ()) ip =
+                  ~yield:(fun() -> Lwt.pause ()) ()) ip =
   let open Lwt.Infix in
   let cidr = Ipaddr.V4.Prefix.make 24 ip in
   V.connect backend >>= fun netif ->
