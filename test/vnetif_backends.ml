@@ -59,7 +59,7 @@ module Frame_size_enforced = struct
   let set_max_ip_mtu t m = t.frame_size <- m + Ethernet_wire.sizeof_ethernet
 
   let create ~frame_size () =
-    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) () in
+    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) () in
     { xt ; frame_size }
 
   let create () =
@@ -88,7 +88,7 @@ module Trailing_bytes : Backend = struct
         fn (add_random_bytes buf))
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
 
 end
 
@@ -108,7 +108,7 @@ module Uniform_packet_loss : Backend = struct
       X.write t id ~size fill (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
 
 end
 
@@ -132,7 +132,7 @@ module Uniform_no_payload_packet_loss : Backend = struct
       X.write t id ~size fill (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
 end
 
 (** This backend drops packets for 1 second after 1 megabyte has been
@@ -200,7 +200,7 @@ module Drop_1_second_after_1_megabyte : Backend = struct
       X.write t.xt id ~size fill (* pass to real write *)
 
   let create () =
-    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield ()) () in
+    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause ()) () in
     { xt ; done_dropping = false; is_dropping = false; sent_bytes = 0 }
 
 end
@@ -222,7 +222,7 @@ module On_off_switch = struct
       X.write t id ~size fill (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
 
 end
 
@@ -232,5 +232,5 @@ module Basic : Backend = struct
   include X
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt_main.yield () ) ()
+    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
 end

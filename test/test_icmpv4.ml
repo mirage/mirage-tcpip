@@ -46,7 +46,7 @@ let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 let header_size = Ethernet_wire.sizeof_ethernet
 
 let get_stack ?(backend = B.create ~use_async_readers:true
-                  ~yield:(fun() -> Lwt_main.yield ()) ())
+                  ~yield:(fun() -> Lwt.pause ()) ())
                   ip =
   let cidr = Ipaddr.V4.Prefix.make 24 ip in
   V.connect backend >>= fun netif ->

@@ -143,7 +143,7 @@ let test_digest netif1 netif2 =
 
 let run_vnetif () =
   let backend = Basic_backend.Make.create
-      ~use_async_readers:true ~yield:Lwt_unix.yield () in
+      ~use_async_readers:true ~yield:Lwt.pause () in
   TCPIP.M.NETIF.connect ~size_limit:mtu backend >>= fun c1 ->
   TCPIP.M.NETIF.connect ~size_limit:mtu backend >>= fun c2 ->
   test_digest c1 c2
