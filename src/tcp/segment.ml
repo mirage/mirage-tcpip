@@ -110,12 +110,17 @@ module Rx(Time:Mirage_time.S) = struct
 
   let check_valid_segment q seg =
     if seg.header.rst then
-      if Sequence.compare seg.header.sequence (Window.rx_nxt q.wnd) = 0 then
-        `Reset
-      else if Window.valid q.wnd seg.header.sequence then
-        `ChallengeAck
-      else
-        `Drop
+      begin match State.state q.state with
+        | State.Reset ->
+          `Drop
+        | _ ->
+          if Sequence.compare seg.header.sequence (Window.rx_nxt q.wnd) = 0 then
+            `Reset
+          else if Window.valid q.wnd seg.header.sequence then
+            `ChallengeAck
+          else
+            `Drop
+      end
     else if seg.header.syn then
       `ChallengeAck
     else if Window.valid q.wnd seg.header.sequence then
@@ -131,7 +136,9 @@ module Rx(Time:Mirage_time.S) = struct
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
     (* Is this the correct way trigger an ack? *)
-    Lwt_mvar.put q.rx_data (Some [], Some Sequence.zero)
+    if Lwt_mvar.is_empty q.rx_data
+      then Lwt_mvar.put q.rx_data (Some [], Some Sequence.zero)
+      else Lwt.return_unit
 
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the
