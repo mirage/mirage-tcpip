@@ -14,23 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type UDPV4_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.V4.t
-
-module type TCPV4_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.V4.t
-
 module Make
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Arpv4    : Mirage_protocols.ARP)
-    (Ipv4     : Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t)
-    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
-    (Udpv4    : UDPV4_DIRECT)
-    (Tcpv4    : TCPV4_DIRECT) : sig
-  include Mirage_stack.V4
+    (Ethernet : Ethernet.S)
+    (Arpv4    : Arp.S)
+    (Ipv4     : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t)
+    (Icmpv4   : Icmpv4.S)
+    (Udpv4    : Tcpip.Udp.S with type ipaddr = Ipaddr.V4.t)
+    (Tcpv4    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V4.t) : sig
+  include Tcpip.Stack.V4
     with module IPV4 = Ipv4
      and module TCPV4 = Tcpv4
      and module UDPV4 = Udpv4
@@ -44,21 +38,15 @@ module Make
       connections, they will be able to do so. *)
 end
 
-module type UDPV6_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.V6.t
-
-module type TCPV6_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.V6.t
-
 module MakeV6
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Ipv6     : Mirage_protocols.IP with type ipaddr = Ipaddr.V6.t)
-    (Udpv6    : UDPV6_DIRECT)
-    (Tcpv6    : TCPV6_DIRECT) : sig
-  include Mirage_stack.V6
+    (Ethernet : Ethernet.S)
+    (Ipv6     : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t)
+    (Udpv6    : Tcpip.Udp.S with type ipaddr = Ipaddr.V6.t)
+    (Tcpv6    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V6.t) : sig
+  include Tcpip.Stack.V6
     with module IP = Ipv6
      and module TCP = Tcpv6
      and module UDP = Udpv6
@@ -71,14 +59,8 @@ module MakeV6
       they will be able to do so. *)
 end
 
-module type UDPV4V6_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.t
-
-module type TCPV4V6_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.t
-
-module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) : sig
-  include Mirage_protocols.IP with type ipaddr = Ipaddr.t
+module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) : sig
+  include Tcpip.Ip.S with type ipaddr = Ipaddr.t
 
   val connect : ipv4_only:bool -> ipv6_only:bool -> Ipv4.t -> Ipv6.t -> t Lwt.t
 end
@@ -87,13 +69,13 @@ module MakeV4V6
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Arpv4    : Mirage_protocols.ARP)
-    (Ip       : Mirage_protocols.IP with type ipaddr = Ipaddr.t)
-    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
-    (Udp      : UDPV4V6_DIRECT)
-    (Tcp      : TCPV4V6_DIRECT) : sig
-  include Mirage_stack.V4V6
+    (Ethernet : Ethernet.S)
+    (Arpv4    : Arp.S)
+    (Ip       : Tcpip.Ip.S with type ipaddr = Ipaddr.t)
+    (Icmpv4   : Icmpv4.S)
+    (Udp      : Tcpip.Udp.S with type ipaddr = Ipaddr.t)
+    (Tcp      : Tcpip.Tcp.S with type ipaddr = Ipaddr.t) : sig
+  include Tcpip.Stack.V4V6
     with module IP = Ip
      and module TCP = Tcp
      and module UDP = Udp

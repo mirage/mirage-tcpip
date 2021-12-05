@@ -15,11 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Mirage_protocols.TCP
+include Tcpip.Tcp.S
   with type ipaddr = Ipaddr.V6.t
    and type flow = Lwt_unix.file_descr
-   and type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
-   and type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
+   and type error = [ Tcpip.Tcp.error | `Exn of exn ]
+   and type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
 
 val connect : Ipaddr.V6.Prefix.t option -> t Lwt.t
 

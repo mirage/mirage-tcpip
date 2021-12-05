@@ -15,7 +15,7 @@ type decomposed = {
   ipv4_payload : Cstruct.t;
   ipv4_header : Ipv4_packet.t;
   ethernet_payload : Cstruct.t;
-  ethernet_header : Ethernet_packet.t;
+  ethernet_header : Ethernet.Packet.t;
 }
 
 module Ip = Static_ipv4.Make(Mirage_random_test)(Mclock)(E)(Static_arp)
@@ -43,7 +43,7 @@ let (>>=?) = testbind
 let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
 let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
-let header_size = Ethernet_wire.sizeof_ethernet
+let header_size = Ethernet.Packet.sizeof_ethernet
 
 let get_stack ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt.pause ()) ())
@@ -153,8 +153,8 @@ let echo_silent () =
 
 let write_errors () =
   let decompose buf =
-    let open Ethernet_packet in
-    let* ethernet_header, ethernet_payload = Unmarshal.of_cstruct buf in
+    let open Ethernet.Packet in
+    let* ethernet_header, ethernet_payload = of_cstruct buf in
     match ethernet_header.ethertype with
     | `IPv6 | `ARP -> Error "not an ipv4 packet"
     | `IPv4 ->

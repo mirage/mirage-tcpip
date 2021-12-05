@@ -15,11 +15,11 @@
  *)
 
 type t = unit
-type error = Mirage_protocols.Ip.error
+type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.V4.t
 type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
-let pp_error = Mirage_protocols.Ip.pp_error
+let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.V4.pp
 
 let mtu _ ~dst:_ = 1500 - Ipv4_wire.sizeof_ipv4

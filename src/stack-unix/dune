@@ -6,7 +6,7 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries lwt.unix ipaddr.unix cstruct-lwt tcpip.icmpv4 tcpip.ipv4
-   tcpip.ipv6 mirage-protocols))
+   tcpip.ipv6))
 
 (library
  (name udpv4_socket)
@@ -15,7 +15,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
 
 (library
  (name udpv6_socket)
@@ -24,7 +24,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
 
 (library
  (name udpv4v6_socket)
@@ -33,7 +33,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
 
 (library
  (name tcp_socket_options)
@@ -55,8 +55,8 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
-   tcp_socket_options logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcp_socket_options
+   logs))
 
 (library
  (name tcpv6_socket)
@@ -65,8 +65,8 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
-   tcpv4_socket tcp_socket_options logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcpv4_socket
+   tcp_socket_options logs))
 
 (library
  (name tcpv4v6_socket)
@@ -75,8 +75,8 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt mirage-protocols
-   tcpv4_socket tcp_socket_options logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcpv4_socket
+   tcp_socket_options logs))
 
 (library
  (name tcpip_stack_socket)
@@ -87,5 +87,4 @@
   (backend bisect_ppx))
  (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.tcpv4-socket
    tcpip.udpv4-socket tcpip.ipv4 tcpip.tcpv6-socket tcpip.udpv6-socket
-   tcpip.ipv6 tcpip.tcpv4v6-socket tcpip.udpv4v6-socket tcpip.icmpv4
-   mirage-protocols mirage-stack))
+   tcpip.ipv6 tcpip.tcpv4v6-socket tcpip.udpv4v6-socket))

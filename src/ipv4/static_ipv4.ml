@@ -19,13 +19,13 @@ open Lwt.Infix
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Mirage_protocols.ETHERNET) (Arpv4 : Mirage_protocols.ARP) = struct
+module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
-  type error = [ Mirage_protocols.Ip.error | `Would_fragment | `Ethif of Ethernet.error ]
+  type error = [ Tcpip.Ip.error | `Would_fragment | `Ethif of Ethernet.error ]
   let pp_error ppf = function
-    | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+    | #Tcpip.Ip.error as e -> Tcpip.Ip.pp_error ppf e
     | `Ethif e -> Ethernet.pp_error ppf e
 
   type ipaddr = Ipaddr.V4.t

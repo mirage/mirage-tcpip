@@ -1,4 +1,4 @@
-include Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t
+include Icmpv4.S
 
 val connect : unit -> t Lwt.t
 

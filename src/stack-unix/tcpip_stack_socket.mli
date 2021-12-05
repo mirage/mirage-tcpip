@@ -15,7 +15,7 @@
  *)
 
 module V4 : sig
-  include Mirage_stack.V4
+  include Tcpip.Stack.V4
     with module UDPV4 = Udpv4_socket
      and module TCPV4 = Tcpv4_socket
      and module IPV4  = Ipv4_socket
@@ -23,7 +23,7 @@ module V4 : sig
 end
 
 module V6 : sig
-  include Mirage_stack.V6
+  include Tcpip.Stack.V6
     with module UDP = Udpv6_socket
      and module TCP = Tcpv6_socket
      and module IP  = Ipv6_socket
@@ -31,7 +31,7 @@ module V6 : sig
 end
 
 module V4V6 : sig
-  include Mirage_stack.V4V6
+  include Tcpip.Stack.V4V6
     with module UDP = Udpv4v6_socket
      and module TCP = Tcpv4v6_socket
      and module IP  = Ipv4v6_socket

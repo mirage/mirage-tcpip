@@ -29,7 +29,7 @@ let alive = {
 }
 
 let next ~configuration ~ns state =
-  let open Mirage_protocols.Keepalive in
+  let open Tcpip.Tcp.Keepalive in
   let after_ns = configuration.after in
   (* Wait until [time] has gone past *)
   if after_ns > ns
@@ -51,7 +51,7 @@ let next ~configuration ~ns state =
 
   module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
     type t = {
-      configuration: Mirage_protocols.Keepalive.t;
+      configuration: Tcpip.Tcp.Keepalive.t;
       callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
       mutable state: state;
       mutable timer: unit Lwt.t;

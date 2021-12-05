@@ -66,7 +66,7 @@ let create_connection ?keepalive t (dst,dst_port) =
       >>= fun () ->
       ( match keepalive with
         | None -> ()
-        | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+        | Some { Tcpip.Tcp.Keepalive.after; interval; probes } ->
           Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
       t.active_connections <- fd :: t.active_connections;
       Lwt.return (Ok fd))
@@ -100,7 +100,7 @@ let listen t ~port ?keepalive callback =
               t.active_connections <- afd :: t.active_connections;
               (match keepalive with
                | None -> ()
-               | Some { Mirage_protocols.Keepalive.after; interval; probes } ->
+               | Some { Tcpip.Tcp.Keepalive.after; interval; probes } ->
                  Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
               Lwt.async
                 (fun () ->

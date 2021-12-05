@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
-module Make (IP:Mirage_protocols.IP)(R:Mirage_random.S) : sig
-  include Mirage_protocols.UDP
-     with type ipaddr = IP.ipaddr
+module Make (IP : Tcpip.Ip.S) (R : Mirage_random.S) : sig
+  include Tcpip.Udp.S with type ipaddr = IP.ipaddr
   val connect : IP.t -> t Lwt.t
 end

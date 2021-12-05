@@ -56,14 +56,14 @@ module Frame_size_enforced = struct
       X.write t.xt id ~size fill
 
   let set_frame_size t m = t.frame_size <- m
-  let set_max_ip_mtu t m = t.frame_size <- m + Ethernet_wire.sizeof_ethernet
+  let set_max_ip_mtu t m = t.frame_size <- m + Ethernet.Packet.sizeof_ethernet
 
   let create ~frame_size () =
     let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) () in
     { xt ; frame_size }
 
   let create () =
-    create ~frame_size:(1500 + Ethernet_wire.sizeof_ethernet) ()
+    create ~frame_size:(1500 + Ethernet.Packet.sizeof_ethernet) ()
 
 end
 

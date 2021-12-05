@@ -1,6 +1,6 @@
 (library
- (name tcpip)
- (public_name tcpip)
+ (name tcpip_checksum)
+ (public_name tcpip.checksum)
  (modules tcpip_checksum)
  (instrumentation
   (backend bisect_ppx))

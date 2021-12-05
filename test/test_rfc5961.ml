@@ -40,7 +40,7 @@ let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
 let server_cidr = Ipaddr.V4.Prefix.make 24 server_ip
 let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
 
-let header_size = Ethernet_wire.sizeof_ethernet
+let header_size = Ethernet.Packet.sizeof_ethernet
 
 (* defaults when injecting packets *)
 let options = []

@@ -33,8 +33,8 @@ sig
   type buffer
   type 'a io
   type id
-  module Stackv4 : Mirage_stack.V4
-  module Stackv6 : Mirage_stack.V6
+  module Stackv4 : Tcpip.Stack.V4
+  module Stackv6 : Tcpip.Stack.V6
 
   (** Create a new backend *)
   val create_backend : unit -> backend
