@@ -1,3 +1,14 @@
+### v7.0.0 (2021-12-10)
+
+* Fix memory leak in processing RST packets (#460 @balrajsingh, reported in
+  #456 by @dinosaure)
+* Move module types (IP, UDP, TCP, STACK, ICMP) into tcpip core library
+  (#463 @hannesm)
+* API breakage: Tcpip_checksum is now part of tcpip.checksum (used to be
+  part of tcpip #463 @hannesm)
+* API breakage: tcpip.unix has been removed (#463 @hannesm)
+* Use Lwt.pause instead of deprecated Lwt_{unix,main}.yield (#461 @dinosaure)
+
 ### v6.4.0 (2021-11-11)
 
 * Adapt to mirage-protocols 6.0.0 API (#457 @hannesm)

@@ -16,11 +16,11 @@
  *)
 
 type t = unit
-type error = Mirage_protocols.Ip.error
+type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.V6.t
 type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
-let pp_error = Mirage_protocols.Ip.pp_error
+let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.V6.pp
 
 let mtu _ ~dst:_ = 1500 - Ipv6_wire.sizeof_ipv6

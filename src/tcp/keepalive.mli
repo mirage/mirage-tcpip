@@ -39,7 +39,7 @@ type state
 val alive: state
 (** An alive connection *)
 
-val next: configuration:Mirage_protocols.Keepalive.t -> ns:int64 -> state -> action * state
+val next: configuration:Tcpip.Tcp.Keepalive.t -> ns:int64 -> state -> action * state
 (** [next ~configuration ~ns state] returns the action we should take given
     that we last received a packet [ns] nanoseconds ago and the new state
     of the connection *)
@@ -48,7 +48,7 @@ module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK): sig
   type t
   (** A keep-alive timer *)
 
-  val create: Mirage_protocols.Keepalive.t -> ([ `SendProbe | `Close] -> unit Lwt.t) -> t
+  val create: Tcpip.Tcp.Keepalive.t -> ([ `SendProbe | `Close] -> unit Lwt.t) -> t
   (** [create configuration f clock] returns a keep-alive timer which will call
       [f] in future depending on both the [configuration] and any calls to
       [refresh] *)

@@ -3,7 +3,7 @@
  (public_name tcpip.ipv6)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs mirage-protocols mirage-time mirage-net macaddr-cstruct
+ (libraries logs mirage-time mirage-net macaddr-cstruct tcpip.checksum
    mirage-clock duration ipaddr cstruct mirage-random tcpip randomconv
    ethernet)
  (preprocess

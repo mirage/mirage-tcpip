@@ -14,9 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (Ip:Mirage_protocols.IP) : sig
+module Make (Ip : Tcpip.Ip.S) : sig
 
-  type error = Mirage_protocols.Ip.error
+  type error = Tcpip.Ip.error
   (** The type for TCP wire errors. *)
 
   val pp_error: error Fmt.t

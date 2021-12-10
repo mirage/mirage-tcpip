@@ -1,17 +1,17 @@
 open Lwt.Infix
 
-module Make(E : Mirage_protocols.ETHERNET)(Time : Mirage_time.S) = struct
+module Make(E : Ethernet.S)(Time : Mirage_time.S) = struct
   module A = Arp.Make(E)(Time)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
-  type error = Mirage_protocols.Arp.error
+  type error = A.error
 
   type t = {
     base : A.t;
     table : (Ipaddr.V4.t, Macaddr.t) Hashtbl.t;
   }
 
-  let pp_error = Mirage_protocols.Arp.pp_error
+  let pp_error = A.pp_error
   let add_ip t = A.add_ip t.base
   let remove_ip t = A.remove_ip t.base
   let set_ips t = A.set_ips t.base

@@ -15,11 +15,11 @@
  *)
 
 type t = unit
-type error = Mirage_protocols.Ip.error
+type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.t
 type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
-let pp_error = Mirage_protocols.Ip.pp_error
+let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.pp
 
 let mtu _ ~dst = match dst with

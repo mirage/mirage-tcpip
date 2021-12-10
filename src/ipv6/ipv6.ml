@@ -22,7 +22,7 @@ module I = Ipaddr
 open Lwt.Infix
 
 module Make (N : Mirage_net.S)
-            (E : Mirage_protocols.ETHERNET)
+            (E : Ethernet.S)
             (R : Mirage_random.S)
             (T : Mirage_time.S)
             (C : Mirage_clock.MCLOCK) = struct
@@ -35,10 +35,10 @@ module Make (N : Mirage_net.S)
     { ethif : E.t;
       mutable ctx : Ndpv6.context }
 
-  type error = [ Mirage_protocols.Ip.error | `Ethif of E.error ]
+  type error = [ Tcpip.Ip.error | `Ethif of E.error ]
 
   let pp_error ppf = function
-    | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+    | #Tcpip.Ip.error as e -> Tcpip.Ip.pp_error ppf e
     | `Ethif e -> E.pp_error ppf e
 
   let output t (dst, size, fill) =
@@ -160,7 +160,7 @@ module Make (N : Mirage_net.S)
         (* MCP: replace this error swallowing with proper propagation *)
         (Lwt_list.iter_s (output_ign t) outs >>= fun () ->
          task) ;
-        (N.listen netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
+        (N.listen netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener >|= fun _ -> ()) ;
         timeout
       ] >>= fun () ->
       let expected_ips = match cidr with None -> 1 | Some _ -> 2 in

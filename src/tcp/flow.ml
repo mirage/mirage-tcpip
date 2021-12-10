@@ -20,7 +20,7 @@ open Lwt.Infix
 let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip:Mirage_protocols.IP)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
+module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
 struct
 
   module RXS = Segment.Rx(Time)
@@ -31,18 +31,18 @@ struct
   module STATE = State.Make(Time)
   module KEEPALIVE = Keepalive.Make(Time)(Clock)
 
-  type error = [ Mirage_protocols.Tcp.error | WIRE.error]
+  type error = [ Tcpip.Tcp.error | WIRE.error]
 
   let pp_error ppf = function
-    | #Mirage_protocols.Tcp.error as e -> Mirage_protocols.Tcp.pp_error ppf e
+    | #Tcpip.Tcp.error as e -> Tcpip.Tcp.pp_error ppf e
     | #WIRE.error as e -> WIRE.pp_error ppf e
 
-  type write_error = [Mirage_protocols.Tcp.write_error | `Not_ready]
+  type write_error = [Tcpip.Tcp.write_error | `Not_ready]
 
   let pp_write_error ppf = function
     | `Not_ready ->
       Fmt.string ppf "attempted to send data before connection was ready"
-    | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
+    | #Tcpip.Tcp.write_error as e -> Tcpip.Tcp.pp_write_error ppf e
 
   type ipaddr = Ip.ipaddr
 
@@ -63,7 +63,7 @@ struct
 
   type t = {
     ip : Ip.t;
-    listeners : (int, Mirage_protocols.Keepalive.t option * (flow -> unit Lwt.t)) Hashtbl.t ;
+    listeners : (int, Tcpip.Tcp.Keepalive.t option * (flow -> unit Lwt.t)) Hashtbl.t ;
     mutable active : bool ;
     mutable localport : int;
     channels: (WIRE.t, connection) Hashtbl.t;
@@ -72,7 +72,7 @@ struct
     listens: (WIRE.t, (Sequence.t * ((flow -> unit Lwt.t) * connection)))
         Hashtbl.t;
     (* clients in the process of connecting *)
-    connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Mirage_protocols.Keepalive.t option)) Hashtbl.t;
+    connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Tcpip.Tcp.Keepalive.t option)) Hashtbl.t;
   }
 
   let listen t ~port ?keepalive cb =

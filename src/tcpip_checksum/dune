@@ -1,6 +1,6 @@
 (library
- (name tcpip)
- (public_name tcpip)
+ (name tcpip_checksum)
+ (public_name tcpip.checksum)
  (modules tcpip_checksum)
  (instrumentation
   (backend bisect_ppx))
@@ -10,8 +10,3 @@
   (names checksum_stubs)
   (flags :standard))
  (wrapped false))
-
-(library
- (name tcpip_unix)
- (public_name tcpip.unix)
- (modules tcpip_unix))

@@ -1,14 +1,14 @@
 open Lwt
 
-type error = [ Mirage_protocols.Tcp.error | `Exn of exn ]
-type write_error = [ Mirage_protocols.Tcp.write_error | `Exn of exn ]
+type error = [ Tcpip.Tcp.error | `Exn of exn ]
+type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
 
 let pp_error ppf = function
-  | #Mirage_protocols.Tcp.error as e -> Mirage_protocols.Tcp.pp_error ppf e
+  | #Tcpip.Tcp.error as e -> Tcpip.Tcp.pp_error ppf e
   | `Exn e -> Fmt.exn ppf e
 
 let pp_write_error ppf = function
-  | #Mirage_protocols.Tcp.write_error as e -> Mirage_protocols.Tcp.pp_write_error ppf e
+  | #Tcpip.Tcp.write_error as e -> Tcpip.Tcp.pp_write_error ppf e
   | `Exn e -> Fmt.exn ppf e
 
 let ignore_canceled = function

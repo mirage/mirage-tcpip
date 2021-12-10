@@ -19,22 +19,16 @@ open Lwt.Infix
 let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module type UDPV4_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.V4.t
-
-module type TCPV4_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.V4.t
-
 module Make
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Arpv4    : Mirage_protocols.ARP)
-    (Ipv4     : Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t)
-    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
-    (Udpv4    : UDPV4_DIRECT)
-    (Tcpv4    : TCPV4_DIRECT) = struct
+    (Eth      : Ethernet.S)
+    (Arpv4    : Arp.S)
+    (Ipv4     : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t)
+    (Icmpv4   : Icmpv4.S)
+    (Udpv4    : Tcpip.Udp.S with type ipaddr = Ipaddr.V4.t)
+    (Tcpv4    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V4.t) = struct
 
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4
@@ -42,7 +36,7 @@ module Make
 
   type t = {
     netif : Netif.t;
-    ethif : Ethernet.t;
+    ethif : Eth.t;
     arpv4 : Arpv4.t;
     ipv4  : Ipv4.t;
     icmpv4: Icmpv4.t;
@@ -52,7 +46,7 @@ module Make
   }
 
   let pp fmt t =
-    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Ethernet.mac t.ethif)
+    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
       (Fmt.list Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
@@ -68,7 +62,7 @@ module Make
   let listen t =
     Lwt.catch (fun () ->
         Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-        let ethif_listener = Ethernet.input
+        let ethif_listener = Eth.input
             ~arpv4:(Arpv4.input t.arpv4)
             ~ipv4:(
               Ipv4.input
@@ -82,7 +76,7 @@ module Make
             ~ipv6:(fun _ -> Lwt.return_unit)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
         >>= function
         | Error e ->
           Log.warn (fun p -> p "%a" Netif.pp_error e) ;
@@ -116,20 +110,14 @@ module Make
     Lwt.return_unit
 end
 
-module type UDPV6_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.V6.t
-
-module type TCPV6_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.V6.t
-
 module MakeV6
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Ipv6     : Mirage_protocols.IP with type ipaddr = Ipaddr.V6.t)
-    (Udpv6    : UDPV6_DIRECT)
-    (Tcpv6    : TCPV6_DIRECT) = struct
+    (Eth      : Ethernet.S)
+    (Ipv6     : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t)
+    (Udpv6    : Tcpip.Udp.S with type ipaddr = Ipaddr.V6.t)
+    (Tcpv6    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V6.t) = struct
 
   module UDP = Udpv6
   module TCP = Tcpv6
@@ -137,7 +125,7 @@ module MakeV6
 
   type t = {
     netif : Netif.t;
-    ethif : Ethernet.t;
+    ethif : Eth.t;
     ipv6  : Ipv6.t;
     udpv6 : Udpv6.t;
     tcpv6 : Tcpv6.t;
@@ -145,7 +133,7 @@ module MakeV6
   }
 
   let pp fmt t =
-    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Ethernet.mac t.ethif)
+    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
       (Fmt.list Ipaddr.V6.pp) (Ipv6.get_ip t.ipv6)
 
   let tcp { tcpv6; _ } = tcpv6
@@ -161,7 +149,7 @@ module MakeV6
   let listen t =
     Lwt.catch (fun () ->
         Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-        let ethif_listener = Ethernet.input
+        let ethif_listener = Eth.input
             ~arpv4:(fun _ -> Lwt.return_unit)
             ~ipv4:(fun _ -> Lwt.return_unit)
             ~ipv6:(
@@ -172,7 +160,7 @@ module MakeV6
                 t.ipv6)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
         >>= function
         | Error e ->
           Log.warn (fun p -> p "%a" Netif.pp_error e) ;
@@ -207,23 +195,17 @@ module MakeV6
 
 end
 
-module type UDPV4V6_DIRECT = Mirage_protocols.UDP
-  with type ipaddr = Ipaddr.t
-
-module type TCPV4V6_DIRECT = Mirage_protocols.TCP
-  with type ipaddr = Ipaddr.t
-
-module IPV4V6 (Ipv4 : Mirage_protocols.IPV4) (Ipv6 : Mirage_protocols.IPV6) = struct
+module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) = struct
 
   type ipaddr   = Ipaddr.t
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.pp
 
-  type error = [ Mirage_protocols.Ip.error | `Ipv4 of Ipv4.error | `Ipv6 of Ipv6.error | `Msg of string ]
+  type error = [ Tcpip.Ip.error | `Ipv4 of Ipv4.error | `Ipv6 of Ipv6.error | `Msg of string ]
 
   let pp_error ppf = function
-    | #Mirage_protocols.Ip.error as e -> Mirage_protocols.Ip.pp_error ppf e
+    | #Tcpip.Ip.error as e -> Tcpip.Ip.pp_error ppf e
     | `Ipv4 e -> Ipv4.pp_error ppf e
     | `Ipv6 e -> Ipv6.pp_error ppf e
     | `Msg m -> Fmt.string ppf m
@@ -332,12 +314,12 @@ module MakeV4V6
     (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
-    (Ethernet : Mirage_protocols.ETHERNET)
-    (Arpv4    : Mirage_protocols.ARP)
-    (Ip       : Mirage_protocols.IP with type ipaddr = Ipaddr.t)
-    (Icmpv4   : Mirage_protocols.ICMP with type ipaddr = Ipaddr.V4.t)
-    (Udp      : UDPV4V6_DIRECT)
-    (Tcp      : TCPV4V6_DIRECT) = struct
+    (Eth      : Ethernet.S)
+    (Arpv4    : Arp.S)
+    (Ip       : Tcpip.Ip.S with type ipaddr = Ipaddr.t)
+    (Icmpv4   : Icmpv4.S)
+    (Udp      : Tcpip.Udp.S with type ipaddr = Ipaddr.t)
+    (Tcp      : Tcpip.Tcp.S with type ipaddr = Ipaddr.t) = struct
 
   module UDP = Udp
   module TCP = Tcp
@@ -345,7 +327,7 @@ module MakeV4V6
 
   type t = {
     netif : Netif.t;
-    ethif : Ethernet.t;
+    ethif : Eth.t;
     arpv4 : Arpv4.t;
     icmpv4 : Icmpv4.t;
     ip : IP.t;
@@ -355,7 +337,7 @@ module MakeV4V6
   }
 
   let pp fmt t =
-    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Ethernet.mac t.ethif)
+    Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
       (Fmt.list Ipaddr.pp) (IP.get_ip t.ip)
 
   let tcp { tcp; _ } = tcp
@@ -378,13 +360,13 @@ module MakeV4V6
           | 1, Ipaddr.V4 src, Ipaddr.V4 dst -> Icmpv4.input t.icmpv4 ~src ~dst buf
           | _ -> Lwt.return_unit
         in
-        let ethif_listener = Ethernet.input
+        let ethif_listener = Eth.input
             ~arpv4:(Arpv4.input t.arpv4)
             ~ipv4:(IP.input ~tcp ~udp ~default t.ip)
             ~ipv6:(IP.input ~tcp ~udp ~default t.ip)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet_wire.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
         >>= function
         | Error e ->
           Log.warn (fun p -> p "%a" Netif.pp_error e) ;

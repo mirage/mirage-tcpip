@@ -1,7 +1,7 @@
 (* Test the functional part *)
 
 (* Linux default *)
-let default = Mirage_protocols.Keepalive.({
+let default = Tcpip.Tcp.Keepalive.({
   after = Duration.of_sec 7200; (* 2 hours *)
   interval = Duration.of_sec 75; (* 75 seconds *)
   probes = 9;
@@ -9,7 +9,7 @@ let default = Mirage_protocols.Keepalive.({
 
 let simulate configuration iterations nprobes ns state =
   let rec loop iterations nprobes ns state =
-    if iterations > 3 * configuration.Mirage_protocols.Keepalive.probes
+    if iterations > 3 * configuration.Tcpip.Tcp.Keepalive.probes
     then Alcotest.fail (Printf.sprintf "too many iteractions: loop in keep-alive test? iterations = %d nprobes = %d ns=%Ld" iterations nprobes ns);
     let action, state' = Tcp.Keepalive.next ~configuration ~ns state in
     match action with
@@ -36,9 +36,9 @@ let test_keepalive_miss_probes () =
   let configuration = default in
   let state = Tcp.Keepalive.alive in
   (* skip sending the first 1 or 2 probes *)
-  let ns = Int64.(add configuration.Mirage_protocols.Keepalive.after (mul 2L configuration.Mirage_protocols.Keepalive.interval)) in
+  let ns = Int64.(add configuration.Tcpip.Tcp.Keepalive.after (mul 2L configuration.Tcpip.Tcp.Keepalive.interval)) in
   let nprobes = simulate configuration 0 0 ns state in
-  if nprobes >= configuration.Mirage_protocols.Keepalive.probes
+  if nprobes >= configuration.Tcpip.Tcp.Keepalive.probes
   then Alcotest.fail (Printf.sprintf "too many probes: max was %d but we sent %d and we should have skipped the first 1 or 2" configuration.probes nprobes)
 
 (* check what happens if we exceed the maximum timeout *)
@@ -46,7 +46,7 @@ let test_keepalive_miss_everything () =
   let configuration = default in
   let state = Tcp.Keepalive.alive in
   (* massive delay *)
-  let ns = Int64.(add configuration.Mirage_protocols.Keepalive.after (mul 2L (mul (of_int configuration.Mirage_protocols.Keepalive.probes) configuration.Mirage_protocols.Keepalive.interval))) in
+  let ns = Int64.(add configuration.Tcpip.Tcp.Keepalive.after (mul 2L (mul (of_int configuration.Tcpip.Tcp.Keepalive.probes) configuration.Tcpip.Tcp.Keepalive.interval))) in
   let nprobes = simulate configuration 0 0 ns state in
   if nprobes <> 0
   then Alcotest.fail (Printf.sprintf "too many probes: max was %d but we sent %d and we should have skipped all" configuration.probes nprobes)
@@ -108,7 +108,7 @@ module Test_connect = struct
         V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
         Lwt.pick [
         V.Stackv4.listen s2;
-        let keepalive = { Mirage_protocols.Keepalive.after = 0L; interval = Duration.of_sec 1; probes = 3 } in
+        let keepalive = { Tcpip.Tcp.Keepalive.after = 0L; interval = Duration.of_sec 1; probes = 3 } in
         (let conn = V.Stackv4.TCPV4.create_connection ~keepalive (V.Stackv4.tcpv4 s2) in
         or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80) >>= fun flow ->
         Logs.debug (fun f -> f "Connected to other end...");

@@ -1,9 +1,19 @@
+module type S = sig
+  type t
+  val disconnect : t -> unit Lwt.t
+  type ipaddr = Ipaddr.V4.t
+  type error
+  val pp_error: error Fmt.t
+  val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+  val write : t -> ?src:ipaddr -> dst:ipaddr -> ?ttl:int -> Cstruct.t -> (unit, error) result Lwt.t
+end
+
 open Lwt.Infix
 
 let src = Logs.Src.create "icmpv4" ~doc:"Mirage ICMPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(IP : Mirage_protocols.IP with type ipaddr = Ipaddr.V4.t) = struct
+module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
 
   type ipaddr = Ipaddr.V4.t
 
