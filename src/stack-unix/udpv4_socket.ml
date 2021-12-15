@@ -28,7 +28,8 @@ type t = {
   mutable switched_off: unit Lwt.t;
 }
 
-let set_switched_off t switched_off = t.switched_off <- switched_off
+let set_switched_off t switched_off =
+  t.switched_off <- Lwt.pick [ switched_off; t.switched_off ]
 
 let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
@@ -59,12 +60,13 @@ let connect ip =
   let t =
     let listen_fds = Hashtbl.create 7 in
     let interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address ip) in
-    { interface; listen_fds; switched_off = Lwt.return_unit }
+    { interface; listen_fds; switched_off = fst (Lwt.wait ()) }
   in
   Lwt.return t
 
 let disconnect t =
-  Hashtbl.fold (fun _ fd r -> r >>= fun () -> close fd) t.listen_fds Lwt.return_unit
+  Hashtbl.fold (fun _ fd r -> r >>= fun () -> close fd) t.listen_fds Lwt.return_unit >>= fun () ->
+  Lwt.cancel t.switched_off ; Lwt.return_unit
 
 let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
 

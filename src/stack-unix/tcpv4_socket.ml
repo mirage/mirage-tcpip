@@ -36,16 +36,18 @@ let connect addr =
     interface = Ipaddr_unix.V4.to_inet_addr (Ipaddr.V4.Prefix.address addr);
     active_connections = [];
     listen_sockets = Hashtbl.create 7;
-    switched_off = Lwt.return_unit;
+    switched_off = fst (Lwt.wait ());
   } in
   Lwt.return t
 
-let set_switched_off t switched_off = t.switched_off <- switched_off
+let set_switched_off t switched_off =
+  t.switched_off <- Lwt.pick [ switched_off; t.switched_off ]
 
 let disconnect t =
   Lwt_list.iter_p close t.active_connections >>= fun () ->
   Lwt_list.iter_p close
-    (Hashtbl.fold (fun _ fd acc -> fd :: acc) t.listen_sockets [])
+    (Hashtbl.fold (fun _ fd acc -> fd :: acc) t.listen_sockets []) >>= fun () ->
+  Lwt.cancel t.switched_off ; Lwt.return_unit
 
 let dst fd =
   match Lwt_unix.getpeername fd with
