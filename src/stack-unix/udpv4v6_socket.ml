@@ -28,10 +28,8 @@ let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ]; (* source ip to bind to *)
   listen_fds: (int, Lwt_unix.file_descr * Lwt_unix.file_descr option) Hashtbl.t; (* UDP fds bound to a particular port *)
-  mutable switched_off : unit Lwt.t;
+  switched_off : unit Lwt.t;
 }
-
-let set_switched_off t switched_off = t.switched_off <- switched_off
 
 let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
@@ -117,7 +115,7 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
           `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
   in
   let listen_fds = Hashtbl.create 7 in
-  Lwt.return { interface; listen_fds; switched_off = Lwt.return_unit }
+  Lwt.return { interface; listen_fds; switched_off = fst (Lwt.wait ()) }
 
 let disconnect t =
   Hashtbl.fold (fun _ (fd, fd') r ->

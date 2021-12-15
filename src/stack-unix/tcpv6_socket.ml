@@ -27,10 +27,8 @@ type t = {
   interface: Unix.inet_addr;    (* source ip to bind to *)
   mutable active_connections : Lwt_unix.file_descr list;
   listen_sockets : (int, Lwt_unix.file_descr) Hashtbl.t;
-  mutable switched_off : unit Lwt.t;
+  switched_off : unit Lwt.t;
 }
-
-let set_switched_off t switched_off = t.switched_off <- switched_off
 
 include Tcp_socket
 
@@ -44,7 +42,7 @@ let connect addr =
     interface = Ipaddr_unix.V6.to_inet_addr ip;
     active_connections = [];
     listen_sockets = Hashtbl.create 7;
-    switched_off = Lwt.return_unit
+    switched_off = fst (Lwt.wait ());
   }
 
 let disconnect t =

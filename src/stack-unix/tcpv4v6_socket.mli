@@ -22,5 +22,3 @@ include Tcpip.Tcp.S
    and type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
 
 val connect : ipv4_only:bool -> ipv6_only:bool -> Ipaddr.V4.Prefix.t -> Ipaddr.V6.Prefix.t option -> t Lwt.t
-
-val set_switched_off : t -> unit Lwt.t -> unit

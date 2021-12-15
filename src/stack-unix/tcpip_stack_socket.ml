@@ -46,8 +46,6 @@ module V4 = struct
   let connect udpv4 tcpv4 =
     Log.info (fun f -> f "IPv4 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    TCPV4.set_switched_off tcpv4 switched_off;
-    UDPV4.set_switched_off udpv4 switched_off;
     Lwt.return { tcpv4; udpv4; stop; switched_off }
 
   let disconnect t =
@@ -83,8 +81,6 @@ module V6 = struct
   let connect udp tcp =
     Log.info (fun f -> f "IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    UDP.set_switched_off udp switched_off;
-    TCP.set_switched_off tcp switched_off;
     Lwt.return { tcp; udp; stop; switched_off }
 
   let disconnect t =
@@ -120,8 +116,6 @@ module V4V6 = struct
   let connect udp tcp =
     Log.info (fun f -> f "Dual IPv4 and IPv6 socket stack: connect");
     let switched_off, stop = Lwt.wait () in
-    UDP.set_switched_off udp switched_off;
-    TCP.set_switched_off tcp switched_off;
     Lwt.return { tcp; udp; stop; switched_off }
 
   let disconnect t =
