@@ -1,3 +1,7 @@
+### v7.0.1 (2021-12-17)
+
+* Fix cancelation of Unix socket when we don't use `Stack.connect` (@dinosaure, @hannesm, #466)
+
 ### v7.0.0 (2021-12-10)
 
 * Fix memory leak in processing RST packets (#460 @balrajsingh, reported in
