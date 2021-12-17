@@ -30,7 +30,8 @@ type t = {
   mutable switched_off : unit Lwt.t;
 }
 
-let set_switched_off t switched_off = t.switched_off <- switched_off
+let set_switched_off t switched_off =
+  t.switched_off <- Lwt.pick [ switched_off; t.switched_off ]
 
 let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 
@@ -57,12 +58,13 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
         else
           `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
   in
-  Lwt.return {interface; active_connections = []; listen_sockets = Hashtbl.create 7; switched_off = Lwt.return_unit}
+  Lwt.return {interface; active_connections = []; listen_sockets = Hashtbl.create 7; switched_off = fst (Lwt.wait ())}
 
 let disconnect t =
   Lwt_list.iter_p close t.active_connections >>= fun () ->
   Lwt_list.iter_p close
-    (Hashtbl.fold (fun _ fd acc -> fd @ acc) t.listen_sockets [])
+    (Hashtbl.fold (fun _ fd acc -> fd @ acc) t.listen_sockets []) >>= fun () ->
+  Lwt.cancel t.switched_off ; Lwt.return_unit
 
 let dst fd =
   match Lwt_unix.getpeername fd with
