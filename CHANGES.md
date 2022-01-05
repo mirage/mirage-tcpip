@@ -1,6 +1,6 @@
 ### v7.0.1 (2021-12-17)
 
-* Fix cancelation of Unix socket when we don't use `Stack.connect` (@dinosaure, @hannesm, #466)
+* Fix cancellation of Unix socket when we don't use `Stack.connect` (@dinosaure, @hannesm, #466)
 
 ### v7.0.0 (2021-12-10)
 
@@ -42,7 +42,7 @@
 ### v6.1.0 (2021-03-17)
 
 * checksum stubs: Drop `caml_` from their name (@hannesm, #445)
-* Add cancelation on `tcpip.stack-socket` (@dinosaure, @talex5, @hannesm, #443)
+* Add cancellation on `tcpip.stack-socket` (@dinosaure, @talex5, @hannesm, #443)
 * Ensure that listen really binds the given socket before
   creating a task on `tcpip.stack-socket` (@dinosaure, @hannesm, #439)
 * Add `ppx_cstruct` as a dependency (@hannesm, @dinosaure, #439)
@@ -353,7 +353,7 @@ of memory to be used in some circumstances, see
   @balrajsingh)
 * Improve the tests: more logging, more tracing and compile to native code when
   available, etc (@MagnusS and @talex5)
-* Do not raise `Invalid_argument("Lwt.wakeup_result")` everytime a connection
+* Do not raise `Invalid_argument("Lwt.wakeup_result")` every time a connection
   is closed. Also now pass the raised exceptions to `Lwt.async_exception_hook`
   instead of ignoring them transparently, so the user can decide to shutdown
   its application if something wrong happens (#153, #156, @yomomino and @talex5)
@@ -426,7 +426,7 @@ of memory to be used in some circumstances, see
 ### v2.2.0 (2014-12-18)
 
 Add IPv6 support. This changeset minimises interface changes to the existing
-`STACKV4` interfaces to faciliate a progressive merge.  The only visible
+`STACKV4` interfaces to facilitate a progressive merge.  The only visible
 interface changes are:
 
 * `IPV4.set_ipv4_*` functions have been renamed `IPV4.set_ip_*` because they
@@ -479,7 +479,7 @@ interface changes are:
 ### v1.1.6 (2014-07-20)
 
 * Quieten down the stack logging rate by not announcing IPv6 packet discards.
-* Raise exception `Bad_option` for unparseable or invalid TCPv4 options (#57).
+* Raise exception `Bad_option` for unparsable or invalid TCPv4 options (#57).
 * Fix linking error with module `Tcp_checksum` by lifting it into top library
   (#60).
 * Add `opam` file to permit easier local pinning, and fix Travis to use this.

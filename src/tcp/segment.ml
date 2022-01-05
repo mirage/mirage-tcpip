@@ -392,7 +392,7 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
       let win = Window.ack_win q.wnd in
       begin match State.state q.state with
         | State.Reset ->
-          (* Note: This is not stricly necessary, as the PCB will be
+          (* Note: This is not strictly necessary, as the PCB will be
              GCed later on.  However, it helps removing pressure on
              the GC. *)
           reset_seq q.segs;

@@ -45,7 +45,7 @@ module Marshal : sig
   val into_cstruct : payload_len:int -> t -> Cstruct.t -> (unit, error) result
 
   (** [make_cstruct ~payload_len t] allocates, fills, and returns a buffer
-      repesenting the IPV4 header corresponding to [t].
+      representing the IPV4 header corresponding to [t].
       If [t.options] is non-empty, [t.options] will be
       concatenated onto the result. A variable amount of memory (at least 20 bytes
       for a zero-length options field) will be allocated.
