@@ -1,11 +1,11 @@
-ifneq (, $(shell command -v opam || which opam))
+ifneq (, $(shell command -v opam))
   ifeq ($(origin PKG_CONFIG_PATH), undefined)
     PKG_CONFIG_PATH := $(shell opam var prefix)/lib/pkgconfig
   endif
 endif
 
 ifeq ($(OS), Windows_NT)
-  ifneq (, $(shell command -v cygpath || which cygpath))
+  ifneq (, $(shell command -v cygpath))
     PKG_CONFIG_PATH := $(shell cygpath --unix --path "$(PKG_CONFIG_PATH)")
   endif
 endif
