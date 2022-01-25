@@ -110,7 +110,7 @@ struct
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
-    | Error _ -> failf "Error occured while registering to backend"
+    | Error _ -> failf "Error occurred while registering to backend"
     | Ok id -> (B.set_listen_fn backend id listenf); id
 
   let disable_backend_listener backend id =

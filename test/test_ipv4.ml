@@ -255,7 +255,7 @@ let suite = [
     "other ip flow", `Quick, basic_other_ip_flow ;
     "maximum amount of fragments", `Quick, max_fragment ] @
     List.mapi (fun i (packets, final) ->
-      Printf.sprintf "ressembly multiple %d" i, `Quick,
+      Printf.sprintf "reassembly multiple %d" i, `Quick,
       reassembly_multiple_out_of_order packets final)
     ([
       ([ (mf, white); (2, black) ], Cstruct.concat [white;black]);
