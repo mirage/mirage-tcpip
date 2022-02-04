@@ -3,7 +3,6 @@ open Common
 let src = Logs.Src.create "test_icmpv4" ~doc:"ICMP tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make (B)
@@ -33,14 +32,11 @@ type stack = {
 }
 
 let testbind x y = match x with Ok p -> y p | Error s -> Alcotest.fail s
-
 let ( >>=? ) = testbind
 
 (* some default addresses which will be on the same class C *)
 let listener_address = Ipaddr.V4.of_string_exn "192.168.222.1"
-
 let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
-
 let header_size = Ethernet.Packet.sizeof_ethernet
 
 let get_stack
@@ -67,7 +63,6 @@ let icmp_listen stack fn =
   >|= fun _ -> ()
 
 let inform_arp stack = Static_arp.add_entry stack.arp
-
 let mac_of_stack stack = E.mac stack.ethif
 
 let short_read () =

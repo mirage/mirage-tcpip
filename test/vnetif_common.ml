@@ -32,15 +32,11 @@ module Clock = Mclock
 
 module type VNETIF_STACK = sig
   type backend
-
   type buffer
-
   type 'a io
-
   type id
 
   module Stackv4 : Tcpip.Stack.V4
-
   module Stackv6 : Tcpip.Stack.V6
 
   val create_backend : unit -> backend
@@ -76,11 +72,8 @@ end
 module VNETIF_STACK (B : Vnetif_backends.Backend) :
   VNETIF_STACK with type backend = B.t = struct
   type backend = B.t
-
   type buffer = B.buffer
-
   type 'a io = 'a B.io
-
   type id = B.id
 
   module V = Vnetif.Make (B)
@@ -93,11 +86,13 @@ module VNETIF_STACK (B : Vnetif_backends.Backend) :
   module Ip6 = Ipv6.Make (V) (E) (Mirage_random_test) (Time) (Clock)
   module U6 = Udp.Make (Ip6) (Mirage_random_test)
   module T6 = Tcp.Flow.Make (Ip6) (Time) (Clock) (Mirage_random_test)
+
   module Stackv4 =
     Tcpip_stack_direct.Make (Time) (Mirage_random_test) (V) (E) (A) (Ip4)
       (Icmp4)
       (U4)
       (T4)
+
   module Stackv6 =
     Tcpip_stack_direct.MakeV6 (Time) (Mirage_random_test) (V) (E) (Ip6) (U6)
       (T6)

@@ -79,7 +79,6 @@ let test_packet =
   }
 
 let mf = 0x2000
-
 let white = Cstruct.create 16
 
 let black =

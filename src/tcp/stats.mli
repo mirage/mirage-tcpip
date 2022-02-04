@@ -34,23 +34,14 @@ type t = {
 }
 
 val pp : Format.formatter -> t -> unit
-
 val incr_listen : unit -> unit
-
 val decr_listen : unit -> unit
-
 val incr_channel : unit -> unit
-
 val decr_channel : unit -> unit
-
 val incr_connect : unit -> unit
-
 val decr_connect : unit -> unit
-
 val incr_timer : unit -> unit
-
 val decr_timer : unit -> unit
-
 val singleton : t
 
 module Gc : sig

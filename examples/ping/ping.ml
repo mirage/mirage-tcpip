@@ -15,18 +15,13 @@ let make_payload ~size () =
   buf
 
 let seq_no_to_send_time = Hashtbl.create 7
-
 let nr_transmitted = ref 0
-
 let nr_received = ref 0
-
 let min_ms = ref max_float
-
 let max_ms = ref 0.
 
 (* to compute the standard deviation, we store the sum and the sum of squares *)
 let sum_ms = ref 0.
-
 let sum_ms_2 = ref 0.
 
 (* Send ICMP ECHO_REQUEST packets forever *)

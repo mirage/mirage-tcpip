@@ -4,7 +4,6 @@ module type S = sig
   val pp_error : error Fmt.t
 
   type ipaddr
-
   type t
 
   val disconnect : t -> unit Lwt.t
@@ -13,9 +12,7 @@ module type S = sig
     src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
   val listen : t -> port:int -> callback -> unit
-
   val unlisten : t -> port:int -> unit
-
   val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   val write :

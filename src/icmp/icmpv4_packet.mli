@@ -8,14 +8,12 @@ type subheader =
 type t = { code : Cstruct.uint8; ty : Icmpv4_wire.ty; subheader : subheader }
 
 val pp : Format.formatter -> t -> unit
-
 val equal : t -> t -> bool
 
 module Unmarshal : sig
   type error = string
 
   val subheader_of_cstruct : Icmpv4_wire.ty -> Cstruct.t -> subheader
-
   val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 end
 

@@ -106,7 +106,6 @@ module Rx (Time : Mirage_time.S) = struct
      should look for a FIN and chop off the rest of the set as they
      may be orphan segments *)
   let fin q = try (S.max_elt q).header.fin with Not_found -> false
-
   let is_empty q = S.is_empty q.segs
 
   let check_valid_segment q seg =

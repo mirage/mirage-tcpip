@@ -1,9 +1,7 @@
 type error = [ `Timeout | `Refused ]
-
 type write_error = [ error | Mirage_flow.write_error ]
 
 val pp_error : error Fmt.t
-
 val pp_write_error : write_error Fmt.t
 
 (** Configuration for TCP keep-alives.

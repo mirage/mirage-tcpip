@@ -24,9 +24,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
-
   let client_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
-
   let server_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.100/24"
 
   type stats = {
@@ -51,7 +49,6 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     String.concat "" @@ build [] 60
 
   let mlen = String.length msg
-
   let err_eof () = failf "EOF while writing to TCP flow"
 
   let err_connect e ip port () =
@@ -243,7 +240,6 @@ let test_tcp_iperf_two_stacks_drop_1sec_after_1mb amt timeout () =
     (Test.tcp_iperf ~server ~client amt timeout)
 
 let amt_quick = 100_000
-
 let amt_slow = amt_quick * 1000
 
 let suite =

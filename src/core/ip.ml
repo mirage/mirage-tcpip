@@ -49,10 +49,7 @@ module type S = sig
     (unit, error) result Lwt.t
 
   val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Cstruct.t
-
   val src : t -> dst:ipaddr -> ipaddr
-
   val get_ip : t -> ipaddr list
-
   val mtu : t -> dst:ipaddr -> int
 end

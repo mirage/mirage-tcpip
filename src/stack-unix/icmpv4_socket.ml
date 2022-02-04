@@ -1,15 +1,11 @@
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
-
 type t = { mutable listening_sockets : Lwt_unix.file_descr list }
-
 type error = [ `Ip of string ]
 
 let pp_error ppf (`Ip s) = Fmt.string ppf s
-
 let is_win32 = Sys.os_type = "Win32"
-
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
 
 let port = 0 (* port isn't meaningful in this context *)
@@ -21,7 +17,6 @@ let safe_close fd =
       | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
 let connect () = Lwt.return { listening_sockets = [] }
-
 let disconnect t = Lwt_list.iter_p safe_close t.listening_sockets
 
 let pp_sockaddr fmt sa =

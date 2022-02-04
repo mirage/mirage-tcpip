@@ -1,7 +1,6 @@
 open Lwt.Infix
 
 let failf fmt = Fmt.kstr (fun s -> Alcotest.fail s) fmt
-
 let ( let* ) = Result.bind
 
 let or_error name fn t =
@@ -15,11 +14,8 @@ let expect_error error name fn t =
   | _ -> failf "expected error on %s" name
 
 let ipv4_packet = Alcotest.testable Ipv4_packet.pp Ipv4_packet.equal
-
 let udp_packet = Alcotest.testable Udp_packet.pp Udp_packet.equal
-
 let tcp_packet = Alcotest.testable Tcp.Tcp_packet.pp Tcp.Tcp_packet.equal
-
 let cstruct = Alcotest.testable Cstruct.hexdump_pp Cstruct.equal
 
 let sequence =

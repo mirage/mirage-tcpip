@@ -17,11 +17,9 @@
 let src = Logs.Src.create "tcpv4-socket" ~doc:"TCP socket v4 (platform native)"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V4.t
-
 type flow = Lwt_unix.file_descr
 
 type t = {

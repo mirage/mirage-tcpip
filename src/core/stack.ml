@@ -7,9 +7,7 @@ module type V4 = sig
       complete, it can never result in an error. *)
 
   module UDPV4 : Udp.S with type ipaddr = Ipaddr.V4.t
-
   module TCPV4 : Tcp.S with type ipaddr = Ipaddr.V4.t
-
   module IPV4 : Ip.S with type ipaddr = Ipaddr.V4.t
 
   val udpv4 : t -> UDPV4.t
@@ -65,9 +63,7 @@ module type V6 = sig
       complete, it can never result in an error. *)
 
   module UDP : Udp.S with type ipaddr = Ipaddr.V6.t
-
   module TCP : Tcp.S with type ipaddr = Ipaddr.V6.t
-
   module IP : Ip.S with type ipaddr = Ipaddr.V6.t
 
   val udp : t -> UDP.t
@@ -123,9 +119,7 @@ module type V4V6 = sig
       time to complete, it can never result in an error. *)
 
   module UDP : Udp.S with type ipaddr = Ipaddr.t
-
   module TCP : Tcp.S with type ipaddr = Ipaddr.t
-
   module IP : Ip.S with type ipaddr = Ipaddr.t
 
   val udp : t -> UDP.t

@@ -3,12 +3,10 @@ let now = ref 0L
 module Clock = struct
   (* Mirage_clock.MCLOCK *)
   let period_ns () = None
-
   let elapsed_ns () = !now
 
   (* Test-related function: advance by 1 ns *)
   let tick () = now := Int64.add !now 1L
-
   let tick_for duration = now := Int64.add !now duration
 end
 

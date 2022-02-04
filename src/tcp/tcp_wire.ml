@@ -26,23 +26,14 @@ type tcpv4_pseudo_header = {
  * with 0, so be careful when implemented CWE flag which
  * sits there *)
 let get_data_offset buf = (get_tcp_dataoff buf lsr 4) * 4
-
 let set_data_offset buf v = set_tcp_dataoff buf (v lsl 4)
-
 let get_fin buf = Cstruct.get_uint8 buf 13 land (1 lsl 0) > 0
-
 let get_syn buf = Cstruct.get_uint8 buf 13 land (1 lsl 1) > 0
-
 let get_rst buf = Cstruct.get_uint8 buf 13 land (1 lsl 2) > 0
-
 let get_psh buf = Cstruct.get_uint8 buf 13 land (1 lsl 3) > 0
-
 let get_ack buf = Cstruct.get_uint8 buf 13 land (1 lsl 4) > 0
-
 let get_urg buf = Cstruct.get_uint8 buf 13 land (1 lsl 5) > 0
-
 let get_ece buf = Cstruct.get_uint8 buf 13 land (1 lsl 6) > 0
-
 let get_cwr buf = Cstruct.get_uint8 buf 13 land (1 lsl 7) > 0
 
 let set_fin buf =

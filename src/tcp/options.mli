@@ -26,13 +26,9 @@ type t =
   | Unknown of int * string  (** RFC793 *)
 
 val equal : t -> t -> bool
-
 val lenv : t list -> int (* how many bytes are required to marshal this list *)
 
 val marshal : Cstruct.t -> t list -> int
-
 val unmarshal : Cstruct.t -> (t list, string) result
-
 val pp : Format.formatter -> t -> unit
-
 val pps : Format.formatter -> t list -> unit

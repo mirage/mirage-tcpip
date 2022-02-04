@@ -93,9 +93,7 @@ module Rx = struct
       Lwt.return s
 
   let cur_size t = t.cur_size
-
   let max_size t = t.max_size
-
   let monitor t mvar = t.watcher <- Some mvar
 end
 

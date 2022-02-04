@@ -27,23 +27,15 @@ module Frame_size_enforced = struct
   module X = Basic_backend.Make
 
   type t = { xt : X.t; mutable frame_size : int }
-
   type macaddr = X.macaddr
-
   type 'a io = 'a X.io
-
   type buffer = X.buffer
-
   type id = X.id
 
   let register t = X.register t.xt
-
   let unregister t id = X.unregister t.xt id
-
   let mac t id = X.mac t.xt id
-
   let set_listen_fn t id buf = X.set_listen_fn t.xt id buf
-
   let unregister_and_flush t id = X.unregister_and_flush t.xt id
 
   let write t id ~size fill =
@@ -51,7 +43,6 @@ module Frame_size_enforced = struct
     else X.write t.xt id ~size fill
 
   let set_frame_size t m = t.frame_size <- m
-
   let set_max_ip_mtu t m = t.frame_size <- m + Ethernet.Packet.sizeof_ethernet
 
   let create ~frame_size () =
@@ -140,25 +131,16 @@ module Drop_1_second_after_1_megabyte : Backend = struct
   }
 
   type macaddr = X.macaddr
-
   type 'a io = 'a X.io
-
   type buffer = X.buffer
-
   type id = X.id
 
   let byte_limit : int = 1_000_000
-
   let time_to_sleep : float = 1.0
-
   let register t = X.register t.xt
-
   let unregister t id = X.unregister t.xt id
-
   let mac t id = X.mac t.xt id
-
   let set_listen_fn t id buf = X.set_listen_fn t.xt id buf
-
   let unregister_and_flush t id = X.unregister_and_flush t.xt id
 
   let should_drop t =

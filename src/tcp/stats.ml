@@ -16,13 +16,9 @@
 
 module Gc = struct
   let gc = ref false
-
   let enable () = gc := true
-
   let disable () = gc := false
-
   let full = ref false
-
   let full_major b = full := b
 
   let words () =
@@ -42,7 +38,6 @@ end
 type counter = MProf.Counter.t
 
 let value = MProf.Counter.value
-
 let pp_counter fmt t = Format.fprintf fmt "%d" (value t)
 
 type t = {
@@ -79,7 +74,6 @@ let pp fmt t =
     t.tcp_listens pp_counter t.tcp_channels pp_counter t.tcp_connects Gc.pp ()
 
 let incr r = MProf.Counter.increase r 1
-
 let decr r = MProf.Counter.increase r (-1)
 
 let singleton =

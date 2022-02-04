@@ -37,13 +37,9 @@ module Make (Ip : Tcpip.Ip.S) = struct
   }
 
   let v ~src ~src_port ~dst ~dst_port = { dst_port; dst; src_port; src }
-
   let src t = t.src
-
   let dst t = t.dst
-
   let src_port t = t.src_port
-
   let dst_port t = t.dst_port
 
   let pp ppf t =

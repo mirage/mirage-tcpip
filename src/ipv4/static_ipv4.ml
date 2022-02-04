@@ -36,7 +36,6 @@ struct
     | `Ethif e -> Ethernet.pp_error ppf e
 
   type ipaddr = Ipaddr.V4.t
-
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V4.pp
@@ -204,7 +203,6 @@ struct
     { ethif; arp; cidr; gateway; cache }
 
   let disconnect _ = Lwt.return_unit
-
   let get_ip t = [ Ipaddr.V4.Prefix.address t.cidr ]
 
   let pseudoheader t ?src dst proto len =
@@ -214,6 +212,5 @@ struct
     Ipv4_packet.Marshal.pseudoheader ~src ~dst ~proto len
 
   let src t ~dst:_ = Ipaddr.V4.Prefix.address t.cidr
-
   let mtu t ~dst:_ = Ethernet.mtu t.ethif - Ipv4_wire.sizeof_ipv4
 end

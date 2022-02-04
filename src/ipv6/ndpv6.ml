@@ -39,24 +39,18 @@ References:
 let src = Logs.Src.create "ndpc6" ~doc:"Mirage IPv6 discovery"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module Ipaddr = Ipaddr.V6
 
 type buffer = Cstruct.t
-
 type ipaddr = Ipaddr.t
-
 type prefix = Ipaddr.Prefix.t
-
 type time = int64
 
 module BoundedMap (K : Map.OrderedType) : sig
   type 'a t
 
   val empty : int -> 'a t
-
   val push : K.t -> 'a -> 'a t -> 'a t
-
   val pop : K.t -> 'a t -> 'a list * 'a t
 end = struct
   module M = Map.Make (K)
@@ -84,33 +78,20 @@ let solicited_node_prefix =
 
 module Defaults = struct
   let _max_rtr_solicitation_delay = Duration.of_sec 1
-
   let _ptr_solicitation_interval = 4
-
   let _max_rtr_solicitations = 3
-
   let max_multicast_solicit = 3
-
   let max_unicast_solicit = 3
-
   let _max_anycast_delay_time = 1
-
   let _max_neighbor_advertisement = 3
-
   let delay_first_probe_time = Duration.of_sec 5
-
   let link_mtu = 1500 (* RFC 2464, 2. *)
 
   let _min_link_mtu = 1280
-
   let dup_addr_detect_transmits = 1
-
   let min_random_factor = 0.5
-
   let max_random_factor = 1.5
-
   let reachable_time = Duration.of_sec 30
-
   let retrans_timer = Duration.of_sec 1
 end
 
@@ -427,9 +408,7 @@ module PrefixList = struct
   type t = (Ipaddr.Prefix.t * time option) list
 
   let link_local = [ (Ipaddr.Prefix.link, None) ]
-
   let to_list pl = List.map fst pl
-
   let is_local pl ip = List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
 
   let tick pl ~now =
@@ -711,7 +690,6 @@ module RouterList = struct
   type t = (Ipaddr.t * time) list
 
   let empty = []
-
   let to_list rl = List.map fst rl
 
   let add rl ~now ?(lifetime = Duration.of_year 1) ip =
@@ -1209,7 +1187,6 @@ let add_ip ~now ctx ip =
   process_actions ~now ctx actions
 
 let get_ip ctx = AddressList.to_list ctx.address_list
-
 let select_source ctx dst = AddressList.select_source ctx.address_list ~dst
 
 let handle_ra ~now ~random ctx ~src ~dst ra =

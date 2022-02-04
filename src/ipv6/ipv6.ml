@@ -17,7 +17,6 @@
 let src = Logs.Src.create "ipv6" ~doc:"Mirage IPv6"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module I = Ipaddr
 open Lwt.Infix
 
@@ -29,13 +28,11 @@ module Make
     (C : Mirage_clock.MCLOCK) =
 struct
   type ipaddr = Ipaddr.V6.t
-
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.V6.pp
 
   type t = { ethif : E.t; mutable ctx : Ndpv6.context }
-
   type error = [ Tcpip.Ip.error | `Ethif of E.error ]
 
   let pp_error ppf = function
@@ -43,7 +40,6 @@ struct
     | `Ethif e -> E.pp_error ppf e
 
   let output t (dst, size, fill) = E.write t.ethif dst `IPv6 ~size fill
-
   let output_ign t a = output t a >|= fun _ -> ()
 
   let start_ticking t u =
@@ -115,7 +111,6 @@ struct
     Lwt.return_unit
 
   let src t ~dst = Ndpv6.select_source t.ctx dst
-
   let get_ip t = Ndpv6.get_ip t.ctx
 
   let pseudoheader t ?src:source dst proto len =

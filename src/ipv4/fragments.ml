@@ -115,7 +115,6 @@ let attempt_reassemble fragments =
       Ok buf)
 
 let max_number_of_fragments = 16
-
 let max_duration = Duration.of_sec 10
 
 let process cache ts (packet : Ipv4_packet.t) payload =

@@ -1,7 +1,6 @@
 open Lwt
 
 type error = [ Tcpip.Tcp.error | `Exn of exn ]
-
 type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
 
 let pp_error ppf = function

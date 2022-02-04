@@ -34,11 +34,8 @@ module V4 = struct
   }
 
   let udpv4 { udpv4; _ } = udpv4
-
   let tcpv4 { tcpv4; _ } = tcpv4
-
   let ipv4 _ = ()
-
   let listen_udpv4 t ~port callback = UDPV4.listen t.udpv4 ~port callback
 
   let listen_tcpv4 ?keepalive t ~port callback =
@@ -71,11 +68,8 @@ module V6 = struct
   }
 
   let udp { udp; _ } = udp
-
   let tcp { tcp; _ } = tcp
-
   let ip _ = ()
-
   let listen_udp t ~port callback = UDP.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port callback =
@@ -108,11 +102,8 @@ module V4V6 = struct
   }
 
   let udp { udp; _ } = udp
-
   let tcp { tcp; _ } = tcp
-
   let ip _ = ()
-
   let listen_udp t ~port callback = UDP.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port callback =

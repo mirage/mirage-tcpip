@@ -13,7 +13,6 @@ let or_fail_str ~str f args =
   f args >>= function `Ok p -> Lwt.return p | `Error _ -> Alcotest.fail str
 
 let localhost = Ipaddr.V4.of_string_exn "127.0.0.1"
-
 let localhost_cidr = Ipaddr.V4.Prefix.make 32 localhost
 
 let make_stack ~cidr =

@@ -18,7 +18,6 @@ open Common
 open Vnetif_common
 
 let ( >>= ) = Lwt.( >>= )
-
 let src = Logs.Src.create "test_connect" ~doc:"connect tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -27,17 +26,11 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
-
   let client_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
-
   let server_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.100/24"
-
   let test_string = "Hello world from Mirage 123456789...."
-
   let backend = V.create_backend ()
-
   let err_read_eof () = failf "accept got EOF while reading"
-
   let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =

@@ -42,18 +42,12 @@ val succ : t -> t
 
 (* a - 1 *)
 val pred : t -> t
-
 val compare : t -> t -> int
-
 val of_int32 : int32 -> t
-
 val of_int : int -> t
-
 val to_int32 : t -> int32
-
 val to_int : t -> int
 
 (* the value produced by of_int 0 *)
 val zero : t
-
 val pp : Format.formatter -> t -> unit

@@ -35,18 +35,13 @@ module Tcp_unmarshal = Tcp.Tcp_packet.Unmarshal
 module Sequence = Tcp.Sequence
 
 let sut_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
-
 let server_ip = Ipaddr.V4.of_string_exn "10.0.0.100"
-
 let server_cidr = Ipaddr.V4.Prefix.make 24 server_ip
-
 let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
-
 let header_size = Ethernet.Packet.sizeof_ethernet
 
 (* defaults when injecting packets *)
 let options = []
-
 let window = 5120
 
 let create_sut_stack backend =
@@ -152,9 +147,7 @@ let ack_for data =
       ack_n
 
 let ack data = Some (ack_for data)
-
 let ack_in_future data off = Some Sequence.(add (ack_for data) (of_int off))
-
 let ack_from_past data off = Some Sequence.(sub (ack_for data) (of_int off))
 
 let fail_result_not_expected fail = function

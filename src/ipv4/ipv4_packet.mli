@@ -9,7 +9,6 @@ type t = {
 }
 
 val pp : Format.formatter -> t -> unit
-
 val equal : t -> t -> bool
 
 type protocol = [ `ICMP | `TCP | `UDP ]
@@ -18,7 +17,6 @@ module Unmarshal : sig
   type error = string
 
   val int_to_protocol : int -> protocol option
-
   val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 
   val header_of_cstruct : Cstruct.t -> (t * int, error) result

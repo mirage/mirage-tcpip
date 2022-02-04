@@ -60,9 +60,7 @@ type na = {
 [@@big_endian]]
 
 let get_na_router buf = Cstruct.get_uint8 buf 4 land 0x80 <> 0
-
 let get_na_solicited buf = Cstruct.get_uint8 buf 4 land 0x40 <> 0
-
 let get_na_override buf = Cstruct.get_uint8 buf 4 land 0x20 <> 0
 
 [%%cstruct
@@ -83,7 +81,6 @@ type opt_prefix = {
 [@@big_endian]]
 
 let get_opt_prefix_on_link buf = get_opt_prefix_reserved1 buf land 0x80 <> 0
-
 let get_opt_prefix_autonomous buf = get_opt_prefix_reserved1 buf land 0x40 <> 0
 
 [%%cstruct type opt = { ty : uint8_t; len : uint8_t } [@@big_endian]]

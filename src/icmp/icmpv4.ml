@@ -4,11 +4,9 @@ module type S = sig
   val disconnect : t -> unit Lwt.t
 
   type ipaddr = Ipaddr.V4.t
-
   type error
 
   val pp_error : error Fmt.t
-
   val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   val write :
@@ -28,9 +26,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
   type ipaddr = Ipaddr.V4.t
-
   type t = { ip : IP.t; echo_reply : bool }
-
   type error = [ `Ip of IP.error ]
 
   let pp_error ppf (`Ip e) = IP.pp_error ppf e

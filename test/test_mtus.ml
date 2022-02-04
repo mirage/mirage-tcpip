@@ -1,9 +1,7 @@
 open Lwt.Infix
 
 let server_cidr = Ipaddr.V4.Prefix.of_string_exn "192.168.1.254/24"
-
 let client_cidr = Ipaddr.V4.Prefix.of_string_exn "192.168.1.10/24"
-
 let server_port = 7
 
 module Backend = Vnetif_backends.Frame_size_enforced

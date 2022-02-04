@@ -149,19 +149,12 @@ let rx_advance_inseq t b = t.rx_nxt_inseq <- Sequence.add t.rx_nxt_inseq b
 
 (* Next expected receive sequence number *)
 let rx_nxt t = t.rx_nxt
-
 let rx_nxt_inseq t = t.rx_nxt_inseq
-
 let rx_wnd t = t.rx_wnd
-
 let rx_wnd_unscaled t = Int32.shift_right t.rx_wnd t.rx_wnd_scale
-
 let ack_serviced t = t.ack_serviced
-
 let ack_seq t = t.ack_seq
-
 let ack_win t = t.ack_win
-
 let set_ack_serviced t v = t.ack_serviced <- v
 
 let set_ack_seq_win t s w =
@@ -232,15 +225,10 @@ module Make (Clock : Mirage_clock.MCLOCK) = struct
 end
 
 let tx_nxt t = t.tx_nxt
-
 let tx_wnd t = t.tx_wnd
-
 let tx_wnd_unscaled t = Int32.shift_right t.tx_wnd t.tx_wnd_scale
-
 let max_tx_wnd t = t.max_tx_wnd
-
 let tx_una t = t.snd_una
-
 let fast_rec t = t.fast_recovery
 
 let tx_available t =
@@ -280,7 +268,5 @@ let backoff_rto t =
   t.rtt_timer_reset <- true
 
 let max_rexmits_done t = t.backoff_count > 5
-
 let tx_totalbytes t = Sequence.(to_int (sub t.tx_nxt t.tx_isn))
-
 let rx_totalbytes t = Sequence.(to_int (sub t.rx_nxt t.rx_isn)) - 1

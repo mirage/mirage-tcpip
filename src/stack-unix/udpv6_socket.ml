@@ -18,7 +18,6 @@
 let src = Logs.Src.create "udpv6-socket" ~doc:"UDP socket v6 (platform native)"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V6.t

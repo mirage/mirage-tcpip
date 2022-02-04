@@ -15,7 +15,6 @@
  *)
 
 type action = [ `SendProbe | `Wait of Duration.t | `Close ]
-
 type state = { probes_sent : int }
 
 let alive = { probes_sent = 0 }

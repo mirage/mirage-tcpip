@@ -70,7 +70,6 @@ struct
   }
 
   type flow = pcb
-
   type connection = flow * unit Lwt.t
 
   type t = {
@@ -272,11 +271,8 @@ struct
                 f "error in removing %a - no such connection" WIRE.pp id))
 
   let pcb_allocs = ref 0
-
   let th_allocs = ref 0
-
   let pcb_frees = ref 0
-
   let th_frees = ref 0
 
   let resolve_wnd_scaling options rx_wnd_scaleoffer =
@@ -661,9 +657,7 @@ struct
 
   (* Blocking write on a PCB *)
   let cast x = (x :> (unit, write_error) result Lwt.t)
-
   let write pcb data = writefn pcb (UTX.write pcb.utx) data |> cast
-
   let writev pcb data = iter_s (write pcb) data |> cast
 
   let write_nodelay pcb data =
@@ -673,7 +667,6 @@ struct
 
   (* Close - no more will be written *)
   let close pcb = Tx.close pcb
-
   let dst pcb = (WIRE.dst pcb.id, WIRE.dst_port pcb.id)
 
   let getid t dst dst_port =

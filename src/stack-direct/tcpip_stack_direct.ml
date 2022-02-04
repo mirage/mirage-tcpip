@@ -51,11 +51,8 @@ struct
       (Fmt.list Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
-
   let udpv4 { udpv4; _ } = udpv4
-
   let ipv4 { ipv4; _ } = ipv4
-
   let listen_udpv4 t ~port callback = Udpv4.listen t.udpv4 ~port callback
 
   let listen_tcpv4 ?keepalive t ~port process =
@@ -144,11 +141,8 @@ struct
       (Fmt.list Ipaddr.V6.pp) (Ipv6.get_ip t.ipv6)
 
   let tcp { tcpv6; _ } = tcpv6
-
   let udp { udpv6; _ } = udpv6
-
   let ip { ipv6; _ } = ipv6
-
   let listen_udp t ~port callback = Udpv6.listen t.udpv6 ~port callback
 
   let listen_tcp ?keepalive t ~port process =
@@ -213,7 +207,6 @@ module IPV4V6
     (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) =
 struct
   type ipaddr = Ipaddr.t
-
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.pp
@@ -369,11 +362,8 @@ struct
       (Fmt.list Ipaddr.pp) (IP.get_ip t.ip)
 
   let tcp { tcp; _ } = tcp
-
   let udp { udp; _ } = udp
-
   let ip { ip; _ } = ip
-
   let listen_udp t ~port callback = Udp.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port process =

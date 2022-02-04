@@ -1,5 +1,4 @@
 type error = [ `Timeout | `Refused ]
-
 type write_error = [ error | Mirage_flow.write_error ]
 
 let pp_error ppf = function
@@ -16,13 +15,9 @@ end
 
 module type S = sig
   type nonrec error = private [> error ]
-
   type nonrec write_error = private [> write_error ]
-
   type ipaddr
-
   type flow
-
   type t
 
   val disconnect : t -> unit Lwt.t
@@ -34,7 +29,6 @@ module type S = sig
        and type write_error := write_error
 
   val dst : flow -> ipaddr * int
-
   val write_nodelay : flow -> Cstruct.t -> (unit, write_error) result Lwt.t
 
   val writev_nodelay :
@@ -47,6 +41,5 @@ module type S = sig
     t -> port:int -> ?keepalive:Keepalive.t -> (flow -> unit Lwt.t) -> unit
 
   val unlisten : t -> port:int -> unit
-
   val input : t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 end

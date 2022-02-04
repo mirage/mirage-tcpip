@@ -32,6 +32,7 @@ module TCPIP = struct
     module ICMPV4 = Icmpv4.Make (IPV4)
     module UDPV4 = Udp.Make (IPV4) (RANDOM)
     module TCPV4 = Tcp.Flow.Make (IPV4) (TIME) (MCLOCK) (RANDOM)
+
     module TCPIP =
       Tcpip_stack_direct.Make (TIME) (RANDOM) (NETIF) (ETHIF) (ARPV4) (IPV4)
         (ICMPV4)
@@ -44,11 +45,8 @@ module TCPIP = struct
   type stack = TCPIP.t
 
   let server_ip = Ipaddr.V4.of_string_exn "192.168.10.10"
-
   let server_cidr = Ipaddr.V4.Prefix.make 24 server_ip
-
   let client_ip = Ipaddr.V4.of_string_exn "192.168.10.20"
-
   let client_cidr = Ipaddr.V4.Prefix.make 24 client_ip
 
   let make ~cidr ?gateway netif =

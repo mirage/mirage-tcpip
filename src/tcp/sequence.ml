@@ -45,17 +45,10 @@ let succ a = Int32.succ a
 
 (* a - 1 *)
 let pred a = Int32.pred a
-
 let compare a b = Int32.compare a b
-
 let of_int32 t = t
-
 let of_int t = Int32.of_int t
-
 let to_int32 t = t
-
 let to_int t = Int32.to_int t
-
 let zero = Int32.zero
-
 let pp fmt t = Format.fprintf fmt "%lu" t
