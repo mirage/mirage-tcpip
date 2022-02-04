@@ -25,6 +25,12 @@ end
 module Marshal : sig
   type error = string
 
+  val into_cstruct :
+    pseudoheader:Cstruct.t ->
+    payload:Cstruct.t ->
+    t ->
+    Cstruct.t ->
+    (int, error) result
   (** [into_cstruct ~pseudoheader ~payload t buf] attempts to write a valid TCP
       header representing [t] into [buf] at offset 0.  [pseudoheader] and
       [payload] are required to calculate a correct checksum but are not
@@ -33,12 +39,9 @@ module Marshal : sig
       Returns either the number of bytes written into the buffer on success; if
       the buffer supplied is too small to write the entire header, an error is
       returned. *)
-  val into_cstruct :
-    pseudoheader:Cstruct.t ->
-    payload:Cstruct.t      ->
-    t -> Cstruct.t ->
-    (int, error) result
 
+  val make_cstruct :
+    pseudoheader:Cstruct.t -> payload:Cstruct.t -> t -> Cstruct.t
   (** [make_cstruct ~pseudoheader ~payload t] allocates, fills, and and returns a buffer
       representing the TCP header corresponding to [t].  If [t.options] is
       non-empty, [t.options] will be concatenated onto the result as part of the
@@ -46,5 +49,4 @@ module Marshal : sig
       A variable amount of memory (at least 20 bytes, and at most 60) will be allocated, but
       [] is not represented in the output.  The checksum will be properly
       set to reflect the pseudoheader, header, options, and payload. *)
-  val make_cstruct : pseudoheader:Cstruct.t -> payload:Cstruct.t -> t -> Cstruct.t
 end

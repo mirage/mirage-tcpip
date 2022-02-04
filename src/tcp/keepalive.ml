@@ -14,78 +14,65 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type action = [
-  | `SendProbe
-  | `Wait of Duration.t
-  | `Close
-]
+type action = [ `SendProbe | `Wait of Duration.t | `Close ]
+type state = { probes_sent : int }
 
-type state = {
-  probes_sent: int
-}
-
-let alive = {
-  probes_sent = 0;
-}
+let alive = { probes_sent = 0 }
 
 let next ~configuration ~ns state =
   let open Tcpip.Tcp.Keepalive in
   let after_ns = configuration.after in
   (* Wait until [time] has gone past *)
-  if after_ns > ns
-  then `Wait (Int64.sub after_ns ns), alive
-  else begin
+  if after_ns > ns then (`Wait (Int64.sub after_ns ns), alive)
+  else
     let sending_probes_for_ns = Int64.sub ns after_ns in
     let interval_ns = configuration.interval in
-    let should_have_sent = Int64.(to_int (div sending_probes_for_ns interval_ns)) in
-    if should_have_sent > configuration.probes
-    then `Close, state
+    let should_have_sent =
+      Int64.(to_int (div sending_probes_for_ns interval_ns))
+    in
+    if should_have_sent > configuration.probes then (`Close, state)
+    else if should_have_sent > state.probes_sent then
+      (`SendProbe, { probes_sent = should_have_sent })
+      (* we don't want to send back-to-back probes *)
     else
-      if should_have_sent > state.probes_sent
-      then `SendProbe, { probes_sent = should_have_sent } (* we don't want to send back-to-back probes *)
-      else begin
-        let since_last_probe_ns = Int64.rem sending_probes_for_ns interval_ns in
-        `Wait (Int64.sub interval_ns since_last_probe_ns), state
-      end
-  end
+      let since_last_probe_ns = Int64.rem sending_probes_for_ns interval_ns in
+      (`Wait (Int64.sub interval_ns since_last_probe_ns), state)
 
-  module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
-    type t = {
-      configuration: Tcpip.Tcp.Keepalive.t;
-      callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
-      mutable state: state;
-      mutable timer: unit Lwt.t;
-      mutable start: int64;
-    }
-    (** A keep-alive timer *)
+module Make (T : Mirage_time.S) (Clock : Mirage_clock.MCLOCK) = struct
+  type t = {
+    configuration : Tcpip.Tcp.Keepalive.t;
+    callback : [ `SendProbe | `Close ] -> unit Lwt.t;
+    mutable state : state;
+    mutable timer : unit Lwt.t;
+    mutable start : int64;
+  }
+  (** A keep-alive timer *)
 
-    let rec restart t =
-      let open Lwt.Infix in
-      let ns = Int64.sub (Clock.elapsed_ns ()) t.start in
-      match next ~configuration:t.configuration ~ns t.state with
-      | `Wait ns, state ->
+  let rec restart t =
+    let open Lwt.Infix in
+    let ns = Int64.sub (Clock.elapsed_ns ()) t.start in
+    match next ~configuration:t.configuration ~ns t.state with
+    | `Wait ns, state ->
         T.sleep_ns ns >>= fun () ->
         t.state <- state;
         restart t
-      | `SendProbe, state ->
+    | `SendProbe, state ->
         t.callback `SendProbe >>= fun () ->
         t.state <- state;
         restart t
-      | `Close, _ ->
-        t.callback `Close >>= fun () ->
-        Lwt.return_unit
+    | `Close, _ -> t.callback `Close >>= fun () -> Lwt.return_unit
 
-    let create configuration callback =
-      let state = alive in
-      let timer = Lwt.return_unit in
-      let start = Clock.elapsed_ns () in
-      let t = { configuration; callback; state; timer; start } in
-      t.timer <- restart t;
-      t
+  let create configuration callback =
+    let state = alive in
+    let timer = Lwt.return_unit in
+    let start = Clock.elapsed_ns () in
+    let t = { configuration; callback; state; timer; start } in
+    t.timer <- restart t;
+    t
 
-    let refresh t =
-      t.start <- Clock.elapsed_ns ();
-      t.state <- alive;
-      Lwt.cancel t.timer;
-      t.timer <- restart t
-  end
+  let refresh t =
+    t.start <- Clock.elapsed_ns ();
+    t.state <- alive;
+    Lwt.cancel t.timer;
+    t.timer <- restart t
+end

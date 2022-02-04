@@ -14,11 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (E: Ethernet.S) (A: Arp.S) : sig
+module Make
+    (R : Mirage_random.S)
+    (C : Mirage_clock.MCLOCK)
+    (E : Ethernet.S)
+    (A : Arp.S) : sig
   include Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t
 
-  val connect : ?no_init:bool -> cidr:Ipaddr.V4.Prefix.t -> ?gateway:Ipaddr.V4.t ->
-    ?fragment_cache_size:int -> E.t -> A.t -> t Lwt.t
+  val connect :
+    ?no_init:bool ->
+    cidr:Ipaddr.V4.Prefix.t ->
+    ?gateway:Ipaddr.V4.t ->
+    ?fragment_cache_size:int ->
+    E.t ->
+    A.t ->
+    t Lwt.t
   (** [connect ~no_init ~cidr ~gateway ~fragment_cache_size eth arp] connects the ipv4
       device using [cidr] and [gateway] for network communication. The size of
       the IPv4 fragment cache (for reassembly) can be provided in byte-size of

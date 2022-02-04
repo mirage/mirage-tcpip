@@ -24,26 +24,25 @@ module type M = sig
   val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
 
   (* called when new data is received *)
-  val receive: t -> Sequence.t -> unit Lwt.t
+  val receive : t -> Sequence.t -> unit Lwt.t
 
   (* called when new data is received *)
-  val pushack: t -> Sequence.t -> unit Lwt.t
+  val pushack : t -> Sequence.t -> unit Lwt.t
 
   (* called when an ack is transmitted from elsewhere *)
-  val transmit: t -> Sequence.t -> unit Lwt.t
+  val transmit : t -> Sequence.t -> unit Lwt.t
 end
 
 (* Transmit ACKs immediately, the dumbest (and simplest) way *)
 module Immediate : M = struct
-
   type t = {
-    mutable send_ack: Sequence.t Lwt_mvar.t;
-    mutable pushpending: bool;
+    mutable send_ack : Sequence.t Lwt_mvar.t;
+    mutable pushpending : bool;
   }
 
   let t ~send_ack ~last:_ =
     let pushpending = false in
-    {send_ack; pushpending}
+    { send_ack; pushpending }
 
   let pushack t ack_number =
     t.pushpending <- true;
@@ -51,7 +50,7 @@ module Immediate : M = struct
 
   let receive t ack_number =
     match t.pushpending with
-    | true  -> Lwt.return_unit
+    | true -> Lwt.return_unit
     | false -> pushack t ack_number
 
   let transmit t _ =
@@ -59,78 +58,65 @@ module Immediate : M = struct
     Lwt.return_unit
 end
 
-
 (* Delayed ACKs *)
-module Delayed (Time:Mirage_time.S) : M = struct
-
-  module TT = Tcptimer.Make(Time)
+module Delayed (Time : Mirage_time.S) : M = struct
+  module TT = Tcptimer.Make (Time)
 
   type delayed_r = {
-    send_ack: Sequence.t Lwt_mvar.t;
-    mutable delayedack: Sequence.t;
-    mutable delayed: bool;
-    mutable pushpending: bool;
+    send_ack : Sequence.t Lwt_mvar.t;
+    mutable delayedack : Sequence.t;
+    mutable delayed : bool;
+    mutable pushpending : bool;
   }
 
-  type t = {
-    r: delayed_r;
-    timer: Tcptimer.t;
-  }
+  type t = { r : delayed_r; timer : Tcptimer.t }
 
-  let transmitacknow r ack_number =
-    Lwt_mvar.put r.send_ack ack_number
+  let transmitacknow r ack_number = Lwt_mvar.put r.send_ack ack_number
 
   let transmitack r ack_number =
     match r.pushpending with
-    | true  -> Lwt.return_unit
+    | true -> Lwt.return_unit
     | false ->
-      r.pushpending <- true;
-      transmitacknow r ack_number
+        r.pushpending <- true;
+        transmitacknow r ack_number
 
-  let ontimer r s  =
+  let ontimer r s =
     match r.delayed with
     | false -> Lwt.return Tcptimer.Stoptimer
-    | true  ->
-      match r.delayedack = s with
-      | false ->
-        Lwt.return (Tcptimer.Continue r.delayedack)
-      | true ->
-        r.delayed <- false;
-        transmitack r s >>= fun () ->
-        Lwt.return Tcptimer.Stoptimer
+    | true -> (
+        match r.delayedack = s with
+        | false -> Lwt.return (Tcptimer.Continue r.delayedack)
+        | true ->
+            r.delayed <- false;
+            transmitack r s >>= fun () -> Lwt.return Tcptimer.Stoptimer)
 
   let t ~send_ack ~last : t =
     let pushpending = false in
     let delayed = false in
     let delayedack = last in
-    let r = {send_ack; delayedack; delayed; pushpending} in
+    let r = { send_ack; delayedack; delayed; pushpending } in
     let expire = ontimer r in
     let period_ns = Duration.of_ms 100 in
     let timer = TT.t ~period_ns ~expire in
-    {r; timer}
-
+    { r; timer }
 
   (* Advance the received ACK count *)
   let receive t ack_number =
     match t.r.delayed with
     | true ->
-      t.r.delayed <- false;
-      transmitack t.r ack_number
+        t.r.delayed <- false;
+        transmitack t.r ack_number
     | false ->
-      t.r.delayed <- true;
-      t.r.delayedack <- ack_number;
-      TT.start t.timer ack_number
-
+        t.r.delayed <- true;
+        t.r.delayedack <- ack_number;
+        TT.start t.timer ack_number
 
   (* Force out an ACK *)
-  let pushack t ack_number =
-    transmitacknow t.r ack_number
-
+  let pushack t ack_number = transmitacknow t.r ack_number
 
   (* Indicate that an ACK has been transmitted *)
   let transmit t _ =
     t.r.delayed <- false;
     t.r.pushpending <- false;
     Lwt.return_unit
-
 end

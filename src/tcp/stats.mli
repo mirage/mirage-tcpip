@@ -19,45 +19,40 @@
 type counter
 (** The type for counters. *)
 
-val value: counter -> int
+val value : counter -> int
 (** The counter value. [value t] is [{!incr} t] - [{!decrs} t].*)
 
 type t = {
   tcp_listens : counter;
-  tcp_channels: counter;
-  tcp_connects: counter;
-  tcp_timers  : counter;
+  tcp_channels : counter;
+  tcp_connects : counter;
+  tcp_timers : counter;
   mutable total_established : int;
   mutable total_passive_connections : int;
   mutable total_active_connections : int;
-  mutable total_timers  : int;
+  mutable total_timers : int;
 }
 
-val pp: Format.formatter -> t -> unit
+val pp : Format.formatter -> t -> unit
+val incr_listen : unit -> unit
+val decr_listen : unit -> unit
+val incr_channel : unit -> unit
+val decr_channel : unit -> unit
+val incr_connect : unit -> unit
+val decr_connect : unit -> unit
+val incr_timer : unit -> unit
+val decr_timer : unit -> unit
+val singleton : t
 
-val incr_listen: unit -> unit
-val decr_listen: unit -> unit
-
-val incr_channel: unit -> unit
-val decr_channel: unit -> unit
-
-val incr_connect: unit -> unit
-val decr_connect: unit -> unit
-
-val incr_timer: unit -> unit
-val decr_timer: unit -> unit
-
-val singleton: t
-
-module Gc: sig
+module Gc : sig
   (** Show GC stats *)
 
-  val enable: unit -> unit
+  val enable : unit -> unit
   (** Show live works (in k) on every debug line. *)
 
-  val disable: unit -> unit
+  val disable : unit -> unit
 
-  val full_major: bool -> unit
+  val full_major : bool -> unit
   (** [full_major true] runs a [Gc.full_major] before printing any
       debug statement. Quite expensive but can sometimes be useful. By
       default, it is set to [false].
@@ -65,5 +60,4 @@ module Gc: sig
       {b Note:} This is very slow, use it if you really need it!
 
   *)
-
 end

@@ -1,12 +1,12 @@
 [%%cstruct
-  type icmpv4 = {
-    ty:   uint8_t;
-    code: uint8_t;
-    csum: uint16_t;
-    id:   uint16_t;
-    seq:  uint16_t;
-  } [@@big_endian]
-]
+type icmpv4 = {
+  ty : uint8_t;
+  code : uint8_t;
+  csum : uint16_t;
+  id : uint16_t;
+  seq : uint16_t;
+}
+[@@big_endian]]
 
 [%%cenum
 type ty =
@@ -21,8 +21,7 @@ type ty =
   | Timestamp_reply
   | Information_request
   | Information_reply
-  [@@uint8_t]
-]
+[@@uint8_t]]
 
 [%%cenum
 type unreachable_reason =
@@ -42,5 +41,4 @@ type unreachable_reason =
   | Communication_prohibited
   | Host_precedence_violation
   | Precedence_insufficient [@id 15]
-  [@@uint8_t]
-]
+[@@uint8_t]]

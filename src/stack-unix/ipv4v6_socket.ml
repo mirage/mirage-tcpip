@@ -22,17 +22,18 @@ type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.pp
 
-let mtu _ ~dst = match dst with
+let mtu _ ~dst =
+  match dst with
   | Ipaddr.V4 _ -> 1500 - Ipv4_wire.sizeof_ipv4
   | Ipaddr.V6 _ -> 1500 - Ipv6_wire.sizeof_ipv6
 
 let disconnect _ = Lwt.return_unit
 let connect _ = Lwt.return_unit
-
 let input _ ~tcp:_ ~udp:_ ~default:_ _ = Lwt.return_unit
+
 let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
   Lwt.fail (Failure "Not implemented")
 
-let get_ip _ = [Ipaddr.V6 Ipaddr.V6.unspecified]
+let get_ip _ = [ Ipaddr.V6 Ipaddr.V6.unspecified ]
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

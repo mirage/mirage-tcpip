@@ -16,5 +16,6 @@
 
 module Make (IP : Tcpip.Ip.S) (R : Mirage_random.S) : sig
   include Tcpip.Udp.S with type ipaddr = IP.ipaddr
+
   val connect : IP.t -> t Lwt.t
 end

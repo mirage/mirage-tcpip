@@ -24,19 +24,18 @@
     the Rtx queue to ack messages or close channels.
 *)
 
-module Rx (T:Mirage_time.S) : sig
-
-  type segment = { header: Tcp_packet.t; payload: Cstruct.t }
+module Rx (T : Mirage_time.S) : sig
+  type segment = { header : Tcp_packet.t; payload : Cstruct.t }
   (** Individual received TCP segment *)
 
-  val pp_segment: Format.formatter -> segment -> unit
+  val pp_segment : Format.formatter -> segment -> unit
 
   type t
   (** Queue of receive segments *)
 
-  val pp: Format.formatter -> t -> unit
+  val pp : Format.formatter -> t -> unit
 
-  val create:
+  val create :
     rx_data:(Cstruct.t list option * Sequence.t option) Lwt_mvar.t ->
     wnd:Window.t ->
     state:State.t ->
@@ -49,28 +48,38 @@ module Rx (T:Mirage_time.S) : sig
   (** Given the current receive queue and an incoming packet,
       update the window, extract any ready segments into the
       user receive queue, and signal any acks to the Tx queue *)
-
 end
 
-type tx_flags = No_flags | Syn | Fin | Rst | Psh
-(** Either Syn/Fin/Rst allowed, but not combinations *)
+type tx_flags =
+  | No_flags
+  | Syn
+  | Fin
+  | Rst
+  | Psh  (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
-
-  type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
-    seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t
+module Tx (Time : Mirage_time.S) (Clock : Mirage_clock.MCLOCK) : sig
+  type ('a, 'b) xmit =
+    flags:tx_flags ->
+    wnd:Window.t ->
+    options:Options.t list ->
+    seq:Sequence.t ->
+    Cstruct.t ->
+    ('a, 'b) result Lwt.t
 
   type t
   (** Queue of pre-transmission segments *)
 
-  val create:
-    xmit:('a, 'b) xmit -> wnd:Window.t -> state:State.t ->
+  val create :
+    xmit:('a, 'b) xmit ->
+    wnd:Window.t ->
+    state:State.t ->
     rx_ack:Sequence.t Lwt_mvar.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->
-    tx_wnd_update:int Lwt_mvar.t -> t * unit Lwt.t
+    tx_wnd_update:int Lwt_mvar.t ->
+    t * unit Lwt.t
 
-  val output:
+  val output :
     ?flags:tx_flags -> ?options:Options.t list -> t -> Cstruct.t -> unit Lwt.t
   (** Queue a segment for transmission. May block if:
 
@@ -80,5 +89,4 @@ module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
 
       The transmitter should check that the segment size will not
       be greater than the transmit window.  *)
-
 end

@@ -14,16 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type M =
-sig
+module type M = sig
   type t
-  val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
 
+  val t : send_ack:Sequence.t Lwt_mvar.t -> last:Sequence.t -> t
   val receive : t -> Sequence.t -> unit Lwt.t
   val pushack : t -> Sequence.t -> unit Lwt.t
   val transmit : t -> Sequence.t -> unit Lwt.t
 end
 
 module Immediate : M
-
-module Delayed(T:Mirage_time.S) : M
+module Delayed (T : Mirage_time.S) : M

@@ -16,16 +16,20 @@
  *)
 
 let src = Logs.Src.create "udpv6-socket" ~doc:"UDP socket v6 (platform native)"
-module Log = (val Logs.src_log src : Logs.LOG)
 
+module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Infix
 
 type ipaddr = Ipaddr.V6.t
-type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
+
+type callback =
+  src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
 
 type t = {
-  interface: Unix.inet_addr; (* source ip to bind to *)
-  listen_fds: ((Unix.inet_addr * int),Lwt_unix.file_descr) Hashtbl.t; (* UDPv6 fds bound to a particular source ip/port *)
+  interface : Unix.inet_addr;
+  (* source ip to bind to *)
+  listen_fds : (Unix.inet_addr * int, Lwt_unix.file_descr) Hashtbl.t;
+  (* UDPv6 fds bound to a particular source ip/port *)
   mutable switched_off : unit Lwt.t;
 }
 
@@ -36,9 +40,9 @@ let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
   | exn -> raise exn
 
-let get_udpv6_listening_fd ?(preserve = true) {listen_fds;interface;_} port =
-  try
-    Lwt.return (false, Hashtbl.find listen_fds (interface,port))
+let get_udpv6_listening_fd ?(preserve = true) { listen_fds; interface; _ } port
+    =
+  try Lwt.return (false, Hashtbl.find listen_fds (interface, port))
   with Not_found ->
     let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
     Lwt_unix.(setsockopt fd IPV6_ONLY true);
@@ -46,7 +50,7 @@ let get_udpv6_listening_fd ?(preserve = true) {listen_fds;interface;_} port =
     if preserve then Hashtbl.add listen_fds (interface, port) fd;
     (true, fd)
 
-type error = [`Sendto_failed]
+type error = [ `Sendto_failed ]
 
 let pp_error ppf = function
   | `Sendto_failed -> Fmt.pf ppf "sendto failed to write any bytes"
@@ -55,8 +59,7 @@ let close fd =
   Lwt.catch
     (fun () -> Lwt_unix.close fd)
     (function
-      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
-      | e -> Lwt.fail e)
+      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
 let connect id =
   let t =
@@ -71,27 +74,33 @@ let connect id =
   Lwt.return t
 
 let disconnect t =
-  Hashtbl.fold (fun _ fd r -> r >>= fun () -> close fd) t.listen_fds Lwt.return_unit >>= fun () ->
-  Lwt.cancel t.switched_off ; Lwt.return_unit
+  Hashtbl.fold
+    (fun _ fd r -> r >>= fun () -> close fd)
+    t.listen_fds Lwt.return_unit
+  >>= fun () ->
+  Lwt.cancel t.switched_off;
+  Lwt.return_unit
 
 let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
 
 let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   let open Lwt_unix in
   let rec write_to_fd fd buf =
-    Lwt.catch (fun () ->
-      Lwt_cstruct.sendto fd buf [] (ADDR_INET ((Ipaddr_unix.V6.to_inet_addr dst), dst_port))
-      >>= function
-      | n when n = Cstruct.length buf -> Lwt.return (Ok ())
-      | 0 -> Lwt.return (Error `Sendto_failed)
-      | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.length buf - n))) (* keep trying *)
-    (fun _exn -> Lwt.return (Error `Sendto_failed))
+    Lwt.catch
+      (fun () ->
+        Lwt_cstruct.sendto fd buf []
+          (ADDR_INET (Ipaddr_unix.V6.to_inet_addr dst, dst_port))
+        >>= function
+        | n when n = Cstruct.length buf -> Lwt.return (Ok ())
+        | 0 -> Lwt.return (Error `Sendto_failed)
+        | n -> write_to_fd fd (Cstruct.sub buf n (Cstruct.length buf - n)))
+      (* keep trying *)
+        (fun _exn -> Lwt.return (Error `Sendto_failed))
   in
   let port = match src_port with None -> 0 | Some x -> x in
   get_udpv6_listening_fd ~preserve:false t port >>= fun (created, fd) ->
   write_to_fd fd buf >>= fun r ->
-  (if created then close fd else Lwt.return_unit) >|= fun () ->
-  r
+  (if created then close fd else Lwt.return_unit) >|= fun () -> r
 
 let unlisten t ~port =
   try
@@ -109,24 +118,28 @@ let listen t ~port callback =
       get_udpv6_listening_fd t port >>= fun (_, fd) ->
       let buf = Cstruct.create 4096 in
       let rec loop () =
-        if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
-        Lwt.catch (fun () ->
+        if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled;
+        Lwt.catch
+          (fun () ->
             Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
             let buf = Cstruct.sub buf 0 len in
             (match sa with
-             | Lwt_unix.ADDR_INET (addr, src_port) ->
-               let src = Ipaddr_unix.V6.of_inet_addr_exn addr in
-               let dst = Ipaddr.V6.unspecified in (* TODO *)
-               callback ~src ~dst ~src_port buf
-             | _ -> Lwt.return_unit) >|= fun () ->
-            `Continue)
+            | Lwt_unix.ADDR_INET (addr, src_port) ->
+                let src = Ipaddr_unix.V6.of_inet_addr_exn addr in
+                let dst = Ipaddr.V6.unspecified in
+                (* TODO *)
+                callback ~src ~dst ~src_port buf
+            | _ -> Lwt.return_unit)
+            >|= fun () -> `Continue)
           (function
             | Unix.Unix_error (Unix.EBADF, _, _) ->
-              Log.warn (fun m -> m "error bad file descriptor in accept") ;
-              Lwt.return `Stop
+                Log.warn (fun m -> m "error bad file descriptor in accept");
+                Lwt.return `Stop
             | exn ->
-              Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
-              Lwt.return `Continue) >>= function
+                Log.warn (fun m ->
+                    m "exception %s in recvfrom" (Printexc.to_string exn));
+                Lwt.return `Continue)
+        >>= function
         | `Continue -> loop ()
         | `Stop -> Lwt.return_unit
       in

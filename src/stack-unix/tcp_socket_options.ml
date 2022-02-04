@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-external tcp_set_keepalive_params: Unix.file_descr -> int -> int -> int -> unit = "caml_tcp_set_keepalive_params"
+external tcp_set_keepalive_params : Unix.file_descr -> int -> int -> int -> unit
+  = "caml_tcp_set_keepalive_params"
 
 let enable_keepalive ~fd ~after ~interval ~probes =
   let fd' = Lwt_unix.unix_file_descr fd in

@@ -15,40 +15,46 @@
  *)
 
 module Make (Ip : Tcpip.Ip.S) : sig
-
   type error = Tcpip.Ip.error
   (** The type for TCP wire errors. *)
 
-  val pp_error: error Fmt.t
+  val pp_error : error Fmt.t
   (** [pp_error] is the pretty-printer for TCP wire {!error}s. *)
 
   type t
   (** The type for TCP wire values. *)
 
-  val pp: t Fmt.t
+  val pp : t Fmt.t
   (** [pp] is the pretty-printer for TCP wire values. *)
 
   val dst_port : t -> int
   (** Remote TCP port *)
 
-  val dst: t -> Ip.ipaddr
+  val dst : t -> Ip.ipaddr
   (** Remote IP address *)
 
   val src_port : t -> int
   (** Local TCP port *)
 
-  val src: t -> Ip.ipaddr
+  val src : t -> Ip.ipaddr
   (** Local IP address *)
 
-  val v: src:Ip.ipaddr -> src_port:int -> dst:Ip.ipaddr -> dst_port:int -> t
+  val v : src:Ip.ipaddr -> src_port:int -> dst:Ip.ipaddr -> dst_port:int -> t
   (** [v ~src ~src_port ~dst ~dst_port] is the wire value [v] with the
       corresponding local and remote IP/TCP parameters. *)
 
-  val xmit: ip:Ip.t -> t ->
-    ?rst:bool -> ?syn:bool -> ?fin:bool -> ?psh:bool ->
-    rx_ack:Sequence.t option -> seq:Sequence.t -> window:int ->
+  val xmit :
+    ip:Ip.t ->
+    t ->
+    ?rst:bool ->
+    ?syn:bool ->
+    ?fin:bool ->
+    ?psh:bool ->
+    rx_ack:Sequence.t option ->
+    seq:Sequence.t ->
+    window:int ->
     options:Options.t list ->
-    Cstruct.t -> (unit, error) result Lwt.t
+    Cstruct.t ->
+    (unit, error) result Lwt.t
   (** [xmit] emits a TCP packet over the network. *)
-
 end

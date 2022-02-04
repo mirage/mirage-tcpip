@@ -16,72 +16,86 @@
 open Lwt.Infix
 
 let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
 
 module Make (Ip : Tcpip.Ip.S) = struct
-
   type error = Tcpip.Ip.error
 
   let pp_error = Tcpip.Ip.pp_error
 
   type t = {
-    dst_port: int;             (* Remote TCP port *)
-    dst: Ip.ipaddr;            (* Remote IP address *)
-    src_port: int;             (* Local TCP port *)
-    src: Ip.ipaddr;            (* Local IP address *)
+    dst_port : int;
+    (* Remote TCP port *)
+    dst : Ip.ipaddr;
+    (* Remote IP address *)
+    src_port : int;
+    (* Local TCP port *)
+    src : Ip.ipaddr; (* Local IP address *)
   }
 
-  let v ~src ~src_port ~dst ~dst_port = { dst_port ; dst ; src_port ; src }
-
+  let v ~src ~src_port ~dst ~dst_port = { dst_port; dst; src_port; src }
   let src t = t.src
   let dst t = t.dst
   let src_port t = t.src_port
   let dst_port t = t.dst_port
 
   let pp ppf t =
-    Fmt.pf ppf "remote %a,%d to local %a, %d"
-      Ip.pp_ipaddr t.dst t.dst_port Ip.pp_ipaddr t.src t.src_port
+    Fmt.pf ppf "remote %a,%d to local %a, %d" Ip.pp_ipaddr t.dst t.dst_port
+      Ip.pp_ipaddr t.src t.src_port
 
-  let xmit ~ip { src_port; dst_port; src; dst } ?(rst=false) ?(syn=false)
-      ?(fin=false) ?(psh=false)
-      ~rx_ack ~seq ~window ~options payload
-    =
-    let (ack, ack_number) = match rx_ack with
-      | None -> (false, Sequence.zero)
-      | Some n -> (true, n)
+  let xmit ~ip { src_port; dst_port; src; dst } ?(rst = false) ?(syn = false)
+      ?(fin = false) ?(psh = false) ~rx_ack ~seq ~window ~options payload =
+    let ack, ack_number =
+      match rx_ack with None -> (false, Sequence.zero) | Some n -> (true, n)
     in
-    let header = {
-        sequence = seq; Tcp_packet.ack_number; window;
-        urg = false; ack; psh; rst; syn; fin;
+    let header =
+      {
+        sequence = seq;
+        Tcp_packet.ack_number;
+        window;
+        urg = false;
+        ack;
+        psh;
+        rst;
+        syn;
+        fin;
         options;
-        src_port; dst_port;
+        src_port;
+        dst_port;
       }
     in
     (* Make a TCP/IP header frame *)
-    let tcp_size = Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.length payload in
+    let tcp_size =
+      Tcp_wire.sizeof_tcp + Options.lenv options + Cstruct.length payload
+    in
     let fill_buffer buf =
       let pseudoheader = Ip.pseudoheader ip ~src dst `TCP tcp_size in
-      match Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload with
+      match
+        Tcp_packet.Marshal.into_cstruct header buf ~pseudoheader ~payload
+      with
       | Error s ->
-        Log.err (fun l -> l "Error writing TCP packet header: %s" s) ;
-        0
-        (* TODO: better to avoid this entirely, now we're sending empty IP
-             frame and drop the payload.. oops *)
+          Log.err (fun l -> l "Error writing TCP packet header: %s" s);
+          0
+          (* TODO: better to avoid this entirely, now we're sending empty IP
+               frame and drop the payload.. oops *)
       | Ok l ->
-        Cstruct.blit payload 0 buf l (Cstruct.length payload) ;
-        MProf.Counter.increase count_tcp_to_ip
-          (Cstruct.length payload + if syn then 1 else 0) ;
-        tcp_size
+          Cstruct.blit payload 0 buf l (Cstruct.length payload);
+          MProf.Counter.increase count_tcp_to_ip
+            (Cstruct.length payload + if syn then 1 else 0);
+          tcp_size
     in
-    Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer [] >|= function
+    Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer []
+    >|= function
     | Ok () -> Ok ()
     (* swallow errors so normal recovery mechanisms can be used *)
     (* For errors which aren't transient, or are too long-lived for TCP to recover
      * from, this will eventually result in a higher-level notification
      * that communication over the TCP flow has failed *)
     | Error e ->
-      Log.warn (fun l -> l "Error sending TCP packet via IP: %a" Ip.pp_error e);
-      Ok ()
+        Log.warn (fun l ->
+            l "Error sending TCP packet via IP: %a" Ip.pp_error e);
+        Ok ()
 end

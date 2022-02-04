@@ -17,6 +17,7 @@
 open Lwt.Infix
 
 let src = Logs.Src.create "tcptimer" ~doc:"Mirage TCP Tcptimer module"
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type time = int64
@@ -27,15 +28,15 @@ type tr =
   | ContinueSetPeriod of (time * Sequence.t)
 
 type t = {
-  expire: (Sequence.t -> tr Lwt.t);
-  mutable period_ns: time;
-  mutable running: bool;
+  expire : Sequence.t -> tr Lwt.t;
+  mutable period_ns : time;
+  mutable running : bool;
 }
 
-module Make(Time:Mirage_time.S) = struct
+module Make (Time : Mirage_time.S) = struct
   let t ~period_ns ~expire =
     let running = false in
-    {period_ns; expire; running}
+    { period_ns; expire; running }
 
   let timerloop t s =
     Log.debug (fun f -> f "timerloop");
@@ -45,28 +46,28 @@ module Make(Time:Mirage_time.S) = struct
       Time.sleep_ns t.period_ns >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
-        Stats.decr_timer ();
-        t.running <- false;
-        Log.debug (fun f -> f "timerloop: stoptimer");
-        Lwt.return_unit
+          Stats.decr_timer ();
+          t.running <- false;
+          Log.debug (fun f -> f "timerloop: stoptimer");
+          Lwt.return_unit
       | Continue d ->
-        Log.debug (fun f -> f "timerloop: continuer");
-        aux t d
+          Log.debug (fun f -> f "timerloop: continuer");
+          aux t d
       | ContinueSetPeriod (p, d) ->
-        Log.debug (fun f -> f "timerloop: continuesetperiod (new period: %Lu ns)" p);
-        t.period_ns <- p;
-        aux t d
+          Log.debug (fun f ->
+              f "timerloop: continuesetperiod (new period: %Lu ns)" p);
+          t.period_ns <- p;
+          aux t d
     in
     aux t s
 
   let period_ns t = t.period_ns
 
-  let start t ?(p=(period_ns t)) s =
-    if not t.running then begin
+  let start t ?(p = period_ns t) s =
+    if not t.running then (
       t.period_ns <- p;
       t.running <- true;
       Lwt.async (fun () -> timerloop t s);
-      Lwt.return_unit
-    end else
-      Lwt.return_unit
+      Lwt.return_unit)
+    else Lwt.return_unit
 end

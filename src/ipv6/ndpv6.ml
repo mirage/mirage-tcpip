@@ -37,36 +37,38 @@ References:
 *)
 
 let src = Logs.Src.create "ndpc6" ~doc:"Mirage IPv6 discovery"
-module Log = (val Logs.src_log src : Logs.LOG)
 
+module Log = (val Logs.src_log src : Logs.LOG)
 module Ipaddr = Ipaddr.V6
 
 type buffer = Cstruct.t
 type ipaddr = Ipaddr.t
 type prefix = Ipaddr.Prefix.t
-type time   = int64
+type time = int64
 
 module BoundedMap (K : Map.OrderedType) : sig
   type 'a t
-  val empty: int -> 'a t
-  val push: K.t -> 'a -> 'a t -> 'a t
-  val pop: K.t -> 'a t -> 'a list * 'a t
+
+  val empty : int -> 'a t
+  val push : K.t -> 'a -> 'a t -> 'a t
+  val pop : K.t -> 'a t -> 'a list * 'a t
 end = struct
   module M = Map.Make (K)
+
   type 'a t = 'a list M.t * int
+
   let empty n = (M.empty, n)
+
   let push k d (m, n) =
     let l = try M.find k m with Not_found -> [] in
-    match l, List.length l >= n with
-    | _, false ->
-      M.add k (l @ [d]) m, n
-    | _ :: l, true ->
-      M.add k (d :: l) m, n
-    | [], true ->
-      m, n
+    match (l, List.length l >= n) with
+    | _, false -> (M.add k (l @ [ d ]) m, n)
+    | _ :: l, true -> (M.add k (d :: l) m, n)
+    | [], true -> (m, n)
+
   let pop k (m, n) =
     let l = try M.find k m with Not_found -> [] in
-    l, (M.remove k m, n)
+    (l, (M.remove k m, n))
 end
 
 module PacketQueue = BoundedMap (Ipaddr)
@@ -76,23 +78,20 @@ let solicited_node_prefix =
 
 module Defaults = struct
   let _max_rtr_solicitation_delay = Duration.of_sec 1
-  let _ptr_solicitation_interval  = 4
-  let _max_rtr_solicitations      = 3
-  let max_multicast_solicit      = 3
-  let max_unicast_solicit        = 3
-  let _max_anycast_delay_time     = 1
+  let _ptr_solicitation_interval = 4
+  let _max_rtr_solicitations = 3
+  let max_multicast_solicit = 3
+  let max_unicast_solicit = 3
+  let _max_anycast_delay_time = 1
   let _max_neighbor_advertisement = 3
-  let delay_first_probe_time     = Duration.of_sec 5
-
-  let link_mtu                   = 1500 (* RFC 2464, 2. *)
-  let _min_link_mtu               = 1280
-
-  let dup_addr_detect_transmits  = 1
-
-  let min_random_factor          = 0.5
-  let max_random_factor          = 1.5
-  let reachable_time             = Duration.of_sec 30
-  let retrans_timer              = Duration.of_sec 1
+  let delay_first_probe_time = Duration.of_sec 5
+  let link_mtu = 1500 (* RFC 2464, 2. *)
+  let _min_link_mtu = 1280
+  let dup_addr_detect_transmits = 1
+  let min_random_factor = 0.5
+  let max_random_factor = 1.5
+  let reachable_time = Duration.of_sec 30
+  let retrans_timer = Duration.of_sec 1
 end
 
 let ipaddr_of_cstruct cs =
@@ -115,12 +114,11 @@ let macaddr_to_cstruct_raw x cs off =
 let interface_addr mac =
   let bmac = Macaddr.to_octets mac in
   let c i = Char.code (String.get bmac i) in
-  Ipaddr.make
-    0 0 0 0
-    ((c 0 lxor 2) lsl 8 + c 1)
-    (c 2 lsl 8 + 0xff)
+  Ipaddr.make 0 0 0 0
+    (((c 0 lxor 2) lsl 8) + c 1)
+    ((c 2 lsl 8) + 0xff)
     (0xfe00 + c 3)
-    (c 4 lsl 8 + c 5)
+    ((c 4 lsl 8) + c 5)
 
 let link_local_addr mac =
   Ipaddr.(Prefix.network_address Prefix.link (interface_addr mac))
@@ -136,8 +134,10 @@ let multicast_mac =
 (* vary the reachable time by some random factor between 0.5 and 1.5 *)
 let compute_reachable_time r reachable_time =
   let factor =
-    Defaults.min_random_factor +.
-    Randomconv.float ~bound:Defaults.(max_random_factor -. min_random_factor) r
+    Defaults.min_random_factor
+    +. Randomconv.float
+         ~bound:Defaults.(max_random_factor -. min_random_factor)
+         r
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 
@@ -157,7 +157,8 @@ module Allocate = struct
   let hdr ~hlim ~src ~dst ~proto ~size fillf =
     let size' = size + Ipv6_wire.sizeof_ipv6 in
     let fill ipbuf =
-      Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
+      Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l;
+      (* IPv6 *)
       Ipv6_wire.set_ipv6_len ipbuf size;
       ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
       ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
@@ -170,18 +171,20 @@ module Allocate = struct
     (size', fill)
 
   let ns ~specified ~mac ~src ~dst ~tgt =
-    let size = Ipv6_wire.sizeof_ns + if specified then Ipv6_wire.sizeof_llopt else 0 in
+    let size =
+      Ipv6_wire.sizeof_ns + if specified then Ipv6_wire.sizeof_llopt else 0
+    in
     let fillf hdr icmpbuf =
       let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-      Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
+      Ipv6_wire.set_ns_ty icmpbuf 135;
+      (* NS *)
       Ipv6_wire.set_ns_code icmpbuf 0;
       Ipv6_wire.set_ns_reserved icmpbuf 0l;
       ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_ns_target icmpbuf) 0;
-      if specified then begin
-        Ipv6_wire.set_llopt_ty optbuf  1;
-        Ipv6_wire.set_llopt_len optbuf  1;
-        macaddr_to_cstruct_raw mac optbuf 2;
-      end;
+      if specified then (
+        Ipv6_wire.set_llopt_ty optbuf 1;
+        Ipv6_wire.set_llopt_len optbuf 1;
+        macaddr_to_cstruct_raw mac optbuf 2);
       Ipv6_wire.set_icmpv6_csum icmpbuf 0;
       Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
@@ -192,9 +195,11 @@ module Allocate = struct
     let size = Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt in
     let fillf hdr icmpbuf =
       let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-      Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
+      Ipv6_wire.set_na_ty icmpbuf 136;
+      (* NA *)
       Ipv6_wire.set_na_code icmpbuf 0;
-      Ipv6_wire.set_na_reserved icmpbuf (if sol then 0x60000000l else 0x20000000l);
+      Ipv6_wire.set_na_reserved icmpbuf
+        (if sol then 0x60000000l else 0x20000000l);
       ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_na_target icmpbuf) 0;
       Ipv6_wire.set_llopt_ty optbuf 2;
       Ipv6_wire.set_llopt_len optbuf 1;
@@ -209,17 +214,16 @@ module Allocate = struct
     let dst = Ipaddr.link_routers in
     let src = select_source ~dst in
     let cmp = Ipaddr.compare in
-    let include_slla = (cmp src Ipaddr.unspecified) != 0 in
+    let include_slla = cmp src Ipaddr.unspecified != 0 in
     let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
     let size = Ipv6_wire.sizeof_rs + slla_len in
     let fillf hdr icmpbuf =
       Ipv6_wire.set_rs_ty icmpbuf 133;
       Ipv6_wire.set_rs_code icmpbuf 0;
       Ipv6_wire.set_rs_reserved icmpbuf 0l;
-      if include_slla then begin
-        let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
-        macaddr_to_cstruct_raw mac optbuf 2
-      end;
+      (if include_slla then
+       let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
+       macaddr_to_cstruct_raw mac optbuf 2);
       Ipv6_wire.set_icmpv6_csum icmpbuf 0;
       Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
@@ -230,7 +234,8 @@ module Allocate = struct
     (* TODO data may exceed size, fragment? *)
     let size = Ipv6_wire.sizeof_pingv6 + Cstruct.length data in
     let fillf hdr icmpbuf =
-      Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
+      Ipv6_wire.set_pingv6_ty icmpbuf 129;
+      (* ECHO REPLY *)
       Ipv6_wire.set_pingv6_code icmpbuf 0;
       Ipv6_wire.set_pingv6_id icmpbuf id;
       Ipv6_wire.set_pingv6_seq icmpbuf seq;
@@ -242,51 +247,49 @@ module Allocate = struct
     hdr ~src ~dst ~hlim ~proto:`ICMP ~size fillf
 end
 
-type ns =
-  { ns_target : Ipaddr.t;
-    ns_slla : Macaddr.t option }
+type ns = { ns_target : Ipaddr.t; ns_slla : Macaddr.t option }
 
-type pfx =
-  { pfx_on_link : bool;
-    pfx_autonomous : bool;
-    pfx_valid_lifetime : time option;
-    pfx_preferred_lifetime : time option;
-    pfx_prefix : Ipaddr.Prefix.t }
+type pfx = {
+  pfx_on_link : bool;
+  pfx_autonomous : bool;
+  pfx_valid_lifetime : time option;
+  pfx_preferred_lifetime : time option;
+  pfx_prefix : Ipaddr.Prefix.t;
+}
 
-type ra =
-  { ra_cur_hop_limit : int;
-    ra_router_lifetime : time;
-    ra_reachable_time : time option;
-    ra_retrans_timer : time option;
-    ra_slla : Macaddr.t option;
-    ra_prefix : pfx list }
+type ra = {
+  ra_cur_hop_limit : int;
+  ra_router_lifetime : time;
+  ra_reachable_time : time option;
+  ra_retrans_timer : time option;
+  ra_slla : Macaddr.t option;
+  ra_prefix : pfx list;
+}
 
-type na =
-  { na_router : bool;
-    na_solicited : bool;
-    na_override : bool;
-    na_target : Ipaddr.t;
-    na_tlla : Macaddr.t option }
+type na = {
+  na_router : bool;
+  na_solicited : bool;
+  na_override : bool;
+  na_target : Ipaddr.t;
+  na_tlla : Macaddr.t option;
+}
 
 type action =
-  | SendNS of [`Unspecified | `Specified ] * ipaddr * ipaddr
-  | SendNA of ipaddr * ipaddr * ipaddr * [`Solicited | `Unsolicited]
+  | SendNS of [ `Unspecified | `Specified ] * ipaddr * ipaddr
+  | SendNA of ipaddr * ipaddr * ipaddr * [ `Solicited | `Unsolicited ]
   | SendRS
   | SendQueued of ipaddr * Macaddr.t
   | CancelQueued of ipaddr
 
 module AddressList = struct
-
   type state =
     | TENTATIVE of (time * time option) option * int * time
     | PREFERRED of (time * time option) option
     | DEPRECATED of time option
 
-  type t =
-    (Ipaddr.t * state) list
+  type t = (Ipaddr.t * state) list
 
-  let empty =
-    []
+  let empty = []
 
   let to_list al =
     let rec loop = function
@@ -299,70 +302,77 @@ module AddressList = struct
   let select_source al ~dst:_ =
     let rec loop = function
       | (_, TENTATIVE _) :: rest -> loop rest
-      | (ip, _) :: _             -> ip (* FIXME *)
-      | []                       -> Ipaddr.unspecified
+      | (ip, _) :: _ -> ip (* FIXME *)
+      | [] -> Ipaddr.unspecified
     in
     loop al
 
   let tick_one ~now ~retrans_timer = function
-    | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
-      if n + 1 >= Defaults.dup_addr_detect_transmits then
-        let timeout = match timeout with
+    | ip, TENTATIVE (timeout, n, t) when t <= now ->
+        if n + 1 >= Defaults.dup_addr_detect_transmits then (
+          let timeout =
+            match timeout with
+            | None -> None
+            | Some (preferred_lifetime, valid_lifetime) ->
+                Some (Int64.add now preferred_lifetime, valid_lifetime)
+          in
+          Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp ip);
+          (Some (ip, PREFERRED timeout), []))
+        else
+          let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+          ( Some (ip, TENTATIVE (timeout, n + 1, Int64.add now retrans_timer)),
+            [ SendNS (`Unspecified, dst, ip) ] )
+    | ip, PREFERRED (Some (preferred_timeout, valid_lifetime))
+      when preferred_timeout <= now ->
+        Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp ip);
+        let valid_timeout =
+          match valid_lifetime with
           | None -> None
-          | Some (preferred_lifetime, valid_lifetime) ->
-            Some (Int64.add now preferred_lifetime, valid_lifetime)
+          | Some valid_lifetime -> Some (Int64.add now valid_lifetime)
         in
-        Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp ip);
-        Some (ip, PREFERRED timeout), []
-      else
-        let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-        Some (ip, TENTATIVE (timeout, n+1, Int64.add now retrans_timer)),
-        [SendNS (`Unspecified, dst, ip)]
-    | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
-      Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp ip);
-      let valid_timeout = match valid_lifetime with
-        | None -> None
-        | Some valid_lifetime -> Some (Int64.add now valid_lifetime)
-      in
-      Some (ip, DEPRECATED valid_timeout), []
+        (Some (ip, DEPRECATED valid_timeout), [])
     | ip, DEPRECATED (Some t) when t <= now ->
-      Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp ip);
-      None, []
-    | addr ->
-      Some addr, []
+        Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp ip);
+        (None, [])
+    | addr -> (Some addr, [])
 
   let tick al ~now ~retrans_timer =
-    List.fold_right (fun ip (ips, acts) ->
+    List.fold_right
+      (fun ip (ips, acts) ->
         let addr, acts' = tick_one ~now ~retrans_timer ip in
         let acts = acts' @ acts in
         let ips = match addr with Some ip -> ip :: ips | None -> ips in
-        ips, acts
-      ) al ([], [])
+        (ips, acts))
+      al ([], [])
 
   let _expired al ~now =
-    List.exists (function
+    List.exists
+      (function
         | _, TENTATIVE (_, _, t)
         | _, PREFERRED (Some (t, _))
-        | _, DEPRECATED (Some t) -> t <= now
-        | _ -> false
-      ) al
+        | _, DEPRECATED (Some t) ->
+            t <= now
+        | _ -> false)
+      al
 
   let add al ~now ~retrans_timer ~lft ip =
     match List.mem_assoc ip al with
     | false ->
-      let al = (ip, TENTATIVE (lft, 0, Int64.add now retrans_timer)) :: al in
-      let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      al, [SendNS (`Unspecified, dst, ip)]
+        let al = (ip, TENTATIVE (lft, 0, Int64.add now retrans_timer)) :: al in
+        let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+        (al, [ SendNS (`Unspecified, dst, ip) ])
     | true ->
-      Log.warn (fun f -> f "ndpv6: attempted to add ip %a already in address list"
-                   Ipaddr.pp ip);
-      al, []
+        Log.warn (fun f ->
+            f "ndpv6: attempted to add ip %a already in address list" Ipaddr.pp
+              ip);
+        (al, [])
 
   let is_my_addr al ip =
-    List.exists (function
+    List.exists
+      (function
         | _, TENTATIVE _ -> false
-        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0
-      ) al
+        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0)
+      al
 
   let find_prefix al pfx =
     let rec loop = function
@@ -376,56 +386,44 @@ module AddressList = struct
     (* FIXME is this the same as add ? *)
     match find_prefix al pfx with
     | Some _addr ->
-      (* TODO handle already configured SLAAC address 5.5.3 e). *)
-      al, []
+        (* TODO handle already configured SLAAC address 5.5.3 e). *)
+        (al, [])
     | None ->
-      let ip = Ipaddr.Prefix.network_address pfx (interface_addr mac) in
-      add al ~now ~retrans_timer ~lft ip
+        let ip = Ipaddr.Prefix.network_address pfx (interface_addr mac) in
+        add al ~now ~retrans_timer ~lft ip
 
   let handle_na al ip =
     (* FIXME How to notify the client? *)
     try
       match List.assoc ip al with
       | TENTATIVE _ ->
-        Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp ip);
-        List.remove_assoc ip al
-      | _ ->
-        al
-    with
-    | Not_found -> al
+          Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp ip);
+          List.remove_assoc ip al
+      | _ -> al
+    with Not_found -> al
 end
 
 module PrefixList = struct
+  type t = (Ipaddr.Prefix.t * time option) list
 
-  type t =
-    (Ipaddr.Prefix.t * time option) list
-
-  let link_local =
-    [Ipaddr.Prefix.link, None]
-
-  let to_list pl =
-    List.map fst pl
-
-  let is_local pl ip =
-    List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
+  let link_local = [ (Ipaddr.Prefix.link, None) ]
+  let to_list pl = List.map fst pl
+  let is_local pl ip = List.exists (fun (pfx, _) -> Ipaddr.Prefix.mem ip pfx) pl
 
   let tick pl ~now =
-    List.filter (function (_, Some t) -> t > now | (_, None) -> true) pl
+    List.filter (function _, Some t -> t > now | _, None -> true) pl
 
   let add pl ~now pfx ~vlft =
-    let vlft = match vlft with
-      | None -> None
-      | Some dt -> Some (Int64.add now dt)
+    let vlft =
+      match vlft with None -> None | Some dt -> Some (Int64.add now dt)
     in
     match List.mem_assoc pfx pl with
-    | false ->
-      (pfx, vlft) :: pl
+    | false -> (pfx, vlft) :: pl
     | true ->
-      let pl = List.remove_assoc pfx pl in
-      (pfx, vlft) :: pl
+        let pl = List.remove_assoc pfx pl in
+        (pfx, vlft) :: pl
 
   let handle_ra pl ~now ~vlft pfx =
-
     (* RFC 2461, 6.3.4.
 
        For each Prefix Information option with the on-link flag set, a host
@@ -448,35 +446,37 @@ module PrefixList = struct
        - If the Prefix Information option's Valid Lifetime field is zero, and
          the prefix is not present in the host's Prefix List, silently ignore
          the option. *)
-
     Log.debug (fun f -> f "ND6: Processing PREFIX option in RA");
-    if Ipaddr.Prefix.link <> pfx then
-      match vlft, List.mem_assoc pfx pl with
+    if Ipaddr.Prefix.link <> pfx then (
+      match (vlft, List.mem_assoc pfx pl) with
       | Some 0L, true ->
-        Log.debug (fun f -> f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp pfx);
-        List.remove_assoc pfx pl, []
-      | Some 0L, false ->
-        pl, []
+          Log.debug (fun f ->
+              f "ND6: Removing PREFIX: pfx=%a" Ipaddr.Prefix.pp pfx);
+          (List.remove_assoc pfx pl, [])
+      | Some 0L, false -> (pl, [])
       | Some dt, true ->
-        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx dt);
-        let pl = List.remove_assoc pfx pl in
-        (pfx, Some (Int64.add now dt)) :: pl, []
+          Log.debug (fun f ->
+              f "ND6: Refreshing PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx dt);
+          let pl = List.remove_assoc pfx pl in
+          ((pfx, Some (Int64.add now dt)) :: pl, [])
       | Some dt, false ->
-        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx dt);
-        (pfx, Some (Int64.add now dt)) :: pl, []
+          Log.debug (fun f ->
+              f "ND6: Received new PREFIX: pfx=%a lft=%Lu" Ipaddr.Prefix.pp pfx
+                dt);
+          ((pfx, Some (Int64.add now dt)) :: pl, [])
       | None, true ->
-        Log.debug (fun f -> f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
-        let pl = List.remove_assoc pfx pl in
-        (pfx, None) :: pl, []
+          Log.debug (fun f ->
+              f "ND6: Refreshing PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
+          let pl = List.remove_assoc pfx pl in
+          ((pfx, None) :: pl, [])
       | None, false ->
-        Log.debug (fun f -> f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
-        (pfx, None) :: pl, []
-    else
-      pl, []
+          Log.debug (fun f ->
+              f "ND6: Received new PREFIX: pfx=%a lft=inf" Ipaddr.Prefix.pp pfx);
+          ((pfx, None) :: pl, []))
+    else (pl, [])
 end
 
 module NeighborCache = struct
-
   type state =
     | INCOMPLETE of time * int
     | REACHABLE of time * Macaddr.t
@@ -484,191 +484,212 @@ module NeighborCache = struct
     | DELAY of time * Macaddr.t
     | PROBE of time * int * Macaddr.t
 
-  type info =
-    { state : state;
-      is_router : bool }
+  type info = { state : state; is_router : bool }
 
   module IpMap = Map.Make (Ipaddr)
 
-  type t =
-    info IpMap.t
+  type t = info IpMap.t
 
-  let empty =
-    IpMap.empty
+  let empty = IpMap.empty
 
   let tick_one ~now ~retrans_timer ip nb nc =
     match nb.state with
     | INCOMPLETE (t, tn) when t <= now ->
-      if tn < Defaults.max_multicast_solicit then begin
-        Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp ip);
-        let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-        IpMap.add ip {nb with state = INCOMPLETE ((Int64.add now retrans_timer), tn+1)} nc,
-        [SendNS (`Specified, dst, ip)]
-      end else begin
-        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
-        (* TODO Generate ICMP error: Destination Unreachable *)
-        IpMap.remove ip nc, [CancelQueued ip]
-      end
+        if tn < Defaults.max_multicast_solicit then (
+          Log.info (fun f -> f "NUD: %a --> INCOMPLETE [Timeout]" Ipaddr.pp ip);
+          let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
+          ( IpMap.add ip
+              {
+                nb with
+                state = INCOMPLETE (Int64.add now retrans_timer, tn + 1);
+              }
+              nc,
+            [ SendNS (`Specified, dst, ip) ] ))
+        else (
+          Log.info (fun f ->
+              f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
+          (* TODO Generate ICMP error: Destination Unreachable *)
+          (IpMap.remove ip nc, [ CancelQueued ip ]))
     | REACHABLE (t, mac) when t <= now ->
-      Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp ip);
-      IpMap.add ip {nb with state = STALE mac} nc, []
+        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp ip);
+        (IpMap.add ip { nb with state = STALE mac } nc, [])
     | DELAY (t, dmac) when t <= now ->
-      Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp ip);
-      IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), 0, dmac)} nc,
-      [SendNS (`Specified, ip, ip)]
+        Log.info (fun f -> f "NUD: %a --> PROBE" Ipaddr.pp ip);
+        ( IpMap.add ip
+            { nb with state = PROBE (Int64.add now retrans_timer, 0, dmac) }
+            nc,
+          [ SendNS (`Specified, ip, ip) ] )
     | PROBE (t, tn, dmac) when t <= now ->
-      if tn < Defaults.max_unicast_solicit then begin
-        Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp ip);
-        IpMap.add ip {nb with state = PROBE ((Int64.add now retrans_timer), tn+1, dmac)} nc,
-        [SendNS (`Specified, ip, ip)]
-      end else begin
-        Log.info (fun f -> f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
-        IpMap.remove ip nc, []
-      end
-    | _ ->
-      nc, []
+        if tn < Defaults.max_unicast_solicit then (
+          Log.info (fun f -> f "NUD: %a --> PROBE [Timeout]" Ipaddr.pp ip);
+          ( IpMap.add ip
+              {
+                nb with
+                state = PROBE (Int64.add now retrans_timer, tn + 1, dmac);
+              }
+              nc,
+            [ SendNS (`Specified, ip, ip) ] ))
+        else (
+          Log.info (fun f ->
+              f "NUD: %a --> UNREACHABLE [Discarding]" Ipaddr.pp ip);
+          (IpMap.remove ip nc, []))
+    | _ -> (nc, [])
 
   let tick nc ~now ~retrans_timer =
     IpMap.fold
       (fun ip nb (nc, acts) ->
         let nc, acts' = tick_one ~now ~retrans_timer ip nb nc in
-        nc, acts' @ acts) nc (nc, [])
+        (nc, acts' @ acts))
+      nc (nc, [])
 
   let handle_ns nc ~src new_mac =
     let nb =
-      if IpMap.mem src nc then
-        IpMap.find src nc
-      else
-        {state = STALE new_mac; is_router = false}
+      if IpMap.mem src nc then IpMap.find src nc
+      else { state = STALE new_mac; is_router = false }
     in
     let nb, acts =
       match nb.state with
       | INCOMPLETE _ ->
-        let nb = {nb with state = STALE new_mac} in
-        nb, [SendQueued (src, new_mac)]
+          let nb = { nb with state = STALE new_mac } in
+          (nb, [ SendQueued (src, new_mac) ])
       | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
-        let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
-        nb, []
+          let nb =
+            if mac <> new_mac then { nb with state = STALE new_mac } else nb
+          in
+          (nb, [])
     in
-    IpMap.add src nb nc, acts
+    (IpMap.add src nb nc, acts)
 
   let handle_ra nc ~src new_mac =
     Log.info (fun f -> f "ND6: Processing SLLA option in RA");
     let nb =
       try
         let nb = IpMap.find src nc in
-        {nb with is_router = true}
-      with
-      | Not_found ->
-        {state = STALE new_mac; is_router = true}
+        { nb with is_router = true }
+      with Not_found -> { state = STALE new_mac; is_router = true }
     in
     match nb.state with
     | INCOMPLETE _ ->
-      let nb = {nb with state = STALE new_mac} in
-      IpMap.add src nb nc, [SendQueued (src, new_mac)]
+        let nb = { nb with state = STALE new_mac } in
+        (IpMap.add src nb nc, [ SendQueued (src, new_mac) ])
     | REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac) ->
-      let nb = if mac <> new_mac then {nb with state = STALE new_mac} else nb in
-      IpMap.add src nb nc, []
+        let nb =
+          if mac <> new_mac then { nb with state = STALE new_mac } else nb
+        in
+        (IpMap.add src nb nc, [])
 
   let handle_na nc ~now ~reachable_time ~rtr ~sol ~ovr ~tgt ~lladdr =
     let new_mac = lladdr in
 
     let update nb =
-      match nb.state, new_mac, sol, ovr with
+      match (nb.state, new_mac, sol, ovr) with
       | INCOMPLETE _, Some new_mac, false, _ ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
-        let nb = {nb with state = STALE new_mac} in
-        IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
+          Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
+          let nb = { nb with state = STALE new_mac } in
+          (IpMap.add tgt nb nc, [ SendQueued (tgt, new_mac) ])
       | INCOMPLETE _, Some new_mac, true, _ ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
-        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
-        IpMap.add tgt nb nc, [SendQueued (tgt, new_mac)]
+          Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
+          let nb =
+            {
+              nb with
+              state = REACHABLE (Int64.add now reachable_time, new_mac);
+            }
+          in
+          (IpMap.add tgt nb nc, [ SendQueued (tgt, new_mac) ])
       | INCOMPLETE _, None, _, _ ->
-        let nc =
-          if nb.is_router != rtr then
-            IpMap.add tgt {nb with is_router = rtr} nc
-          else
-            nc
-        in
-        nc, []
+          let nc =
+            if nb.is_router != rtr then
+              IpMap.add tgt { nb with is_router = rtr } nc
+            else nc
+          in
+          (nc, [])
       | PROBE (_, _, mac), Some new_mac, true, false when mac = new_mac ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
-        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
-        IpMap.add tgt nb nc, []
+          Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
+          let nb =
+            {
+              nb with
+              state = REACHABLE (Int64.add now reachable_time, new_mac);
+            }
+          in
+          (IpMap.add tgt nb nc, [])
       | PROBE (_, _, mac), None, true, false ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
-        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), mac)} in
-        IpMap.add tgt nb nc, []
+          Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
+          let nb =
+            { nb with state = REACHABLE (Int64.add now reachable_time, mac) }
+          in
+          (IpMap.add tgt nb nc, [])
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), None, _, _ ->
-        let nc =
-          if nb.is_router != rtr then
-            IpMap.add tgt {nb with is_router = rtr} nc
-          else
-            nc
-        in
-        nc, []
+          let nc =
+            if nb.is_router != rtr then
+              IpMap.add tgt { nb with is_router = rtr } nc
+            else nc
+          in
+          (nc, [])
       | REACHABLE (_, mac), Some new_mac, true, false when mac <> new_mac ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
-        let nb = {nb with state = STALE mac} in (* TODO check mac or new_mac *)
-        IpMap.add tgt nb nc, []
+          Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
+          let nb = { nb with state = STALE mac } in
+          (* TODO check mac or new_mac *)
+          (IpMap.add tgt nb nc, [])
       | (REACHABLE _ | STALE _ | DELAY _ | PROBE _), Some new_mac, true, true ->
-        Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
-        let nb = {nb with state = REACHABLE ((Int64.add now reachable_time), new_mac)} in
-        IpMap.add tgt nb nc, []
-      | (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
-        Some new_mac, false, true when mac <> new_mac ->
-        Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
-        let nb = {nb with state = STALE mac} in
-        IpMap.add tgt nb nc, []
-      | _ ->
-        nc, []
+          Log.info (fun f -> f "NUD: %a --> REACHABLE" Ipaddr.pp tgt);
+          let nb =
+            {
+              nb with
+              state = REACHABLE (Int64.add now reachable_time, new_mac);
+            }
+          in
+          (IpMap.add tgt nb nc, [])
+      | ( (REACHABLE (_, mac) | STALE mac | DELAY (_, mac) | PROBE (_, _, mac)),
+          Some new_mac,
+          false,
+          true )
+        when mac <> new_mac ->
+          Log.info (fun f -> f "NUD: %a --> STALE" Ipaddr.pp tgt);
+          let nb = { nb with state = STALE mac } in
+          (IpMap.add tgt nb nc, [])
+      | _ -> (nc, [])
     in
     try
       let nb = IpMap.find tgt nc in
       update nb
-    with
-    | Not_found ->
-      nc, []
+    with Not_found -> (nc, [])
 
   let query nc ~now ~retrans_timer ip =
     try
       let nb = IpMap.find ip nc in
       match nb.state with
-      | INCOMPLETE _ ->
-        nc, None, []
+      | INCOMPLETE _ -> (nc, None, [])
       | REACHABLE (_, dmac) | DELAY (_, dmac) | PROBE (_, _, dmac) ->
-        nc, Some dmac, []
+          (nc, Some dmac, [])
       | STALE dmac ->
-        let dt = Defaults.delay_first_probe_time in
-        let nc = IpMap.add ip {nb with state = DELAY (Int64.add now dt, dmac)} nc in
-        nc, Some dmac, []
-    with
-    | Not_found ->
-      let nb  = {state = INCOMPLETE (Int64.add now retrans_timer, 0); is_router = false} in
-      let nc  = IpMap.add ip nb nc in
+          let dt = Defaults.delay_first_probe_time in
+          let nc =
+            IpMap.add ip { nb with state = DELAY (Int64.add now dt, dmac) } nc
+          in
+          (nc, Some dmac, [])
+    with Not_found ->
+      let nb =
+        {
+          state = INCOMPLETE (Int64.add now retrans_timer, 0);
+          is_router = false;
+        }
+      in
+      let nc = IpMap.add ip nb nc in
       let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      nc, None, [SendNS (`Specified, dst, ip)]
+      (nc, None, [ SendNS (`Specified, dst, ip) ])
 
   let reachable nc ip =
     try
       let nb = IpMap.find ip nc in
-      match nb.state with
-      | INCOMPLETE _ -> false
-      | _ -> true
-    with
-    | Not_found -> false
+      match nb.state with INCOMPLETE _ -> false | _ -> true
+    with Not_found -> false
 end
 
 module RouterList = struct
+  type t = (Ipaddr.t * time) list
 
-  type t =
-    (Ipaddr.t * time) list
-
-  let empty =
-    []
-
-  let to_list rl =
-    List.map fst rl
+  let empty = []
+  let to_list rl = List.map fst rl
 
   let add rl ~now ?(lifetime = Duration.of_year 1) ip =
     (* FIXME *)
@@ -677,26 +698,24 @@ module RouterList = struct
     (ip, Int64.add now lifetime) :: rl
 
   (* FIXME if we are keeping a destination cache, we must remove the stale routers from there as well. *)
-  let tick rl ~now =
-    List.filter (fun (_, t) -> t > now) rl
+  let tick rl ~now = List.filter (fun (_, t) -> t > now) rl
 
   let handle_ra rl ~now ~src ~lft =
     match List.mem_assoc src rl with
     | true ->
-      let rl = List.remove_assoc src rl in
-      if lft > 0L then begin
-        Log.info (fun f -> f "RA: Refreshing Router: src=%a lft=%Lu" Ipaddr.pp src lft);
-        (src, Int64.add now lft) :: rl, []
-      end else begin
-        Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp src);
-        rl, []
-      end
+        let rl = List.remove_assoc src rl in
+        if lft > 0L then (
+          Log.info (fun f ->
+              f "RA: Refreshing Router: src=%a lft=%Lu" Ipaddr.pp src lft);
+          ((src, Int64.add now lft) :: rl, []))
+        else (
+          Log.info (fun f -> f "RA: Router Expired: src=%a" Ipaddr.pp src);
+          (rl, []))
     | false ->
-      if lft > 0L then begin
-	Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp src);
-        (add rl ~now ~lifetime:lft src), []
-      end else
-        rl, []
+        if lft > 0L then (
+          Log.info (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp src);
+          (add rl ~now ~lifetime:lft src, []))
+        else (rl, [])
 
   let add rl ~now:_ ip =
     match List.mem_assoc ip rl with
@@ -705,13 +724,11 @@ module RouterList = struct
 
   let select rl reachable ip =
     let rec loop = function
-      | [] ->
-        begin match rl with
-          | [] -> ip, rl
-          | (ip, _) as r :: rest ->
-            ip, rest @ [r]
-        end
-      | (ip, _) :: _ when reachable ip -> ip, rl
+      | [] -> (
+          match rl with
+          | [] -> (ip, rl)
+          | ((ip, _) as r) :: rest -> (ip, rest @ [ r ]))
+      | (ip, _) :: _ when reachable ip -> (ip, rl)
       | _ :: rest -> loop rest
     in
     loop rl
@@ -737,45 +754,50 @@ module Parser = struct
     | PREFIX of pfx
 
   let rec parse_options1 opts =
-    if Cstruct.length opts >= Ipv6_wire.sizeof_opt then
+    if Cstruct.length opts >= Ipv6_wire.sizeof_opt then (
       (* TODO check for invalid len == 0 *)
       let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
-      match Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt with
+      match (Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt) with
       | 1, 1 ->
-        SLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+          SLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt))
+          :: parse_options1 opts
       | 2, 1 ->
-        TLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+          TLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt))
+          :: parse_options1 opts
       | 5, 1 ->
-        MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4)) :: parse_options1 opts
+          MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4))
+          :: parse_options1 opts
       | 3, 4 ->
-        let pfx_prefix =
-          Ipaddr.Prefix.make
-            (Ipv6_wire.get_opt_prefix_prefix_len opt)
-            (ipaddr_of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt))
-        in
-        let pfx_on_link = Ipv6_wire.get_opt_prefix_on_link opt in
-        let pfx_autonomous = Ipv6_wire.get_opt_prefix_autonomous opt in
-        let pfx_valid_lifetime =
-          let n = Ipv6_wire.get_opt_prefix_valid_lifetime opt in
-          match n with
-          | 0xffffffffl -> None
-          | n -> Some (Int64.of_int32 n)
-        in
-        let pfx_preferred_lifetime =
-          let n = Ipv6_wire.get_opt_prefix_preferred_lifetime opt in
-          match n with
-          | 0xffffffffl -> None
-          | n -> Some (Int64.of_int32 n)
-        in
-        let pfx =
-          {pfx_on_link; pfx_autonomous; pfx_valid_lifetime; pfx_preferred_lifetime; pfx_prefix}
-        in
-        PREFIX pfx :: parse_options1 opts
+          let pfx_prefix =
+            Ipaddr.Prefix.make
+              (Ipv6_wire.get_opt_prefix_prefix_len opt)
+              (ipaddr_of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt))
+          in
+          let pfx_on_link = Ipv6_wire.get_opt_prefix_on_link opt in
+          let pfx_autonomous = Ipv6_wire.get_opt_prefix_autonomous opt in
+          let pfx_valid_lifetime =
+            let n = Ipv6_wire.get_opt_prefix_valid_lifetime opt in
+            match n with 0xffffffffl -> None | n -> Some (Int64.of_int32 n)
+          in
+          let pfx_preferred_lifetime =
+            let n = Ipv6_wire.get_opt_prefix_preferred_lifetime opt in
+            match n with 0xffffffffl -> None | n -> Some (Int64.of_int32 n)
+          in
+          let pfx =
+            {
+              pfx_on_link;
+              pfx_autonomous;
+              pfx_valid_lifetime;
+              pfx_preferred_lifetime;
+              pfx_prefix;
+            }
+          in
+          PREFIX pfx :: parse_options1 opts
       | ty, len ->
-        Log.info (fun f -> f "ND6: Unsupported ND option in RA: ty=%d len=%d" ty len);
-        parse_options1 opts
-    else
-      []
+          Log.info (fun f ->
+              f "ND6: Unsupported ND option in RA: ty=%d len=%d" ty len);
+          parse_options1 opts)
+    else []
 
   let parse_ra buf =
     let ra_cur_hop_limit = Ipv6_wire.get_ra_cur_hop_limit buf in
@@ -799,14 +821,22 @@ module Parser = struct
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
     let ra_slla, ra_prefix =
       let opts = parse_options1 opts in
-      List.fold_left (fun ra opt ->
-          match ra, opt with
-          | (_, pfxs), SLLA slla -> Some slla, pfxs
-          | (slla, pfxs), PREFIX pfx -> slla, (pfx :: pfxs)
-          | _ -> ra
-        ) (None, []) opts
+      List.fold_left
+        (fun ra opt ->
+          match (ra, opt) with
+          | (_, pfxs), SLLA slla -> (Some slla, pfxs)
+          | (slla, pfxs), PREFIX pfx -> (slla, pfx :: pfxs)
+          | _ -> ra)
+        (None, []) opts
     in
-    {ra_cur_hop_limit; ra_router_lifetime; ra_reachable_time; ra_retrans_timer; ra_slla; ra_prefix}
+    {
+      ra_cur_hop_limit;
+      ra_router_lifetime;
+      ra_reachable_time;
+      ra_retrans_timer;
+      ra_slla;
+      ra_prefix;
+    }
 
   let parse_ns buf =
     (* FIXME check code = 0 or drop *)
@@ -814,13 +844,11 @@ module Parser = struct
     let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
     let ns_slla =
       let opts = parse_options1 opts in
-      List.fold_left (fun ns opt ->
-          match opt with
-          | SLLA slla -> Some slla
-          | _ -> ns
-        ) None opts
+      List.fold_left
+        (fun ns opt -> match opt with SLLA slla -> Some slla | _ -> ns)
+        None opts
     in
-    {ns_target; ns_slla}
+    { ns_target; ns_slla }
 
   let parse_na buf =
     (* FIXME check code = 0 or drop *)
@@ -831,13 +859,11 @@ module Parser = struct
     let na_tlla =
       let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
       let opts = parse_options1 opts in
-      List.fold_left (fun na opt ->
-          match opt with
-          | TLLA tlla -> Some tlla
-          | _ -> na
-        ) None opts
+      List.fold_left
+        (fun na opt -> match opt with TLLA tlla -> Some tlla | _ -> na)
+        None opts
     in
-    {na_router; na_solicited; na_override; na_target; na_tlla}
+    { na_router; na_solicited; na_override; na_target; na_tlla }
 
   let dst_unreachable icmpbuf =
     match Ipv6_wire.get_icmpv6_code icmpbuf with
@@ -866,156 +892,149 @@ module Parser = struct
 
   (* buf : icmp packet with ipv6 header *)
   let parse_icmp ~src ~dst buf poff =
-    let icmpbuf  = Cstruct.shift buf poff in
+    let icmpbuf = Cstruct.shift buf poff in
     let csum = checksum' ~proto:58 buf [ icmpbuf ] in
-    if csum != 0 then begin
-      Log.info (fun f -> f "ICMP6: Checksum error, dropping packet: csum=0x%x" csum);
-      Drop
-    end else begin
+    if csum != 0 then (
+      Log.info (fun f ->
+          f "ICMP6: Checksum error, dropping packet: csum=0x%x" csum);
+      Drop)
+    else
       match Ipv6_wire.get_icmpv6_ty icmpbuf with
-      | 128 -> (* Echo request *)
-        let id = Cstruct.BE.get_uint16 icmpbuf 4 in
-        let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
-        Ping (src, dst, id, seq, Cstruct.shift icmpbuf 8)
-      | 129 (* Echo reply *) ->
-        Pong (Cstruct.shift buf poff)
+      | 128 ->
+          (* Echo request *)
+          let id = Cstruct.BE.get_uint16 icmpbuf 4 in
+          let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
+          Ping (src, dst, id, seq, Cstruct.shift icmpbuf 8)
+      | 129 (* Echo reply *) -> Pong (Cstruct.shift buf poff)
       (* Log.info (fun f -> f "ICMP6: Discarding Echo Reply"; *)
       | 133 (* RS *) ->
-        (* RFC 4861, 2.6.2 *)
-        Drop
+          (* RFC 4861, 2.6.2 *)
+          Drop
       | 134 (* RA *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
-          Drop
-        else
-          RA (src, dst, parse_ra icmpbuf)
+          if Ipv6_wire.get_ipv6_hlim buf <> 255 then Drop
+          else RA (src, dst, parse_ra icmpbuf)
       | 135 (* NS *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
-          Drop
-        else
-          let ns = parse_ns icmpbuf in
-          if Ipaddr.is_multicast ns.ns_target then
-            Drop
+          if Ipv6_wire.get_ipv6_hlim buf <> 255 then Drop
           else
-            NS (src, dst, ns)
+            let ns = parse_ns icmpbuf in
+            if Ipaddr.is_multicast ns.ns_target then Drop else NS (src, dst, ns)
       | 136 (* NA *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
-          Drop
-        else
-          let na = parse_na icmpbuf in
-          if Ipaddr.is_multicast na.na_target ||
-             (na.na_solicited && Ipaddr.is_multicast dst) then
-            Drop
+          if Ipv6_wire.get_ipv6_hlim buf <> 255 then Drop
           else
-            NA (src, dst, na)
+            let na = parse_na icmpbuf in
+            if
+              Ipaddr.is_multicast na.na_target
+              || (na.na_solicited && Ipaddr.is_multicast dst)
+            then Drop
+            else NA (src, dst, na)
       | 1 ->
-        Log.info (fun f -> f "ICMP6 Destination Unreachable: %s" (dst_unreachable icmpbuf));
-        Drop
+          Log.info (fun f ->
+              f "ICMP6 Destination Unreachable: %s" (dst_unreachable icmpbuf));
+          Drop
       | 2 ->
-        Log.info (fun f -> f "ICMP6 Packet Too Big");
-        Drop
+          Log.info (fun f -> f "ICMP6 Packet Too Big");
+          Drop
       | 3 ->
-        Log.info (fun f -> f "ICMP6 Time Exceeded: %s" (time_exceeded icmpbuf));
-        Drop
+          Log.info (fun f ->
+              f "ICMP6 Time Exceeded: %s" (time_exceeded icmpbuf));
+          Drop
       | 4 ->
-        Log.info (fun f -> f "ICMP6 Parameter Problem: %s" (parameter_problem icmpbuf));
-        Drop
+          Log.info (fun f ->
+              f "ICMP6 Parameter Problem: %s" (parameter_problem icmpbuf));
+          Drop
       | n ->
-        Log.info (fun f -> f "ICMP6: Unknown packet type: ty=%d" n);
-        Drop
-    end
+          Log.info (fun f -> f "ICMP6: Unknown packet type: ty=%d" n);
+          Drop
 
   let rec parse_extension ~src ~dst buf first hdr (poff : int) =
     match hdr with
     | 0 (* HOPTOPT *) when first ->
-      Log.info (fun f -> f "IP6: Processing HOPOPT header");
-      parse_options ~src ~dst buf poff
-    | 0 ->
-      Drop
+        Log.info (fun f -> f "IP6: Processing HOPOPT header");
+        parse_options ~src ~dst buf poff
+    | 0 -> Drop
     | 60 (* IPv6-Opts *) ->
-      Log.info (fun f -> f "IP6: Processing DESTOPT header");
-      parse_options ~src ~dst buf poff
+        Log.info (fun f -> f "IP6: Processing DESTOPT header");
+        parse_options ~src ~dst buf poff
     | 43 (* IPv6-Route *)
     | 44 (* IPv6-Frag *)
     | 50 (* ESP *)
     | 51 (* AH *)
     | 135 (* Mobility Header *)
     | 59 (* NO NEXT HEADER *) ->
-      Drop
-    | 58 (* ICMP *) ->
-      parse_icmp ~src ~dst buf poff
-    | 17 (* UDP *) ->
-      Udp (src, dst, Cstruct.shift buf poff)
-    | 6 (* TCP *) ->
-      Tcp (src, dst, Cstruct.shift buf poff)
+        Drop
+    | 58 (* ICMP *) -> parse_icmp ~src ~dst buf poff
+    | 17 (* UDP *) -> Udp (src, dst, Cstruct.shift buf poff)
+    | 6 (* TCP *) -> Tcp (src, dst, Cstruct.shift buf poff)
     | n when 143 <= n && n <= 255 ->
-      (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
-      Drop
-    | n ->
-      Default (n, src, dst, Cstruct.shift buf poff)
+        (* UNASSIGNED, EXPERIMENTAL & RESERVED *)
+        Drop
+    | n -> Default (n, src, dst, Cstruct.shift buf poff)
 
   and parse_options ~src ~dst buf poff =
     let pbuf = Cstruct.shift buf poff in
     let nhdr = Ipv6_wire.get_opt_ty pbuf in
-    let olen = Ipv6_wire.get_opt_len pbuf * 8 + 8 in
+    let olen = (Ipv6_wire.get_opt_len pbuf * 8) + 8 in
     let oend = olen + poff in
     let rec loop ooff =
-      if ooff < oend then begin
+      if ooff < oend then
         let obuf = Cstruct.shift buf ooff in
         match Ipv6_wire.get_opt_ty obuf with
         | 0 ->
-          Log.info (fun f -> f "IP6: Processing PAD1 option");
-          loop (ooff+1)
+            Log.info (fun f -> f "IP6: Processing PAD1 option");
+            loop (ooff + 1)
         | 1 ->
-          Log.info (fun f -> f "IP6: Processing PADN option");
-          let len = Ipv6_wire.get_opt_len obuf in
-          loop (ooff+len+2)
-        | _ as n ->
-          Log.info (fun f -> f "IP6: Processing unknown option, MSB %x" n);
-          let len = Ipv6_wire.get_opt_len obuf in
-          match n land 0xc0 with
-          | 0x00 ->
-            loop (ooff+len+2)
-          | 0x40 ->
-            (* discard the packet *)
-            Drop
-          | 0x80 ->
-            (* discard, send icmp error *)
-            DropWithError (4, 2, ooff)
-          | 0xc0 ->
-            (* discard, send icmp error if dest is not mcast *)
-            if Ipaddr.is_multicast dst then
-              Drop
-            else
-              DropWithError (4, 2, ooff)
-          | _ ->
-            assert false
-      end else
-        parse_extension ~src ~dst buf false nhdr oend
+            Log.info (fun f -> f "IP6: Processing PADN option");
+            let len = Ipv6_wire.get_opt_len obuf in
+            loop (ooff + len + 2)
+        | _ as n -> (
+            Log.info (fun f -> f "IP6: Processing unknown option, MSB %x" n);
+            let len = Ipv6_wire.get_opt_len obuf in
+            match n land 0xc0 with
+            | 0x00 -> loop (ooff + len + 2)
+            | 0x40 ->
+                (* discard the packet *)
+                Drop
+            | 0x80 ->
+                (* discard, send icmp error *)
+                DropWithError (4, 2, ooff)
+            | 0xc0 ->
+                (* discard, send icmp error if dest is not mcast *)
+                if Ipaddr.is_multicast dst then Drop
+                else DropWithError (4, 2, ooff)
+            | _ -> assert false)
+      else parse_extension ~src ~dst buf false nhdr oend
     in
-    loop (poff+2)
+    loop (poff + 2)
 
   let packet is_my_addr buf =
-    if Cstruct.length buf < Ipv6_wire.sizeof_ipv6 || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf then begin
+    if
+      Cstruct.length buf < Ipv6_wire.sizeof_ipv6
+      || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf
+    then (
       Log.debug (fun m -> m "short IPv6 packet received, dropping");
-      Drop
-    end else if Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l <> 0x60000000l then begin
+      Drop)
+    else if
+      Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l
+      <> 0x60000000l
+    then (
       Log.debug (fun m -> m "version in IPv6 packet not 6");
-      Drop
-    end else begin
-      let buf = Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf) in
+      Drop)
+    else
+      let buf =
+        Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf)
+      in
       let src = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_src buf) in
       let dst = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
-      if Ipaddr.Prefix.(mem src multicast) then begin
+      if Ipaddr.Prefix.(mem src multicast) then (
         Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
-        Drop
-      end else
-      if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then begin
+        Drop)
+      else if not (is_my_addr dst || Ipaddr.Prefix.(mem dst multicast)) then (
         Log.debug (fun f -> f "IP6: Dropping packet, not for me");
-        Drop
-      end
+        Drop)
       else
-        parse_extension ~src ~dst buf true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
-    end
+        parse_extension ~src ~dst buf true
+          (Ipv6_wire.get_ipv6_nhdr buf)
+          Ipv6_wire.sizeof_ipv6
 end
 
 type event =
@@ -1024,293 +1043,326 @@ type event =
   | `Default of int * ipaddr * ipaddr * buffer ]
 
 (* TODO add destination cache *)
-type context =
-  { neighbor_cache : NeighborCache.t;
-    prefix_list : PrefixList.t;
-    router_list : RouterList.t;
-    mac : Macaddr.t;
-    address_list : AddressList.t;
-    link_mtu : int;
-    cur_hop_limit : int;
-    base_reachable_time : time;
-    reachable_time : time;
-    retrans_timer : time;
-    packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t;
-    handle_ra : bool }
+type context = {
+  neighbor_cache : NeighborCache.t;
+  prefix_list : PrefixList.t;
+  router_list : RouterList.t;
+  mac : Macaddr.t;
+  address_list : AddressList.t;
+  link_mtu : int;
+  cur_hop_limit : int;
+  base_reachable_time : time;
+  reachable_time : time;
+  retrans_timer : time;
+  packet_queue : (int * (Cstruct.t -> int)) PacketQueue.t;
+  handle_ra : bool;
+}
 
 let next_hop ctx ip =
-  if PrefixList.is_local ctx.prefix_list ip then
-    ctx, ip
+  if PrefixList.is_local ctx.prefix_list ip then (ctx, ip)
   else
     let ip, router_list =
-      RouterList.select ctx.router_list (NeighborCache.reachable ctx.neighbor_cache) ip
+      RouterList.select ctx.router_list
+        (NeighborCache.reachable ctx.neighbor_cache)
+        ip
     in
-    {ctx with router_list}, ip
+    ({ ctx with router_list }, ip)
 
 let rec process_actions ~now ctx actions =
   let aux ctx = function
     | SendNS (unspec, dst, tgt) ->
-      let src, specified = match unspec with
-        | `Unspecified -> Ipaddr.unspecified, false
-        | `Specified -> AddressList.select_source ctx.address_list ~dst, true
-      in
-      Log.debug (fun f -> f "ND6: Sending NS src=%a dst=%a tgt=%a"
-        Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt);
-      let size, fillf = Allocate.ns ~specified ~mac:ctx.mac ~src ~dst ~tgt in
-      send' ~now ctx dst size fillf
+        let src, specified =
+          match unspec with
+          | `Unspecified -> (Ipaddr.unspecified, false)
+          | `Specified -> (AddressList.select_source ctx.address_list ~dst, true)
+        in
+        Log.debug (fun f ->
+            f "ND6: Sending NS src=%a dst=%a tgt=%a" Ipaddr.pp src Ipaddr.pp dst
+              Ipaddr.pp tgt);
+        let size, fillf = Allocate.ns ~specified ~mac:ctx.mac ~src ~dst ~tgt in
+        send' ~now ctx dst size fillf
     | SendNA (src, dst, tgt, sol) ->
-      let sol = match sol with `Solicited -> true | `Unsolicited -> false in
-      Log.debug (fun f -> f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B"
-        Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp tgt sol);
-      let size, fillf = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
-      send' ~now ctx dst size fillf
+        let sol = match sol with `Solicited -> true | `Unsolicited -> false in
+        Log.debug (fun f ->
+            f "ND6: Sending NA: src=%a dst=%a tgt=%a sol=%B" Ipaddr.pp src
+              Ipaddr.pp dst Ipaddr.pp tgt sol);
+        let size, fillf = Allocate.na ~mac:ctx.mac ~src ~dst ~tgt ~sol in
+        send' ~now ctx dst size fillf
     | SendRS ->
-      Log.debug (fun f -> f "ND6: Sending RS");
-      let size, fillf = Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list) in
-      let dst = Ipaddr.link_routers in
-      send' ~now ctx dst size fillf
+        Log.debug (fun f -> f "ND6: Sending RS");
+        let size, fillf =
+          Allocate.rs ~mac:ctx.mac (AddressList.select_source ctx.address_list)
+        in
+        let dst = Ipaddr.link_routers in
+        send' ~now ctx dst size fillf
     | SendQueued (ip, dmac) ->
-      Log.debug (fun f -> f "IP6: Releasing queued packets: dst=%a mac=%a" Ipaddr.pp ip Macaddr.pp dmac);
-      let outs, packet_queue = PacketQueue.pop ip ctx.packet_queue in
-      let outs' = List.map (fun (size, fillf) -> dmac, size, fillf) outs in
-      let ctx = {ctx with packet_queue} in
-      ctx, outs'
+        Log.debug (fun f ->
+            f "IP6: Releasing queued packets: dst=%a mac=%a" Ipaddr.pp ip
+              Macaddr.pp dmac);
+        let outs, packet_queue = PacketQueue.pop ip ctx.packet_queue in
+        let outs' = List.map (fun (size, fillf) -> (dmac, size, fillf)) outs in
+        let ctx = { ctx with packet_queue } in
+        (ctx, outs')
     | CancelQueued ip ->
-      Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp ip);
-      let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
-      let ctx = {ctx with packet_queue} in
-      ctx, []
+        Log.debug (fun f -> f "IP6: Cancelling packets: dst = %a" Ipaddr.pp ip);
+        let _, packet_queue = PacketQueue.pop ip ctx.packet_queue in
+        let ctx = { ctx with packet_queue } in
+        (ctx, [])
   in
-  List.fold_left (fun (ctx, bufs) action ->
+  List.fold_left
+    (fun (ctx, bufs) action ->
       let ctx, bufs' = aux ctx action in
-      ctx, bufs @ bufs'
-    ) (ctx, []) actions
+      (ctx, bufs @ bufs'))
+    (ctx, []) actions
 
 and send' ~now ctx dst size fillf =
   match Ipaddr.is_multicast dst with
-  | true -> ctx, [(multicast_mac dst, size, fillf)]
-  | false ->
-    let ctx, ip = next_hop ctx dst in
-    let neighbor_cache, mac, actions =
-      NeighborCache.query ctx.neighbor_cache ~now ~retrans_timer:ctx.retrans_timer ip in
-    let ctx = {ctx with neighbor_cache} in
-    match mac with
-    | Some dmac ->
-      Log.debug (fun f -> f "IP6: Sending packet: dst=%a mac=%a" Ipaddr.pp dst Macaddr.pp dmac);
-      let ctx, outs = process_actions ~now ctx actions in
-      ctx, (dmac, size, fillf) :: outs
-    | None ->
-      Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp dst);
-      let packet_queue = PacketQueue.push ip (size, fillf) ctx.packet_queue in
-      let ctx = {ctx with packet_queue} in
-      process_actions ~now ctx actions
+  | true -> (ctx, [ (multicast_mac dst, size, fillf) ])
+  | false -> (
+      let ctx, ip = next_hop ctx dst in
+      let neighbor_cache, mac, actions =
+        NeighborCache.query ctx.neighbor_cache ~now
+          ~retrans_timer:ctx.retrans_timer ip
+      in
+      let ctx = { ctx with neighbor_cache } in
+      match mac with
+      | Some dmac ->
+          Log.debug (fun f ->
+              f "IP6: Sending packet: dst=%a mac=%a" Ipaddr.pp dst Macaddr.pp
+                dmac);
+          let ctx, outs = process_actions ~now ctx actions in
+          (ctx, (dmac, size, fillf) :: outs)
+      | None ->
+          Log.debug (fun f -> f "IP6: Queueing packet: dst=%a" Ipaddr.pp dst);
+          let packet_queue =
+            PacketQueue.push ip (size, fillf) ctx.packet_queue
+          in
+          let ctx = { ctx with packet_queue } in
+          process_actions ~now ctx actions)
 
 let send ~now ctx ?src dst proto size fillf =
-  let src = match src with None -> AddressList.select_source ctx.address_list ~dst | Some s -> s in
-  let siz, fill = Allocate.hdr ~hlim:ctx.cur_hop_limit ~src ~dst ~proto ~size fillf in
+  let src =
+    match src with
+    | None -> AddressList.select_source ctx.address_list ~dst
+    | Some s -> s
+  in
+  let siz, fill =
+    Allocate.hdr ~hlim:ctx.cur_hop_limit ~src ~dst ~proto ~size fillf
+  in
   send' ~now ctx dst siz fill
 
 let local ~handle_ra ~now ~random mac =
   let ctx =
-    { neighbor_cache = NeighborCache.empty;
+    {
+      neighbor_cache = NeighborCache.empty;
       prefix_list = PrefixList.link_local;
       router_list = RouterList.empty;
-      mac = mac;
+      mac;
       address_list = AddressList.empty;
       link_mtu = Defaults.link_mtu;
-      cur_hop_limit = 64; (* TODO *)
-      base_reachable_time  = Defaults.reachable_time;
+      cur_hop_limit = 64;
+      (* TODO *)
+      base_reachable_time = Defaults.reachable_time;
       reachable_time = compute_reachable_time random Defaults.reachable_time;
       retrans_timer = Defaults.retrans_timer;
       packet_queue = PacketQueue.empty 3;
-      handle_ra }
+      handle_ra;
+    }
   in
   let ip = link_local_addr mac in
   let address_list, actions =
-    AddressList.add ctx.address_list ~now ~retrans_timer:ctx.retrans_timer ~lft:None ip
+    AddressList.add ctx.address_list ~now ~retrans_timer:ctx.retrans_timer
+      ~lft:None ip
   in
-  let ctx, actions = {ctx with address_list}, SendRS :: actions in
+  let ctx, actions = ({ ctx with address_list }, SendRS :: actions) in
   process_actions ~now ctx actions
 
 let add_ip ~now ctx ip =
   let address_list, actions =
-    AddressList.add ctx.address_list ~now ~retrans_timer:ctx.retrans_timer ~lft:None ip
+    AddressList.add ctx.address_list ~now ~retrans_timer:ctx.retrans_timer
+      ~lft:None ip
   in
-  let ctx = {ctx with address_list} in
+  let ctx = { ctx with address_list } in
   process_actions ~now ctx actions
 
-let get_ip ctx =
-  AddressList.to_list ctx.address_list
-
-let select_source ctx dst =
-  AddressList.select_source ctx.address_list ~dst
+let get_ip ctx = AddressList.to_list ctx.address_list
+let select_source ctx dst = AddressList.select_source ctx.address_list ~dst
 
 let handle_ra ~now ~random ctx ~src ~dst ra =
-  Log.debug (fun f -> f "ND: Received RA: src=%a dst=%a" Ipaddr.pp src Ipaddr.pp dst);
+  Log.debug (fun f ->
+      f "ND: Received RA: src=%a dst=%a" Ipaddr.pp src Ipaddr.pp dst);
   let ctx =
     if ra.ra_cur_hop_limit <> 0 then
-      {ctx with cur_hop_limit = ra.ra_cur_hop_limit}
+      { ctx with cur_hop_limit = ra.ra_cur_hop_limit }
     else ctx
   in
-  let ctx = match ra.ra_reachable_time with
+  let ctx =
+    match ra.ra_reachable_time with
     | None -> ctx
     | Some rt ->
-      if ctx.base_reachable_time <> rt then
-        {ctx with base_reachable_time = rt;
-                  reachable_time = compute_reachable_time random rt}
-      else
-        ctx
+        if ctx.base_reachable_time <> rt then
+          {
+            ctx with
+            base_reachable_time = rt;
+            reachable_time = compute_reachable_time random rt;
+          }
+        else ctx
   in
-  let ctx = match ra.ra_retrans_timer with
+  let ctx =
+    match ra.ra_retrans_timer with
     | None -> ctx
-    | Some rt ->
-      {ctx with retrans_timer = rt}
+    | Some rt -> { ctx with retrans_timer = rt }
   in
   let ctx, actions =
     match ra.ra_slla with
     | Some new_mac ->
-      let neighbor_cache, actions = NeighborCache.handle_ra ctx.neighbor_cache ~src new_mac in
-      {ctx with neighbor_cache}, actions
-    | None ->
-      ctx, []
+        let neighbor_cache, actions =
+          NeighborCache.handle_ra ctx.neighbor_cache ~src new_mac
+        in
+        ({ ctx with neighbor_cache }, actions)
+    | None -> (ctx, [])
   in
   let ctx, actions' =
     List.fold_left
       (fun (state, _) pfx ->
-         let vlft = pfx.pfx_valid_lifetime in
-         let prefix_list, acts = PrefixList.handle_ra state.prefix_list ~now ~vlft pfx.pfx_prefix in
-         match pfx.pfx_autonomous, vlft with
-         | _, Some 0L ->
-           {state with prefix_list}, acts
-         | true, Some _ ->
-           let plft = pfx.pfx_preferred_lifetime in
-           let lft = match plft with
-             | None -> None
-             | Some plft -> Some (plft, vlft)
-           in
-           let address_list, acts' = (* FIXME *)
-             AddressList.configure state.address_list ~now ~retrans_timer:state.retrans_timer
-               ~lft state.mac pfx.pfx_prefix
-           in
-           {state with address_list; prefix_list}, acts @ acts'
-         | _ ->
-           {state with prefix_list}, acts) (ctx, actions) ra.ra_prefix
+        let vlft = pfx.pfx_valid_lifetime in
+        let prefix_list, acts =
+          PrefixList.handle_ra state.prefix_list ~now ~vlft pfx.pfx_prefix
+        in
+        match (pfx.pfx_autonomous, vlft) with
+        | _, Some 0L -> ({ state with prefix_list }, acts)
+        | true, Some _ ->
+            let plft = pfx.pfx_preferred_lifetime in
+            let lft =
+              match plft with None -> None | Some plft -> Some (plft, vlft)
+            in
+            let address_list, acts' =
+              (* FIXME *)
+              AddressList.configure state.address_list ~now
+                ~retrans_timer:state.retrans_timer ~lft state.mac pfx.pfx_prefix
+            in
+            ({ state with address_list; prefix_list }, acts @ acts')
+        | _ -> ({ state with prefix_list }, acts))
+      (ctx, actions) ra.ra_prefix
   in
   let router_list, actions'' =
     RouterList.handle_ra ctx.router_list ~now ~src ~lft:ra.ra_router_lifetime
   in
   let actions = actions @ actions' @ actions'' in
-  {ctx with router_list}, actions
+  ({ ctx with router_list }, actions)
 
 let handle_ns ~now:_ ctx ~src ~dst ns =
-  Log.debug (fun f -> f "ND: Received NS: src=%a dst=%a tgt=%a"
-    Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp ns.ns_target);
+  Log.debug (fun f ->
+      f "ND: Received NS: src=%a dst=%a tgt=%a" Ipaddr.pp src Ipaddr.pp dst
+        Ipaddr.pp ns.ns_target);
   (* TODO check hlim = 255, target not mcast, code = 0 *)
-  let ctx, actions = match ns.ns_slla with
+  let ctx, actions =
+    match ns.ns_slla with
     | Some new_mac ->
-      let neighbor_cache, actions = NeighborCache.handle_ns ctx.neighbor_cache ~src new_mac in
-      {ctx with neighbor_cache}, actions
-      (* handle_ns_slla ~state ~src new_mac *)
-    | None ->
-      ctx, []
+        let neighbor_cache, actions =
+          NeighborCache.handle_ns ctx.neighbor_cache ~src new_mac
+        in
+        ({ ctx with neighbor_cache }, actions)
+        (* handle_ns_slla ~state ~src new_mac *)
+    | None -> (ctx, [])
   in
-  if AddressList.is_my_addr ctx.address_list ns.ns_target then begin
+  if AddressList.is_my_addr ctx.address_list ns.ns_target then
     let src = ns.ns_target
     and dst, sol =
       if Ipaddr.(compare src unspecified = 0) then
-        Ipaddr.link_nodes, `Unsolicited
-      else
-        src, `Solicited
+        (Ipaddr.link_nodes, `Unsolicited)
+      else (src, `Solicited)
     in
     (* Log.debug (fun f -> f "Sending NA to %a from %a with target address %a"
                   Ipaddr.pp dst Ipaddr.pp src Ipaddr.pp ns.ns_target); *)
-    ctx, SendNA (src, dst, ns.ns_target, sol) :: actions
-  end else
-    ctx, actions
+    (ctx, SendNA (src, dst, ns.ns_target, sol) :: actions)
+  else (ctx, actions)
 
 let handle_na ~now ctx ~src ~dst na =
-  Log.debug (fun f -> f "ND: Received NA: src=%a dst=%a tgt=%a"
-    Ipaddr.pp src Ipaddr.pp dst Ipaddr.pp na.na_target);
+  Log.debug (fun f ->
+      f "ND: Received NA: src=%a dst=%a tgt=%a" Ipaddr.pp src Ipaddr.pp dst
+        Ipaddr.pp na.na_target);
 
   (* TODO Handle case when na.target is one of my bound IPs. *)
 
   (* If my_ip is TENTATIVE then fail DAD. *)
   let address_list = AddressList.handle_na ctx.address_list na.na_target in
   let neighbor_cache, actions =
-    NeighborCache.handle_na ctx.neighbor_cache
-      ~now ~reachable_time:ctx.reachable_time
-      ~rtr:na.na_router ~sol:na.na_solicited ~ovr:na.na_override ~tgt:na.na_target
-      ~lladdr:na.na_tlla
+    NeighborCache.handle_na ctx.neighbor_cache ~now
+      ~reachable_time:ctx.reachable_time ~rtr:na.na_router ~sol:na.na_solicited
+      ~ovr:na.na_override ~tgt:na.na_target ~lladdr:na.na_tlla
   in
-  let ctx = {ctx with neighbor_cache; address_list} in
-  ctx, actions
+  let ctx = { ctx with neighbor_cache; address_list } in
+  (ctx, actions)
 
 let handle ~now ~random ctx buf =
   let open Parser in
   match packet (AddressList.is_my_addr ctx.address_list) buf with
   | RA (src, dst, ra) ->
-    if ctx.handle_ra then
-      let ctx, actions = handle_ra ~now ~random ctx ~src ~dst ra in
-      let ctx, bufs = process_actions ~now ctx actions in
-      ctx, bufs, []
-    else begin
-      Log.info (fun m -> m "Ignoring router advertisement (stack is configured to not handle them)");
-      ctx, [], []
-    end
+      if ctx.handle_ra then
+        let ctx, actions = handle_ra ~now ~random ctx ~src ~dst ra in
+        let ctx, bufs = process_actions ~now ctx actions in
+        (ctx, bufs, [])
+      else (
+        Log.info (fun m ->
+            m
+              "Ignoring router advertisement (stack is configured to not \
+               handle them)");
+        (ctx, [], []))
   | NS (src, dst, ns) ->
-    let ctx, actions = handle_ns ~now ctx ~src ~dst ns in
-    let ctx, bufs = process_actions ~now ctx actions in
-    ctx, bufs, []
+      let ctx, actions = handle_ns ~now ctx ~src ~dst ns in
+      let ctx, bufs = process_actions ~now ctx actions in
+      (ctx, bufs, [])
   | NA (src, dst, na) ->
-    let ctx, actions = handle_na ~now ctx ~src ~dst na in
-    let ctx, bufs = process_actions ~now ctx actions in
-    ctx, bufs, []
+      let ctx, actions = handle_na ~now ctx ~src ~dst na in
+      let ctx, bufs = process_actions ~now ctx actions in
+      (ctx, bufs, [])
   | Ping (src, dst, id, seq, data) ->
-    Log.info (fun f -> f "ICMP6: Received PING: src=%a dst=%a id=%d seq=%d" Ipaddr.pp src
-      Ipaddr.pp dst id seq);
-    let dst = src
-    and src =
-      if Ipaddr.is_multicast dst then
-        AddressList.select_source ctx.address_list ~dst
-      else
-        dst
-    in
-    let frame, bufs =
-      Allocate.pong ~src ~dst ~hlim:ctx.cur_hop_limit ~id ~seq ~data
-    in
-    let ctx, bufs = send' ~now ctx dst frame bufs in
-    ctx, bufs, []
-  | DropWithError _ (* TODO *) | Drop ->
-    ctx, [], []
-  | Pong _ ->
-    ctx, [], []
-  | Tcp (src, dst, buf) ->
-    ctx, [], [`Tcp (src, dst, buf)]
-  | Udp (src, dst, buf) ->
-    ctx, [], [`Udp (src, dst, buf)]
+      Log.info (fun f ->
+          f "ICMP6: Received PING: src=%a dst=%a id=%d seq=%d" Ipaddr.pp src
+            Ipaddr.pp dst id seq);
+      let dst = src
+      and src =
+        if Ipaddr.is_multicast dst then
+          AddressList.select_source ctx.address_list ~dst
+        else dst
+      in
+      let frame, bufs =
+        Allocate.pong ~src ~dst ~hlim:ctx.cur_hop_limit ~id ~seq ~data
+      in
+      let ctx, bufs = send' ~now ctx dst frame bufs in
+      (ctx, bufs, [])
+  | DropWithError _ (* TODO *) | Drop -> (ctx, [], [])
+  | Pong _ -> (ctx, [], [])
+  | Tcp (src, dst, buf) -> (ctx, [], [ `Tcp (src, dst, buf) ])
+  | Udp (src, dst, buf) -> (ctx, [], [ `Udp (src, dst, buf) ])
   | Default (proto, src, dst, buf) ->
-    ctx, [], [`Default (proto, src, dst, buf)]
+      (ctx, [], [ `Default (proto, src, dst, buf) ])
 
 let tick ~now ctx =
   let retrans_timer = ctx.retrans_timer in
-  let address_list, actions = AddressList.tick ctx.address_list ~now ~retrans_timer in
+  let address_list, actions =
+    AddressList.tick ctx.address_list ~now ~retrans_timer
+  in
   let prefix_list = PrefixList.tick ctx.prefix_list ~now in
-  let neighbor_cache, actions' = NeighborCache.tick ctx.neighbor_cache ~now ~retrans_timer in
+  let neighbor_cache, actions' =
+    NeighborCache.tick ctx.neighbor_cache ~now ~retrans_timer
+  in
   let router_list = RouterList.tick ctx.router_list ~now in
-  let ctx = {ctx with address_list; prefix_list; neighbor_cache; router_list} in
+  let ctx =
+    { ctx with address_list; prefix_list; neighbor_cache; router_list }
+  in
   let actions = actions @ actions' in
   process_actions ~now ctx actions
 
 let add_prefix ~now ctx pfx =
   let prefix_list = PrefixList.add ctx.prefix_list ~now pfx ~vlft:None in
-  {ctx with prefix_list}
+  { ctx with prefix_list }
 
-let get_prefix ctx =
-  PrefixList.to_list ctx.prefix_list
+let get_prefix ctx = PrefixList.to_list ctx.prefix_list
 
 let add_routers ~now ctx ips =
   let router_list = List.fold_left (RouterList.add ~now) ctx.router_list ips in
-  {ctx with router_list}
+  { ctx with router_list }
 
-let get_routers ctx =
-  RouterList.to_list ctx.router_list
+let get_routers ctx = RouterList.to_list ctx.router_list

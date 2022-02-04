@@ -16,13 +16,15 @@
 
 open Lwt.Infix
 
-let src = Logs.Src.create "tcpip-stack-socket" ~doc:"Platform's native TCP/IP stack"
+let src =
+  Logs.Src.create "tcpip-stack-socket" ~doc:"Platform's native TCP/IP stack"
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module V4 = struct
   module TCPV4 = Tcpv4_socket
   module UDPV4 = Udpv4_socket
-  module IPV4  = Ipv4_socket
+  module IPV4 = Ipv4_socket
 
   type t = {
     udpv4 : UDPV4.t;
@@ -34,9 +36,7 @@ module V4 = struct
   let udpv4 { udpv4; _ } = udpv4
   let tcpv4 { tcpv4; _ } = tcpv4
   let ipv4 _ = ()
-
-  let listen_udpv4 t ~port callback =
-    UDPV4.listen t.udpv4 ~port callback
+  let listen_udpv4 t ~port callback = UDPV4.listen t.udpv4 ~port callback
 
   let listen_tcpv4 ?keepalive t ~port callback =
     TCPV4.listen t.tcpv4 ~port ?keepalive callback
@@ -52,14 +52,13 @@ module V4 = struct
 
   let disconnect t =
     TCPV4.disconnect t.tcpv4 >>= fun () ->
-    UDPV4.disconnect t.udpv4 >|= fun () ->
-    Lwt.wakeup_later t.stop ()
+    UDPV4.disconnect t.udpv4 >|= fun () -> Lwt.wakeup_later t.stop ()
 end
 
 module V6 = struct
   module TCP = Tcpv6_socket
   module UDP = Udpv6_socket
-  module IP  = Ipv6_socket
+  module IP = Ipv6_socket
 
   type t = {
     udp : UDP.t;
@@ -71,9 +70,7 @@ module V6 = struct
   let udp { udp; _ } = udp
   let tcp { tcp; _ } = tcp
   let ip _ = ()
-
-  let listen_udp t ~port callback =
-    UDP.listen t.udp ~port callback
+  let listen_udp t ~port callback = UDP.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port callback =
     TCP.listen t.tcp ~port ?keepalive callback
@@ -89,14 +86,13 @@ module V6 = struct
 
   let disconnect t =
     TCP.disconnect t.tcp >>= fun () ->
-    UDP.disconnect t.udp >|= fun () ->
-    Lwt.wakeup_later t.stop ()
+    UDP.disconnect t.udp >|= fun () -> Lwt.wakeup_later t.stop ()
 end
 
 module V4V6 = struct
   module TCP = Tcpv4v6_socket
   module UDP = Udpv4v6_socket
-  module IP  = Ipv4v6_socket
+  module IP = Ipv4v6_socket
 
   type t = {
     udp : UDP.t;
@@ -108,9 +104,7 @@ module V4V6 = struct
   let udp { udp; _ } = udp
   let tcp { tcp; _ } = tcp
   let ip _ = ()
-
-  let listen_udp t ~port callback =
-    UDP.listen t.udp ~port callback
+  let listen_udp t ~port callback = UDP.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port callback =
     TCP.listen t.tcp ~port ?keepalive callback
@@ -126,6 +120,5 @@ module V4V6 = struct
 
   let disconnect t =
     TCP.disconnect t.tcp >>= fun () ->
-    UDP.disconnect t.udp >|= fun () ->
-    Lwt.wakeup_later t.stop ()
+    UDP.disconnect t.udp >|= fun () -> Lwt.wakeup_later t.stop ()
 end
