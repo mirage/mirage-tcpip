@@ -17,29 +17,30 @@
 open Lwt.Infix
 
 let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make
-    (Time     : Mirage_time.S)
-    (Random   : Mirage_random.S)
-    (Netif    : Mirage_net.S)
-    (Eth      : Ethernet.S)
-    (Arpv4    : Arp.S)
-    (Ipv4     : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t)
-    (Icmpv4   : Icmpv4.S)
-    (Udpv4    : Tcpip.Udp.S with type ipaddr = Ipaddr.V4.t)
-    (Tcpv4    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V4.t) = struct
-
+    (Time : Mirage_time.S)
+    (Random : Mirage_random.S)
+    (Netif : Mirage_net.S)
+    (Eth : Ethernet.S)
+    (Arpv4 : Arp.S)
+    (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t)
+    (Icmpv4 : Icmpv4.S)
+    (Udpv4 : Tcpip.Udp.S with type ipaddr = Ipaddr.V4.t)
+    (Tcpv4 : Tcpip.Tcp.S with type ipaddr = Ipaddr.V4.t) =
+struct
   module UDPV4 = Udpv4
   module TCPV4 = Tcpv4
-  module IPV4  = Ipv4
+  module IPV4 = Ipv4
 
   type t = {
     netif : Netif.t;
     ethif : Eth.t;
     arpv4 : Arpv4.t;
-    ipv4  : Ipv4.t;
-    icmpv4: Icmpv4.t;
+    ipv4 : Ipv4.t;
+    icmpv4 : Icmpv4.t;
     udpv4 : Udpv4.t;
     tcpv4 : Tcpv4.t;
     mutable task : unit Lwt.t option;
@@ -50,58 +51,64 @@ module Make
       (Fmt.list Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
+
   let udpv4 { udpv4; _ } = udpv4
+
   let ipv4 { ipv4; _ } = ipv4
 
-  let listen_udpv4 t ~port callback =
-    Udpv4.listen t.udpv4 ~port callback
+  let listen_udpv4 t ~port callback = Udpv4.listen t.udpv4 ~port callback
 
   let listen_tcpv4 ?keepalive t ~port process =
     Tcpv4.listen t.tcpv4 ~port ?keepalive process
 
   let listen t =
-    Lwt.catch (fun () ->
-        Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-        let ethif_listener = Eth.input
-            ~arpv4:(Arpv4.input t.arpv4)
-            ~ipv4:(
-              Ipv4.input
-                ~tcp:(Tcpv4.input t.tcpv4)
-                ~udp:(Udpv4.input t.udpv4)
-                ~default:(fun ~proto ~src ~dst buf ->
-                    match proto with
-                    | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
-                    | _ -> Lwt.return_unit)
-                t.ipv4)
+    Lwt.catch
+      (fun () ->
+        Log.debug (fun f ->
+            f "Establishing or updating listener for stack %a" pp t);
+        let ethif_listener =
+          Eth.input ~arpv4:(Arpv4.input t.arpv4)
+            ~ipv4:
+              (Ipv4.input ~tcp:(Tcpv4.input t.tcpv4) ~udp:(Udpv4.input t.udpv4)
+                 ~default:(fun ~proto ~src ~dst buf ->
+                   match proto with
+                   | 1 -> Icmpv4.input t.icmpv4 ~src ~dst buf
+                   | _ -> Lwt.return_unit)
+                 t.ipv4)
             ~ipv6:(fun _ -> Lwt.return_unit)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet
+          ethif_listener
         >>= function
         | Error e ->
-          Log.warn (fun p -> p "%a" Netif.pp_error e) ;
-          (* XXX: error should be passed to the caller *)
-          Lwt.return_unit
+            Log.warn (fun p -> p "%a" Netif.pp_error e);
+            (* XXX: error should be passed to the caller *)
+            Lwt.return_unit
         | Ok _res ->
-          let nstat = Netif.get_stats_counters t.netif in
-          let open Mirage_net in
-          Log.info (fun f ->
-              f "listening loop of interface %s terminated regularly:@ %Lu bytes \
-                 (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-                (Macaddr.to_string (Netif.mac t.netif))
-                nstat.rx_bytes nstat.rx_pkts
-                nstat.tx_bytes nstat.tx_pkts) ;
-          Lwt.return_unit)
+            let nstat = Netif.get_stats_counters t.netif in
+            let open Mirage_net in
+            Log.info (fun f ->
+                f
+                  "listening loop of interface %s terminated regularly:@ %Lu \
+                   bytes (%lu packets) received, %Lu bytes (%lu packets) \
+                   sent@ "
+                  (Macaddr.to_string (Netif.mac t.netif))
+                  nstat.rx_bytes nstat.rx_pkts nstat.tx_bytes nstat.tx_pkts);
+            Lwt.return_unit)
       (function
         | Lwt.Canceled ->
-          Log.info (fun f -> f "listen of %a cancelled" pp t);
-          Lwt.return_unit
+            Log.info (fun f -> f "listen of %a cancelled" pp t);
+            Lwt.return_unit
         | e -> Lwt.fail e)
 
   let connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4; task = None } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
+    Lwt.async (fun () ->
+        let task = listen t in
+        t.task <- Some task;
+        task);
     Lwt.return t
 
   let disconnect t =
@@ -111,22 +118,22 @@ module Make
 end
 
 module MakeV6
-    (Time     : Mirage_time.S)
-    (Random   : Mirage_random.S)
-    (Netif    : Mirage_net.S)
-    (Eth      : Ethernet.S)
-    (Ipv6     : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t)
-    (Udpv6    : Tcpip.Udp.S with type ipaddr = Ipaddr.V6.t)
-    (Tcpv6    : Tcpip.Tcp.S with type ipaddr = Ipaddr.V6.t) = struct
-
+    (Time : Mirage_time.S)
+    (Random : Mirage_random.S)
+    (Netif : Mirage_net.S)
+    (Eth : Ethernet.S)
+    (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t)
+    (Udpv6 : Tcpip.Udp.S with type ipaddr = Ipaddr.V6.t)
+    (Tcpv6 : Tcpip.Tcp.S with type ipaddr = Ipaddr.V6.t) =
+struct
   module UDP = Udpv6
   module TCP = Tcpv6
-  module IP  = Ipv6
+  module IP = Ipv6
 
   type t = {
     netif : Netif.t;
     ethif : Eth.t;
-    ipv6  : Ipv6.t;
+    ipv6 : Ipv6.t;
     udpv6 : Udpv6.t;
     tcpv6 : Tcpv6.t;
     mutable task : unit Lwt.t option;
@@ -137,72 +144,85 @@ module MakeV6
       (Fmt.list Ipaddr.V6.pp) (Ipv6.get_ip t.ipv6)
 
   let tcp { tcpv6; _ } = tcpv6
+
   let udp { udpv6; _ } = udpv6
+
   let ip { ipv6; _ } = ipv6
 
-  let listen_udp t ~port callback =
-    Udpv6.listen t.udpv6 ~port callback
+  let listen_udp t ~port callback = Udpv6.listen t.udpv6 ~port callback
 
   let listen_tcp ?keepalive t ~port process =
     Tcpv6.listen t.tcpv6 ~port ?keepalive process
 
   let listen t =
-    Lwt.catch (fun () ->
-        Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
-        let ethif_listener = Eth.input
+    Lwt.catch
+      (fun () ->
+        Log.debug (fun f ->
+            f "Establishing or updating listener for stack %a" pp t);
+        let ethif_listener =
+          Eth.input
             ~arpv4:(fun _ -> Lwt.return_unit)
             ~ipv4:(fun _ -> Lwt.return_unit)
-            ~ipv6:(
-              Ipv6.input
-                ~tcp:(Tcpv6.input t.tcpv6)
-                ~udp:(Udpv6.input t.udpv6)
-                ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> Lwt.return_unit)
-                t.ipv6)
+            ~ipv6:
+              (Ipv6.input ~tcp:(Tcpv6.input t.tcpv6) ~udp:(Udpv6.input t.udpv6)
+                 ~default:(fun ~proto:_ ~src:_ ~dst:_ _ -> Lwt.return_unit)
+                 t.ipv6)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet
+          ethif_listener
         >>= function
         | Error e ->
-          Log.warn (fun p -> p "%a" Netif.pp_error e) ;
-          (* XXX: error should be passed to the caller *)
-          Lwt.return_unit
+            Log.warn (fun p -> p "%a" Netif.pp_error e);
+            (* XXX: error should be passed to the caller *)
+            Lwt.return_unit
         | Ok _res ->
-          let nstat = Netif.get_stats_counters t.netif in
-          let open Mirage_net in
-          Log.info (fun f ->
-              f "listening loop of interface %s terminated regularly:@ %Lu bytes \
-                 (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-                (Macaddr.to_string (Netif.mac t.netif))
-                nstat.rx_bytes nstat.rx_pkts
-                nstat.tx_bytes nstat.tx_pkts) ;
-          Lwt.return_unit)
+            let nstat = Netif.get_stats_counters t.netif in
+            let open Mirage_net in
+            Log.info (fun f ->
+                f
+                  "listening loop of interface %s terminated regularly:@ %Lu \
+                   bytes (%lu packets) received, %Lu bytes (%lu packets) \
+                   sent@ "
+                  (Macaddr.to_string (Netif.mac t.netif))
+                  nstat.rx_bytes nstat.rx_pkts nstat.tx_bytes nstat.tx_pkts);
+            Lwt.return_unit)
       (function
         | Lwt.Canceled ->
-          Log.info (fun f -> f "listen of %a cancelled" pp t);
-          Lwt.return_unit
+            Log.info (fun f -> f "listen of %a cancelled" pp t);
+            Lwt.return_unit
         | e -> Lwt.fail e)
 
   let connect netif ethif ipv6 udpv6 tcpv6 =
     let t = { netif; ethif; ipv6; tcpv6; udpv6; task = None } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
+    Lwt.async (fun () ->
+        let task = listen t in
+        t.task <- Some task;
+        task);
     Lwt.return t
 
   let disconnect t =
     Log.info (fun f -> f "disconnect called: %a" pp t);
     (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
-
 end
 
-module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) = struct
+module IPV4V6
+    (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t)
+    (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) =
+struct
+  type ipaddr = Ipaddr.t
 
-  type ipaddr   = Ipaddr.t
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.pp
 
-  type error = [ Tcpip.Ip.error | `Ipv4 of Ipv4.error | `Ipv6 of Ipv6.error | `Msg of string ]
+  type error =
+    [ Tcpip.Ip.error
+    | `Ipv4 of Ipv4.error
+    | `Ipv6 of Ipv6.error
+    | `Msg of string ]
 
   let pp_error ppf = function
     | #Tcpip.Ip.error as e -> Tcpip.Ip.pp_error ppf e
@@ -210,23 +230,28 @@ module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.I
     | `Ipv6 e -> Ipv6.pp_error ppf e
     | `Msg m -> Fmt.string ppf m
 
-  type t = { ipv4 : Ipv4.t ; ipv4_only : bool ; ipv6 : Ipv6.t ; ipv6_only : bool }
+  type t = { ipv4 : Ipv4.t; ipv4_only : bool; ipv6 : Ipv6.t; ipv6_only : bool }
 
   let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
     if ipv4_only && ipv6_only then
       Lwt.fail_with "cannot configure stack with both IPv4 only and IPv6 only"
-    else
-      Lwt.return { ipv4 ; ipv4_only ; ipv6 ; ipv6_only }
+    else Lwt.return { ipv4; ipv4_only; ipv6; ipv6_only }
 
   let disconnect _ = Lwt.return_unit
 
   let input t ~tcp ~udp ~default =
-    let tcp4 ~src ~dst payload = tcp ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
-    and tcp6 ~src ~dst payload = tcp ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
-    and udp4 ~src ~dst payload = udp ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
-    and udp6 ~src ~dst payload = udp ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
-    and default4 ~proto ~src ~dst payload = default ~proto ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
-    and default6 ~proto ~src ~dst payload = default ~proto ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
+    let tcp4 ~src ~dst payload =
+      tcp ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
+    and tcp6 ~src ~dst payload =
+      tcp ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
+    and udp4 ~src ~dst payload =
+      udp ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
+    and udp6 ~src ~dst payload =
+      udp ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
+    and default4 ~proto ~src ~dst payload =
+      default ~proto ~src:(Ipaddr.V4 src) ~dst:(Ipaddr.V4 dst) payload
+    and default6 ~proto ~src ~dst payload =
+      default ~proto ~src:(Ipaddr.V6 src) ~dst:(Ipaddr.V6 dst) payload
     in
     fun buf ->
       if Cstruct.length buf >= 1 then
@@ -235,66 +260,68 @@ module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.I
           Ipv4.input t.ipv4 ~tcp:tcp4 ~udp:udp4 ~default:default4 buf
         else if v = 6 && not t.ipv4_only then
           Ipv6.input t.ipv6 ~tcp:tcp6 ~udp:udp6 ~default:default6 buf
-        else
-          Lwt.return_unit
-      else
-        Lwt.return_unit
+        else Lwt.return_unit
+      else Lwt.return_unit
 
   let write t ?fragment ?ttl ?src dst proto ?size headerf bufs =
     match dst with
     | Ipaddr.V4 dst ->
-      if not t.ipv6_only then
-        match
-          match src with
-          | None -> Ok None
-          | Some (Ipaddr.V4 src) -> Ok (Some src)
-          | _ -> Error (`Msg "source must be V4 if dst is V4")
-        with
-        | Error e -> Lwt.return (Error e)
-        | Ok src ->
-          Ipv4.write t.ipv4 ?fragment ?ttl ?src dst proto ?size headerf bufs >|= function
-          | Ok () -> Ok ()
-          | Error e -> Error (`Ipv4 e)
-      else begin
-        Log.warn (fun m -> m "attempted to write an IPv4 packet in a v6 only stack");
-        Lwt.return (Ok ())
-      end
+        if not t.ipv6_only then
+          match
+            match src with
+            | None -> Ok None
+            | Some (Ipaddr.V4 src) -> Ok (Some src)
+            | _ -> Error (`Msg "source must be V4 if dst is V4")
+          with
+          | Error e -> Lwt.return (Error e)
+          | Ok src -> (
+              Ipv4.write t.ipv4 ?fragment ?ttl ?src dst proto ?size headerf bufs
+              >|= function
+              | Ok () -> Ok ()
+              | Error e -> Error (`Ipv4 e))
+        else (
+          Log.warn (fun m ->
+              m "attempted to write an IPv4 packet in a v6 only stack");
+          Lwt.return (Ok ()))
     | Ipaddr.V6 dst ->
-      if not t.ipv4_only then
-        match
-          match src with
-          | None -> Ok None
-          | Some (Ipaddr.V6 src) -> Ok (Some src)
-          | _ -> Error (`Msg "source must be V6 if dst is V6")
-        with
-        | Error e -> Lwt.return (Error e)
-        | Ok src ->
-          Ipv6.write t.ipv6 ?fragment ?ttl ?src dst proto ?size headerf bufs >|= function
-          | Ok () -> Ok ()
-          | Error e -> Error (`Ipv6 e)
-      else begin
-        Log.warn (fun m -> m "attempted to write an IPv6 packet in a v4 only stack");
-        Lwt.return (Ok ())
-      end
+        if not t.ipv4_only then
+          match
+            match src with
+            | None -> Ok None
+            | Some (Ipaddr.V6 src) -> Ok (Some src)
+            | _ -> Error (`Msg "source must be V6 if dst is V6")
+          with
+          | Error e -> Lwt.return (Error e)
+          | Ok src -> (
+              Ipv6.write t.ipv6 ?fragment ?ttl ?src dst proto ?size headerf bufs
+              >|= function
+              | Ok () -> Ok ()
+              | Error e -> Error (`Ipv6 e))
+        else (
+          Log.warn (fun m ->
+              m "attempted to write an IPv6 packet in a v4 only stack");
+          Lwt.return (Ok ()))
 
   let pseudoheader t ?src dst proto len =
     match dst with
     | Ipaddr.V4 dst ->
-      let src =
-        match src with
-        | None -> None
-        | Some (Ipaddr.V4 src) -> Some src
-        | _ -> None (* cannot happen *)
-      in
-      Ipv4.pseudoheader t.ipv4 ?src dst proto len
+        let src =
+          match src with
+          | None -> None
+          | Some (Ipaddr.V4 src) -> Some src
+          | _ -> None
+          (* cannot happen *)
+        in
+        Ipv4.pseudoheader t.ipv4 ?src dst proto len
     | Ipaddr.V6 dst ->
-      let src =
-        match src with
-        | None -> None
-        | Some (Ipaddr.V6 src) -> Some src
-        | _ -> None (* cannot happen *)
-      in
-      Ipv6.pseudoheader t.ipv6 ?src dst proto len
+        let src =
+          match src with
+          | None -> None
+          | Some (Ipaddr.V6 src) -> Some src
+          | _ -> None
+          (* cannot happen *)
+        in
+        Ipv6.pseudoheader t.ipv6 ?src dst proto len
 
   let src t ~dst =
     match dst with
@@ -302,25 +329,26 @@ module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.I
     | Ipaddr.V6 dst -> Ipaddr.V6 (Ipv6.src t.ipv6 ~dst)
 
   let get_ip t =
-    List.map (fun ip -> Ipaddr.V4 ip) (Ipv4.get_ip t.ipv4) @
-    List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.get_ip t.ipv6)
+    List.map (fun ip -> Ipaddr.V4 ip) (Ipv4.get_ip t.ipv4)
+    @ List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.get_ip t.ipv6)
 
-  let mtu t ~dst = match dst with
+  let mtu t ~dst =
+    match dst with
     | Ipaddr.V4 dst -> Ipv4.mtu t.ipv4 ~dst
     | Ipaddr.V6 dst -> Ipv6.mtu t.ipv6 ~dst
 end
 
 module MakeV4V6
-    (Time     : Mirage_time.S)
-    (Random   : Mirage_random.S)
-    (Netif    : Mirage_net.S)
-    (Eth      : Ethernet.S)
-    (Arpv4    : Arp.S)
-    (Ip       : Tcpip.Ip.S with type ipaddr = Ipaddr.t)
-    (Icmpv4   : Icmpv4.S)
-    (Udp      : Tcpip.Udp.S with type ipaddr = Ipaddr.t)
-    (Tcp      : Tcpip.Tcp.S with type ipaddr = Ipaddr.t) = struct
-
+    (Time : Mirage_time.S)
+    (Random : Mirage_random.S)
+    (Netif : Mirage_net.S)
+    (Eth : Ethernet.S)
+    (Arpv4 : Arp.S)
+    (Ip : Tcpip.Ip.S with type ipaddr = Ipaddr.t)
+    (Icmpv4 : Icmpv4.S)
+    (Udp : Tcpip.Udp.S with type ipaddr = Ipaddr.t)
+    (Tcp : Tcpip.Tcp.S with type ipaddr = Ipaddr.t) =
+struct
   module UDP = Udp
   module TCP = Tcp
   module IP = Ip
@@ -341,57 +369,66 @@ module MakeV4V6
       (Fmt.list Ipaddr.pp) (IP.get_ip t.ip)
 
   let tcp { tcp; _ } = tcp
+
   let udp { udp; _ } = udp
+
   let ip { ip; _ } = ip
 
-  let listen_udp t ~port callback =
-    Udp.listen t.udp ~port callback
+  let listen_udp t ~port callback = Udp.listen t.udp ~port callback
 
   let listen_tcp ?keepalive t ~port process =
     Tcp.listen t.tcp ~port ?keepalive process
 
   let listen t =
-    Lwt.catch (fun () ->
-        Log.debug (fun f -> f "Establishing or updating listener for stack %a" pp t);
+    Lwt.catch
+      (fun () ->
+        Log.debug (fun f ->
+            f "Establishing or updating listener for stack %a" pp t);
         let tcp = Tcp.input t.tcp
         and udp = Udp.input t.udp
         and default ~proto ~src ~dst buf =
-          match proto, src, dst with
-          | 1, Ipaddr.V4 src, Ipaddr.V4 dst -> Icmpv4.input t.icmpv4 ~src ~dst buf
+          match (proto, src, dst) with
+          | 1, Ipaddr.V4 src, Ipaddr.V4 dst ->
+              Icmpv4.input t.icmpv4 ~src ~dst buf
           | _ -> Lwt.return_unit
         in
-        let ethif_listener = Eth.input
-            ~arpv4:(Arpv4.input t.arpv4)
+        let ethif_listener =
+          Eth.input ~arpv4:(Arpv4.input t.arpv4)
             ~ipv4:(IP.input ~tcp ~udp ~default t.ip)
             ~ipv6:(IP.input ~tcp ~udp ~default t.ip)
             t.ethif
         in
-        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet ethif_listener
+        Netif.listen t.netif ~header_size:Ethernet.Packet.sizeof_ethernet
+          ethif_listener
         >>= function
         | Error e ->
-          Log.warn (fun p -> p "%a" Netif.pp_error e) ;
-          (* XXX: error should be passed to the caller *)
-          Lwt.return_unit
+            Log.warn (fun p -> p "%a" Netif.pp_error e);
+            (* XXX: error should be passed to the caller *)
+            Lwt.return_unit
         | Ok _res ->
-          let nstat = Netif.get_stats_counters t.netif in
-          let open Mirage_net in
-          Log.info (fun f ->
-              f "listening loop of interface %s terminated regularly:@ %Lu bytes \
-                 (%lu packets) received, %Lu bytes (%lu packets) sent@ "
-                (Macaddr.to_string (Netif.mac t.netif))
-                nstat.rx_bytes nstat.rx_pkts
-                nstat.tx_bytes nstat.tx_pkts) ;
-          Lwt.return_unit)
+            let nstat = Netif.get_stats_counters t.netif in
+            let open Mirage_net in
+            Log.info (fun f ->
+                f
+                  "listening loop of interface %s terminated regularly:@ %Lu \
+                   bytes (%lu packets) received, %Lu bytes (%lu packets) \
+                   sent@ "
+                  (Macaddr.to_string (Netif.mac t.netif))
+                  nstat.rx_bytes nstat.rx_pkts nstat.tx_bytes nstat.tx_pkts);
+            Lwt.return_unit)
       (function
         | Lwt.Canceled ->
-          Log.info (fun f -> f "listen of %a cancelled" pp t);
-          Lwt.return_unit
+            Log.info (fun f -> f "listen of %a cancelled" pp t);
+            Lwt.return_unit
         | e -> Lwt.fail e)
 
   let connect netif ethif arpv4 ip icmpv4 udp tcp =
     let t = { netif; ethif; arpv4; ip; icmpv4; tcp; udp; task = None } in
     Log.info (fun f -> f "stack assembled: %a" pp t);
-    Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
+    Lwt.async (fun () ->
+        let task = listen t in
+        t.task <- Some task;
+        task);
     Lwt.return t
 
   let disconnect t =

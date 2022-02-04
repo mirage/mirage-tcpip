@@ -20,19 +20,19 @@
 type t = int32
 
 (* a < b *)
-let lt a b = (Int32.sub a b) < 0l
+let lt a b = Int32.sub a b < 0l
 
 (* a <= b *)
-let leq a b = (Int32.sub a b) <= 0l
+let leq a b = Int32.sub a b <= 0l
 
 (* a > b *)
-let gt a b = (Int32.sub a b) > 0l
+let gt a b = Int32.sub a b > 0l
 
 (* a >= b *)
-let geq a b = (Int32.sub a b) >= 0l
+let geq a b = Int32.sub a b >= 0l
 
 (* b <= a <= c *)
-let between a b c = (geq a b) && (leq a c)
+let between a b c = geq a b && leq a c
 
 (* a + b *)
 let add a b = Int32.add a b
@@ -47,9 +47,13 @@ let succ a = Int32.succ a
 let pred a = Int32.pred a
 
 let compare a b = Int32.compare a b
+
 let of_int32 t = t
+
 let of_int t = Int32.of_int t
+
 let to_int32 t = t
+
 let to_int t = Int32.to_int t
 
 let zero = Int32.zero

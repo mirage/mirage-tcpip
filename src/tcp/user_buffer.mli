@@ -19,29 +19,45 @@ module Rx : sig
   type t
 
   val create : max_size:int32 -> wnd:Window.t -> t
+
   val add_r : t -> Cstruct.t option -> unit Lwt.t
+
   val take_l : t -> Cstruct.t option Lwt.t
+
   val cur_size : t -> int32
+
   val max_size : t -> int32
-  val monitor: t -> int32 Lwt_mvar.t -> unit
+
+  val monitor : t -> int32 Lwt_mvar.t -> unit
 end
 
-module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
-
+module Tx (Time : Mirage_time.S) (Clock : Mirage_clock.MCLOCK) : sig
   type t
 
   module TXS : sig
     type t = Segment.Tx(Time)(Clock).t
-    val output : ?flags:Segment.tx_flags -> ?options:Options.t list -> t ->
-      Cstruct.t -> unit Lwt.t
+
+    val output :
+      ?flags:Segment.tx_flags ->
+      ?options:Options.t list ->
+      t ->
+      Cstruct.t ->
+      unit Lwt.t
   end
 
-  val create: max_size:int32 -> wnd:Window.t -> txq:TXS.t -> t
-  val available: t -> int32
-  val wait_for: t -> int32 -> unit Lwt.t
-  val wait_for_flushed: t -> unit Lwt.t
-  val write: t -> Cstruct.t list -> unit Lwt.t
-  val write_nodelay: t -> Cstruct.t list -> unit Lwt.t
-  val free: t -> int -> unit Lwt.t
-  val reset: t -> unit Lwt.t
+  val create : max_size:int32 -> wnd:Window.t -> txq:TXS.t -> t
+
+  val available : t -> int32
+
+  val wait_for : t -> int32 -> unit Lwt.t
+
+  val wait_for_flushed : t -> unit Lwt.t
+
+  val write : t -> Cstruct.t list -> unit Lwt.t
+
+  val write_nodelay : t -> Cstruct.t list -> unit Lwt.t
+
+  val free : t -> int -> unit Lwt.t
+
+  val reset : t -> unit Lwt.t
 end

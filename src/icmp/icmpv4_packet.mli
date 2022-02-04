@@ -5,13 +5,10 @@ type subheader =
   | Address of Ipaddr.V4.t
   | Unused
 
-type t = {
-  code : Cstruct.uint8;
-  ty : Icmpv4_wire.ty;
-  subheader : subheader;
-}
+type t = { code : Cstruct.uint8; ty : Icmpv4_wire.ty; subheader : subheader }
 
 val pp : Format.formatter -> t -> unit
+
 val equal : t -> t -> bool
 
 module Unmarshal : sig
@@ -21,18 +18,19 @@ module Unmarshal : sig
 
   val of_cstruct : Cstruct.t -> (t * Cstruct.t, error) result
 end
+
 module Marshal : sig
   type error = string
 
+  val into_cstruct : t -> Cstruct.t -> payload:Cstruct.t -> (unit, error) result
   (** [into_cstruct t buf ~payload] generates an ICMPv4 header from [t] and
       writes it into [buf] at offset 0. [payload] is used to calculate the ICMPv4 header
       checksum, but is not included in the generated buffer. [into_cstruct] may
       fail if the buffer is of insufficient size. *)
-  val into_cstruct : t -> Cstruct.t -> payload:Cstruct.t -> (unit, error) result
 
+  val make_cstruct : t -> payload:Cstruct.t -> Cstruct.t
   (** [make_cstruct t ~payload] allocates, fills, and returns a Cstruct.t with the header
       information from [t].  The payload is used to calculate the ICMPv4 header
       checksum, but is not included in the generated buffer.  [make_cstruct] allocates
       8 bytes for the ICMPv4 header. *)
-  val make_cstruct : t -> payload:Cstruct.t -> Cstruct.t
 end

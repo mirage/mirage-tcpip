@@ -17,21 +17,27 @@
 open Common
 open Vnetif_common
 
-let (>>=) = Lwt.(>>=)
+let ( >>= ) = Lwt.( >>= )
 
 let src = Logs.Src.create "test_connect" ~doc:"connect tests"
+
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Test_connect (B : Vnetif_backends.Backend) = struct
   module V = VNETIF_STACK (B)
 
   let gateway = Ipaddr.V4.of_string_exn "10.0.0.1"
+
   let client_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.101/24"
+
   let server_cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.100/24"
+
   let test_string = "Hello world from Mirage 123456789...."
+
   let backend = V.create_backend ()
 
   let err_read_eof () = failf "accept got EOF while reading"
+
   let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =
@@ -44,85 +50,89 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
 
   let accept flow expected =
     let ip, port = V.Stackv4.TCPV4.dst flow in
-    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
+    Log.debug (fun f ->
+        f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
     V.Stackv4.TCPV4.read flow >>= function
-    | Error e      -> err_read e
-    | Ok `Eof      -> err_read_eof ()
+    | Error e -> err_read e
+    | Ok `Eof -> err_read_eof ()
     | Ok (`Data b) ->
-      Lwt_unix.sleep 0.1 >>= fun () ->
-      (* sleep first to capture data in pcap *)
-      Alcotest.(check string) "accept" expected (Cstruct.to_string b);
-      Log.debug (fun f -> f "Connection closed");
-      Lwt.return_unit
+        Lwt_unix.sleep 0.1 >>= fun () ->
+        (* sleep first to capture data in pcap *)
+        Alcotest.(check string) "accept" expected (Cstruct.to_string b);
+        Log.debug (fun f -> f "Connection closed");
+        Lwt.return_unit
 
   let test_tcp_connect_two_stacks () =
     let timeout = 15.0 in
-    Lwt.pick [
-      (Lwt_unix.sleep timeout >>= fun () ->
-       failf "connect test timedout after %f seconds" timeout) ;
+    Lwt.pick
+      [
+        ( Lwt_unix.sleep timeout >>= fun () ->
+          failf "connect test timedout after %f seconds" timeout );
+        ( V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
+          V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 s1) ~port:80 (fun f ->
+              accept f test_string);
+          V.Stackv4.listen s1 );
+        ( Lwt_unix.sleep 0.1 >>= fun () ->
+          V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
+          Lwt.pick
+            [
+              V.Stackv4.listen s2;
+              (let conn =
+                 V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2)
+               in
+               or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80)
+               >>= fun flow ->
+               Log.debug (fun f -> f "Connected to other end...");
 
-      (V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
-       V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 s1) ~port:80 (fun f -> accept f test_string);
-       V.Stackv4.listen s1) ;
+               V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string)
+               >>= function
+               | Error `Closed -> err_write_eof ()
+               | Error e -> err_write e
+               | Ok () ->
+                   Log.debug (fun f -> f "wrote hello world");
+                   V.Stackv4.TCPV4.close flow >>= fun () ->
+                   Lwt_unix.sleep 1.0 >>= fun () ->
+                   (* record some traffic after close *)
+                   Lwt.return_unit);
+            ] );
+      ]
+    >>= fun () -> Lwt.return_unit
 
-      (Lwt_unix.sleep 0.1 >>= fun () ->
-       V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
-       Lwt.pick [
-       V.Stackv4.listen s2;
-       (let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
-       or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80) >>= fun flow ->
-       Log.debug (fun f -> f "Connected to other end...");
-
-       V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function
-       | Error `Closed -> err_write_eof ()
-       | Error e -> err_write e
-       | Ok ()   ->
-         Log.debug (fun f -> f "wrote hello world");
-         V.Stackv4.TCPV4.close flow >>= fun () ->
-         Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
-         Lwt.return_unit)]) ] >>= fun () ->
-
-    Lwt.return_unit
-
-  let record_pcap =
-    V.record_pcap backend
-
+  let record_pcap = V.record_pcap backend
 end
 
 let test_tcp_connect_two_stacks_basic () =
-  let module Test = Test_connect(Vnetif_backends.Basic) in
-  Test.record_pcap
-    "tcp_connect_two_stacks_basic.pcap"
+  let module Test = Test_connect (Vnetif_backends.Basic) in
+  Test.record_pcap "tcp_connect_two_stacks_basic.pcap"
     Test.test_tcp_connect_two_stacks
 
 let test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss () =
   let rec loop = function
-      | 0 -> Lwt.return_unit
-      | n -> Log.info (fun f -> f "%d/100" (101-n));
-             let module Test = Test_connect(Vnetif_backends.Uniform_no_payload_packet_loss) in
-             Test.record_pcap
-               (Printf.sprintf
-               "tcp_connect_two_stacks_no_payload_packet_loss_%d_of_100.pcap" n)
-               Test.test_tcp_connect_two_stacks >>= fun () ->
-             loop (n - 1)
+    | 0 -> Lwt.return_unit
+    | n ->
+        Log.info (fun f -> f "%d/100" (101 - n));
+        let module Test =
+          Test_connect (Vnetif_backends.Uniform_no_payload_packet_loss) in
+        Test.record_pcap
+          (Printf.sprintf
+             "tcp_connect_two_stacks_no_payload_packet_loss_%d_of_100.pcap" n)
+          Test.test_tcp_connect_two_stacks
+        >>= fun () -> loop (n - 1)
   in
   loop 100
 
 let test_tcp_connect_two_stacks_trailing_bytes () =
-  let module Test = Test_connect(Vnetif_backends.Trailing_bytes) in
-  Test.record_pcap
-    "tcp_connect_two_stacks_trailing_bytes.pcap"
+  let module Test = Test_connect (Vnetif_backends.Trailing_bytes) in
+  Test.record_pcap "tcp_connect_two_stacks_trailing_bytes.pcap"
     Test.test_tcp_connect_two_stacks
 
-let suite = [
-
-  "connect two stacks, basic test", `Quick,
-  test_tcp_connect_two_stacks_basic;
-
-  "connect two stacks, uniform packet loss of packets with no payload x 100", `Slow,
-  test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss;
-
-  "connect two stacks, with trailing bytes", `Quick,
-  test_tcp_connect_two_stacks_trailing_bytes;
-
-]
+let suite =
+  [
+    ("connect two stacks, basic test", `Quick, test_tcp_connect_two_stacks_basic);
+    ( "connect two stacks, uniform packet loss of packets with no payload x 100",
+      `Slow,
+      test_tcp_connect_two_stacks_x100_uniform_no_payload_packet_loss );
+    ( "connect two stacks, with trailing bytes",
+      `Quick,
+      test_tcp_connect_two_stacks_trailing_bytes );
+  ]

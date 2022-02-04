@@ -1,25 +1,25 @@
 (** {2 IP layer} *)
 
+type error =
+  [ `No_route of string  (** can't send a message to that destination *)
+  | `Would_fragment
+    (** would need to fragment, but fragmentation is disabled *) ]
 (** IP errors and protocols. *)
-type error = [
-  | `No_route of string (** can't send a message to that destination *)
-  | `Would_fragment (** would need to fragment, but fragmentation is disabled *)
-]
 
 val pp_error : error Fmt.t
 
 type proto = [ `TCP | `UDP | `ICMP ]
-val pp_proto: proto Fmt.t
+
+val pp_proto : proto Fmt.t
 
 (** An Internet Protocol (IP) layer reassembles IP fragments into packets,
    removes the IP header, and on the sending side fragments overlong payload
    and inserts IP headers. *)
 module type S = sig
-
-  type nonrec error = private [> error]
+  type nonrec error = private [> error ]
   (** The type for IP errors. *)
 
-  val pp_error: error Fmt.t
+  val pp_error : error Fmt.t
   (** [pp_error] is the pretty-printer for errors. *)
 
   type ipaddr
@@ -31,7 +31,7 @@ module type S = sig
   type t
   (** The type representing the internal state of the IP layer. *)
 
-  val disconnect: t -> unit Lwt.t
+  val disconnect : t -> unit Lwt.t
   (** Disconnect from the IP layer. While this might take some time to
       complete, it can never result in an error. *)
 
@@ -44,18 +44,29 @@ module type S = sig
       and [buf] will be a buffer pointing at the start of the IP
       payload. *)
 
-  val input:
+  val input :
     t ->
-    tcp:callback -> udp:callback -> default:(proto:int -> callback) ->
-    Cstruct.t -> unit Lwt.t
+    tcp:callback ->
+    udp:callback ->
+    default:(proto:int -> callback) ->
+    Cstruct.t ->
+    unit Lwt.t
   (** [input ~tcp ~udp ~default ip buf] demultiplexes an incoming
       [buffer] that contains an IP frame. It examines the protocol
       header and passes the result onto either the [tcp] or [udp]
       function, or the [default] function for unknown IP protocols. *)
 
-  val write: t -> ?fragment:bool -> ?ttl:int ->
-    ?src:ipaddr -> ipaddr -> proto -> ?size:int -> (Cstruct.t -> int) ->
-    Cstruct.t list -> (unit, error) result Lwt.t
+  val write :
+    t ->
+    ?fragment:bool ->
+    ?ttl:int ->
+    ?src:ipaddr ->
+    ipaddr ->
+    proto ->
+    ?size:int ->
+    (Cstruct.t -> int) ->
+    Cstruct.t list ->
+    (unit, error) result Lwt.t
   (** [write t ~fragment ~ttl ~src dst proto ~size headerf payload] allocates a
      buffer, writes the IP header, and calls the headerf function. This may
      write to the provided buffer of [size] (default 0). If [size + ip header]
@@ -70,17 +81,17 @@ module type S = sig
   (** [pseudoheader t ~src dst proto len] gives a pseudoheader suitable for use in
       TCP or UDP checksum calculation based on [t]. *)
 
-  val src: t -> dst:ipaddr -> ipaddr
+  val src : t -> dst:ipaddr -> ipaddr
   (** [src ip ~dst] is the source address to be used to send a
       packet to [dst].  In the case of IPv4, this will always return
       the same IP, which is the only one set. *)
 
-  val get_ip: t -> ipaddr list
+  val get_ip : t -> ipaddr list
   (** Get the IP addresses associated with this interface. For IPv4, only
       one IP address can be set at a time, so the list will always be of
       length 1 (and may be the default value, 0.0.0.0). *)
 
-  val mtu: t -> dst:ipaddr -> int
+  val mtu : t -> dst:ipaddr -> int
   (** [mtu ~dst ip] is the Maximum Transmission Unit of the [ip] i.e. the
       maximum size of the payload, not including the IP header. *)
 end

@@ -14,57 +14,53 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let (>>=) = Lwt.(>>=)
+let ( >>= ) = Lwt.( >>= )
 
 module type Backend = sig
   include Vnetif.BACKEND
+
   val create : unit -> t
 end
 
 (** This backend enforces an Ethernet frame size. *)
 module Frame_size_enforced = struct
   module X = Basic_backend.Make
-  type t = {
-    xt : X.t;
-    mutable frame_size : int;
-  }
+
+  type t = { xt : X.t; mutable frame_size : int }
 
   type macaddr = X.macaddr
+
   type 'a io = 'a X.io
+
   type buffer = X.buffer
+
   type id = X.id
 
-  let register t =
-    X.register t.xt
+  let register t = X.register t.xt
 
-  let unregister t id =
-    X.unregister t.xt id
+  let unregister t id = X.unregister t.xt id
 
-  let mac t id =
-    X.mac t.xt id
+  let mac t id = X.mac t.xt id
 
-  let set_listen_fn t id buf =
-    X.set_listen_fn t.xt id buf
+  let set_listen_fn t id buf = X.set_listen_fn t.xt id buf
 
-  let unregister_and_flush t id =
-    X.unregister_and_flush t.xt id
+  let unregister_and_flush t id = X.unregister_and_flush t.xt id
 
   let write t id ~size fill =
-    if size > t.frame_size then
-      Lwt.return (Error `Invalid_length)
-    else
-      X.write t.xt id ~size fill
+    if size > t.frame_size then Lwt.return (Error `Invalid_length)
+    else X.write t.xt id ~size fill
 
   let set_frame_size t m = t.frame_size <- m
+
   let set_max_ip_mtu t m = t.frame_size <- m + Ethernet.Packet.sizeof_ethernet
 
   let create ~frame_size () =
-    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) () in
-    { xt ; frame_size }
+    let xt =
+      X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
+    in
+    { xt; frame_size }
 
-  let create () =
-    create ~frame_size:(1500 + Ethernet.Packet.sizeof_ethernet) ()
-
+  let create () = create ~frame_size:(1500 + Ethernet.Packet.sizeof_ethernet) ()
 end
 
 (** This backend adds a random number of trailing bytes to each frame *)
@@ -84,12 +80,10 @@ module Trailing_bytes : Backend = struct
 
   let set_listen_fn t id fn =
     (* Add random bytes before returning result to real listener *)
-    X.set_listen_fn t id (fun buf ->
-        fn (add_random_bytes buf))
+    X.set_listen_fn t id (fun buf -> fn (add_random_bytes buf))
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
-
+    X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
 end
 
 (** This backend drops packets *)
@@ -100,16 +94,14 @@ module Uniform_packet_loss : Backend = struct
   let drop_p = 0.01
 
   let write t id ~size fill =
-    if Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.write t id ~size fill (* pass to real write *)
+    if Random.float 1.0 < drop_p then (
+      MProf.Trace.label "pkt_drop";
+      Lwt.return (Ok ()) (* drop packet *))
+    else X.write t id ~size fill
+  (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
-
+    X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
 end
 
 (** This backend uniformly drops packets with no payload *)
@@ -120,25 +112,26 @@ module Uniform_no_payload_packet_loss : Backend = struct
   (* We assume that packets with payload are usually filled. We could make the
    * payload check more accurate by parsing the packet properly. *)
   let no_payload_len = 100
+
   (* Drop probability, if no payload *)
   let drop_p = 0.10
 
   let write t id ~size fill =
-    if size <= no_payload_len && Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.write t id ~size fill (* pass to real write *)
+    if size <= no_payload_len && Random.float 1.0 < drop_p then (
+      MProf.Trace.label "pkt_drop";
+      Lwt.return (Ok ()) (* drop packet *))
+    else X.write t id ~size fill
+  (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
+    X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
 end
 
 (** This backend drops packets for 1 second after 1 megabyte has been
  * transferred *)
 module Drop_1_second_after_1_megabyte : Backend = struct
   module X = Basic_backend.Make
+
   type t = {
     xt : X.t;
     mutable sent_bytes : int;
@@ -147,62 +140,54 @@ module Drop_1_second_after_1_megabyte : Backend = struct
   }
 
   type macaddr = X.macaddr
+
   type 'a io = 'a X.io
+
   type buffer = X.buffer
+
   type id = X.id
 
   let byte_limit : int = 1_000_000
+
   let time_to_sleep : float = 1.0
 
-  let register t =
-    X.register t.xt
+  let register t = X.register t.xt
 
-  let unregister t id =
-    X.unregister t.xt id
+  let unregister t id = X.unregister t.xt id
 
-  let mac t id =
-    X.mac t.xt id
+  let mac t id = X.mac t.xt id
 
-  let set_listen_fn t id buf =
-    X.set_listen_fn t.xt id buf
+  let set_listen_fn t id buf = X.set_listen_fn t.xt id buf
 
-  let unregister_and_flush t id =
-    X.unregister_and_flush t.xt id
+  let unregister_and_flush t id = X.unregister_and_flush t.xt id
 
   let should_drop t =
-    if (t.sent_bytes > byte_limit) &&
-       (t.is_dropping = false) &&
-       (t.done_dropping = false) then
-      begin
-        Logs.info (fun f -> f  "Backend dropping packets for %f sec" time_to_sleep);
-        t.is_dropping <- true;
-        Lwt.async(fun () ->
-            Lwt_unix.sleep time_to_sleep >>= fun () ->
-            t.done_dropping <- true;
-            t.is_dropping <- false;
-            Logs.info (fun f -> f  "Stopped dropping");
-            Lwt.return_unit
-          );
-        true
-      end else
-      begin
-        if t.is_dropping = true then
-          true
-        else
-          false
-      end
+    if
+      t.sent_bytes > byte_limit && t.is_dropping = false
+      && t.done_dropping = false
+    then (
+      Logs.info (fun f -> f "Backend dropping packets for %f sec" time_to_sleep);
+      t.is_dropping <- true;
+      Lwt.async (fun () ->
+          Lwt_unix.sleep time_to_sleep >>= fun () ->
+          t.done_dropping <- true;
+          t.is_dropping <- false;
+          Logs.info (fun f -> f "Stopped dropping");
+          Lwt.return_unit);
+      true)
+    else if t.is_dropping = true then true
+    else false
 
   let write t id ~size fill =
     t.sent_bytes <- t.sent_bytes + size;
-    if should_drop t then
-      Lwt.return (Ok ())
-    else
-      X.write t.xt id ~size fill (* pass to real write *)
+    if should_drop t then Lwt.return (Ok ()) else X.write t.xt id ~size fill
+  (* pass to real write *)
 
   let create () =
-    let xt = X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause ()) () in
-    { xt ; done_dropping = false; is_dropping = false; sent_bytes = 0 }
-
+    let xt =
+      X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
+    in
+    { xt; done_dropping = false; is_dropping = false; sent_bytes = 0 }
 end
 
 (** This backend has a global on/off switch which drops all the packets *)
@@ -213,17 +198,15 @@ module On_off_switch = struct
   let send_packets = ref true
 
   let write t id ~size fill =
-    if not !send_packets then
-      begin
-        Logs.info (fun f -> f "write dropping 1 packet");
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
-      X.write t id ~size fill (* pass to real write *)
+    if not !send_packets then (
+      Logs.info (fun f -> f "write dropping 1 packet");
+      MProf.Trace.label "pkt_drop";
+      Lwt.return (Ok ()) (* drop packet *))
+    else X.write t id ~size fill
+  (* pass to real write *)
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
-
+    X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
 end
 
 (** This backend delivers all packets unmodified *)
@@ -232,5 +215,5 @@ module Basic : Backend = struct
   include X
 
   let create () =
-    X.create ~use_async_readers:true ~yield:(fun() -> Lwt.pause () ) ()
+    X.create ~use_async_readers:true ~yield:(fun () -> Lwt.pause ()) ()
 end

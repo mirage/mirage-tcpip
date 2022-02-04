@@ -18,16 +18,21 @@
 
 type t =
   | Noop
-  | MSS of int                      (** RFC793 *)
-  | Window_size_shift of int        (** RFC1323 2.2 *)
-  | SACK_ok                         (** RFC2018 *)
-  | SACK of (int32 * int32) list    (** RFC2018 *)
-  | Timestamp of int32 * int32      (** RFC1323 3.2 *)
-  | Unknown of int * string         (** RFC793 *)
+  | MSS of int  (** RFC793 *)
+  | Window_size_shift of int  (** RFC1323 2.2 *)
+  | SACK_ok  (** RFC2018 *)
+  | SACK of (int32 * int32) list  (** RFC2018 *)
+  | Timestamp of int32 * int32  (** RFC1323 3.2 *)
+  | Unknown of int * string  (** RFC793 *)
 
-val equal: t -> t -> bool
-val lenv: t list -> int (* how many bytes are required to marshal this list *)
-val marshal: Cstruct.t -> t list -> int
+val equal : t -> t -> bool
+
+val lenv : t list -> int (* how many bytes are required to marshal this list *)
+
+val marshal : Cstruct.t -> t list -> int
+
 val unmarshal : Cstruct.t -> (t list, string) result
+
 val pp : Format.formatter -> t -> unit
+
 val pps : Format.formatter -> t list -> unit

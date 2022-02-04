@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+external ones_complement : Cstruct.t -> int
+  = "mirage_tcpip_ones_complement_checksum"
 (** One's complement checksum, RFC1071 *)
-external ones_complement: Cstruct.t -> int = "mirage_tcpip_ones_complement_checksum"
 
-external ones_complement_list: Cstruct.t list -> int = "mirage_tcpip_ones_complement_checksum_list"
+external ones_complement_list : Cstruct.t list -> int
+  = "mirage_tcpip_ones_complement_checksum_list"

@@ -6,7 +6,4 @@ let main =
 
 let stack = generic_stackv4 default_network
 
-let () =
-  register "services" [
-    main $ stack
-  ]
+let () = register "services" [ main $ stack ]

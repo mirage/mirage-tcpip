@@ -72,8 +72,13 @@ val max_duration : int64
 (** [max_duration] is the maximum delta between first and last received
     fragment, in nanoseconds. At the moment it is 10 seconds. *)
 
-val process : Cache.t -> int64 -> Ipv4_packet.t -> Cstruct.t -> Cache.t *
-   (Ipv4_packet.t * Cstruct.t) option (** [process t timestamp hdr payload] is
+val process :
+  Cache.t ->
+  int64 ->
+  Ipv4_packet.t ->
+  Cstruct.t ->
+  Cache.t * (Ipv4_packet.t * Cstruct.t) option
+(** [process t timestamp hdr payload] is
    [t'], a new cache, and maybe a fully reassembled IPv4 packet. If reassembly
    fails, e.g. too many fragments, delta between receive timestamp of first and
    last packet exceeds {!max_duration}, overlapping packets, these packets

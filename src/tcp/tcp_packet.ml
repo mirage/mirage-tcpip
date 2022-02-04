@@ -13,21 +13,33 @@ type t = {
   dst_port : Cstruct.uint16;
 }
 
-let equal {urg; ack; psh; rst; syn; fin; window; options; sequence; ack_number;
-           src_port; dst_port} q =
-  src_port = q.src_port &&
-  dst_port = q.dst_port &&
-  window = q.window &&
-  urg = q.urg && ack = q.ack && psh = q.psh && rst = q.rst && syn = q.syn && fin = q.fin &&
-  Sequence.compare sequence q.sequence = 0 &&
-  Sequence.compare ack_number q.ack_number = 0 &&
-  List.for_all2 Options.equal options q.options
+let equal
+    {
+      urg;
+      ack;
+      psh;
+      rst;
+      syn;
+      fin;
+      window;
+      options;
+      sequence;
+      ack_number;
+      src_port;
+      dst_port;
+    } q =
+  src_port = q.src_port && dst_port = q.dst_port && window = q.window
+  && urg = q.urg && ack = q.ack && psh = q.psh && rst = q.rst && syn = q.syn
+  && fin = q.fin
+  && Sequence.compare sequence q.sequence = 0
+  && Sequence.compare ack_number q.ack_number = 0
+  && List.for_all2 Options.equal options q.options
 
 let pp fmt t =
   Format.fprintf fmt
     "TCP packet seq=%a acknum=%a ack=%b rst=%b syn=%b fin=%b win=%d options=%a"
-    Sequence.pp t.sequence Sequence.pp t.ack_number
-    t.ack t.rst t.syn t.fin t.window Options.pps t.options
+    Sequence.pp t.sequence Sequence.pp t.ack_number t.ack t.rst t.syn t.fin
+    t.window Options.pps t.options
 
 let ( let* ) = Result.bind
 
@@ -39,20 +51,20 @@ module Unmarshal = struct
     let check_len pkt =
       if Cstruct.length pkt < sizeof_tcp then
         Error "packet too short to contain a TCP packet of any size"
-      else
-        Ok (Tcp_wire.get_data_offset pkt)
+      else Ok (Tcp_wire.get_data_offset pkt)
     in
-    let long_enough data_offset = if Cstruct.length pkt < data_offset then
+    let long_enough data_offset =
+      if Cstruct.length pkt < data_offset then
         Error "packet too short to contain a TCP packet of the size claimed"
-      else
-        Ok ()
+      else Ok ()
     in
     let options data_offset pkt =
       if data_offset > 20 then
-        Options.unmarshal (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
+        Options.unmarshal
+          (Cstruct.sub pkt sizeof_tcp (data_offset - sizeof_tcp))
       else if data_offset < 20 then
         Error "data offset was unreasonably short; TCP header can't be valid"
-      else (Ok [])
+      else Ok []
     in
     let* data_offset = check_len pkt in
     let* () = long_enough data_offset in
@@ -69,9 +81,24 @@ module Unmarshal = struct
     let src_port = get_tcp_src_port pkt in
     let dst_port = get_tcp_dst_port pkt in
     let data = Cstruct.shift pkt data_offset in
-    Ok ({ urg; ack; psh; rst; syn; fin; window; options;
-          sequence; ack_number; src_port; dst_port }, data)
+    Ok
+      ( {
+          urg;
+          ack;
+          psh;
+          rst;
+          syn;
+          fin;
+          window;
+          options;
+          sequence;
+          ack_number;
+          src_port;
+          dst_port;
+        },
+        data )
 end
+
 module Marshal = struct
   open Tcp_wire
 
@@ -98,32 +125,35 @@ module Marshal = struct
     (* it's possible we've been passed a buffer larger than the size of the header,
      * which contains some data after the end of the header we'll write;
      * in this case, make sure we compute the checksum properly *)
-    let checksum = Tcpip_checksum.ones_complement_list [pseudoheader ; buf ;
-                                                        payload] in
+    let checksum =
+      Tcpip_checksum.ones_complement_list [ pseudoheader; buf; payload ]
+    in
     set_tcp_checksum buf checksum;
     ()
 
   let into_cstruct ~pseudoheader ~payload t buf =
     let check_header_len () =
-      if (Cstruct.length buf) < sizeof_tcp then Error "Not enough space for a TCP header"
+      if Cstruct.length buf < sizeof_tcp then
+        Error "Not enough space for a TCP header"
       else Ok ()
     in
     let check_overall_len header_length =
-      if (Cstruct.length buf) < header_length then
-        Error (Printf.sprintf "Not enough space for TCP header: %d < %d"
-                 (Cstruct.length buf) header_length)
+      if Cstruct.length buf < header_length then
+        Error
+          (Printf.sprintf "Not enough space for TCP header: %d < %d"
+             (Cstruct.length buf) header_length)
       else Ok ()
     in
     let insert_options options_frame =
       match t.options with
-      |[] -> Ok 0
-      |options ->
-        try
-          Ok (Options.marshal options_frame options)
-        with
-        (* handle the case where we ran out of room in the buffer while attempting
-           to write the options *)
-        | Invalid_argument s -> Error s
+      | [] -> Ok 0
+      | options -> (
+          try Ok (Options.marshal options_frame options)
+          with
+          (* handle the case where we ran out of room in the buffer while attempting
+             to write the options *)
+          | Invalid_argument s ->
+            Error s)
     in
     let options_frame = Cstruct.shift buf sizeof_tcp in
     let* () = check_header_len () in
@@ -134,9 +164,10 @@ module Marshal = struct
     Ok (sizeof_tcp + options_len)
 
   let make_cstruct ~pseudoheader ~payload t =
-    let buf = Cstruct.create (sizeof_tcp + 40) in (* more than 40 bytes of options can't
-                                                     be signalled in the length field of
-                                                     the tcp header *)
+    let buf = Cstruct.create (sizeof_tcp + 40) in
+    (* more than 40 bytes of options can't
+       be signalled in the length field of
+       the tcp header *)
     let options_buf = Cstruct.shift buf sizeof_tcp in
     let options_len = Options.marshal options_buf t.options in
     let buf = Cstruct.sub buf 0 (sizeof_tcp + options_len) in

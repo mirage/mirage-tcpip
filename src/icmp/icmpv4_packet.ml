@@ -8,11 +8,7 @@ type subheader =
   | Address of Ipaddr.V4.t
   | Unused
 
-type t = {
-  code : Cstruct.uint8;
-  ty : ty;
-  subheader : subheader;
-}
+type t = { code : Cstruct.uint8; ty : ty; subheader : subheader }
 
 let pp fmt t =
   let say = Format.fprintf in
@@ -23,38 +19,34 @@ let pp fmt t =
     | Address addr -> say fmt "subheader: ip %a" Ipaddr.V4.pp addr
     | Unused -> ()
   in
-  say fmt "ICMP type %s, code %d, subheader [%a]" (Icmpv4_wire.ty_to_string t.ty)
+  say fmt "ICMP type %s, code %d, subheader [%a]"
+    (Icmpv4_wire.ty_to_string t.ty)
     t.code pp_subheader t.subheader
 
 let subheader_eq = function
   | Unused, Unused -> true
   | Id_and_seq (a, b), Id_and_seq (p, q) -> a = p && b = q
-  | Next_hop_mtu a, Next_hop_mtu b-> a = b
+  | Next_hop_mtu a, Next_hop_mtu b -> a = b
   | Pointer a, Pointer b -> a = b
   | Address a, Address b -> Ipaddr.V4.compare a b = 0
   | _ -> false
 
-let equal {code; ty; subheader} q =
-  code = q.code &&
-  ty = q.ty &&
-  subheader_eq (subheader, q.subheader)
+let equal { code; ty; subheader } q =
+  code = q.code && ty = q.ty && subheader_eq (subheader, q.subheader)
 
 let ( let* ) = Result.bind
 
 module Unmarshal = struct
-
   type error = string
 
   let subheader_of_cstruct ty buf =
     let open Cstruct.BE in
     match ty with
-    | Echo_request | Echo_reply
-    | Timestamp_request | Timestamp_reply
+    | Echo_request | Echo_reply | Timestamp_request | Timestamp_reply
     | Information_request | Information_reply ->
-      Id_and_seq (get_uint16 buf 0, get_uint16 buf 2)
+        Id_and_seq (get_uint16 buf 0, get_uint16 buf 2)
     | Destination_unreachable -> Next_hop_mtu (get_uint16 buf 2)
-    | Time_exceeded
-    | Source_quench -> Unused
+    | Time_exceeded | Source_quench -> Unused
     | Redirect -> Address (Ipaddr.V4.of_int32 (get_uint32 buf 0))
     | Parameter_problem -> Pointer (Cstruct.get_uint8 buf 0)
 
@@ -62,7 +54,8 @@ module Unmarshal = struct
     let check_len () =
       if Cstruct.length buf < sizeof_icmpv4 then
         Error "packet too short for ICMPv4 header"
-      else Ok () in
+      else Ok ()
+    in
     let check_ty () =
       match int_to_ty (get_icmpv4_ty buf) with
       | None -> Error "unrecognized ICMPv4 type"
@@ -74,28 +67,33 @@ module Unmarshal = struct
     let code = get_icmpv4_code buf in
     let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
     let payload = Cstruct.shift buf sizeof_icmpv4 in
-    Ok ({ code; ty; subheader}, payload)
+    Ok ({ code; ty; subheader }, payload)
 end
 
 module Marshal = struct
-
   type error = string
 
   let subheader_into_cstruct ~buf sh =
     let open Cstruct.BE in
     match sh with
-    | Id_and_seq (id, seq) -> set_uint16 buf 0 id; set_uint16 buf 2 seq
-    | Next_hop_mtu mtu -> set_uint16 buf 0 0; set_uint16 buf 2 mtu
-    | Pointer byte -> set_uint32 buf 0 Int32.zero; Cstruct.set_uint8 buf 0 byte;
+    | Id_and_seq (id, seq) ->
+        set_uint16 buf 0 id;
+        set_uint16 buf 2 seq
+    | Next_hop_mtu mtu ->
+        set_uint16 buf 0 0;
+        set_uint16 buf 2 mtu
+    | Pointer byte ->
+        set_uint32 buf 0 Int32.zero;
+        Cstruct.set_uint8 buf 0 byte
     | Address addr -> set_uint32 buf 0 (Ipaddr.V4.to_int32 addr)
     | Unused -> set_uint32 buf 0 Int32.zero
 
-  let unsafe_fill {ty; code; subheader} buf ~payload =
+  let unsafe_fill { ty; code; subheader } buf ~payload =
     set_icmpv4_ty buf (ty_to_int ty);
     set_icmpv4_code buf code;
     set_icmpv4_csum buf 0x0000;
     subheader_into_cstruct ~buf:(Cstruct.shift buf 4) subheader;
-    let packets = [(Cstruct.sub buf 0 Icmpv4_wire.sizeof_icmpv4); payload] in
+    let packets = [ Cstruct.sub buf 0 Icmpv4_wire.sizeof_icmpv4; payload ] in
     set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
 
   let check_len buf =
