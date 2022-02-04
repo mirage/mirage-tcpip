@@ -86,7 +86,6 @@ module Defaults = struct
   let _max_neighbor_advertisement = 3
   let delay_first_probe_time = Duration.of_sec 5
   let link_mtu = 1500 (* RFC 2464, 2. *)
-
   let _min_link_mtu = 1280
   let dup_addr_detect_transmits = 1
   let min_random_factor = 0.5

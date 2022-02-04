@@ -7,7 +7,6 @@ type error = [ `Ip of string ]
 let pp_error ppf (`Ip s) = Fmt.string ppf s
 let is_win32 = Sys.os_type = "Win32"
 let ipproto_icmp = 1 (* according to BSD /etc/protocols *)
-
 let port = 0 (* port isn't meaningful in this context *)
 
 let safe_close fd =
