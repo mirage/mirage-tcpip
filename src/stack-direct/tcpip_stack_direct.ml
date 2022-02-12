@@ -399,3 +399,15 @@ module MakeV4V6
     (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
 end
+
+module TCPV4V6 (S : Tcpip.Stack.V4V6) : sig
+  include Tcpip.Tcp.S with type ipaddr = Ipaddr.t
+                       and type flow = S.TCP.flow
+                       and type t = S.TCP.t
+
+  val connect : S.t -> t Lwt.t
+end = struct
+  include S.TCP
+
+  let connect stackv4v6 = Lwt.return (S.tcp stackv4v6)
+end
