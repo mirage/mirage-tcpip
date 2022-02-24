@@ -167,11 +167,8 @@ let cmd =
     `S "DESCRIPTION";
     `P "Send a sequence of ICMP ECHO_REQUEST packets to a network host and count the responses. When the program exits, display some statistics.";
   ] in
-  Term.(ret(pure ping $ count $ size $ timeout $ destination)),
-  Term.info "ping" ~doc ~man
+  Cmd.v (Cmd.info "ping" ~doc ~man) (Term.(ret(const ping $ count $ size $ timeout $ destination)))
 
 let _ =
   Logs.set_reporter (Logs_fmt.reporter ());
-  match Term.eval cmd with
-  | `Error _ -> exit 1
-  | _ -> exit 0
+  exit (Cmd.eval cmd)
