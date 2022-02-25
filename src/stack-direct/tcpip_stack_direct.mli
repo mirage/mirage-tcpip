@@ -87,3 +87,15 @@ module MakeV4V6
       functioning, so that if the user wishes to establish outbound connections,
       they will be able to do so. *)
 end
+
+module TCPV4V6
+  (S : Tcpip.Stack.V4V6)
+  : sig
+  include Tcpip.Tcp.S with type ipaddr = Ipaddr.t
+                       and type flow = S.TCP.flow
+                       and type t = S.TCP.t
+
+  val connect : S.t -> t Lwt.t
+  (** [connect] returns the TCP/IP stack from a network stack to let the user to
+      initiate only TCP/IP connections (regardless UDP/IP). *)
+end
