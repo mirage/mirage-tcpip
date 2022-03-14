@@ -1,3 +1,7 @@
+### Pending
+
+* Work with MSVC compiler (@jonahbeckford, #476)
+
 ### v7.0.1 (2021-12-17)
 
 * Fix cancellation of Unix socket when we don't use `Stack.connect` (@dinosaure, @hannesm, #466)

@@ -22,7 +22,11 @@
 #include <caml/bigarray.h>
 #include <caml/unixsupport.h>
 
-#ifdef WIN32
+#ifdef _WIN32
+#ifdef _MSC_VER
+/* https://docs.microsoft.com/en-us/windows/win32/winsock/sio-keepalive-vals */
+#include <Mstcpip.h>
+#endif
 #else
 #include <sys/time.h>
 #include <sys/types.h>
@@ -38,7 +42,7 @@ CAMLprim value
 caml_tcp_set_keepalive_params(value v_fd, value v_time, value v_interval, value v_probe)
 {
   CAMLparam4(v_fd, v_time, v_interval, v_probe);
-#ifdef WIN32
+#ifdef _WIN32
   SOCKET s = Socket_val(v_fd);
   DWORD dwBytesRet=0;
   struct tcp_keepalive alive;

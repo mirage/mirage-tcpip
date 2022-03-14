@@ -300,7 +300,7 @@ mirage_tcpip_ones_complement_checksum_list(value v_cstruct_list)
     v_ofs = Field(v_hd, 1);
     v_len = Field(v_hd, 2);
     a = Caml_ba_array_val(v_ba);
-    addr = a->data + Int_val(v_ofs);
+    addr = (unsigned char *) (a->data) + Int_val(v_ofs);
     count = Int_val(v_len);
     if (count <= 0) continue;
     if (overflow != 0) {
