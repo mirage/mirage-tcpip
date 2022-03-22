@@ -45,11 +45,11 @@ let speaker_address = Ipaddr.V4.of_string_exn "192.168.222.10"
 
 let header_size = Ethernet.Packet.sizeof_ethernet
 
-let get_stack ?(backend = B.create ~use_async_readers:true
+let get_stack ?flush_on_disconnect ?(backend = B.create ~use_async_readers:true
                   ~yield:(fun() -> Lwt.pause ()) ())
                   ip =
   let cidr = Ipaddr.V4.Prefix.make 24 ip in
-  V.connect backend >>= fun netif ->
+  V.connect ?flush_on_disconnect backend >>= fun netif ->
   E.connect netif >>= fun ethif ->
   Static_arp.connect ethif >>= fun arp ->
   Ip.connect ~cidr ethif arp >>= fun ip ->
@@ -211,7 +211,7 @@ let write_errors () =
       Alcotest.fail "writing thread completed first";
     ]
   in
-  get_stack speaker_address >>= fun speaker ->
+  get_stack ~flush_on_disconnect:false speaker_address >>= fun speaker ->
   get_stack ~backend:speaker.backend listener_address >>= fun listener ->
   inform_arp speaker listener_address (mac_of_stack listener);
   inform_arp listener speaker_address (mac_of_stack speaker);

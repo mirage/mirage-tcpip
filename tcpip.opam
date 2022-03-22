@@ -47,7 +47,7 @@ depends: [
   "ethernet" {>= "3.0.0"}
   "arp" {>= "3.0.0"}
   "mirage-flow" {>= "2.0.0"}
-  "mirage-vnetif" {with-test & >= "0.5.0"}
+  "mirage-vnetif" {with-test & >= "0.6.0"}
   "alcotest" {with-test & >="0.7.0"}
   "pcap-format" {with-test}
   "mirage-clock-unix" {with-test & >= "3.0.0"}
@@ -71,5 +71,5 @@ system](https://mirage.io). It provides implementations for the following module
 * TCP
 """
 pin-depends: [
-  [ "mirage-vnetif.dev" "git+https://github.com/mirage/mirage-vnetif.git#393bcc1ee16b5a1871a2ce71075551e0e651c5c9" ]
+  [ "mirage-vnetif.0.6.0" "git+https://github.com/mirage/mirage-vnetif.git#393bcc1ee16b5a1871a2ce71075551e0e651c5c9" ]
 ]
