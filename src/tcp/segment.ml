@@ -68,10 +68,10 @@ module Rx(Time:Mirage_time.S) = struct
       "RX seg seq=%a acknum=%a ack=%b rst=%b syn=%b fin=%b win=%d len=%d"
       Sequence.pp header.sequence Sequence.pp header.ack_number
       header.ack header.rst header.syn header.fin
-      header.window (Cstruct.len payload)
+      header.window (Cstruct.length payload)
 
   let len seg =
-    Sequence.of_int ((Cstruct.len seg.payload) +
+    Sequence.of_int ((Cstruct.length seg.payload) +
     (if seg.header.fin then 1 else 0) +
     (if seg.header.syn then 1 else 0))
 
@@ -194,7 +194,7 @@ module Rx(Time:Mirage_time.S) = struct
       let urx_inform =
         (* TODO: deal with overlapping fragments *)
         let elems_r, winadv = S.fold (fun seg (acc_l, acc_w) ->
-            (if Cstruct.len seg.payload > 0 then seg.payload :: acc_l else acc_l),
+            (if Cstruct.length seg.payload > 0 then seg.payload :: acc_l else acc_l),
             (Sequence.add (len seg) acc_w)
           ) ready ([], Sequence.zero) in
         let elems = List.rev elems_r in
@@ -261,7 +261,7 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
     ((match seg.flags with
      | No_flags | Psh | Rst -> 0
      | Syn | Fin -> 1) +
-    (Cstruct.len seg.data))
+    (Cstruct.length seg.data))
 
   (* Queue of pre-transmission segments *)
   type ('a, 'b) q = {
