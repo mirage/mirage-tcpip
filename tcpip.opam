@@ -70,3 +70,6 @@ system](https://mirage.io). It provides implementations for the following module
 * UDP
 * TCP
 """
+pin-depends: [
+  [ "mirage-vnetif.dev" "git+https://github.com/mirage/mirage-vnetif.git#393bcc1ee16b5a1871a2ce71075551e0e651c5c9" ]
+]
