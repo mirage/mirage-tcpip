@@ -268,6 +268,10 @@ type na =
     na_target : Ipaddr.t;
     na_tlla : Macaddr.t option }
 
+type redirect =
+  { target : Ipaddr.t;
+    destination : Ipaddr.t }
+
 type action =
   | SendNS of [`Unspecified | `Specified ] * ipaddr * ipaddr
   | SendNA of ipaddr * ipaddr * ipaddr * [`Solicited | `Unsolicited]
@@ -693,7 +697,7 @@ module RouterList = struct
       end
     | false ->
       if lft > 0L then begin
-	Log.debug (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp src);
+        Log.debug (fun f -> f "RA: Adding Router: src=%a" Ipaddr.pp src);
         (add rl ~now ~lifetime:lft src), []
       end else
         rl, []
@@ -839,6 +843,11 @@ module Parser = struct
     in
     {na_router; na_solicited; na_override; na_target; na_tlla}
 
+  let parse_redirect buf =
+    let destination = ipaddr_of_cstruct (Ipv6_wire.get_redirect_destination buf) in
+    let target = ipaddr_of_cstruct (Ipv6_wire.get_redirect_target buf) in
+    { target; destination }
+
   let dst_unreachable icmpbuf =
     match Ipv6_wire.get_icmpv6_code icmpbuf with
     | 0 -> "No route to destination"
@@ -906,6 +915,15 @@ module Parser = struct
             Drop
           else
             NA (src, dst, na)
+      | 137 (* Redirect *) ->
+        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
+          Drop
+        else
+          let redirect = parse_redirect icmpbuf in
+          Log.info (fun f -> f "ICMP6 Redirect: %a via %a"
+                       Ipaddr.pp redirect.destination
+                       Ipaddr.pp redirect.target);
+          Drop
       | 1 ->
         Log.info (fun f -> f "ICMP6 Destination Unreachable: %s" (dst_unreachable icmpbuf));
         Drop
