@@ -218,6 +218,8 @@ module Allocate = struct
       Ipv6_wire.set_rs_reserved icmpbuf 0l;
       if include_slla then begin
         let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
+        Ipv6_wire.set_opt_ty optbuf 1;
+        Ipv6_wire.set_opt_len optbuf 1;
         macaddr_to_cstruct_raw mac optbuf 2
       end;
       Ipv6_wire.set_icmpv6_csum icmpbuf 0;
