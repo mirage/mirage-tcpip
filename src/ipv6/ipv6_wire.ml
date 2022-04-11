@@ -67,6 +67,17 @@ let get_na_override buf =
   (Cstruct.get_uint8 buf 4 land 0x20) <> 0
 
 [%%cstruct
+type redirect = {
+    ty : uint8_t;
+    code : uint8_t;
+    csum : uint16_t;
+    reserved : uint32_t;
+    target : uint8_t [@len 16];
+    destination : uint8_t [@len 16];
+  } [@@big_endian]
+]
+
+[%%cstruct
 type rs = {
     ty:       uint8_t;
     code:     uint8_t;
