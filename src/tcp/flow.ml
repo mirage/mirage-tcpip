@@ -17,7 +17,7 @@
 
 open Lwt.Infix
 
-let src = Logs.Src.create "pcb" ~doc:"Mirage TCP PCB module"
+let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =

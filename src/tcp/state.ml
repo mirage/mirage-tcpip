@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-let src = Logs.Src.create "state" ~doc:"Mirage TCP State module"
+let src = Logs.Src.create "tcp.state" ~doc:"Mirage TCP State module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type action =

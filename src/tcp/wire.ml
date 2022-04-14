@@ -15,7 +15,7 @@
  *)
 open Lwt.Infix
 
-let src = Logs.Src.create "Wire" ~doc:"Mirage TCP Wire module"
+let src = Logs.Src.create "tcp.Wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
