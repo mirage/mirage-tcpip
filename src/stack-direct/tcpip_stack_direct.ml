@@ -47,7 +47,7 @@ module Make
 
   let pp fmt t =
     Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
-      (Fmt.list Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
+      Fmt.(list ~sep:(any ", ") Ipaddr.V4.pp) (Ipv4.get_ip t.ipv4)
 
   let tcpv4 { tcpv4; _ } = tcpv4
   let udpv4 { udpv4; _ } = udpv4
@@ -100,12 +100,12 @@ module Make
 
   let connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 =
     let t = { netif; ethif; arpv4; ipv4; icmpv4; tcpv4; udpv4; task = None } in
-    Log.info (fun f -> f "stack assembled: %a" pp t);
+    Log.info (fun f -> f "TCP/IP V4 stack assembled: %a" pp t);
     Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "disconnect called: %a" pp t);
+    Log.info (fun f -> f "TCP/IP V4 stack disconnected: %a" pp t);
     (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
 end
@@ -134,7 +134,7 @@ module MakeV6
 
   let pp fmt t =
     Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
-      (Fmt.list Ipaddr.V6.pp) (Ipv6.get_ip t.ipv6)
+      Fmt.(list ~sep:(any ", ") Ipaddr.V6.pp) (Ipv6.get_ip t.ipv6)
 
   let tcp { tcpv6; _ } = tcpv6
   let udp { udpv6; _ } = udpv6
@@ -184,12 +184,12 @@ module MakeV6
 
   let connect netif ethif ipv6 udpv6 tcpv6 =
     let t = { netif; ethif; ipv6; tcpv6; udpv6; task = None } in
-    Log.info (fun f -> f "stack assembled: %a" pp t);
+    Log.info (fun f -> f "TCP/IP V6 stack assembled: %a" pp t);
     Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "disconnect called: %a" pp t);
+    Log.info (fun f -> f "TCP/IP V6 stack disconnected: %a" pp t);
     (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
 
@@ -338,7 +338,7 @@ module MakeV4V6
 
   let pp fmt t =
     Format.fprintf fmt "mac=%a,ip=%a" Macaddr.pp (Eth.mac t.ethif)
-      (Fmt.list Ipaddr.pp) (IP.get_ip t.ip)
+      Fmt.(list ~sep:(any ", ") Ipaddr.pp) (IP.get_ip t.ip)
 
   let tcp { tcp; _ } = tcp
   let udp { udp; _ } = udp
@@ -390,12 +390,12 @@ module MakeV4V6
 
   let connect netif ethif arpv4 ip icmpv4 udp tcp =
     let t = { netif; ethif; arpv4; ip; icmpv4; tcp; udp; task = None } in
-    Log.info (fun f -> f "stack assembled: %a" pp t);
+    Log.info (fun f -> f "Dual TCP/IP stack assembled: %a" pp t);
     Lwt.async (fun () -> let task = listen t in t.task <- Some task; task);
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "disconnect called: %a" pp t);
+    Log.info (fun f -> f "Dual TCP/IP stack disconnected: %a" pp t);
     (match t.task with None -> () | Some task -> Lwt.cancel task);
     Lwt.return_unit
 end

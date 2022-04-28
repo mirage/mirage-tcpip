@@ -85,12 +85,14 @@ module Make (Ip : Tcpip.Ip.S) (Random : Mirage_random.S) = struct
     writev ?src ?src_port ?ttl ~dst ~dst_port t [buf]
 
   let connect ip =
-    Log.info (fun f -> f "UDP interface connected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip ip);
+    Log.info (fun f -> f "UDP layer connected on %a"
+                 Fmt.(list ~sep:(any ", ") Ip.pp_ipaddr) @@ Ip.get_ip ip);
     let t = { ip ; listeners = Hashtbl.create 7 } in
     Lwt.return t
 
   let disconnect t =
-    Log.info (fun f -> f "UDP interface disconnected on %a" (Fmt.list Ip.pp_ipaddr) @@ Ip.get_ip t.ip);
+    Log.info (fun f -> f "UDP layer disconnected on %a"
+                 Fmt.(list ~sep:(any ", ") Ip.pp_ipaddr) @@ Ip.get_ip t.ip);
     Lwt.return_unit
 
 end
