@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-let src = Logs.Src.create "tcptimer" ~doc:"Mirage TCP Tcptimer module"
+let src = Logs.Src.create "tcp.tcptimer" ~doc:"Mirage TCP Tcptimer module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type time = int64

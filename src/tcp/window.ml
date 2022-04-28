@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let src = Logs.Src.create "window" ~doc:"Mirage TCP Window module"
+let src = Logs.Src.create "tcp.window" ~doc:"Mirage TCP Window module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type time = int64
