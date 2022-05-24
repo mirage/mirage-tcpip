@@ -1,3 +1,12 @@
+### v7.1.1 (2022-05-24)
+
+* Ndpv6: demote more logs to debug level (#480 @reynir)
+* Ndpv6: set RS opt header (#482 @reynir)
+* Icmpv6: add redirect parsing (#481 @reynir)
+* Improve log messages of connect and disconnect of various layers and stacks:
+  separate IP addresses with ", " (#485 @hannesm)
+* TCP log sources: prefix "tcp" to distinguish them (#484 @reynir)
+
 ### v7.1.0 (2022-03-23)
 
 * Work with MSVC compiler (@jonahbeckford, #476)
