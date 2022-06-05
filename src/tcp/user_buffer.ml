@@ -15,8 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-[@@@ocaml.warning "-3"]
-
 open Lwt.Infix
 
 let lwt_sequence_add_l s seq =
