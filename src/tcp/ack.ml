@@ -37,7 +37,7 @@ end
 module Immediate : M = struct
 
   type t = {
-    mutable send_ack: Sequence.t Lwt_mvar.t;
+    send_ack: Sequence.t Lwt_mvar.t;
     mutable pushpending: bool;
   }
 
