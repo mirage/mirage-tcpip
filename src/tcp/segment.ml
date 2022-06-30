@@ -84,14 +84,15 @@ module Rx(Time:Mirage_time.S) = struct
   type t = {
     mutable segs: S.t;
     rx_data: (Cstruct.t list option * Sequence.t option) Lwt_mvar.t; (* User receive channel *)
+    send_ack: Sequence.t Lwt_mvar.t;
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
     wnd: Window.t;
     state: State.t;
   }
 
-  let create ~rx_data ~wnd ~state ~tx_ack =
+  let create ~rx_data ~send_ack ~wnd ~state ~tx_ack =
     let segs = S.empty in
-    { segs; rx_data; tx_ack; wnd; state }
+    { segs; rx_data; send_ack; tx_ack; wnd; state }
 
   let pp fmt t =
     let pp_v fmt seg =
@@ -135,10 +136,7 @@ module Rx(Time:Mirage_time.S) = struct
 
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
-    (* Is this the correct way trigger an ack? *)
-    if Lwt_mvar.is_empty q.rx_data
-      then Lwt_mvar.put q.rx_data (Some [], Some Sequence.zero)
-      else Lwt.return_unit
+    Lwt_mvar.put q.send_ack Sequence.zero
 
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the

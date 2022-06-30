@@ -38,6 +38,7 @@ module Rx (T:Mirage_time.S) : sig
 
   val create:
     rx_data:(Cstruct.t list option * Sequence.t option) Lwt_mvar.t ->
+    send_ack:Sequence.t Lwt_mvar.t ->
     wnd:Window.t ->
     state:State.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->

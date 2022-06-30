@@ -360,7 +360,7 @@ struct
     in
     (* The user application transmit buffer *)
     let utx = UTX.create ~wnd ~txq ~max_size:16384l in
-    let rxq = RXS.create ~rx_data ~wnd ~state ~tx_ack in
+    let rxq = RXS.create ~rx_data ~send_ack ~wnd ~state ~tx_ack in
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.succ rx_isn) in
     (* Set up the keepalive state if requested *)
