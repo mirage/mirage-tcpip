@@ -30,7 +30,8 @@ let suite = [
   "deadlock"       , Test_deadlock.suite    ;
   "iperf"          , Test_iperf.suite       ;
   "iperf_ipv6"     , Test_iperf_ipv6.suite       ;
-  "keepalive"      , Test_keepalive.suite   ;
+  "keepalive"      , Test_keepalive.suite   ; 
+  "simultaneous_close", Test_simulatenous_close.suite
 ]
 
 let run test () =
