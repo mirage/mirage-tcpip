@@ -287,7 +287,7 @@ module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
   let ontimer xmit st segs wnd seq =
     match State.state st with
     | State.Syn_rcvd _ | State.Established | State.Fin_wait_1 _
-    | State.Close_wait | State.Last_ack _ ->
+    | State.Close_wait | State.Closing _ | State.Last_ack _ ->
       begin match peek_opt_l segs with
         | None -> Lwt.return Tcptimer.Stoptimer
         | Some rexmit_seg ->
