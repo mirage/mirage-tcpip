@@ -151,7 +151,13 @@ module Make(Time:Mirage_time.S) = struct
       | Fin_wait_2 _, Recv_fin ->
         Lwt.async (fun () -> timewait t time_wait_time);
         Time_wait
-      | Closing a, Recv_ack b -> if diffone b a then Time_wait else Closing a
+      | Closing a, Recv_ack b -> 
+        if diffone b a then 
+          begin 
+            Lwt.async (fun () -> timewait t time_wait_time);
+            Time_wait 
+          end 
+        else Closing a
       | Closing _, Timeout -> t.on_close (); Closed
       | Closing _, Recv_rst -> t.on_close (); Reset
       | Time_wait, Timeout -> t.on_close (); Closed
