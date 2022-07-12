@@ -34,6 +34,9 @@ References:
 
 - Multicast Listener Discovery Version 2 (MLDv2) for IPv6
   http://tools.ietf.org/html/rfc3810
+
+- IPv6 Router Advertisement Options for DNS Configuration
+  https://tools.ietf.org/html/rfc8106
 *)
 
 let src = Logs.Src.create "ndpc6" ~doc:"Mirage IPv6 discovery"
@@ -255,12 +258,17 @@ type pfx =
     pfx_preferred_lifetime : time option;
     pfx_prefix : Ipaddr.Prefix.t }
 
+type rdnss = 
+  { rdnss_lifetime: time option;
+    rdnss_addresses: Ipaddr.t list }
+
 type ra =
   { ra_cur_hop_limit : int;
     ra_router_lifetime : time;
     ra_reachable_time : time option;
     ra_retrans_timer : time option;
     ra_slla : Macaddr.t option;
+    ra_rdnss : rdnss list;
     ra_prefix : pfx list }
 
 type na =
@@ -665,6 +673,60 @@ module NeighborCache = struct
     | Not_found -> false
 end
 
+module RDNSSList = struct
+
+  type t =
+    (Ipaddr.t * time) list
+
+  let empty =
+    []
+
+  let to_list rdnssl =
+    List.map fst rdnssl
+
+  let add rdnssl ~now ?(lifetime = Duration.of_year 1) ip =
+    (ip, Int64.add now lifetime) :: rdnssl
+
+  let tick rdnssl ~now =
+    List.filter (fun (_, t) -> t > now) rdnssl
+
+  let handle_ra rdnssl ~now ~src ~lft =
+    match List.mem_assoc src rdnssl with
+    | true ->
+      let rdnssl = List.remove_assoc src rdnssl in
+      if lft > 0L then begin
+        Log.info (fun f -> f "RA: Refreshing Nameserver: src=%a lft=%Lu" Ipaddr.pp src lft);
+        (src, Int64.add now lft) :: rdnssl, []
+      end else begin
+        Log.info (fun f -> f "RA: Nameserver Expired: src=%a" Ipaddr.pp src);
+        rdnssl, []
+      end
+    | false ->
+      if lft > 0L then begin
+        Log.debug (fun f -> f "RA: Adding Nameserver: src=%a" Ipaddr.pp src);
+        (add rdnssl ~now ~lifetime:lft src), []
+      end else
+        rdnssl, []
+
+  let add rdnssl ~now:_ ip =
+    match List.mem_assoc ip rdnssl with
+    | true -> rdnssl
+    | false -> (ip, Duration.of_year 1) :: rdnssl
+
+  let select rdnssl reachable ip =
+    let rec loop = function
+      | [] ->
+        begin match rdnssl with
+          | [] -> ip, rdnssl
+          | (ip, _) as r :: rest ->
+            ip, rest @ [r]
+        end
+      | (ip, _) :: _ when reachable ip -> ip, rdnssl
+      | _ :: rest -> loop rest
+    in
+    loop rdnssl
+end
+
 module RouterList = struct
 
   type t =
@@ -741,6 +803,7 @@ module Parser = struct
     | TLLA of Macaddr.t
     | MTU of int
     | PREFIX of pfx
+    | RDNSS of rdnss
 
   let rec parse_options1 opts =
     if Cstruct.length opts >= Ipv6_wire.sizeof_opt then
@@ -777,6 +840,25 @@ module Parser = struct
           {pfx_on_link; pfx_autonomous; pfx_valid_lifetime; pfx_preferred_lifetime; pfx_prefix}
         in
         PREFIX pfx :: parse_options1 opts
+      | 25, 3 ->
+        let rdnss_lifetime =
+          let n = Ipv6_wire.get_opt_rdnss_header_rdnss_lifetime opt in
+          match n with
+          | 0l -> None
+          | n -> Some (Int64.of_int32 n)
+        in
+        let decode_ns off = ipaddr_of_cstruct (Cstruct.shift opt off) in
+        let rec collect_ns acc = function
+          | 0 -> acc
+          | n ->
+            let ns = decode_ns (Ipv6_wire.sizeof_opt_rdnss_header + n * 16) in
+            collect_ns (ns :: acc) (n - 1)
+        in
+        let rdnss_addresses = collect_ns [] (Ipv6_wire.get_opt_rdnss_header_len opt - 1) in
+        let rdnss =
+          {rdnss_lifetime; rdnss_addresses}
+        in
+        RDNSS rdnss :: parse_options1 opts
       | ty, len ->
         Log.info (fun f -> f "ND6: Unsupported ND option in RA: ty=%d len=%d" ty len);
         parse_options1 opts
@@ -1133,6 +1215,7 @@ let local ~handle_ra ~now ~random mac =
   let ctx =
     { neighbor_cache = NeighborCache.empty;
       prefix_list = PrefixList.link_local;
+      rdnss_list = RDNSSList.empty;
       router_list = RouterList.empty;
       mac = mac;
       address_list = AddressList.empty;
@@ -1315,6 +1398,7 @@ let tick ~now ctx =
   let address_list, actions = AddressList.tick ctx.address_list ~now ~retrans_timer in
   let prefix_list = PrefixList.tick ctx.prefix_list ~now in
   let neighbor_cache, actions' = NeighborCache.tick ctx.neighbor_cache ~now ~retrans_timer in
+  let rdnss_list = RDNSSList.tick ctx.rdnss_list ~now in
   let router_list = RouterList.tick ctx.router_list ~now in
   let ctx = {ctx with address_list; prefix_list; neighbor_cache; router_list} in
   let actions = actions @ actions' in
@@ -1326,6 +1410,13 @@ let add_prefix ~now ctx pfx =
 
 let get_prefix ctx =
   PrefixList.to_list ctx.prefix_list
+
+let add_rdnss ~now ctx ips =
+  let rdnss_list = List.fold_left (RDNSSList.add ~now) ctx.rdnss_list ips in
+  {ctx with rdnss_list}
+
+let get_rdnss ctx =
+  RDNSSList.to_list ctx.rdnss_list
 
 let add_routers ~now ctx ips =
   let router_list = List.fold_left (RouterList.add ~now) ctx.router_list ips in
