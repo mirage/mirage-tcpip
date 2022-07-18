@@ -119,6 +119,10 @@ module Make(Time:Mirage_time.S) = struct
     t.on_close ();
     Lwt.return_unit
 
+  let transition_to_timewait t =
+    Lwt.async (fun () -> timewait t time_wait_time);
+    Time_wait
+
   let tick t (i:action) =
     let diffone x y = Sequence.succ y = x in
     let tstr s (i:action) =
@@ -148,15 +152,10 @@ module Make(Time:Mirage_time.S) = struct
       | Fin_wait_1 _, Recv_rst -> t.on_close (); Reset
       | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
       | Fin_wait_2 _, Recv_rst -> t.on_close (); Reset
-      | Fin_wait_2 _, Recv_fin ->
-        Lwt.async (fun () -> timewait t time_wait_time);
-        Time_wait
+      | Fin_wait_2 _, Recv_fin -> transition_to_timewait t
       | Closing a, Recv_ack b ->
         if diffone b a then
-          begin
-            Lwt.async (fun () -> timewait t time_wait_time);
-            Time_wait
-          end
+          transition_to_timewait t
         else Closing a
       | Closing _, Timeout -> t.on_close (); Closed
       | Closing _, Recv_rst -> t.on_close (); Reset
