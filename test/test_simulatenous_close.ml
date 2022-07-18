@@ -42,7 +42,7 @@ let close_ack_scenario =
     (* We should receive the data *)
     VNETIF_STACK.Stackv4.TCPV4.close flow >>= fun () ->
     Lwt_unix.sleep 4.0 >>= fun () ->
-    Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.internal_n_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
+    Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.num_open_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
     Lwt.return_unit
   in
   (`WAIT_FOR_SYN, fsm), sut
@@ -96,7 +96,7 @@ let close_ack_scenario =
       (* We should receive the data *)
       VNETIF_STACK.Stackv4.TCPV4.close flow >>= fun () ->
       Lwt_unix.sleep 4.0 >>= fun () ->
-      Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.internal_n_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
+      Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.num_open_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
       Lwt.return_unit
     in
     (`WAIT_FOR_SYN, fsm), sut

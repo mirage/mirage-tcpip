@@ -63,7 +63,7 @@ module VNETIF_STACK (B: Vnetif_backends.Backend): sig
     type backend = B.t
 
   module T4 : sig
-    val internal_n_channels : Stackv4.TCPV4.t -> int
+    val num_open_channels : Stackv4.TCPV4.t -> int
   end
 end
 = struct

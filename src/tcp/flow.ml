@@ -75,7 +75,7 @@ struct
     connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Tcpip.Tcp.Keepalive.t option)) Hashtbl.t;
   }
 
-  let internal_n_channels t = Hashtbl.length t.channels
+  let num_open_channels t = Hashtbl.length t.channels
 
   let listen t ~port ?keepalive cb =
     if port < 0 || port > 65535 then

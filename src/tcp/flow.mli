@@ -23,7 +23,7 @@ module Make (IP:Tcpip.Ip.S)
 
   (**/**)
   (* the number of open connections *)
-  val internal_n_channels : t -> int
+  val num_open_channels : t -> int
   (**/**)
 
 end
