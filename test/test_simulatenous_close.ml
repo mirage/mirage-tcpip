@@ -3,7 +3,7 @@ open Common
 open Low_level
 open Lwt.Infix
 
-let close_ack_scenario = 
+let close_ack_scenario =
   let fsm ip state ~src ~dst data =
     match state with
     | `WAIT_FOR_SYN ->
@@ -78,7 +78,7 @@ let close_ack_scenario =
           >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_next `WAIT_FOR_CHALLENGE_ACK)
         else
-          Lwt.return (Fsm_error "Expected fin") 
+          Lwt.return (Fsm_error "Expected fin")
       | `WAIT_FOR_CHALLENGE_ACK ->
         if (Tcp_wire.get_ack data)  then
           let id = reply_id_from ~src ~dst data in
@@ -87,9 +87,9 @@ let close_ack_scenario =
           >|= Result.get_ok >>= fun () ->
           Lwt.return (Fsm_done)
         else
-          Lwt.return (Fsm_error "Expected challenge ack") 
+          Lwt.return (Fsm_error "Expected challenge ack")
     in
-  
+
     let sut stack _fail_callback =
       let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
       or_error "connect" conn (server_ip, 80) >>= fun flow ->

@@ -59,10 +59,10 @@ sig
 end
 
 module VNETIF_STACK (B: Vnetif_backends.Backend): sig
-  include VNETIF_STACK with 
+  include VNETIF_STACK with
     type backend = B.t
 
-  module T4 : sig 
+  module T4 : sig
     val internal_n_channels : Stackv4.TCPV4.t -> int
   end
 end
