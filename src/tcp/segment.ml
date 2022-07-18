@@ -136,7 +136,9 @@ module Rx(Time:Mirage_time.S) = struct
 
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
-    Lwt_mvar.put q.send_ack Sequence.zero
+    if Lwt_mvar.is_empty q.send_ack
+      then Lwt_mvar.put q.send_ack Sequence.zero
+      else Lwt.return_unit
 
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the
