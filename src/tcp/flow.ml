@@ -23,9 +23,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
 struct
 
-  module RXS = Segment.Rx(Time)
-  module TXS = Segment.Tx(Time)(Clock)
   module ACK = Ack.Immediate
+  module RXS = Segment.Rx(Time)(ACK)
+  module TXS = Segment.Tx(Time)(Clock)
   module UTX = User_buffer.Tx(Time)(Clock)
   module WIRE = Wire.Make(Ip)
   module STATE = State.Make(Time)
@@ -358,11 +358,11 @@ struct
     let txq, _tx_t =
       TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
-    (* The user application transmit buffer *)
-    let utx = UTX.create ~wnd ~txq ~max_size:16384l in
-    let rxq = RXS.create ~rx_data ~send_ack ~wnd ~state ~tx_ack in
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.succ rx_isn) in
+    (* The user application transmit buffer *)
+    let utx = UTX.create ~wnd ~txq ~max_size:16384l in
+    let rxq = RXS.create ~rx_data ~ack ~wnd ~state ~tx_ack in
     (* Set up the keepalive state if requested *)
     let keepalive = match keepalive with
       | None -> None

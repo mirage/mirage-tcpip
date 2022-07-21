@@ -55,7 +55,7 @@ let rec reset_seq segs =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
 *)
-module Rx(Time:Mirage_time.S) = struct
+module Rx(Time:Mirage_time.S)(ACK: Ack.M) = struct
   open Tcp_packet
   module StateTick = State.Make(Time)
 
@@ -84,15 +84,15 @@ module Rx(Time:Mirage_time.S) = struct
   type t = {
     mutable segs: S.t;
     rx_data: (Cstruct.t list option * Sequence.t option) Lwt_mvar.t; (* User receive channel *)
-    send_ack: Sequence.t Lwt_mvar.t;
+    ack: ACK.t;
     tx_ack: (Sequence.t * int) Lwt_mvar.t; (* Acks of our transmitted segs *)
     wnd: Window.t;
     state: State.t;
   }
 
-  let create ~rx_data ~send_ack ~wnd ~state ~tx_ack =
+  let create ~rx_data ~ack ~wnd ~state ~tx_ack =
     let segs = S.empty in
-    { segs; rx_data; send_ack; tx_ack; wnd; state }
+    { segs; rx_data; ack; tx_ack; wnd; state }
 
   let pp fmt t =
     let pp_v fmt seg =
@@ -136,9 +136,7 @@ module Rx(Time:Mirage_time.S) = struct
 
   let send_challenge_ack q =
     (* TODO:  rfc5961 ACK Throttling *)
-    if Lwt_mvar.is_empty q.send_ack
-      then Lwt_mvar.put q.send_ack Sequence.zero
-      else Lwt.return_unit
+    ACK.pushack q.ack Sequence.zero
 
   (* Given an input segment, the window information, and a receive
      queue, update the window, extract any ready segments into the
