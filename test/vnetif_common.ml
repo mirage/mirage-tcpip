@@ -58,9 +58,15 @@ sig
   val record_pcap : backend -> string -> (unit -> unit Lwt.t) -> unit Lwt.t
 end
 
-module VNETIF_STACK (B: Vnetif_backends.Backend):
-  VNETIF_STACK with type backend = B.t =
-struct
+module VNETIF_STACK (B: Vnetif_backends.Backend): sig
+  include VNETIF_STACK with
+    type backend = B.t
+
+  module T4 : sig
+    val num_open_channels : Stackv4.TCPV4.t -> int
+  end
+end
+= struct
   type backend = B.t
   type buffer = B.buffer
   type 'a io = 'a B.io

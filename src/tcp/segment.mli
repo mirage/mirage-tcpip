@@ -24,7 +24,7 @@
     the Rtx queue to ack messages or close channels.
 *)
 
-module Rx (T:Mirage_time.S) : sig
+module Rx (T:Mirage_time.S)(ACK:Ack.M) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }
   (** Individual received TCP segment *)
@@ -38,6 +38,7 @@ module Rx (T:Mirage_time.S) : sig
 
   val create:
     rx_data:(Cstruct.t list option * Sequence.t option) Lwt_mvar.t ->
+    ack:ACK.t ->
     wnd:Window.t ->
     state:State.t ->
     tx_ack:(Sequence.t * int) Lwt_mvar.t ->

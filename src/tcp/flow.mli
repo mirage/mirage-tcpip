@@ -20,4 +20,10 @@ module Make (IP:Tcpip.Ip.S)
             (R:Mirage_random.S) : sig
   include Tcpip.Tcp.S with type ipaddr = IP.ipaddr
   val connect : IP.t -> t Lwt.t
+
+  (**/**)
+  (* the number of open connections *)
+  val num_open_channels : t -> int
+  (**/**)
+
 end
