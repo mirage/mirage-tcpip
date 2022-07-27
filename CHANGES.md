@@ -1,3 +1,12 @@
+### v7.1.2 (2022-07-27)
+
+* TCP: fix memory leaks on connection close in three scenarios (#489 @TheLortex)
+  - simultanous close: set up the timewait timer in the `Closing(1) - Recv_ack(2) -> Time_wait` 
+    state transition
+  - client sends a RST instead of a FIN: enable sending a challenge ACK even when the reception
+    thread is stopped
+  - client doesn't ACK server's FIN: enable the retransmit timer in the `Closing(_)` state
+
 ### v7.1.1 (2022-05-24)
 
 * Ndpv6: demote more logs to debug level (#480 @reynir)
