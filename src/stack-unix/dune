@@ -9,24 +9,6 @@
    tcpip.ipv6))
 
 (library
- (name udpv4_socket)
- (public_name tcpip.udpv4-socket)
- (modules udpv4_socket)
- (wrapped false)
- (instrumentation
-  (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
-
-(library
- (name udpv6_socket)
- (public_name tcpip.udpv6-socket)
- (modules udpv6_socket)
- (wrapped false)
- (instrumentation
-  (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt logs))
-
-(library
  (name udpv4v6_socket)
  (public_name tcpip.udpv4v6-socket)
  (modules udpv4v6_socket)
@@ -49,34 +31,13 @@
  (libraries lwt.unix duration))
 
 (library
- (name tcpv4_socket)
- (public_name tcpip.tcpv4-socket)
- (modules tcpv4_socket tcp_socket)
- (wrapped false)
- (instrumentation
-  (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcp_socket_options
-   logs))
-
-(library
- (name tcpv6_socket)
- (public_name tcpip.tcpv6-socket)
- (modules tcpv6_socket)
- (wrapped false)
- (instrumentation
-  (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcpv4_socket
-   tcp_socket_options logs))
-
-(library
  (name tcpv4v6_socket)
  (public_name tcpip.tcpv4v6-socket)
- (modules tcpv4v6_socket)
+ (modules tcp_socket tcpv4v6_socket)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcpv4_socket
-   tcp_socket_options logs))
+ (libraries lwt.unix ipaddr.unix cstruct-lwt fmt tcpip tcp_socket_options logs))
 
 (library
  (name tcpip_stack_socket)
@@ -85,6 +46,5 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.tcpv4-socket
-   tcpip.udpv4-socket tcpip.ipv4 tcpip.tcpv6-socket tcpip.udpv6-socket
-   tcpip.ipv6 tcpip.tcpv4v6-socket tcpip.udpv4v6-socket))
+ (libraries lwt.unix cstruct-lwt ipaddr.unix logs tcpip.ipv4 tcpip.ipv6
+  tcpip.tcpv4v6-socket tcpip.udpv4v6-socket))

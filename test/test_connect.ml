@@ -35,17 +35,17 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
   let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
+    let err = Format.asprintf "%a" V.Stack.TCP.pp_error e in
     failf "Error while reading: %s" err
 
   let err_write e =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_write_error e in
+    let err = Format.asprintf "%a" V.Stack.TCP.pp_write_error e in
     failf "client tried to write, got %s" err
 
   let accept flow expected =
-    let ip, port = V.Stackv4.TCPV4.dst flow in
-    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
-    V.Stackv4.TCPV4.read flow >>= function
+    let ip, port = V.Stack.TCP.dst flow in
+    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.to_string ip) port);
+    V.Stack.TCP.read flow >>= function
     | Error e      -> err_read e
     | Ok `Eof      -> err_read_eof ()
     | Ok (`Data b) ->
@@ -62,23 +62,23 @@ module Test_connect (B : Vnetif_backends.Backend) = struct
        failf "connect test timedout after %f seconds" timeout) ;
 
       (V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
-       V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 s1) ~port:80 (fun f -> accept f test_string);
-       V.Stackv4.listen s1) ;
+       V.Stack.TCP.listen (V.Stack.tcp s1) ~port:80 (fun f -> accept f test_string);
+       V.Stack.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
        V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
        Lwt.pick [
-       V.Stackv4.listen s2;
-       (let conn = V.Stackv4.TCPV4.create_connection (V.Stackv4.tcpv4 s2) in
-       or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80) >>= fun flow ->
+       V.Stack.listen s2;
+       (let conn = V.Stack.TCP.create_connection (V.Stack.tcp s2) in
+       or_error "connect" conn (Ipaddr.V4 (Ipaddr.V4.Prefix.address server_cidr), 80) >>= fun flow ->
        Log.debug (fun f -> f "Connected to other end...");
 
-       V.Stackv4.TCPV4.write flow (Cstruct.of_string test_string) >>= function
+       V.Stack.TCP.write flow (Cstruct.of_string test_string) >>= function
        | Error `Closed -> err_write_eof ()
        | Error e -> err_write e
        | Ok ()   ->
          Log.debug (fun f -> f "wrote hello world");
-         V.Stackv4.TCPV4.close flow >>= fun () ->
+         V.Stack.TCP.close flow >>= fun () ->
          Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
          Lwt.return_unit)]) ] >>= fun () ->
 

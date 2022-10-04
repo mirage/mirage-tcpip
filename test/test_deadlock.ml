@@ -27,10 +27,12 @@ struct
     module ETHIF  = Ethernet.Make(NETIF)
     module ARPV4  = Arp.Make(ETHIF)(TIME)
     module IPV4   = Static_ipv4.Make(RANDOM)(MCLOCK)(ETHIF)(ARPV4)
+    module IPV6   = Ipv6.Make(NETIF)(ETHIF)(RANDOM)(TIME)(MCLOCK)
+    module IP     = Tcpip_stack_direct.IPV4V6(IPV4)(IPV6)
     module ICMPV4 = Icmpv4.Make(IPV4)
-    module UDPV4  = Udp.Make(IPV4)(RANDOM)
-    module TCPV4  = Tcp.Flow.Make(IPV4)(TIME)(MCLOCK)(RANDOM)
-    module TCPIP  = Tcpip_stack_direct.Make(TIME)(RANDOM)(NETIF)(ETHIF)(ARPV4)(IPV4)(ICMPV4)(UDPV4)(TCPV4)
+    module UDP    = Udp.Make(IP)(RANDOM)
+    module TCP    = Tcp.Flow.Make(IP)(TIME)(MCLOCK)(RANDOM)
+    module TCPIP  = Tcpip_stack_direct.MakeV4V6(TIME)(RANDOM)(NETIF)(ETHIF)(ARPV4)(IP)(ICMPV4)(UDP)(TCP)
   end
   open M
 
@@ -45,10 +47,12 @@ struct
     ETHIF.connect netif >>= fun ethif ->
     ARPV4.connect ethif >>= fun arpv4 ->
     IPV4.connect ~cidr ?gateway ethif arpv4 >>= fun ipv4 ->
+    IPV6.connect netif ethif >>= fun ipv6 ->
+    IP.connect ~ipv4_only:false ~ipv6_only:false ipv4 ipv6 >>= fun ip ->
     ICMPV4.connect ipv4 >>= fun icmpv4 ->
-    UDPV4.connect ipv4 >>= fun udpv4 ->
-    TCPV4.connect ipv4 >>= fun tcpv4 ->
-    TCPIP.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4 >>= fun tcpip ->
+    UDP.connect ip >>= fun udp ->
+    TCP.connect ip >>= fun tcp ->
+    TCPIP.connect netif ethif arpv4 ip icmpv4 udp tcp >>= fun tcpip ->
     Lwt.return tcpip
 
   include TCPIP
@@ -78,13 +82,13 @@ let test_digest netif1 netif2 =
   let send_data () =
     let data = Mirage_random_test.generate 100_000_000 |> Cstruct.to_string in
     let t0   = Unix.gettimeofday () in
-    TCPIP.TCPV4.create_connection
-      TCPIP.(tcpv4 @@ tcpip server_stack) (TCPIP.client_ip, port) >>= function
+    TCPIP.TCP.create_connection
+      TCPIP.(tcp @@ tcpip server_stack) (Ipaddr.V4 TCPIP.client_ip, port) >>= function
     | Error _ -> failwith "could not establish tunneled connection"
     | Ok flow ->
       Server_log.debug (fun f -> f "established conn");
       let rec read_digest chunks =
-        TCPIP.TCPV4.read flow >>= function
+        TCPIP.TCP.read flow >>= function
         | Error _ -> failwith "read error"
         | Ok (`Data data) -> read_digest (data :: chunks)
         | Ok `Eof ->
@@ -99,12 +103,12 @@ let test_digest netif1 netif2 =
           begin
             let rec send_data data =
               if Cstruct.length data < mtu then
-                (TCPIP.TCPV4.write flow data >>= fun _ -> Lwt.return_unit)
+                (TCPIP.TCP.write flow data >>= fun _ -> Lwt.return_unit)
               else
                 let sub, data = Cstruct.split data mtu in
                 Lwt.pick
                   [
-                    (TCPIP.TCPV4.write flow sub >>= fun _ -> Lwt.return_unit);
+                    (TCPIP.TCP.write flow sub >>= fun _ -> Lwt.return_unit);
                     (Lwt_unix.sleep 5. >>= fun () ->
                      Common.failf "=========== DEADLOCK!!! =============");
                   ]
@@ -112,22 +116,22 @@ let test_digest netif1 netif2 =
                 send_data data in
             send_data @@ Cstruct.of_string data >>= fun () ->
             Server_log.debug (fun f -> f "wrote data");
-            TCPIP.TCPV4.close flow
+            TCPIP.TCP.close flow
           end
         ]
   in
-  TCPIP.TCPV4.listen TCPIP.(tcpv4 (tcpip client_stack)) ~port
+  TCPIP.TCP.listen TCPIP.(tcp (tcpip client_stack)) ~port
     (fun flow ->
        Client_log.debug (fun f -> f "client got conn");
        let rec consume () =
-         TCPIP.TCPV4.read flow >>= function
+         TCPIP.TCP.read flow >>= function
          | Error _ ->
            Client_log.debug (fun f -> f "XXXX client read error");
-           TCPIP.TCPV4.close flow
+           TCPIP.TCP.close flow
          | Ok `Eof ->
-           TCPIP.TCPV4.write flow @@ Cstruct.of_string "thanks for all the fish"
+           TCPIP.TCP.write flow @@ Cstruct.of_string "thanks for all the fish"
            >>= fun _ ->
-           TCPIP.TCPV4.close flow
+           TCPIP.TCP.close flow
          | Ok (`Data _data) ->
            (if Random.float 1.0 < 0.01 then Lwt_unix.sleep 0.01
            else Lwt.return_unit) >>= fun () ->

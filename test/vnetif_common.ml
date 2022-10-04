@@ -33,20 +33,15 @@ sig
   type buffer
   type 'a io
   type id
-  module Stackv4 : Tcpip.Stack.V4
-  module Stackv6 : Tcpip.Stack.V6
+  module Stack : Tcpip.Stack.V4V6
 
   (** Create a new backend *)
   val create_backend : unit -> backend
 
   (** Create a new stack connected to an existing backend *)
   val create_stack : ?mtu:int -> cidr:Ipaddr.V4.Prefix.t ->
-    ?gateway:Ipaddr.V4.t -> backend -> Stackv4.t Lwt.t
-
-  (** [create_stack ?mtu ?cidr ?gateway backend] adds a listener
-      function to the backend *)
-  val create_stack_v6 : ?mtu:int -> ?cidr:Ipaddr.V6.Prefix.t ->
-    ?gateway:Ipaddr.V6.t -> backend -> Stackv6.t Lwt.t
+    ?gateway:Ipaddr.V4.t -> ?cidr6:Ipaddr.V6.Prefix.t ->
+    ?gateway6:Ipaddr.V6.t -> backend -> Stack.t Lwt.t
 
   val create_backend_listener : backend -> (buffer -> unit io) -> id
 
@@ -59,11 +54,10 @@ sig
 end
 
 module VNETIF_STACK (B: Vnetif_backends.Backend): sig
-  include VNETIF_STACK with
-    type backend = B.t
+  include VNETIF_STACK with type backend = B.t
 
-  module T4 : sig
-    val num_open_channels : Stackv4.TCPV4.t -> int
+  module T : sig
+    val num_open_channels : Stack.TCP.t -> int
   end
 end
 = struct
@@ -78,41 +72,29 @@ end
   module A = Arp.Make(E)(Time)
   module Ip4 = Static_ipv4.Make(Mirage_random_test)(Clock)(E)(A)
   module Icmp4 = Icmpv4.Make(Ip4)
-  module U4 = Udp.Make(Ip4)(Mirage_random_test)
-  module T4 = Tcp.Flow.Make(Ip4)(Time)(Clock)(Mirage_random_test)
-
   module Ip6 = Ipv6.Make(V)(E)(Mirage_random_test)(Time)(Clock)
-  module U6 = Udp.Make(Ip6)(Mirage_random_test)
-  module T6 = Tcp.Flow.Make(Ip6)(Time)(Clock)(Mirage_random_test)
+  module Ip46 = Tcpip_stack_direct.IPV4V6(Ip4)(Ip6)
+  module U = Udp.Make(Ip46)(Mirage_random_test)
+  module T = Tcp.Flow.Make(Ip46)(Time)(Clock)(Mirage_random_test)
 
-  module Stackv4 =
-    Tcpip_stack_direct.Make(Time)(Mirage_random_test)(V)(E)(A)(Ip4)(Icmp4)(U4)(T4)
-
-  module Stackv6 =
-    Tcpip_stack_direct.MakeV6(Time)(Mirage_random_test)(V)(E)(Ip6)(U6)(T6)
+  module Stack =
+    Tcpip_stack_direct.MakeV4V6(Time)(Mirage_random_test)(V)(E)(A)(Ip46)(Icmp4)(U)(T)
 
   let create_backend () =
     B.create ()
 
-  let create_stack ?mtu ~cidr ?gateway backend =
+  let create_stack ?mtu ~cidr ?gateway ?cidr6 ?gateway6 backend =
     let size_limit = match mtu with None -> None | Some x -> Some x in
     V.connect ?size_limit backend >>= fun netif ->
     E.connect netif >>= fun ethif ->
     A.connect ethif >>= fun arpv4 ->
     Ip4.connect ~cidr ?gateway ethif arpv4 >>= fun ipv4 ->
     Icmp4.connect ipv4 >>= fun icmpv4 ->
-    U4.connect ipv4 >>= fun udpv4 ->
-    T4.connect ipv4 >>= fun tcpv4 ->
-    Stackv4.connect netif ethif arpv4 ipv4 icmpv4 udpv4 tcpv4
-
-  let create_stack_v6 ?mtu ?cidr ?gateway backend =
-    let size_limit = match mtu with None -> None | Some x -> Some x in
-    V.connect ?size_limit backend >>= fun netif ->
-    E.connect netif >>= fun ethif ->
-    Ip6.connect ?cidr ?gateway netif ethif >>= fun ipv6 ->
-    U6.connect ipv6 >>= fun udpv6 ->
-    T6.connect ipv6 >>= fun tcpv6 ->
-    Stackv6.connect netif ethif ipv6 udpv6 tcpv6
+    Ip6.connect ?cidr:cidr6 ?gateway:gateway6 netif ethif >>= fun ipv6 ->
+    Ip46.connect ~ipv4_only:false ~ipv6_only:false ipv4 ipv6 >>= fun ip ->
+    U.connect ip >>= fun udp ->
+    T.connect ip >>= fun tcp ->
+    Stack.connect netif ethif arpv4 ip icmpv4 udp tcp
 
   let create_backend_listener backend listenf =
     match (B.register backend) with
