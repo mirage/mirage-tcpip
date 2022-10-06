@@ -50,11 +50,12 @@ type close_cb = unit -> unit
 
 type t = {
   on_close: close_cb;
+  id: int;
   mutable state: tcpstate;
 }
 
-let t ~on_close =
-  { on_close; state=Closed }
+let t ~id ~on_close =
+  { on_close; id; state=Closed }
 
 let state t = t.state
 
@@ -170,7 +171,7 @@ module Make(Time:Mirage_time.S) = struct
     in
     let old_state = t.state in
     let new_state = tstr t.state i in
-    Log.debug (fun fmt -> fmt "%a  - %a -> %a"
+    Log.debug (fun fmt -> fmt "%d %a  - %a -> %a" t.id
           pp_tcpstate old_state pp_action i pp_tcpstate new_state);
     t.state <- new_state;
 

@@ -318,6 +318,8 @@ struct
 
   let emitted_keepalive_warning = ref false
 
+  let pcb_id = ref 0
+
   let new_pcb t params id keepalive =
     let mtu_mss = Ip.mtu t.ip ~dst:(WIRE.dst id) - Tcp_wire.sizeof_tcp in
     let { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer } =
@@ -354,7 +356,10 @@ struct
     let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
-    let state = State.t ~on_close in
+    let state =
+      incr pcb_id;
+      State.t ~id:!pcb_id ~on_close
+    in
     let txq, _tx_t =
       TXS.create ~xmit:(Tx.xmit_pcb t.ip id) ~wnd ~state ~rx_ack ~tx_ack ~tx_wnd_update
     in
