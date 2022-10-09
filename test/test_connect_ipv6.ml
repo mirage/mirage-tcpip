@@ -36,17 +36,17 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
   let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =
-    let err = Format.asprintf "%a" V.Stackv6.TCP.pp_error e in
+    let err = Format.asprintf "%a" V.Stack.TCP.pp_error e in
     failf "Error while reading: %s" err
 
   let err_write e =
-    let err = Format.asprintf "%a" V.Stackv6.TCP.pp_write_error e in
+    let err = Format.asprintf "%a" V.Stack.TCP.pp_write_error e in
     failf "client tried to write, got %s" err
 
   let accept flow expected =
-    let ip, port = V.Stackv6.TCP.dst flow in
-    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V6.to_string ip) port);
-    V.Stackv6.TCP.read flow >>= function
+    let ip, port = V.Stack.TCP.dst flow in
+    Log.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.to_string ip) port);
+    V.Stack.TCP.read flow >>= function
     | Error e      -> err_read e
     | Ok `Eof      -> err_read_eof ()
     | Ok (`Data b) ->
@@ -56,30 +56,32 @@ module Test_connect_ipv6 (B : Vnetif_backends.Backend) = struct
       Log.debug (fun f -> f "Connection closed");
       Lwt.return_unit
 
+  let cidr = Ipaddr.V4.Prefix.of_string_exn "10.0.0.2/24"
+
   let test_tcp_connect_two_stacks () =
     let timeout = 15.0 in
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () ->
        failf "connect test timedout after %f seconds" timeout) ;
 
-      (V.create_stack_v6 ~cidr:server_cidr backend >>= fun s1 ->
-       V.Stackv6.TCP.listen (V.Stackv6.tcp s1) ~port:80 (fun f -> accept f test_string);
-       V.Stackv6.listen s1) ;
+      (V.create_stack ~cidr ~cidr6:server_cidr backend >>= fun s1 ->
+       V.Stack.TCP.listen (V.Stack.tcp s1) ~port:80 (fun f -> accept f test_string);
+       V.Stack.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
-       V.create_stack_v6 ~cidr:client_cidr backend >>= fun s2 ->
+       V.create_stack ~cidr ~cidr6:client_cidr backend >>= fun s2 ->
        Lwt.pick [
-       V.Stackv6.listen s2;
-       (let conn = V.Stackv6.TCP.create_connection (V.Stackv6.tcp s2) in
-       or_error "connect" conn (server_address, 80) >>= fun flow ->
+       V.Stack.listen s2;
+       (let conn = V.Stack.TCP.create_connection (V.Stack.tcp s2) in
+       or_error "connect" conn (Ipaddr.V6 server_address, 80) >>= fun flow ->
        Log.debug (fun f -> f "Connected to other end...");
 
-       V.Stackv6.TCP.write flow (Cstruct.of_string test_string) >>= function
+       V.Stack.TCP.write flow (Cstruct.of_string test_string) >>= function
        | Error `Closed -> err_write_eof ()
        | Error e -> err_write e
        | Ok ()   ->
          Log.debug (fun f -> f "wrote hello world");
-         V.Stackv6.TCP.close flow >>= fun () ->
+         V.Stack.TCP.close flow >>= fun () ->
          Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
          Lwt.return_unit)]) ] >>= fun () ->
 

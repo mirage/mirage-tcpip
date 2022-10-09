@@ -83,13 +83,13 @@ module Test_connect = struct
   let err_write_eof () = failf "client tried to write, got EOF"
 
   let err_read e =
-    let err = Format.asprintf "%a" V.Stackv4.TCPV4.pp_error e in
+    let err = Format.asprintf "%a" V.Stack.TCP.pp_error e in
     failf "Error while reading: %s" err
 
   let accept flow =
-    let ip, port = V.Stackv4.TCPV4.dst flow in
-    Logs.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.V4.to_string ip) port);
-    V.Stackv4.TCPV4.read flow >>= function
+    let ip, port = V.Stack.TCP.dst flow in
+    Logs.debug (fun f -> f "Accepted connection from %s:%d" (Ipaddr.to_string ip) port);
+    V.Stack.TCP.read flow >>= function
     | Error e      -> err_read e
     | Ok `Eof      -> Lwt.return_unit
     | Ok (`Data _) -> failf "accept: expected to get EOF in read, but got data"
@@ -101,24 +101,24 @@ module Test_connect = struct
         failf "connect test timedout after %f seconds" timeout) ;
 
       (V.create_stack ~cidr:server_cidr ~gateway backend >>= fun s1 ->
-        V.Stackv4.TCPV4.listen (V.Stackv4.tcpv4 s1) ~port:80 (fun f -> accept f);
-        V.Stackv4.listen s1) ;
+        V.Stack.TCP.listen (V.Stack.tcp s1) ~port:80 (fun f -> accept f);
+        V.Stack.listen s1) ;
 
       (Lwt_unix.sleep 0.1 >>= fun () ->
         V.create_stack ~cidr:client_cidr ~gateway backend >>= fun s2 ->
         Lwt.pick [
-        V.Stackv4.listen s2;
+        V.Stack.listen s2;
         let keepalive = { Tcpip.Tcp.Keepalive.after = 0L; interval = Duration.of_sec 1; probes = 3 } in
-        (let conn = V.Stackv4.TCPV4.create_connection ~keepalive (V.Stackv4.tcpv4 s2) in
-        or_error "connect" conn (Ipaddr.V4.Prefix.address server_cidr, 80) >>= fun flow ->
+        (let conn = V.Stack.TCP.create_connection ~keepalive (V.Stack.tcp s2) in
+        or_error "connect" conn (Ipaddr.V4 (Ipaddr.V4.Prefix.address server_cidr), 80) >>= fun flow ->
         Logs.debug (fun f -> f "Connected to other end...");
         Vnetif_backends.On_off_switch.send_packets := false;
-        V.Stackv4.TCPV4.read flow  >>= function
+        V.Stack.TCP.read flow  >>= function
         | Error e      -> err_read e
         | Ok (`Data _) -> failf "read: expected to get EOF, but got data"
         | Ok `Eof ->
           Logs.debug (fun f -> f "connection read EOF as expected");
-          V.Stackv4.TCPV4.close flow >>= fun () ->
+          V.Stack.TCP.close flow >>= fun () ->
           Lwt_unix.sleep 1.0 >>= fun () -> (* record some traffic after close *)
           Lwt.return_unit)]) ] >>= fun () ->
 

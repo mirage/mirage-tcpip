@@ -91,12 +91,12 @@ type 'state fsm_result =
 (* setups network and run a given sut and raw fsm *)
 let run backend fsm sut () =
   let initial_state, fsm_handler = fsm in
-  create_sut_stack backend >>= fun stackv4 ->
+  create_sut_stack backend >>= fun stack ->
   create_raw_stack backend >>= fun (netif, ethif, arp, rawip) ->
   let error_mbox = Lwt_mvar.create_empty () in
   let stream, pushf = Lwt_stream.create () in
   Lwt.pick [
-  VNETIF_STACK.Stackv4.listen stackv4;
+  VNETIF_STACK.Stack.listen stack;
 
   (* Consume TCP packets one by one, in sequence *)
   let rec fsm_thread state =
@@ -138,7 +138,7 @@ let run backend fsm sut () =
         (* time to let the other end connects to the network and listen.
          * Otherwise initial syn might need to be repeated slowing down the test *)
         (Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
-         sut stackv4 (Lwt_mvar.put error_mbox) >>= fun _ ->
+         sut stack (Lwt_mvar.put error_mbox) >>= fun _ ->
          Time.sleep_ns (Duration.of_ms 100));
       ] >>= fun () -> Lwt.return_none);
 

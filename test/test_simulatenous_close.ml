@@ -37,12 +37,12 @@ let close_ack_scenario =
         Lwt.return (Fsm_error "Fin expected") in
 
   let sut stack _fail_callback =
-    let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
-    or_error "connect" conn (server_ip, 80) >>= fun flow ->
+    let conn = VNETIF_STACK.Stack.TCP.create_connection (VNETIF_STACK.Stack.tcp stack) in
+    or_error "connect" conn (Ipaddr.V4 server_ip, 80) >>= fun flow ->
     (* We should receive the data *)
-    VNETIF_STACK.Stackv4.TCPV4.close flow >>= fun () ->
+    VNETIF_STACK.Stack.TCP.close flow >>= fun () ->
     Lwt_unix.sleep 4.0 >>= fun () ->
-    Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.num_open_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
+    Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T.num_open_channels ((VNETIF_STACK.Stack.tcp stack)));
     Lwt.return_unit
   in
   (`WAIT_FOR_SYN, fsm), sut
@@ -91,12 +91,12 @@ let close_ack_scenario =
     in
 
     let sut stack _fail_callback =
-      let conn = VNETIF_STACK.Stackv4.TCPV4.create_connection (VNETIF_STACK.Stackv4.tcpv4 stack) in
-      or_error "connect" conn (server_ip, 80) >>= fun flow ->
+      let conn = VNETIF_STACK.Stack.TCP.create_connection (VNETIF_STACK.Stack.tcp stack) in
+      or_error "connect" conn (Ipaddr.V4 server_ip, 80) >>= fun flow ->
       (* We should receive the data *)
-      VNETIF_STACK.Stackv4.TCPV4.close flow >>= fun () ->
+      VNETIF_STACK.Stack.TCP.close flow >>= fun () ->
       Lwt_unix.sleep 4.0 >>= fun () ->
-      Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T4.num_open_channels ((VNETIF_STACK.Stackv4.tcpv4 stack)));
+      Alcotest.(check int) "connection is cleaned" 0 (VNETIF_STACK.T.num_open_channels ((VNETIF_STACK.Stack.tcp stack)));
       Lwt.return_unit
     in
     (`WAIT_FOR_SYN, fsm), sut
