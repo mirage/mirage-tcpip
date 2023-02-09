@@ -161,13 +161,10 @@ let listen t ~port ?keepalive callback =
                  | None -> ()
                  | Some { Tcpip.Tcp.Keepalive.after; interval; probes } ->
                    Tcp_socket_options.enable_keepalive ~fd:afd ~after ~interval ~probes);
-                Lwt.async
-                  (fun () ->
-                     Lwt.catch
-                       (fun () -> callback afd)
-                       (fun exn ->
-                          Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                          close afd));
+                Lwt.dont_wait (fun () -> callback afd)
+                  (fun exn ->
+                     Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                     close afd);
                 `Continue)
               (function
                 | Unix.Unix_error (Unix.EBADF, _, _) ->
