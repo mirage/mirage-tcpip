@@ -21,7 +21,7 @@ let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 (* MSS options are 16 bites, so the max value is 64k *)
-let max_mss = Int32.of_int (64 * 1024)
+let max_mss = Int32.mul 64l 1024l
 
 module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
 struct
