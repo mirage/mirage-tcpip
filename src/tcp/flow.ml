@@ -318,7 +318,7 @@ struct
 
   let emitted_keepalive_warning = ref false
 
-  let pcb_id = ref 0
+  let pcb_id = ref (-1)
 
   let new_pcb t params id keepalive =
     let mtu_mss = Ip.mtu t.ip ~dst:(WIRE.dst id) - Tcp_wire.sizeof_tcp in
