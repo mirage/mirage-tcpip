@@ -50,7 +50,7 @@ type close_cb = unit -> unit
 type t
 
 val state : t -> tcpstate
-val t : on_close:close_cb -> t
+val t : id:int -> on_close:close_cb -> t
 
 val pp: Format.formatter -> t -> unit
 
