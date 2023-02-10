@@ -191,6 +191,8 @@ let listen t ~port callback =
                          in
                          let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
                          let buf =
+                           (* Use Cstruct.sub_copy once it exists in a
+                              reasonably mature cstruct release *)
                            let b = Cstruct.create_unsafe len in
                            Cstruct.blit buf 0 b 0 len;
                            b
