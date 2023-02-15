@@ -17,6 +17,7 @@
 type buffer = Cstruct.t
 type ipaddr = Ipaddr.V6.t
 type prefix = Ipaddr.V6.Prefix.t
+type rdnss = Ipaddr.V6.t list
 type time   = int64
 
 val ipaddr_of_cstruct : buffer -> ipaddr
@@ -73,6 +74,13 @@ val add_prefix : now:time -> context -> prefix -> context
 
 val get_prefix : context -> prefix list
 (** [get_prefix ctx] returns the list of local prefixes known to [ctx]. *)
+
+val add_rdnss : now:time -> context -> ipaddr list -> context
+(** [add_rdnss ~now ctx ips] adds a list of nameserver addresses to [ctx] to be
+    used as nameservers. *)
+
+val get_rdnss : context -> ipaddr list
+(** [get_rdnss ctx] returns the list of nameserver addresses known to [ctx]. *)
 
 val add_routers : now:time -> context -> ipaddr list -> context
 (** [add_routers ~now ctx ips] adds a list of gateways to [ctx] to be used for

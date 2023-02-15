@@ -104,6 +104,15 @@ let get_opt_prefix_autonomous buf =
   get_opt_prefix_reserved1 buf land 0x40 <> 0
 
 [%%cstruct
+type opt_rdnss_header = {
+    ty:                 uint8_t;
+    len:                uint8_t;
+    reserved:           uint16_t;
+    rdnss_lifetime:     uint32_t;
+  } [@@big_endian]
+]
+
+[%%cstruct
 type opt = {
     ty:  uint8_t;
     len: uint8_t;
