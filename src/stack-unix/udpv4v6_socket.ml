@@ -181,7 +181,6 @@ let listen t ~port callback =
                   if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
                   Lwt.catch (fun () ->
                       Lwt_cstruct.recvfrom fd buf [] >>= fun (len, sa) ->
-                      let buf = Cstruct.sub buf 0 len in
                       (match sa with
                        | Lwt_unix.ADDR_INET (addr, src_port) ->
                          let src = Ipaddr_unix.of_inet_addr addr in
@@ -191,6 +190,13 @@ let listen t ~port callback =
                            | Some v4 -> Ipaddr.V4 v4
                          in
                          let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
+                         let buf =
+                           (* Use Cstruct.sub_copy once it exists in a
+                              reasonably mature cstruct release *)
+                           let b = Cstruct.create_unsafe len in
+                           Cstruct.blit buf 0 b 0 len;
+                           b
+                         in
                          callback ~src ~dst ~src_port buf
                        | _ -> Lwt.return_unit) >|= fun () ->
                       `Continue)
