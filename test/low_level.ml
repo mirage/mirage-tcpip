@@ -34,8 +34,8 @@ let window = 5120
 
 (* Helper functions *)
 let reply_id_from ~src ~dst data =
-  let sport = Tcp_wire.get_tcp_src_port data in
-  let dport = Tcp_wire.get_tcp_dst_port data in
+  let sport = Tcp_wire.get_src_port data in
+  let dport = Tcp_wire.get_dst_port data in
   WIRE.v ~dst_port:sport ~dst:src ~src_port:dport ~src:dst
 
 let ack_for data =

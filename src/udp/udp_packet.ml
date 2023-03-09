@@ -34,11 +34,11 @@ module Unmarshal = struct
       end
     in
     let* () = check_header_length () in
-    let total_length_from_header = get_udp_length buf in
+    let total_length_from_header = get_length buf in
     let* payload_len = check_payload_length total_length_from_header (Cstruct.length buf) in
-    let src_port = Udp_wire.get_udp_source_port buf in
-    let dst_port = Udp_wire.get_udp_dest_port buf in
-    let payload = Cstruct.sub buf Udp_wire.sizeof_udp payload_len in
+    let src_port = get_src_port buf in
+    let dst_port = get_dst_port buf in
+    let payload = Cstruct.sub buf sizeof_udp payload_len in
     Ok ({ src_port; dst_port; }, payload)
 end
 module Marshal = struct
@@ -47,10 +47,10 @@ module Marshal = struct
   let unsafe_fill ~pseudoheader ~payload {src_port; dst_port} udp_buf len =
     let open Udp_wire in
     let udp_buf = Cstruct.sub udp_buf 0 sizeof_udp in
-    set_udp_source_port udp_buf src_port;
-    set_udp_dest_port udp_buf dst_port;
-    set_udp_length udp_buf len;
-    set_udp_checksum udp_buf 0;
+    set_src_port udp_buf src_port;
+    set_dst_port udp_buf dst_port;
+    set_length udp_buf len;
+    set_checksum udp_buf 0;
     (* if we've been passed a buffer larger than sizeof_udp, make sure we
      * consider only the portion which will actually contain the header
      * when calculating this bit of the checksum *)
@@ -60,7 +60,7 @@ module Marshal = struct
      * checksum is zero, it is transmitted as all ones (the equivalent
      * in one's complement arithmetic)."  *)
     let csum = if csum = 0 then 0xffff else csum in
-    set_udp_checksum udp_buf csum
+    set_checksum udp_buf csum
 
   let into_cstruct ~pseudoheader ~payload t udp_buf =
     let open Udp_wire in
@@ -73,7 +73,7 @@ module Marshal = struct
     Result.bind (check_header_len ())
       (fun () ->
          let len = Cstruct.length payload + sizeof_udp in
-         let buf = Cstruct.sub udp_buf 0 Udp_wire.sizeof_udp in
+         let buf = Cstruct.sub udp_buf 0 sizeof_udp in
          unsafe_fill ~pseudoheader ~payload t buf len;
          Ok ())
 

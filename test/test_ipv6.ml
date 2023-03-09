@@ -102,35 +102,35 @@ let dad_na_is_sent () =
   get_stack backend address >>= fun stack ->
   create_ethernet backend >>= fun (listen_raw, write_raw, _) ->
   let received_one, on_received_one = Lwt.task () in
-  let nd_size = Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_ns in
+  let nd_size = Ipv6_wire.sizeof_ipv6 + Ipv6_wire.Ns.sizeof_ns in
   let nd buf =
-    Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-    Ipv6_wire.set_ipv6_len buf Ipv6_wire.sizeof_ns;
+    Ipv6_wire.set_version_flow buf 0x60000000l; (* IPv6 *)
+    Ipv6_wire.set_len buf Ipv6_wire.Ns.sizeof_ns;
     Ipaddr_cstruct.V6.write_cstruct_exn Ipaddr.V6.unspecified (Cstruct.shift buf 8);
     Ipaddr_cstruct.V6.write_cstruct_exn (Ipaddr.V6.Prefix.network_address solicited_node_prefix address) (Cstruct.shift buf 24);
-    Ipv6_wire.set_ipv6_hlim buf 255;
-    Ipv6_wire.set_ipv6_nhdr buf (Ipv6_wire.protocol_to_int `ICMP);
+    Ipv6_wire.set_hlim buf 255;
+    Ipv6_wire.set_nhdr buf (Ipv6_wire.protocol_to_int `ICMP);
     let hdr, icmpbuf = Cstruct.split buf Ipv6_wire.sizeof_ipv6 in
-    Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
-    Ipv6_wire.set_ns_code icmpbuf 0;
-    Ipv6_wire.set_ns_reserved icmpbuf 0l;
+    Ipv6_wire.set_ty icmpbuf 135; (* NS *)
+    Ipv6_wire.set_code icmpbuf 0;
+    Ipv6_wire.Ns.set_reserved icmpbuf 0l;
     Ipaddr_cstruct.V6.write_cstruct_exn address (Cstruct.shift icmpbuf 8);
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ Ndpv6.checksum hdr [icmpbuf];
+    Ipv6_wire.Icmpv6.set_checksum icmpbuf 0;
+    Ipv6_wire.Icmpv6.set_checksum icmpbuf @@ Ndpv6.checksum hdr [icmpbuf];
     nd_size
   and is_na buf =
     let icmpbuf = Cstruct.shift buf Ipv6_wire.sizeof_ipv6 in
-    Ipv6_wire.get_ipv6_version_flow buf = 0x60000000l && (* IPv6 *)
+    Ipv6_wire.get_version_flow buf = 0x60000000l && (* IPv6 *)
     Ipaddr.V6.compare
       (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 8))
       address = 0 &&
     Ipaddr.V6.compare
       (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 24))
       Ipaddr.V6.link_nodes = 0 &&
-    Ipv6_wire.get_ipv6_hlim buf = 255 &&
-    Ipv6_wire.get_ipv6_nhdr buf = Ipv6_wire.protocol_to_int `ICMP &&
-    Ipv6_wire.get_na_ty icmpbuf = 136 &&
-    Ipv6_wire.get_na_code icmpbuf = 0 &&
+    Ipv6_wire.get_hlim buf = 255 &&
+    Ipv6_wire.get_nhdr buf = Ipv6_wire.protocol_to_int `ICMP &&
+    Ipv6_wire.get_ty icmpbuf = 136 &&
+    Ipv6_wire.get_code icmpbuf = 0 &&
     Ipaddr.V6.compare
       (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift icmpbuf 8))
       address = 0
@@ -159,44 +159,44 @@ let dad_na_is_received () =
   let address = Ipaddr.V6.of_string_exn "fc00::23" in
   let backend = B.create () in
   create_ethernet backend >>= fun (listen_raw, write_raw, mac) ->
-  let na_size = Ipv6_wire.sizeof_ipv6 + Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt in
+  let na_size = Ipv6_wire.sizeof_ipv6 + Ipv6_wire.Na.sizeof_na + Ipv6_wire.Llopt.sizeof_llopt in
   let is_ns buf =
     let icmpbuf = Cstruct.shift buf Ipv6_wire.sizeof_ipv6 in
     if
-      Ipv6_wire.get_ipv6_version_flow buf = 0x60000000l && (* IPv6 *)
+      Ipv6_wire.get_version_flow buf = 0x60000000l && (* IPv6 *)
       Ipaddr.V6.compare
         (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 8))
         Ipaddr.V6.unspecified = 0 &&
       Ipaddr.V6.Prefix.mem
         (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift buf 24))
         solicited_node_prefix &&
-      Ipv6_wire.get_ipv6_hlim buf = 255 &&
-      Ipv6_wire.get_ipv6_nhdr buf = Ipv6_wire.protocol_to_int `ICMP &&
-      Ipv6_wire.get_ns_ty icmpbuf = 135 &&
-      Ipv6_wire.get_ns_code icmpbuf = 0
+      Ipv6_wire.get_hlim buf = 255 &&
+      Ipv6_wire.get_nhdr buf = Ipv6_wire.protocol_to_int `ICMP &&
+      Ipv6_wire.get_ty icmpbuf = 135 &&
+      Ipv6_wire.get_code icmpbuf = 0
     then
       Some (Ipaddr_cstruct.V6.of_cstruct_exn (Cstruct.shift icmpbuf 8))
     else
       None
   in
   let na addr buf =
-    Ipv6_wire.set_ipv6_version_flow buf 0x60000000l; (* IPv6 *)
-    Ipv6_wire.set_ipv6_len buf (Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt);
+    Ipv6_wire.set_version_flow buf 0x60000000l; (* IPv6 *)
+    Ipv6_wire.set_len buf (Ipv6_wire.Na.sizeof_na + Ipv6_wire.Llopt.sizeof_llopt);
     Ipaddr_cstruct.V6.write_cstruct_exn addr (Cstruct.shift buf 8);
     Ipaddr_cstruct.V6.write_cstruct_exn Ipaddr.V6.link_nodes (Cstruct.shift buf 24);
-    Ipv6_wire.set_ipv6_hlim buf 255;
-    Ipv6_wire.set_ipv6_nhdr buf (Ipv6_wire.protocol_to_int `ICMP);
+    Ipv6_wire.set_hlim buf 255;
+    Ipv6_wire.set_nhdr buf (Ipv6_wire.protocol_to_int `ICMP);
     let hdr, icmpbuf = Cstruct.split buf Ipv6_wire.sizeof_ipv6 in
-    Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
-    Ipv6_wire.set_na_code icmpbuf 0;
-    Ipv6_wire.set_na_reserved icmpbuf 0x20000000l;
+    Ipv6_wire.set_ty icmpbuf 136; (* NA *)
+    Ipv6_wire.set_code icmpbuf 0;
+    Ipv6_wire.Na.set_reserved icmpbuf 0x20000000l;
     Ipaddr_cstruct.V6.write_cstruct_exn addr (Cstruct.shift icmpbuf 8);
-    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-    Ipv6_wire.set_llopt_ty optbuf 2;
-    Ipv6_wire.set_llopt_len optbuf 1;
+    let optbuf = Cstruct.shift icmpbuf Ipv6_wire.Na.sizeof_na in
+    Ipv6_wire.set_ty optbuf 2;
+    Ipv6_wire.Llopt.set_len optbuf 1;
     Macaddr_cstruct.write_cstruct_exn mac (Cstruct.shift optbuf 2);
-    Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-    Ipv6_wire.set_icmpv6_csum icmpbuf @@ Ndpv6.checksum hdr [icmpbuf];
+    Ipv6_wire.Icmpv6.set_checksum icmpbuf 0;
+    Ipv6_wire.Icmpv6.set_checksum icmpbuf @@ Ndpv6.checksum hdr [icmpbuf];
     na_size
   in
   Lwt.pick [

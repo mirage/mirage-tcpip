@@ -8,7 +8,7 @@ val equal : t -> t -> bool
 
 module Unmarshal : sig
 
-  type error = string 
+  type error = string
 
 (** [of_cstruct buf] attempts to interpret [buf] as a UDP header.  If
     successful, it returns [Ok (header, payload)], although [payload] may be an

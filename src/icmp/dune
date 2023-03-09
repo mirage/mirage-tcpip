@@ -4,6 +4,4 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries logs tcpip ipaddr tcpip.checksum)
- (preprocess
-  (pps ppx_cstruct))
  (wrapped false))

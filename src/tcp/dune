@@ -5,6 +5,4 @@
   (backend bisect_ppx))
  (libraries logs ipaddr cstruct lwt-dllist tcpip.checksum
    tcpip duration randomconv fmt mirage-time mirage-clock mirage-random
-   mirage-flow metrics)
- (preprocess
-  (pps ppx_cstruct)))
+   mirage-flow metrics))

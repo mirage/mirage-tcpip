@@ -117,8 +117,8 @@ module Make (N : Mirage_net.S)
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
     let src = match source with None -> src t ~dst | Some x -> x in
-    Ndpv6.ipaddr_to_cstruct_raw src ph 0;
-    Ndpv6.ipaddr_to_cstruct_raw dst ph 16;
+    Ipv6_wire.set_ip ph 0 src;
+    Ipv6_wire.set_ip ph 16 dst;
     Cstruct.BE.set_uint32 ph 32 (Int32.of_int len);
     Cstruct.set_uint8 ph 36 0;
     Cstruct.set_uint8 ph 37 0;

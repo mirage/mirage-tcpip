@@ -105,7 +105,7 @@ let blind_rst_on_established_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three way handshake")
     | `WAIT_FOR_CHALLENGE ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data = 1l)  then
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = 1l)  then
         Lwt.return Fsm_done
       else
         Lwt.return (Fsm_error "Challenge ack expected") in
@@ -174,7 +174,7 @@ let blind_syn_on_established_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
     | `WAIT_FOR_CHALLENGE ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data = 1l)  then  (
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = 1l)  then  (
         Lwt.return Fsm_done
       ) else
         Lwt.return (Fsm_error "Challenge ack expected") in
@@ -208,8 +208,7 @@ let blind_data_injection_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
     | `WAIT_FOR_CHALLENGE ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data =
-                                     1000001l)  then
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = 1000001l)  then
         Lwt.return Fsm_done
       else
         Lwt.return (Fsm_error "Challenge ack expected")
@@ -244,7 +243,7 @@ let data_repeated_ack_scenario =
       ) else
         Lwt.return (Fsm_error "Expected final ack of three step dance")
     | `WAIT_FOR_DATA_ACK ->
-      if (Tcp_wire.get_ack data) && (Tcp_wire.get_tcp_ack_number data = Int32.(add 1000001l (of_int (Cstruct.length page))))  then
+      if (Tcp_wire.get_ack data) && (Tcp_wire.get_ack_number data = Int32.(add 1000001l (of_int (Cstruct.length page))))  then
         Lwt.return Fsm_done
       else
         Lwt.return (Fsm_error "Ack for data expected") in
