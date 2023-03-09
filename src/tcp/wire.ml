@@ -18,8 +18,6 @@ open Lwt.Infix
 let src = Logs.Src.create "tcp.wire" ~doc:"Mirage TCP Wire module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let count_tcp_to_ip = MProf.Counter.make ~name:"tcp-to-ip"
-
 module Make (Ip : Tcpip.Ip.S) = struct
 
   type error = Tcpip.Ip.error
@@ -71,8 +69,6 @@ module Make (Ip : Tcpip.Ip.S) = struct
              frame and drop the payload.. oops *)
       | Ok l ->
         Cstruct.blit payload 0 buf l (Cstruct.length payload) ;
-        MProf.Counter.increase count_tcp_to_ip
-          (Cstruct.length payload + if syn then 1 else 0) ;
         tcp_size
     in
     Ip.write ip ~fragment:false ~src dst `TCP ~size:tcp_size fill_buffer [] >|= function

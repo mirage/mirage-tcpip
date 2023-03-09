@@ -42,7 +42,6 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
 
   let input t ~src ~dst:_ buf =
     let open Icmpv4_packet in
-    MProf.Trace.label "icmp_input";
     match Unmarshal.of_cstruct buf with
     | Error s ->
       Log.info (fun f ->

@@ -56,8 +56,6 @@ type t = {
   mutable backoff_count: int;
 }
 
-let count_ackd_segs = MProf.Counter.make ~name:"tcp-ackd-segs"
-
 (* To string for debugging *)
 let pp fmt t =
   Format.fprintf fmt
@@ -133,7 +131,6 @@ let ack_win t = t.ack_win
 
 let set_ack_serviced t v = t.ack_serviced <- v
 let set_ack_seq_win t s w =
-  MProf.Counter.increase count_ackd_segs (Sequence.(sub s t.ack_seq |> to_int));
   t.ack_seq <- s;
   t.ack_win <- w
 

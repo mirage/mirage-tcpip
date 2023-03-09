@@ -3,7 +3,7 @@
  (public_name tcpip.icmpv4)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs tcpip mirage-profile ipaddr tcpip.checksum)
+ (libraries logs tcpip ipaddr tcpip.checksum)
  (preprocess
   (pps ppx_cstruct))
  (wrapped false))

@@ -16,17 +16,11 @@
 
 (** TCP Statistics *)
 
-type counter
-(** The type for counters. *)
-
-val value: counter -> int
-(** The counter value. [value t] is [{!incr} t] - [{!decrs} t].*)
-
 type t = {
-  tcp_listens : counter;
-  tcp_channels: counter;
-  tcp_connects: counter;
-  tcp_timers  : counter;
+  mutable tcp_listens : int;
+  mutable tcp_channels: int;
+  mutable tcp_connects: int;
+  mutable tcp_timers  : int;
   mutable total_established : int;
   mutable total_passive_connections : int;
   mutable total_active_connections : int;
