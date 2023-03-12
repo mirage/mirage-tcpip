@@ -342,18 +342,18 @@ struct
         ~tx_isn
     in
     (* When we transmit an ACK for a received segment, rx_ack is written to *)
-    let rx_ack = MProf.Trace.named_mvar_empty "rx_ack" in
+    let rx_ack = Lwt_mvar.create_empty () in
     (* When we receive an ACK for a transmitted segment, tx_ack is written to *)
-    let tx_ack = MProf.Trace.named_mvar_empty "tx_ack" in
+    let tx_ack = Lwt_mvar.create_empty () in
     (* When new data is received, rx_data is written to *)
-    let rx_data = MProf.Trace.named_mvar_empty "rx_data" in
+    let rx_data = Lwt_mvar.create_empty () in
     (* Write to this mvar to transmit an empty ACK to the remote side *)
-    let send_ack = MProf.Trace.named_mvar_empty "send_ack" in
+    let send_ack = Lwt_mvar.create_empty () in
     (* The user application receive buffer and close notification *)
     let rx_buf_size = Window.rx_wnd wnd in
     let urx = User_buffer.Rx.create ~max_size:rx_buf_size ~wnd in
     (* The window handling thread *)
-    let tx_wnd_update = MProf.Trace.named_mvar_empty "tx_wnd_update" in
+    let tx_wnd_update = Lwt_mvar.create_empty () in
     (* Set up transmit and receive queues *)
     let on_close () = clearpcb t id tx_isn in
     let state =
@@ -696,7 +696,7 @@ struct
       Options.MSS (Ip.mtu t.ip ~dst - Tcp_wire.sizeof_tcp) :: Options.Window_size_shift rx_wnd_scaleoffer :: []
     in
     let window = 5840 in
-    let th, wakener = MProf.Trace.named_task "TCP connect" in
+    let th, wakener = Lwt.wait () in
     if Hashtbl.mem t.connects id then (
       Log.debug (fun f ->
           f "duplicate attempt to make a connection: [%a]. \
