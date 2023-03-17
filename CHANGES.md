@@ -1,3 +1,18 @@
+### v8.0.0 (2023-03-17)
+
+* TCP: add ID for PCB for connection tracking (#495 @TheLortex)
+* Unix stack, UDP: copy buffer before passing it to client (#502 @reynir)
+
+* API renamings (due to ppx_cstruct removal): accessors such as
+  Icmpv4_wire.get_icmpv4_ty are now Icmpv4_wire.get_ty ("_icmpv4" is removed)
+  (#505)
+
+* Use Cstruct.to_string instead of deprecated Cstruct.copy (#506 @hannesm)
+* Remove ppx_cstruct dependency (#505 @hannesm)
+* Remove mirage-profile dependency (#504 @hannesm)
+* Remove Mirage3 cross-compilation runes (#507 @hannesm)
+* opam: add lower bounds for cmdliner and alcotest (#506 @hannesm)
+
 ### v7.1.2 (2022-07-27)
 
 * TCP: fix memory leaks on connection close in three scenarios (#489 @TheLortex)
