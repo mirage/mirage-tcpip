@@ -7,6 +7,11 @@
   Icmpv4_wire.get_icmpv4_ty are now Icmpv4_wire.get_ty ("_icmpv4" is removed)
   (#505)
 
+* API change: remove deprecated V4-only and V6-only stack
+  The module types Stack.V4 and Stack.V6 no longer exist
+  The bindings Stack.V4V6.listen_udp and listen_tcp have been removed
+  (#494 @hannesm)
+
 * Use Cstruct.to_string instead of deprecated Cstruct.copy (#506 @hannesm)
 * Remove ppx_cstruct dependency (#505 @hannesm)
 * Remove mirage-profile dependency (#504 @hannesm)
