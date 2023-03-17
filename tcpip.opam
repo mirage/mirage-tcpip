@@ -54,6 +54,7 @@ depends: [
   "ipaddr-cstruct" {with-test}
   "lru" {>= "0.3.0"}
   "metrics"
+  "cmdliner" {>= "1.1.0"}
 ]
 depopts: [
   "ocaml-freestanding"
