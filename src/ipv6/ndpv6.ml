@@ -95,23 +95,6 @@ module Defaults = struct
   let retrans_timer              = Duration.of_sec 1
 end
 
-let ipaddr_of_cstruct cs =
-  let hihi = Cstruct.BE.get_uint32 cs 0 in
-  let hilo = Cstruct.BE.get_uint32 cs 4 in
-  let lohi = Cstruct.BE.get_uint32 cs 8 in
-  let lolo = Cstruct.BE.get_uint32 cs 12 in
-  Ipaddr.of_int32 (hihi, hilo, lohi, lolo)
-
-let ipaddr_to_cstruct_raw i cs off =
-  let a, b, c, d = Ipaddr.to_int32 i in
-  Cstruct.BE.set_uint32 cs (0 + off) a;
-  Cstruct.BE.set_uint32 cs (4 + off) b;
-  Cstruct.BE.set_uint32 cs (8 + off) c;
-  Cstruct.BE.set_uint32 cs (12 + off) d
-
-let macaddr_to_cstruct_raw x cs off =
-  Cstruct.blit_from_string (Macaddr.to_octets x) 0 cs off 6
-
 let interface_addr mac =
   let bmac = Macaddr.to_octets mac in
   let c i = Char.code (String.get bmac i) in
@@ -150,19 +133,19 @@ let checksum' ~proto frame bufs =
   Tcpip_checksum.ones_complement_list (src_dst :: cksum_buf :: bufs)
 
 let checksum frame bufs =
-  let proto = Ipv6_wire.get_ipv6_nhdr frame in
+  let proto = Ipv6_wire.get_nhdr frame in
   checksum' ~proto frame bufs
 
 module Allocate = struct
   let hdr ~hlim ~src ~dst ~proto ~size fillf =
     let size' = size + Ipv6_wire.sizeof_ipv6 in
     let fill ipbuf =
-      Ipv6_wire.set_ipv6_version_flow ipbuf 0x60000000l; (* IPv6 *)
-      Ipv6_wire.set_ipv6_len ipbuf size;
-      ipaddr_to_cstruct_raw src (Ipv6_wire.get_ipv6_src ipbuf) 0;
-      ipaddr_to_cstruct_raw dst (Ipv6_wire.get_ipv6_dst ipbuf) 0;
-      Ipv6_wire.set_ipv6_hlim ipbuf hlim;
-      Ipv6_wire.set_ipv6_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
+      Ipv6_wire.set_version_flow ipbuf 0x60000000l; (* IPv6 *)
+      Ipv6_wire.set_len ipbuf size;
+      Ipv6_wire.set_src ipbuf src;
+      Ipv6_wire.set_dst ipbuf dst;
+      Ipv6_wire.set_hlim ipbuf hlim;
+      Ipv6_wire.set_nhdr ipbuf (Ipv6_wire.protocol_to_int proto);
       let hdr, payload = Cstruct.split ipbuf Ipv6_wire.sizeof_ipv6 in
       let len' = fillf hdr payload in
       len' + Ipv6_wire.sizeof_ipv6
@@ -170,37 +153,37 @@ module Allocate = struct
     (size', fill)
 
   let ns ~specified ~mac ~src ~dst ~tgt =
-    let size = Ipv6_wire.sizeof_ns + if specified then Ipv6_wire.sizeof_llopt else 0 in
+    let size = Ipv6_wire.Ns.sizeof_ns + if specified then Ipv6_wire.Llopt.sizeof_llopt else 0 in
     let fillf hdr icmpbuf =
-      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_ns in
-      Ipv6_wire.set_ns_ty icmpbuf 135; (* NS *)
-      Ipv6_wire.set_ns_code icmpbuf 0;
-      Ipv6_wire.set_ns_reserved icmpbuf 0l;
-      ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_ns_target icmpbuf) 0;
+      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.Ns.sizeof_ns in
+      Ipv6_wire.set_ty icmpbuf 135; (* NS *)
+      Ipv6_wire.set_code icmpbuf 0;
+      Ipv6_wire.Ns.set_reserved icmpbuf 0l;
+      Ipv6_wire.Ns.set_target icmpbuf tgt;
       if specified then begin
-        Ipv6_wire.set_llopt_ty optbuf  1;
-        Ipv6_wire.set_llopt_len optbuf  1;
-        macaddr_to_cstruct_raw mac optbuf 2;
+        Ipv6_wire.set_ty optbuf 1;
+        Ipv6_wire.Llopt.set_len optbuf 1;
+        Ipv6_wire.Llopt.set_addr optbuf mac;
       end;
-      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf 0;
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
 
   let na ~mac ~src ~dst ~tgt ~sol =
-    let size = Ipv6_wire.sizeof_na + Ipv6_wire.sizeof_llopt in
+    let size = Ipv6_wire.Na.sizeof_na + Ipv6_wire.Llopt.sizeof_llopt in
     let fillf hdr icmpbuf =
-      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_na in
-      Ipv6_wire.set_na_ty icmpbuf 136; (* NA *)
-      Ipv6_wire.set_na_code icmpbuf 0;
-      Ipv6_wire.set_na_reserved icmpbuf (if sol then 0x60000000l else 0x20000000l);
-      ipaddr_to_cstruct_raw tgt (Ipv6_wire.get_na_target icmpbuf) 0;
-      Ipv6_wire.set_llopt_ty optbuf 2;
-      Ipv6_wire.set_llopt_len optbuf 1;
-      macaddr_to_cstruct_raw mac optbuf 2;
-      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      let optbuf = Cstruct.shift icmpbuf Ipv6_wire.Na.sizeof_na in
+      Ipv6_wire.set_ty icmpbuf 136; (* NA *)
+      Ipv6_wire.set_code icmpbuf 0;
+      Ipv6_wire.Na.set_reserved icmpbuf (if sol then 0x60000000l else 0x20000000l);
+      Ipv6_wire.Na.set_target icmpbuf tgt;
+      Ipv6_wire.set_ty optbuf 2;
+      Ipv6_wire.Llopt.set_len optbuf 1;
+      Ipv6_wire.Llopt.set_addr optbuf mac;
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf 0;
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
@@ -210,35 +193,35 @@ module Allocate = struct
     let src = select_source ~dst in
     let cmp = Ipaddr.compare in
     let include_slla = (cmp src Ipaddr.unspecified) != 0 in
-    let slla_len = if include_slla then Ipv6_wire.sizeof_llopt else 0 in
-    let size = Ipv6_wire.sizeof_rs + slla_len in
+    let slla_len = if include_slla then Ipv6_wire.Llopt.sizeof_llopt else 0 in
+    let size = Ipv6_wire.Rs.sizeof_rs + slla_len in
     let fillf hdr icmpbuf =
-      Ipv6_wire.set_rs_ty icmpbuf 133;
-      Ipv6_wire.set_rs_code icmpbuf 0;
-      Ipv6_wire.set_rs_reserved icmpbuf 0l;
+      Ipv6_wire.set_ty icmpbuf 133;
+      Ipv6_wire.set_code icmpbuf 0;
+      Ipv6_wire.Rs.set_reserved icmpbuf 0l;
       if include_slla then begin
-        let optbuf = Cstruct.shift icmpbuf Ipv6_wire.sizeof_rs in
-        Ipv6_wire.set_llopt_ty optbuf 1;
-        Ipv6_wire.set_llopt_len optbuf 1;
-        macaddr_to_cstruct_raw mac optbuf 2
+        let optbuf = Cstruct.shift icmpbuf Ipv6_wire.Rs.sizeof_rs in
+        Ipv6_wire.set_ty optbuf 1;
+        Ipv6_wire.Llopt.set_len optbuf 1;
+        Ipv6_wire.Llopt.set_addr optbuf mac
       end;
-      Ipv6_wire.set_icmpv6_csum icmpbuf 0;
-      Ipv6_wire.set_icmpv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf 0;
+      Ipv6_wire.Icmpv6.set_checksum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim:255 ~proto:`ICMP ~size fillf
 
   let pong ~src ~dst ~hlim ~id ~seq ~data =
     (* TODO data may exceed size, fragment? *)
-    let size = Ipv6_wire.sizeof_pingv6 + Cstruct.length data in
+    let size = Ipv6_wire.Pingv6.sizeof_pingv6 + Cstruct.length data in
     let fillf hdr icmpbuf =
-      Ipv6_wire.set_pingv6_ty icmpbuf 129; (* ECHO REPLY *)
-      Ipv6_wire.set_pingv6_code icmpbuf 0;
-      Ipv6_wire.set_pingv6_id icmpbuf id;
-      Ipv6_wire.set_pingv6_seq icmpbuf seq;
-      Ipv6_wire.set_pingv6_csum icmpbuf 0;
-      Cstruct.blit data 0 icmpbuf Ipv6_wire.sizeof_pingv6 (Cstruct.length data);
-      Ipv6_wire.set_pingv6_csum icmpbuf @@ checksum hdr [ icmpbuf ];
+      Ipv6_wire.set_ty icmpbuf 129; (* ECHO REPLY *)
+      Ipv6_wire.set_code icmpbuf 0;
+      Ipv6_wire.Pingv6.set_id icmpbuf id;
+      Ipv6_wire.Pingv6.set_seq icmpbuf seq;
+      Ipv6_wire.Pingv6.set_checksum icmpbuf 0;
+      Cstruct.blit data 0 icmpbuf Ipv6_wire.Pingv6.sizeof_pingv6 (Cstruct.length data);
+      Ipv6_wire.Pingv6.set_checksum icmpbuf @@ checksum hdr [ icmpbuf ];
       size
     in
     hdr ~src ~dst ~hlim ~proto:`ICMP ~size fillf
@@ -743,32 +726,32 @@ module Parser = struct
     | PREFIX of pfx
 
   let rec parse_options1 opts =
-    if Cstruct.length opts >= Ipv6_wire.sizeof_opt then
+    if Cstruct.length opts >= Ipv6_wire.Opt.sizeof_opt then
       (* TODO check for invalid len == 0 *)
-      let opt, opts = Cstruct.split opts (Ipv6_wire.get_opt_len opts * 8) in
-      match Ipv6_wire.get_opt_ty opt, Ipv6_wire.get_opt_len opt with
+      let opt, opts = Cstruct.split opts (Ipv6_wire.Opt.get_len opts * 8) in
+      match Ipv6_wire.get_ty opt, Ipv6_wire.Opt.get_len opt with
       | 1, 1 ->
-        SLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+        SLLA (Ipv6_wire.Llopt.get_addr opt) :: parse_options1 opts
       | 2, 1 ->
-        TLLA (Macaddr_cstruct.of_cstruct_exn (Ipv6_wire.get_llopt_addr opt)) :: parse_options1 opts
+        TLLA (Ipv6_wire.Llopt.get_addr opt) :: parse_options1 opts
       | 5, 1 ->
         MTU (Int32.to_int (Cstruct.BE.get_uint32 opt 4)) :: parse_options1 opts
       | 3, 4 ->
         let pfx_prefix =
           Ipaddr.Prefix.make
-            (Ipv6_wire.get_opt_prefix_prefix_len opt)
-            (ipaddr_of_cstruct (Ipv6_wire.get_opt_prefix_prefix opt))
+            (Ipv6_wire.Opt_prefix.get_len opt)
+            (Ipv6_wire.Opt_prefix.get_prefix opt)
         in
-        let pfx_on_link = Ipv6_wire.get_opt_prefix_on_link opt in
-        let pfx_autonomous = Ipv6_wire.get_opt_prefix_autonomous opt in
+        let pfx_on_link = Ipv6_wire.Opt_prefix.on_link opt in
+        let pfx_autonomous = Ipv6_wire.Opt_prefix.autonomous opt in
         let pfx_valid_lifetime =
-          let n = Ipv6_wire.get_opt_prefix_valid_lifetime opt in
+          let n = Ipv6_wire.Opt_prefix.get_valid_lifetime opt in
           match n with
           | 0xffffffffl -> None
           | n -> Some (Int64.of_int32 n)
         in
         let pfx_preferred_lifetime =
-          let n = Ipv6_wire.get_opt_prefix_preferred_lifetime opt in
+          let n = Ipv6_wire.Opt_prefix.get_preferred_lifetime opt in
           match n with
           | 0xffffffffl -> None
           | n -> Some (Int64.of_int32 n)
@@ -784,25 +767,25 @@ module Parser = struct
       []
 
   let parse_ra buf =
-    let ra_cur_hop_limit = Ipv6_wire.get_ra_cur_hop_limit buf in
+    let ra_cur_hop_limit = Ipv6_wire.Ra.get_cur_hop_limit buf in
     let ra_router_lifetime =
-      Int64.of_int (Ipv6_wire.get_ra_router_lifetime buf)
+      Int64.of_int (Ipv6_wire.Ra.get_router_lifetime buf)
     in
     let ra_reachable_time =
-      let n = Ipv6_wire.get_ra_reachable_time buf in
+      let n = Ipv6_wire.Ra.get_reachable_time buf in
       if n = 0l then None
       else
         let dt = Int64.of_int32 @@ Int32.div n 1000l in
         Some dt
     in
     let ra_retrans_timer =
-      let n = Ipv6_wire.get_ra_retrans_timer buf in
+      let n = Ipv6_wire.Ra.get_retrans_timer buf in
       if n = 0l then None
       else
         let dt = Int64.of_int32 @@ Int32.div n 1000l in
         Some dt
     in
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ra in
+    let opts = Cstruct.shift buf Ipv6_wire.Ra.sizeof_ra in
     let ra_slla, ra_prefix =
       let opts = parse_options1 opts in
       List.fold_left (fun ra opt ->
@@ -816,8 +799,8 @@ module Parser = struct
 
   let parse_ns buf =
     (* FIXME check code = 0 or drop *)
-    let ns_target = ipaddr_of_cstruct (Ipv6_wire.get_ns_target buf) in
-    let opts = Cstruct.shift buf Ipv6_wire.sizeof_ns in
+    let ns_target = Ipv6_wire.Ns.get_target buf in
+    let opts = Cstruct.shift buf Ipv6_wire.Ns.sizeof_ns in
     let ns_slla =
       let opts = parse_options1 opts in
       List.fold_left (fun ns opt ->
@@ -830,12 +813,12 @@ module Parser = struct
 
   let parse_na buf =
     (* FIXME check code = 0 or drop *)
-    let na_router = Ipv6_wire.get_na_router buf in
-    let na_solicited = Ipv6_wire.get_na_solicited buf in
-    let na_override = Ipv6_wire.get_na_override buf in
-    let na_target = ipaddr_of_cstruct (Ipv6_wire.get_na_target buf) in
+    let na_router = Ipv6_wire.Na.get_router buf in
+    let na_solicited = Ipv6_wire.Na.get_solicited buf in
+    let na_override = Ipv6_wire.Na.get_override buf in
+    let na_target = Ipv6_wire.Na.get_target buf in
     let na_tlla =
-      let opts = Cstruct.shift buf Ipv6_wire.sizeof_na in
+      let opts = Cstruct.shift buf Ipv6_wire.Na.sizeof_na in
       let opts = parse_options1 opts in
       List.fold_left (fun na opt ->
           match opt with
@@ -846,12 +829,12 @@ module Parser = struct
     {na_router; na_solicited; na_override; na_target; na_tlla}
 
   let parse_redirect buf =
-    let destination = ipaddr_of_cstruct (Ipv6_wire.get_redirect_destination buf) in
-    let target = ipaddr_of_cstruct (Ipv6_wire.get_redirect_target buf) in
+    let destination = Ipv6_wire.Redirect.get_destination buf in
+    let target = Ipv6_wire.Redirect.get_target buf in
     { target; destination }
 
   let dst_unreachable icmpbuf =
-    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    match Ipv6_wire.get_code icmpbuf with
     | 0 -> "No route to destination"
     | 1 -> "Communication with destination administratively prohibited"
     | 2 -> "Beyond scope of source address"
@@ -863,13 +846,13 @@ module Parser = struct
     | c -> "Unknown code: " ^ string_of_int c
 
   let time_exceeded icmpbuf =
-    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    match Ipv6_wire.get_code icmpbuf with
     | 0 -> "Hop limit exceeded in transit"
     | 1 -> "Fragment reassembly time exceeded"
     | c -> "Unknown code: " ^ string_of_int c
 
   let parameter_problem icmpbuf =
-    match Ipv6_wire.get_icmpv6_code icmpbuf with
+    match Ipv6_wire.get_code icmpbuf with
     | 0 -> "Erroneous header field encountered"
     | 1 -> "Unrecognized Next Header type encountered"
     | 2 -> "Unrocognized IPv6 option encountered"
@@ -883,7 +866,7 @@ module Parser = struct
       Log.info (fun f -> f "ICMP6: Checksum error, dropping packet: csum=0x%x" csum);
       Drop
     end else begin
-      match Ipv6_wire.get_icmpv6_ty icmpbuf with
+      match Ipv6_wire.get_ty icmpbuf with
       | 128 -> (* Echo request *)
         let id = Cstruct.BE.get_uint16 icmpbuf 4 in
         let seq = Cstruct.BE.get_uint16 icmpbuf 6 in
@@ -894,12 +877,12 @@ module Parser = struct
         (* RFC 4861, 2.6.2 *)
         Drop
       | 134 (* RA *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
+        if Ipv6_wire.get_hlim buf <> 255 then
           Drop
         else
           RA (src, dst, parse_ra icmpbuf)
       | 135 (* NS *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
+        if Ipv6_wire.get_hlim buf <> 255 then
           Drop
         else
           let ns = parse_ns icmpbuf in
@@ -908,7 +891,7 @@ module Parser = struct
           else
             NS (src, dst, ns)
       | 136 (* NA *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
+        if Ipv6_wire.get_hlim buf <> 255 then
           Drop
         else
           let na = parse_na icmpbuf in
@@ -918,7 +901,7 @@ module Parser = struct
           else
             NA (src, dst, na)
       | 137 (* Redirect *) ->
-        if Ipv6_wire.get_ipv6_hlim buf <> 255 then
+        if Ipv6_wire.get_hlim buf <> 255 then
           Drop
         else
           let redirect = parse_redirect icmpbuf in
@@ -974,23 +957,23 @@ module Parser = struct
 
   and parse_options ~src ~dst buf poff =
     let pbuf = Cstruct.shift buf poff in
-    let nhdr = Ipv6_wire.get_opt_ty pbuf in
-    let olen = Ipv6_wire.get_opt_len pbuf * 8 + 8 in
+    let nhdr = Ipv6_wire.get_ty pbuf in
+    let olen = Ipv6_wire.Opt.get_len pbuf * 8 + 8 in
     let oend = olen + poff in
     let rec loop ooff =
       if ooff < oend then begin
         let obuf = Cstruct.shift buf ooff in
-        match Ipv6_wire.get_opt_ty obuf with
+        match Ipv6_wire.get_ty obuf with
         | 0 ->
           Log.debug (fun f -> f "IP6: Processing PAD1 option");
           loop (ooff+1)
         | 1 ->
           Log.debug (fun f -> f "IP6: Processing PADN option");
-          let len = Ipv6_wire.get_opt_len obuf in
+          let len = Ipv6_wire.Opt.get_len obuf in
           loop (ooff+len+2)
         | _ as n ->
           Log.info (fun f -> f "IP6: Processing unknown option, MSB %x" n);
-          let len = Ipv6_wire.get_opt_len obuf in
+          let len = Ipv6_wire.Opt.get_len obuf in
           match n land 0xc0 with
           | 0x00 ->
             loop (ooff+len+2)
@@ -1014,16 +997,16 @@ module Parser = struct
     loop (poff+2)
 
   let packet is_my_addr buf =
-    if Cstruct.length buf < Ipv6_wire.sizeof_ipv6 || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf then begin
+    if Cstruct.length buf < Ipv6_wire.sizeof_ipv6 || Cstruct.length buf < Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf then begin
       Log.debug (fun m -> m "short IPv6 packet received, dropping");
       Drop
-    end else if Int32.logand (Ipv6_wire.get_ipv6_version_flow buf) 0xF0000000l <> 0x60000000l then begin
+    end else if Int32.logand (Ipv6_wire.get_version_flow buf) 0xF0000000l <> 0x60000000l then begin
       Log.debug (fun m -> m "version in IPv6 packet not 6");
       Drop
     end else begin
-      let buf = Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_ipv6_len buf) in
-      let src = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_src buf) in
-      let dst = ipaddr_of_cstruct (Ipv6_wire.get_ipv6_dst buf) in
+      let buf = Cstruct.sub buf 0 (Ipv6_wire.sizeof_ipv6 + Ipv6_wire.get_len buf) in
+      let src = Ipv6_wire.get_src buf in
+      let dst = Ipv6_wire.get_dst buf in
       if Ipaddr.Prefix.(mem src multicast) then begin
         Log.debug (fun f -> f "IP6: Dropping packet, src is mcast");
         Drop
@@ -1033,7 +1016,7 @@ module Parser = struct
         Drop
       end
       else
-        parse_extension ~src ~dst buf true (Ipv6_wire.get_ipv6_nhdr buf) Ipv6_wire.sizeof_ipv6
+        parse_extension ~src ~dst buf true (Ipv6_wire.get_nhdr buf) Ipv6_wire.sizeof_ipv6
     end
 end
 

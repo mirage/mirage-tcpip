@@ -196,7 +196,7 @@ let fragment ~mtu hdr payload =
       if more then Cstruct.split payload data_size else payload, Cstruct.empty
     in
     let payload_len = Cstruct.length this_payload in
-    Ipv4_wire.set_ipv4_csum hdr_buf 0;
+    Ipv4_wire.set_checksum hdr_buf 0;
     (match Ipv4_packet.Marshal.into_cstruct ~payload_len hdr' hdr_buf with
      (* hdr_buf is allocated with hdr_size (computed below) bytes, thus
         into_cstruct will never return an error! *)

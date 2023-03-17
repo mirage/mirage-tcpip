@@ -23,7 +23,7 @@ let pp fmt t =
     | Address addr -> say fmt "subheader: ip %a" Ipaddr.V4.pp addr
     | Unused -> ()
   in
-  say fmt "ICMP type %s, code %d, subheader [%a]" (Icmpv4_wire.ty_to_string t.ty)
+  say fmt "ICMP type %s, code %d, subheader [%a]" (ty_to_string t.ty)
     t.code pp_subheader t.subheader
 
 let subheader_eq = function
@@ -64,14 +64,14 @@ module Unmarshal = struct
         Error "packet too short for ICMPv4 header"
       else Ok () in
     let check_ty () =
-      match int_to_ty (get_icmpv4_ty buf) with
+      match int_to_ty (get_ty buf) with
       | None -> Error "unrecognized ICMPv4 type"
       | Some ty -> Ok ty
     in
     (* TODO: check checksum as well, and return an error if it's invalid *)
     let* () = check_len () in
     let* ty = check_ty () in
-    let code = get_icmpv4_code buf in
+    let code = get_code buf in
     let subheader = subheader_of_cstruct ty (Cstruct.shift buf 4) in
     let payload = Cstruct.shift buf sizeof_icmpv4 in
     Ok ({ code; ty; subheader}, payload)
@@ -91,15 +91,15 @@ module Marshal = struct
     | Unused -> set_uint32 buf 0 Int32.zero
 
   let unsafe_fill {ty; code; subheader} buf ~payload =
-    set_icmpv4_ty buf (ty_to_int ty);
-    set_icmpv4_code buf code;
-    set_icmpv4_csum buf 0x0000;
+    set_ty buf (ty_to_int ty);
+    set_code buf code;
+    set_checksum buf 0x0000;
     subheader_into_cstruct ~buf:(Cstruct.shift buf 4) subheader;
-    let packets = [(Cstruct.sub buf 0 Icmpv4_wire.sizeof_icmpv4); payload] in
-    set_icmpv4_csum buf (Tcpip_checksum.ones_complement_list packets)
+    let packets = [(Cstruct.sub buf 0 sizeof_icmpv4); payload] in
+    set_checksum buf (Tcpip_checksum.ones_complement_list packets)
 
   let check_len buf =
-    if Cstruct.length buf < Icmpv4_wire.sizeof_icmpv4 then
+    if Cstruct.length buf < sizeof_icmpv4 then
       Error "Not enough space for ICMP header"
     else Ok ()
 
@@ -109,7 +109,7 @@ module Marshal = struct
     Ok ()
 
   let make_cstruct t ~payload =
-    let buf = Cstruct.create Icmpv4_wire.sizeof_icmpv4 in
+    let buf = Cstruct.create sizeof_icmpv4 in
     unsafe_fill t buf ~payload;
     buf
 end

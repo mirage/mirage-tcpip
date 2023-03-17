@@ -48,7 +48,6 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
           f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp src s);
       Lwt.return_unit
     | Ok (message, payload) ->
-      let open Icmpv4_wire in
       match message.ty, message.subheader with
       | Echo_reply, _ ->
         Log.info (fun f ->
@@ -65,7 +64,7 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
         if t.echo_reply then begin
           let icmp = {
             code = 0x00;
-            ty   = Icmpv4_wire.Echo_reply;
+            ty   = Echo_reply;
             subheader = Id_and_seq (id, seq);
           } in
           writev t ~dst:src [ Marshal.make_cstruct icmp ~payload; payload ]
@@ -77,7 +76,7 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
       | ty, _ ->
         Log.info (fun f ->
             f "ICMP unknown ty %s from %a"
-              (ty_to_string ty) Ipaddr.V4.pp src);
+              (Icmpv4_wire.ty_to_string ty) Ipaddr.V4.pp src);
         Lwt.return_unit
 
 end

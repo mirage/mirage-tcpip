@@ -40,7 +40,7 @@ module Unmarshal = struct
       if Cstruct.length pkt < sizeof_tcp then
         Error "packet too short to contain a TCP packet of any size"
       else
-        Ok (Tcp_wire.get_data_offset pkt)
+        Ok (get_data_offset pkt)
     in
     let long_enough data_offset = if Cstruct.length pkt < data_offset then
         Error "packet too short to contain a TCP packet of the size claimed"
@@ -57,17 +57,17 @@ module Unmarshal = struct
     let* data_offset = check_len pkt in
     let* () = long_enough data_offset in
     let* options = options data_offset pkt in
-    let sequence = get_tcp_sequence pkt |> Sequence.of_int32 in
-    let ack_number = get_tcp_ack_number pkt |> Sequence.of_int32 in
+    let sequence = get_sequence pkt |> Sequence.of_int32 in
+    let ack_number = get_ack_number pkt |> Sequence.of_int32 in
     let urg = get_urg pkt in
     let ack = get_ack pkt in
     let psh = get_psh pkt in
     let rst = get_rst pkt in
     let syn = get_syn pkt in
     let fin = get_fin pkt in
-    let window = get_tcp_window pkt in
-    let src_port = get_tcp_src_port pkt in
-    let dst_port = get_tcp_dst_port pkt in
+    let window = get_window pkt in
+    let src_port = get_src_port pkt in
+    let dst_port = get_dst_port pkt in
     let data = Cstruct.shift pkt data_offset in
     Ok ({ urg; ack; psh; rst; syn; fin; window; options;
           sequence; ack_number; src_port; dst_port }, data)
@@ -80,27 +80,27 @@ module Marshal = struct
   let unsafe_fill ~pseudoheader ~payload t buf options_len =
     let data_off = sizeof_tcp + options_len in
     let buf = Cstruct.sub buf 0 data_off in
-    set_tcp_src_port buf t.src_port;
-    set_tcp_dst_port buf t.dst_port;
-    set_tcp_sequence buf (Sequence.to_int32 t.sequence);
-    set_tcp_ack_number buf (Sequence.to_int32 t.ack_number);
+    set_src_port buf t.src_port;
+    set_dst_port buf t.dst_port;
+    set_sequence buf (Sequence.to_int32 t.sequence);
+    set_ack_number buf (Sequence.to_int32 t.ack_number);
     set_data_offset buf (data_off / 4);
-    set_tcp_flags buf 0;
+    set_flags buf 0;
     if t.urg then set_urg buf;
     if t.ack then set_ack buf;
     if t.rst then set_rst buf;
     if t.syn then set_syn buf;
     if t.fin then set_fin buf;
     if t.psh then set_psh buf;
-    set_tcp_window buf t.window;
-    set_tcp_checksum buf 0;
-    set_tcp_urg_ptr buf 0;
+    set_window buf t.window;
+    set_checksum buf 0;
+    set_urg_ptr buf 0;
     (* it's possible we've been passed a buffer larger than the size of the header,
      * which contains some data after the end of the header we'll write;
      * in this case, make sure we compute the checksum properly *)
     let checksum = Tcpip_checksum.ones_complement_list [pseudoheader ; buf ;
                                                         payload] in
-    set_tcp_checksum buf checksum;
+    set_checksum buf checksum;
     ()
 
   let into_cstruct ~pseudoheader ~payload t buf =

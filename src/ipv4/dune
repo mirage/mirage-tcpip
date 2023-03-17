@@ -5,6 +5,4 @@
   (backend bisect_ppx))
  (libraries logs ipaddr cstruct tcpip tcpip.udp tcpip.checksum mirage-random
    mirage-clock randomconv lru arp.mirage ethernet)
- (preprocess
-  (pps ppx_cstruct))
  (wrapped false))

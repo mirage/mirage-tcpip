@@ -19,8 +19,6 @@ type ipaddr = Ipaddr.V6.t
 type prefix = Ipaddr.V6.Prefix.t
 type time   = int64
 
-val ipaddr_of_cstruct : buffer -> ipaddr
-val ipaddr_to_cstruct_raw : ipaddr -> buffer -> int -> unit
 val checksum : buffer -> buffer list -> int
 
 type event =

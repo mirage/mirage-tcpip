@@ -101,8 +101,8 @@ let listen t addr fn =
        probably reflects some kernel datastructure size rather than the real
        on-the-wire size. This confuses our IPv4 parser so we correct the size
        here. *)
-    let len = Ipv4_wire.get_ipv4_len receive_buffer in
-    Ipv4_wire.set_ipv4_len receive_buffer (min len (Cstruct.length receive_buffer));
+    let len = Ipv4_wire.get_len receive_buffer in
+    Ipv4_wire.set_len receive_buffer (min len (Cstruct.length receive_buffer));
     Lwt.async (fun () -> fn receive_buffer);
     loop ()
   in

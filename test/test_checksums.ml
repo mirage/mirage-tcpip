@@ -33,7 +33,7 @@ let udp_ipv4_correct_negative () =
 let udp_ipv4_allows_zero () =
   let buf = Cstruct.of_string example_ipv4_udp in
   let (ipv4_header, transport_packet) = unwrap_ipv4 buf in
-  Udp_wire.set_udp_checksum transport_packet 0x0000;
+  Udp_wire.set_checksum transport_packet 0x0000;
   Alcotest.(check bool) "0x0000 checksum is OK for UDP"
     true @@ verify_ipv4_udp ~ipv4_header ~transport_packet;
   Lwt.return_unit

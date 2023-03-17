@@ -54,17 +54,17 @@ module Marshal = struct
       | k -> (4 - k) + n
     in
     let options_len = nearest_4 @@ Cstruct.length t.options in
-    set_ipv4_hlen_version buf ((4 lsl 4) + 5 + (options_len / 4));
-    set_ipv4_id buf t.id;
-    set_ipv4_off buf t.off;
-    set_ipv4_ttl buf t.ttl;
-    set_ipv4_proto buf t.proto;
-    set_ipv4_src buf (Ipaddr.V4.to_int32 t.src);
-    set_ipv4_dst buf (Ipaddr.V4.to_int32 t.dst);
+    set_hlen_version buf ((4 lsl 4) + 5 + (options_len / 4));
+    set_id buf t.id;
+    set_off buf t.off;
+    set_ttl buf t.ttl;
+    set_proto buf t.proto;
+    set_src buf t.src;
+    set_dst buf t.dst;
     Cstruct.blit t.options 0 buf sizeof_ipv4 (Cstruct.length t.options);
-    set_ipv4_len buf (sizeof_ipv4 + options_len + payload_len);
+    set_len buf (sizeof_ipv4 + options_len + payload_len);
     let checksum = Tcpip_checksum.ones_complement @@ Cstruct.sub buf 0 (20 + options_len) in
-    set_ipv4_csum buf checksum
+    set_checksum buf checksum
 
 
   let into_cstruct ~payload_len t buf =
@@ -99,7 +99,7 @@ module Unmarshal = struct
     let open Ipv4_wire in
     let check_version buf =
       let version n = (n land 0xf0) in
-      match get_ipv4_hlen_version buf |> version with
+      match get_hlen_version buf |> version with
       | 0x40 -> Ok ()
       | n -> Error (Printf.sprintf "IPv4 presented with a packet that claims a different IP version: %x" n)
     in
@@ -109,28 +109,29 @@ module Unmarshal = struct
     in
     let get_header_length buf =
       let length_of_hlen_version n = (n land 0x0f) * 4 in
-      let hlen = get_ipv4_hlen_version buf |> length_of_hlen_version in
-        if (get_ipv4_len buf) < sizeof_ipv4 then
-          Error (Printf.sprintf
-                   "total length %d is smaller than minimum header length"
-                   (get_ipv4_len buf))
-        else if get_ipv4_len buf < hlen then
-          Error (Printf.sprintf
-                   "total length %d is smaller than stated header length %d"
-                   (get_ipv4_len buf) hlen)
-        else if hlen < sizeof_ipv4 then
-          Error (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
-        else if Cstruct.length buf < hlen then
-          Error (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.length buf) hlen)
-        else Ok hlen
+      let hlen = get_hlen_version buf |> length_of_hlen_version in
+      let len = get_len buf in
+      if len < sizeof_ipv4 then
+        Error (Printf.sprintf
+                 "total length %d is smaller than minimum header length" len)
+      else if len < hlen then
+        Error (Printf.sprintf
+                 "total length %d is smaller than stated header length %d"
+                 len hlen)
+      else if hlen < sizeof_ipv4 then
+        Error (Printf.sprintf "IPv4 header claimed to have size < 20: %d" hlen)
+      else if Cstruct.length buf < hlen then
+        Error (Printf.sprintf "IPv4 packet w/length %d claimed to have header of size %d" (Cstruct.length buf) hlen)
+      else Ok hlen
     in
     let parse buf options_end =
-      let src = Ipaddr.V4.of_int32 (get_ipv4_src buf) in
-      let dst = Ipaddr.V4.of_int32 (get_ipv4_dst buf) in
-      let id = get_ipv4_id buf in
-      let off = get_ipv4_off buf in
-      let ttl = get_ipv4_ttl buf in
-      let proto = get_ipv4_proto buf in
+      let src = get_src buf
+      and dst = get_dst buf
+      and id = get_id buf
+      and off = get_off buf
+      and ttl = get_ttl buf
+      and proto = get_proto buf
+      in
       let options =
         if options_end > sizeof_ipv4 then (Cstruct.sub buf sizeof_ipv4 (options_end - sizeof_ipv4))
         else (Cstruct.create 0)
@@ -143,9 +144,8 @@ module Unmarshal = struct
     parse buf hl
 
   let of_cstruct buf =
-    let open Ipv4_wire in
     let parse buf options_end =
-      let payload_len = (get_ipv4_len buf) - options_end in
+      let payload_len = Ipv4_wire.get_len buf - options_end in
       let payload_available = Cstruct.length buf - options_end in
       if payload_available < payload_len then (
         Error (Printf.sprintf "Payload buffer (%d bytes) too small to contain payload (of size %d from header)" payload_available payload_len)
@@ -172,7 +172,7 @@ module Unmarshal = struct
     | `TCP -> (* checksum isn't optional in tcp, but pkt must be long enough *)
       check ipv4_header ~proto (Cstruct.length transport_packet)
     | `UDP ->
-      match Udp_wire.get_udp_checksum transport_packet with
+      match Udp_wire.get_checksum transport_packet with
       | n when (=) 0 @@ compare n 0x0000 -> true (* no checksum supplied, so the check trivially passes *)
       | _ ->
         check ipv4_header ~proto (Cstruct.length transport_packet)

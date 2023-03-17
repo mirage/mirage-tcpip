@@ -4,6 +4,4 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries mirage-random logs tcpip randomconv tcpip.checksum)
- (preprocess
-  (pps ppx_cstruct))
  (wrapped false))
