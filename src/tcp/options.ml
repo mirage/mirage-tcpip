@@ -99,7 +99,7 @@ let unmarshal buf =
              (* Parse apparently well-formed but unrecognized
                 options *)
              | n, _ ->
-               Ok (Unknown (n, Cstruct.to_string ~off:2 ~len:(Cstruct.length buf - 2) buf))
+               Ok (Unknown (n, Cstruct.to_string ~off:2 buf))
            end
       ) buf in
   Result.map List.rev
