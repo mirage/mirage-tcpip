@@ -1,3 +1,0 @@
-# DUNE_GEN
-
-freestanding_linkopts = "-l:libtcpip_freestanding_stubs.a"
