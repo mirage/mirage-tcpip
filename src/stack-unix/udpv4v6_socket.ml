@@ -27,7 +27,7 @@ let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ]; (* source ip to bind to *)
-  listen_fds: (int, Lwt_unix.file_descr * Lwt_unix.file_descr option) Hashtbl.t; (* UDP fds bound to a particular port *)
+  listen_fds: (int, Lwt_unix.file_descr * Lwt_unix.file_descr option * callback) Hashtbl.t; (* UDP fds bound to a particular port *)
   mutable switched_off : unit Lwt.t;
 }
 
@@ -38,12 +38,12 @@ let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
   | exn -> raise exn
 
-let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;interface;_} port =
+let get_udpv4v6_listening_fd ?preserve ?(v4_or_v6 = `Both) {listen_fds;interface;_} port =
   try
     Lwt.return
       (match Hashtbl.find listen_fds port with
-       | (fd, None) -> false, [ fd ]
-       | (fd, Some fd') -> false, [ fd ; fd' ])
+       | (fd, None, _) -> false, [ fd ]
+       | (fd, Some fd', _) -> false, [ fd ; fd' ])
   with Not_found ->
     (match interface with
      | `Any ->
@@ -76,8 +76,8 @@ let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;
      | `V6_only ip ->
        let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (ip, port)) >|= fun () ->
-       ((fd, None), [ fd ])) >|= fun (fds, r) ->
-    if preserve then Hashtbl.add listen_fds port fds;
+       ((fd, None), [ fd ])) >|= fun ((fd1, fd2), r) ->
+    Option.iter (fun cb -> Hashtbl.add listen_fds port (fd1, fd2, cb)) preserve;
     true, r
 
 
@@ -121,7 +121,7 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
   Lwt.return { interface; listen_fds; switched_off = fst (Lwt.wait ()) }
 
 let disconnect t =
-  Hashtbl.fold (fun _ (fd, fd') r ->
+  Hashtbl.fold (fun _ (fd, fd', _) r ->
       r >>= fun () ->
       close fd >>= fun () ->
       match fd' with None -> Lwt.return_unit | Some fd -> close fd)
@@ -146,7 +146,7 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
   match t.interface, v4_or_v6 with
   | `Any, _ | `Ip _, _ | `V4_only _, `V4 | `V6_only _, `V6 ->
     let p = match src_port with None -> 0 | Some x -> x in
-    get_udpv4v6_listening_fd ~preserve:false ~v4_or_v6 t p >>= fun (created, fds) ->
+    get_udpv4v6_listening_fd ~v4_or_v6 t p >>= fun (created, fds) ->
     ((match fds, v4_or_v6 with
       | [ fd ], _ -> Lwt.return (Ok fd)
       | [ v4 ; _v6 ], `V4 -> Lwt.return (Ok v4)
@@ -161,11 +161,17 @@ let write ?src:_ ?src_port ?ttl:_ttl ~dst ~dst_port t buf =
 
 let unlisten t ~port =
   try
-    let fd, fd' = Hashtbl.find t.listen_fds port in
+    let fd, fd', _ = Hashtbl.find t.listen_fds port in
     Hashtbl.remove t.listen_fds port;
     (match fd' with None -> () | Some fd' -> Unix.close (Lwt_unix.unix_file_descr fd'));
     Unix.close (Lwt_unix.unix_file_descr fd)
   with _ -> ()
+
+let is_listening t ~port =
+  if port < 0 || port > 65535 then
+    raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+  else
+    Option.map (fun (_, _, cb) -> cb) (Hashtbl.find_opt t.listen_fds port)
 
 let listen t ~port callback =
   if port < 0 || port > 65535 then
@@ -173,7 +179,7 @@ let listen t ~port callback =
   else
     (* FIXME: we should not ignore the result *)
     Lwt.async (fun () ->
-        get_udpv4v6_listening_fd t port >|= fun (_, fds) ->
+        get_udpv4v6_listening_fd ~preserve:callback t port >|= fun (_, fds) ->
         List.iter (fun fd ->
             Lwt.async (fun () ->
                 let buf = Cstruct.create 4096 in

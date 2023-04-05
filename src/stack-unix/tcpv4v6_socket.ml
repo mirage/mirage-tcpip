@@ -26,7 +26,7 @@ type flow = Lwt_unix.file_descr
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ];    (* source ip to bind to *)
   mutable active_connections : Lwt_unix.file_descr list;
-  listen_sockets : (int, Lwt_unix.file_descr list) Hashtbl.t;
+  listen_sockets : (int, Lwt_unix.file_descr list * (flow -> unit Lwt.t)) Hashtbl.t;
   mutable switched_off : unit Lwt.t;
 }
 
@@ -63,7 +63,7 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
 let disconnect t =
   Lwt_list.iter_p close t.active_connections >>= fun () ->
   Lwt_list.iter_p close
-    (Hashtbl.fold (fun _ fd acc -> fd @ acc) t.listen_sockets []) >>= fun () ->
+    (Hashtbl.fold (fun _ (fds, _) acc -> fds @ acc) t.listen_sockets []) >>= fun () ->
   Lwt.cancel t.switched_off ; Lwt.return_unit
 
 let dst fd =
@@ -113,9 +113,12 @@ let create_connection ?keepalive t (dst,dst_port) =
 let unlisten t ~port =
   match Hashtbl.find_opt t.listen_sockets port with
   | None -> ()
-  | Some fds ->
+  | Some (fds, _) ->
     Hashtbl.remove t.listen_sockets port;
     try List.iter (fun fd -> Unix.close (Lwt_unix.unix_file_descr fd)) fds with _ -> ()
+
+let is_listening t ~port =
+  Option.map snd (Hashtbl.find_opt t.listen_sockets port)
 
 let listen t ~port ?keepalive callback =
   if port < 0 || port > 65535 then
@@ -147,7 +150,7 @@ let listen t ~port ?keepalive callback =
   in
   List.iter (fun (fd, addr) ->
       Unix.bind (Lwt_unix.unix_file_descr fd) addr;
-      Hashtbl.replace t.listen_sockets port (List.map fst fds);
+      Hashtbl.replace t.listen_sockets port (List.map fst fds, callback);
       Lwt_unix.listen fd 10;
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->

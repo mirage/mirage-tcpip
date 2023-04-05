@@ -34,6 +34,7 @@ module type S = sig
   val writev_nodelay: flow -> Cstruct.t list -> (unit, write_error) result Lwt.t
   val create_connection: ?keepalive:Keepalive.t -> t -> ipaddr * int -> (flow, error) result Lwt.t
   val listen : t -> port:int -> ?keepalive:Keepalive.t -> (flow -> unit Lwt.t) -> unit
+  val is_listening : t -> port:int -> (flow -> unit Lwt.t) option
   val unlisten : t -> port:int -> unit
   val input: t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 end

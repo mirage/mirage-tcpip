@@ -83,6 +83,12 @@ struct
     else
       Hashtbl.replace t.listeners port (keepalive, cb)
 
+  let is_listening t ~port =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+    else
+      Option.map snd (Hashtbl.find_opt t.listeners port)
+
   let unlisten t ~port = Hashtbl.remove t.listeners port
 
   let _pp_pcb fmt pcb =

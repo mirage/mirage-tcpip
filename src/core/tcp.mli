@@ -83,8 +83,12 @@ module type S = sig
       executed for each flow that was established. If [keepalive] is provided,
       this configuration will be applied before calling [callback].
 
-      @raise Invalid_argument if [port < 0] or [port > 65535]
- *)
+      @raise Invalid_argument if [port < 0] or [port > 65535] *)
+
+  val is_listening : t -> port:int -> (flow -> unit Lwt.t) option
+  (** [is_listening t ~port] returns the [callback] on [port], if it exists.
+
+      @raise Invalid_argument if [port < 0] or [port > 65535] *)
 
   val unlisten : t -> port:int -> unit
   (** [unlisten t ~port] stops any listener on [port]. *)
