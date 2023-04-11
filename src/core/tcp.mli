@@ -53,6 +53,10 @@ module type S = sig
   (** Get the destination IP address and destination port that a
       flow is currently connected to. *)
 
+  val unread : flow -> Cstruct.t -> unit
+  (** [unread flow buffer] puts [buffer] at the beginning of the receive queue,
+      so the next [read] from [flow] will receive [buffer]. *)
+
   val write_nodelay: flow -> Cstruct.t -> (unit, write_error) result Lwt.t
   (** [write_nodelay flow buffer] writes the contents of [buffer]
       to the flow. The thread blocks until all data has been successfully

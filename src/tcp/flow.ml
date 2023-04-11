@@ -587,6 +587,9 @@ struct
         (* No existing PCB, so check if it is a SYN for a listening function *)
         (input_no_pcb t (pkt, payload))
 
+  let unread pcb buf =
+    User_buffer.Rx.add_l pcb.urx buf
+
   (* Blocking read on a PCB *)
   let read pcb =
     User_buffer.Rx.take_l pcb.urx

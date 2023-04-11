@@ -59,6 +59,9 @@ module Rx = struct
     | None -> 0
     | Some b -> Cstruct.length b
 
+  let add_l t s =
+    ignore(Lwt_dllist.add_l (Some s) t.q)
+
   let add_r t s =
     if t.cur_size > t.max_size then
       let th,u = Lwt.wait () in

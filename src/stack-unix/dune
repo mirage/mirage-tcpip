@@ -33,7 +33,7 @@
 (library
  (name tcpv4v6_socket)
  (public_name tcpip.tcpv4v6-socket)
- (modules tcp_socket tcpv4v6_socket)
+ (modules tcpv4v6_socket)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))

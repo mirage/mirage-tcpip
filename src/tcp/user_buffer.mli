@@ -19,6 +19,7 @@ module Rx : sig
   type t
 
   val create : max_size:int32 -> wnd:Window.t -> t
+  val add_l : t -> Cstruct.t -> unit
   val add_r : t -> Cstruct.t option -> unit Lwt.t
   val take_l : t -> Cstruct.t option Lwt.t
   val cur_size : t -> int32

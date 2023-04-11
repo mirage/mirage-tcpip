@@ -30,6 +30,7 @@ module type S = sig
   and type write_error := write_error
 
   val dst: flow -> ipaddr * int
+  val unread : flow -> Cstruct.t -> unit
   val write_nodelay: flow -> Cstruct.t -> (unit, write_error) result Lwt.t
   val writev_nodelay: flow -> Cstruct.t list -> (unit, write_error) result Lwt.t
   val create_connection: ?keepalive:Keepalive.t -> t -> ipaddr * int -> (flow, error) result Lwt.t
