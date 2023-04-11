@@ -21,12 +21,15 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Infix
 
 type ipaddr = Ipaddr.t
-type flow = Lwt_unix.file_descr
+type flow = {
+  mutable buf : Cstruct.t;
+  fd : Lwt_unix.file_descr;
+}
 
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ];    (* source ip to bind to *)
-  mutable active_connections : Lwt_unix.file_descr list;
-  listen_sockets : (int, Lwt_unix.file_descr list) Hashtbl.t;
+  mutable active_connections : flow list;
+  listen_sockets : (int, Lwt_unix.file_descr list * (flow -> unit Lwt.t)) Hashtbl.t;
   mutable switched_off : unit Lwt.t;
 }
 
@@ -35,7 +38,75 @@ let set_switched_off t switched_off =
 
 let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 
-include Tcp_socket
+type error = [ Tcpip.Tcp.error | `Exn of exn ]
+type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
+
+let pp_error ppf = function
+  | #Tcpip.Tcp.error as e -> Tcpip.Tcp.pp_error ppf e
+  | `Exn e -> Fmt.exn ppf e
+
+let pp_write_error ppf = function
+  | #Tcpip.Tcp.write_error as e -> Tcpip.Tcp.pp_write_error ppf e
+  | `Exn e -> Fmt.exn ppf e
+
+let ignore_canceled = function
+  | Lwt.Canceled -> Lwt.return_unit
+  | exn -> raise exn
+
+let read ({ buf ; fd } as flow) =
+  if Cstruct.length buf > 0 then begin
+    flow.buf <- Cstruct.empty;
+    Lwt.return (Ok (`Data buf))
+  end else
+    let buflen = 4096 in
+    let buf = Cstruct.create buflen in
+    Lwt.catch (fun () ->
+        Lwt_cstruct.read fd buf
+        >>= function
+        | 0 -> Lwt.return (Ok `Eof)
+        | n when n = buflen -> Lwt.return (Ok (`Data buf))
+        | n -> Lwt.return @@ Ok (`Data (Cstruct.sub buf 0 n))
+      )
+      (fun exn -> Lwt.return (Error (`Exn exn)))
+
+let rec write ({ fd; _ } as flow) buf =
+  Lwt.catch
+    (fun () ->
+      Lwt_cstruct.write fd buf
+      >>= function
+      | n when n = Cstruct.length buf -> Lwt.return @@ Ok ()
+      | 0 -> Lwt.return @@ Error `Closed
+      | n -> write flow (Cstruct.sub buf n (Cstruct.length buf - n))
+    ) (function
+      | Unix.Unix_error(Unix.EPIPE, _, _) -> Lwt.return @@ Error `Closed
+      | e -> Lwt.return (Error (`Exn e)))
+
+let writev fd bufs =
+  Lwt_list.fold_left_s
+    (fun res buf ->
+       match res with
+       | Error _ as e -> Lwt.return e
+       | Ok () -> write fd buf
+    ) (Ok ()) bufs
+
+(* TODO make nodelay a flow option *)
+let write_nodelay fd buf =
+  write fd buf
+
+(* TODO make nodelay a flow option *)
+let writev_nodelay fd bufs =
+  writev fd bufs
+
+let close_fd fd =
+  Lwt.catch
+    (fun () -> Lwt_unix.close fd)
+    (function
+      | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
+      | e -> Lwt.fail e)
+
+let close { fd; _ } = close_fd fd
+
+let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
 
 let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
   let interface =
@@ -62,11 +133,11 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
 
 let disconnect t =
   Lwt_list.iter_p close t.active_connections >>= fun () ->
-  Lwt_list.iter_p close
-    (Hashtbl.fold (fun _ fd acc -> fd @ acc) t.listen_sockets []) >>= fun () ->
+  Lwt_list.iter_p close_fd
+    (Hashtbl.fold (fun _ (fds, _) acc -> fds @ acc) t.listen_sockets []) >>= fun () ->
   Lwt.cancel t.switched_off ; Lwt.return_unit
 
-let dst fd =
+let dst { fd; _ } =
   match Lwt_unix.getpeername fd with
   | Unix.ADDR_UNIX _ ->
     raise (Failure "unexpected: got a unix instead of tcp sock")
@@ -77,6 +148,10 @@ let dst fd =
       | Some v4 -> Ipaddr.V4 v4
     in
     ip, port
+
+let unread fd buf =
+  let buf = Cstruct.append buf fd.buf in
+  fd.buf <- buf
 
 let create_connection ?keepalive t (dst,dst_port) =
   match
@@ -104,18 +179,22 @@ let create_connection ?keepalive t (dst,dst_port) =
           | None -> ()
           | Some { Tcpip.Tcp.Keepalive.after; interval; probes } ->
             Tcp_socket_options.enable_keepalive ~fd ~after ~interval ~probes );
-        t.active_connections <- fd :: t.active_connections;
-        Lwt.return (Ok fd))
+        let flow = { buf = Cstruct.empty ; fd } in
+        t.active_connections <- flow :: t.active_connections;
+        Lwt.return (Ok flow))
       (fun exn ->
-         close fd >>= fun () ->
+         close_fd fd >>= fun () ->
          Lwt.return (Error (`Exn exn)))
 
 let unlisten t ~port =
   match Hashtbl.find_opt t.listen_sockets port with
   | None -> ()
-  | Some fds ->
+  | Some (fds, _) ->
     Hashtbl.remove t.listen_sockets port;
     try List.iter (fun fd -> Unix.close (Lwt_unix.unix_file_descr fd)) fds with _ -> ()
+
+let is_listening t ~port =
+  Option.map snd (Hashtbl.find_opt t.listen_sockets port)
 
 let listen t ~port ?keepalive callback =
   if port < 0 || port > 65535 then
@@ -147,7 +226,7 @@ let listen t ~port ?keepalive callback =
   in
   List.iter (fun (fd, addr) ->
       Unix.bind (Lwt_unix.unix_file_descr fd) addr;
-      Hashtbl.replace t.listen_sockets port (List.map fst fds);
+      Hashtbl.replace t.listen_sockets port (List.map fst fds, callback);
       Lwt_unix.listen fd 10;
       (* FIXME: we should not ignore the result *)
       Lwt.async (fun () ->
@@ -156,7 +235,8 @@ let listen t ~port ?keepalive callback =
             if not (Lwt.is_sleeping t.switched_off) then raise Lwt.Canceled ;
             Lwt.catch (fun () ->
                 Lwt_unix.accept fd >|= fun (afd, _) ->
-                t.active_connections <- afd :: t.active_connections;
+                let flow = { buf = Cstruct.empty ; fd = afd } in
+                t.active_connections <- flow :: t.active_connections;
                 (match keepalive with
                  | None -> ()
                  | Some { Tcpip.Tcp.Keepalive.after; interval; probes } ->
@@ -164,10 +244,10 @@ let listen t ~port ?keepalive callback =
                 Lwt.async
                   (fun () ->
                      Lwt.catch
-                       (fun () -> callback afd)
+                       (fun () -> callback flow)
                        (fun exn ->
                           Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
-                          close afd));
+                          close flow));
                 `Continue)
               (function
                 | Unix.Unix_error (Unix.EBADF, _, _) ->
@@ -179,4 +259,4 @@ let listen t ~port ?keepalive callback =
             | `Continue -> loop ()
             | `Stop -> Lwt.return_unit
           in
-          Lwt.catch loop ignore_canceled >>= fun () -> close fd)) fds
+          Lwt.catch loop ignore_canceled >>= fun () -> close_fd fd)) fds

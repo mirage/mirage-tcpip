@@ -83,6 +83,12 @@ struct
     else
       Hashtbl.replace t.listeners port (keepalive, cb)
 
+  let is_listening t ~port =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+    else
+      Option.map snd (Hashtbl.find_opt t.listeners port)
+
   let unlisten t ~port = Hashtbl.remove t.listeners port
 
   let _pp_pcb fmt pcb =
@@ -580,6 +586,9 @@ struct
         (Rx.input t RXS.({header = pkt; payload}))
         (* No existing PCB, so check if it is a SYN for a listening function *)
         (input_no_pcb t (pkt, payload))
+
+  let unread pcb buf =
+    User_buffer.Rx.add_l pcb.urx buf
 
   (* Blocking read on a PCB *)
   let read pcb =

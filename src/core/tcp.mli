@@ -53,6 +53,10 @@ module type S = sig
   (** Get the destination IP address and destination port that a
       flow is currently connected to. *)
 
+  val unread : flow -> Cstruct.t -> unit
+  (** [unread flow buffer] puts [buffer] at the beginning of the receive queue,
+      so the next [read] from [flow] will receive [buffer]. *)
+
   val write_nodelay: flow -> Cstruct.t -> (unit, write_error) result Lwt.t
   (** [write_nodelay flow buffer] writes the contents of [buffer]
       to the flow. The thread blocks until all data has been successfully
@@ -83,8 +87,12 @@ module type S = sig
       executed for each flow that was established. If [keepalive] is provided,
       this configuration will be applied before calling [callback].
 
-      @raise Invalid_argument if [port < 0] or [port > 65535]
- *)
+      @raise Invalid_argument if [port < 0] or [port > 65535] *)
+
+  val is_listening : t -> port:int -> (flow -> unit Lwt.t) option
+  (** [is_listening t ~port] returns the [callback] on [port], if it exists.
+
+      @raise Invalid_argument if [port < 0] or [port > 65535] *)
 
   val unlisten : t -> port:int -> unit
   (** [unlisten t ~port] stops any listener on [port]. *)

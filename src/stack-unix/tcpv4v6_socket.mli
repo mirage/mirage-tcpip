@@ -17,7 +17,6 @@
 
 include Tcpip.Tcp.S
   with type ipaddr = Ipaddr.t
-   and type flow = Lwt_unix.file_descr
    and type error = [ Tcpip.Tcp.error | `Exn of exn ]
    and type write_error = [ Tcpip.Tcp.write_error | `Exn of exn ]
 

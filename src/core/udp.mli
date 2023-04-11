@@ -29,6 +29,11 @@ module type S = sig
 
       @raise Invalid_argument if [port < 0] or [port > 65535] *)
 
+  val is_listening : t -> port:int -> callback option
+  (** [is_listening t ~port] returns the [callback] on [port], if it exists.
+
+      @raise Invalid_argument if [port < 0] or [port > 65535] *)
+
   val unlisten : t -> port:int -> unit
   (** [unlisten t ~port] stops any listeners on [port]. *)
 

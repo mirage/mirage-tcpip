@@ -6,6 +6,7 @@ module type S = sig
   val disconnect : t -> unit Lwt.t
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
   val listen : t -> port:int -> callback -> unit
+  val is_listening : t -> port:int -> callback option
   val unlisten : t -> port:int -> unit
   val input: t -> src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
   val write: ?src:ipaddr -> ?src_port:int -> ?ttl:int -> dst:ipaddr -> dst_port:int -> t -> Cstruct.t ->

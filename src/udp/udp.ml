@@ -40,6 +40,12 @@ module Make (Ip : Tcpip.Ip.S) (Random : Mirage_random.S) = struct
     else
       Hashtbl.replace t.listeners port callback
 
+  let is_listening t ~port =
+    if port < 0 || port > 65535 then
+      raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
+    else
+      Hashtbl.find_opt t.listeners port
+
   let unlisten t ~port = Hashtbl.remove t.listeners port
 
   (* TODO: ought we to check to make sure the destination is relevant
