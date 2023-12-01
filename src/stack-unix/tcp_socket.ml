@@ -19,7 +19,7 @@ let disconnect _ =
   return_unit
 
 let read fd =
-  let buflen = 4096 in
+  let buflen = 65536 in
   let buf = Cstruct.create buflen in
   Lwt.catch (fun () ->
       Lwt_cstruct.read fd buf
