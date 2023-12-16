@@ -637,6 +637,8 @@ struct
 
   let dst pcb = WIRE.dst pcb.id, WIRE.dst_port pcb.id
 
+  let src pcb = WIRE.src pcb.id, WIRE.src_port pcb.id
+
   let getid t dst dst_port =
     (* TODO: make this more robust and recognise when all ports are gone *)
     let islistener _t _port =
