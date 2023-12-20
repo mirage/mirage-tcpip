@@ -78,6 +78,18 @@ let dst fd =
     in
     ip, port
 
+let src fd =
+  match Lwt_unix.getsockname fd with
+  | Unix.ADDR_UNIX _ ->
+    raise (Failure "unexpected: got a unix instead of tcp sock")
+  | Unix.ADDR_INET (ia,port) ->
+    let ip = Ipaddr_unix.of_inet_addr ia in
+    let ip = match Ipaddr.to_v4 ip with
+      | None -> ip
+      | Some v4 -> Ipaddr.V4 v4
+    in
+    ip, port
+
 let create_connection ?keepalive t (dst,dst_port) =
   match
     match dst, t.interface with
