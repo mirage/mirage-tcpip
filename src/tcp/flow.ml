@@ -125,18 +125,22 @@ struct
         (Cstruct.create 0)
 
     (* Queue up an immediate close segment *)
-    let close pcb =
-      Log.debug (fun f -> f "Closing connection %a" WIRE.pp pcb.id);
+    let shutdown ctx pcb =
+      Log.debug (fun f -> f "%s connection %a" (match ctx with `Close -> "Closing" | `Shutdown -> "Shutting down") WIRE.pp pcb.id);
       match State.state pcb.state with
       | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
          STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
-         TXS.output ~flags:Segment.Fin pcb.txq (Cstruct.create 0)
+         TXS.output ~flags:Segment.Fin pcb.txq Cstruct.empty
         )
+      | State.Closed | State.Syn_rcvd _ | State.Syn_sent _ when ctx = `Close ->
+        State.on_close pcb.state;
+        Lwt.return_unit
       | _ ->
         Log.debug (fun fmt ->
-            fmt "TX.close: close requested but no action needed, state=%a" State.pp pcb.state);
+            let msg = match ctx with `Close -> "close" | `Shutdown -> "shutdown" in
+            fmt "TX.%s: %s requested but no action needed, state=%a" msg msg State.pp pcb.state);
         Lwt.return_unit
 
     (* Thread that transmits ACKs in response to received packets,
@@ -179,6 +183,10 @@ struct
       (* Coalesce any outstanding segments and retrieve ready segments *)
       RXS.input rxq parsed
 
+    let shutdown pcb =
+      User_buffer.Rx.remove_all pcb.urx;
+      User_buffer.Rx.add_r pcb.urx None
+
     (* Thread that spools the data into an application receive buffer,
        and notifies the ACK subsystem that new data is here *)
     let thread pcb ~rx_data =
@@ -199,8 +207,7 @@ struct
           | None ->
             (* don't send an ACK in this case; this already happened *)
             STATE.tick pcb.state State.Recv_fin;
-            User_buffer.Rx.add_r urx None >>= fun () ->
-            Lwt.return_unit
+            User_buffer.Rx.add_r urx None
           | Some data ->
             signal_ack winadv >>= fun () ->
             let rec queue = function
@@ -632,8 +639,13 @@ struct
   let write_nodelay pcb data = writefn pcb (UTX.write_nodelay pcb.utx) data |> cast
   let writev_nodelay pcb data = iter_s (write_nodelay pcb) data |> cast
 
-  (* Close - no more will be written *)
-  let close pcb = Tx.close pcb
+  (* Close *)
+  let close pcb = Tx.shutdown `Close pcb
+
+  let shutdown pcb mode =
+    let wr, rd = match mode with | `read -> false, true | `write -> true, false | `read_write -> true, true in
+    (if wr then Tx.shutdown `Shutdown pcb else Lwt.return_unit) >>= fun () ->
+    (if rd then Rx.shutdown pcb else Lwt.return_unit)
 
   let dst pcb = WIRE.dst pcb.id, WIRE.dst_port pcb.id
 

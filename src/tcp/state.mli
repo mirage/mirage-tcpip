@@ -52,6 +52,8 @@ type t
 val state : t -> tcpstate
 val t : id:int -> on_close:close_cb -> t
 
+val on_close : t -> unit
+
 val pp: Format.formatter -> t -> unit
 
 module Make(Time : Mirage_time.S) : sig

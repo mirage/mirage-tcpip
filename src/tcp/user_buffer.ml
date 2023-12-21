@@ -59,6 +59,13 @@ module Rx = struct
     | None -> 0
     | Some b -> Cstruct.length b
 
+  let remove_all t =
+    let rec rm = function
+      | 0 -> ()
+      | n -> ignore (Lwt_dllist.take_l t.q); rm (pred n)
+    in
+    rm (Lwt_dllist.length t.q)
+
   let add_r t s =
     if t.cur_size > t.max_size then
       let th,u = Lwt.wait () in
