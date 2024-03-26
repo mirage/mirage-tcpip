@@ -1,3 +1,13 @@
+### v8.0.1 (2024-03-26)
+
+* TCP: add `src : flow -> ipaddr * int`, implemented by `getsockname` on unix
+  (#511 @hannesm)
+* TCP unix stack: increase TCP buffer size (was 4096, is now 65536)
+  (#510 @edwintorok)
+* TCP: adapt to mirage-flow 4.0:
+  add ``val shutdown : flow -> [ `read | `write | `read_write ] -> unit Lwt.t``
+  (#512 @hannesm, review by @djs55)
+
 ### v8.0.0 (2023-03-17)
 
 * TCP: add ID for PCB for connection tracking (#495 @TheLortex)
