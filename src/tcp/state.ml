@@ -57,6 +57,8 @@ type t = {
 let t ~id ~on_close =
   { on_close; id; state=Closed }
 
+let on_close t = t.on_close ()
+
 let state t = t.state
 
 let pf = Format.fprintf
@@ -174,5 +176,4 @@ module Make(Time:Mirage_time.S) = struct
     Log.debug (fun fmt -> fmt "%d %a  - %a -> %a" t.id
           pp_tcpstate old_state pp_action i pp_tcpstate new_state);
     t.state <- new_state;
-
 end

@@ -65,4 +65,12 @@ let close fd =
       | Unix.Unix_error (Unix.EBADF, _, _) -> Lwt.return_unit
       | e -> Lwt.fail e)
 
+let shutdown fd mode =
+  let cmd = match mode with
+    | `read -> Lwt_unix.SHUTDOWN_RECEIVE
+    | `write -> Lwt_unix.SHUTDOWN_SEND
+    | `read_write -> Lwt_unix.SHUTDOWN_ALL
+  in
+  Lwt.return (Lwt_unix.shutdown fd cmd)
+
 let input _t ~src:_ ~dst:_ _buf = Lwt.return_unit
