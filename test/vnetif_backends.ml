@@ -101,10 +101,8 @@ module Uniform_packet_loss : Backend = struct
 
   let write t id ~size fill =
     if Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
+      Lwt.return (Ok ()) (* drop packet *)
+    else
       X.write t id ~size fill (* pass to real write *)
 
   let create () =
@@ -125,10 +123,8 @@ module Uniform_no_payload_packet_loss : Backend = struct
 
   let write t id ~size fill =
     if size <= no_payload_len && Random.float 1.0 < drop_p then
-      begin
-        MProf.Trace.label "pkt_drop";
-        Lwt.return (Ok ()) (* drop packet *)
-      end else
+      Lwt.return (Ok ()) (* drop packet *)
+    else
       X.write t id ~size fill (* pass to real write *)
 
   let create () =
@@ -216,7 +212,6 @@ module On_off_switch = struct
     if not !send_packets then
       begin
         Logs.info (fun f -> f "write dropping 1 packet");
-        MProf.Trace.label "pkt_drop";
         Lwt.return (Ok ()) (* drop packet *)
       end else
       X.write t id ~size fill (* pass to real write *)
