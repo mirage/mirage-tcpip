@@ -24,7 +24,6 @@ open Lwt.Infix
 module Make (N : Mirage_net.S)
             (E : Ethernet.S)
             (R : Mirage_crypto_rng_mirage.S)
-            (T : Mirage_time.S)
             (C : Mirage_clock.MCLOCK) = struct
   type ipaddr   = Ipaddr.V6.t
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
@@ -60,7 +59,7 @@ module Make (N : Mirage_net.S)
         | Some u, _ -> Lwt.wakeup_later u (); None
       in
       Lwt_list.iter_s (output_ign t) outs (* MCP: replace with propagation *) >>= fun () ->
-      T.sleep_ns (Duration.of_sec 1) >>= fun () ->
+      Mirage_time.sleep_ns (Duration.of_sec 1) >>= fun () ->
       loop u
     in
     loop (Some u)
@@ -162,7 +161,7 @@ module Make (N : Mirage_net.S)
           ~ipv4:(fun _ -> Lwt.return_unit)
           ~ipv6:(input t ~tcp:noop ~udp:noop ~default:(fun ~proto:_ -> noop))
       in
-      let timeout = T.sleep_ns (Duration.of_sec 3) in
+      let timeout = Mirage_time.sleep_ns (Duration.of_sec 3) in
       Lwt.pick [
         (* MCP: replace this error swallowing with proper propagation *)
         (Lwt_list.iter_s (output_ign t) outs >>= fun () ->

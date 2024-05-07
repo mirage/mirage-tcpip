@@ -53,9 +53,9 @@ let rec reset_seq segs =
    It also looks for control messages and dispatches them to
    the Rtx queue to ack messages or close channels.
 *)
-module Rx(Time:Mirage_time.S)(ACK: Ack.M) = struct
+module Rx(ACK: Ack.M) = struct
   open Tcp_packet
-  module StateTick = State.Make(Time)
+  module StateTick = State.Make
 
   (* Individual received TCP segment
      TODO: this will change when IP fragments work *)
@@ -235,10 +235,10 @@ type tx_flags = (* At most one of Syn/Fin/Rst/Psh allowed *)
   | Rst
   | Psh
 
-module Tx (Time:Mirage_time.S) (Clock:Mirage_clock.MCLOCK) = struct
+module Tx (Clock:Mirage_clock.MCLOCK) = struct
 
-  module StateTick = State.Make(Time)
-  module TT = Tcptimer.Make(Time)
+  module StateTick = State.Make
+  module TT = Tcptimer.Make
   module TX = Window.Make(Clock)
 
   type ('a, 'b) xmit =

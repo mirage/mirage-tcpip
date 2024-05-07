@@ -1,7 +1,7 @@
 open Lwt.Infix
 
-module Make(E : Ethernet.S)(Time : Mirage_time.S) = struct
-  module A = Arp.Make(E)(Time)
+module Make(E : Ethernet.S) = struct
+  module A = Arp.Make(E)
   (* generally repurpose A, but substitute input and query, and add functions
      for adding/deleting entries *)
   type error = A.error

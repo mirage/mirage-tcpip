@@ -23,7 +23,6 @@ module IPV4V6
 end
 
 module MakeV4V6
-    (Time     : Mirage_time.S)
     (Random   : Mirage_crypto_rng_mirage.S)
     (Netif    : Mirage_net.S)
     (Ethernet : Ethernet.S)

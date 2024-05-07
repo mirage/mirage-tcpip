@@ -20,16 +20,16 @@ open Lwt.Infix
 let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_crypto_rng_mirage.S) =
+module Make(Ip: Tcpip.Ip.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_crypto_rng_mirage.S) =
 struct
 
   module ACK = Ack.Immediate
-  module RXS = Segment.Rx(Time)(ACK)
-  module TXS = Segment.Tx(Time)(Clock)
-  module UTX = User_buffer.Tx(Time)(Clock)
+  module RXS = Segment.Rx(ACK)
+  module TXS = Segment.Tx(Clock)
+  module UTX = User_buffer.Tx(Clock)
   module WIRE = Wire.Make(Ip)
-  module STATE = State.Make(Time)
-  module KEEPALIVE = Keepalive.Make(Time)(Clock)
+  module STATE = State.Make
+  module KEEPALIVE = Keepalive.Make(Clock)
 
   type error = [ Tcpip.Tcp.error | WIRE.error]
 
@@ -678,7 +678,7 @@ struct
     let rxtime = match count with
       | 0 -> 3 | 1 -> 6 | 2 -> 12 | 3 -> 24 | _ -> 48
     in
-    Time.sleep_ns (Duration.of_sec rxtime) >>= fun () ->
+    Mirage_time.sleep_ns (Duration.of_sec rxtime) >>= fun () ->
     match hashtbl_find t.connects id with
     | None                -> Lwt.return_unit
     | Some (wakener, isn, _) ->

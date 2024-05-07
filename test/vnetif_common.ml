@@ -61,16 +61,16 @@ end
   module V = Vnetif.Make(B)
   module E = Ethernet.Make(V)
 
-  module A = Arp.Make(E)(Time)
+  module A = Arp.Make(E)
   module Ip4 = Static_ipv4.Make(Mirage_crypto_rng)(Clock)(E)(A)
   module Icmp4 = Icmpv4.Make(Ip4)
-  module Ip6 = Ipv6.Make(V)(E)(Mirage_crypto_rng)(Time)(Clock)
+  module Ip6 = Ipv6.Make(V)(E)(Mirage_crypto_rng)(Clock)
   module Ip46 = Tcpip_stack_direct.IPV4V6(Ip4)(Ip6)
   module U = Udp.Make(Ip46)(Mirage_crypto_rng)
-  module T = Tcp.Flow.Make(Ip46)(Time)(Clock)(Mirage_crypto_rng)
+  module T = Tcp.Flow.Make(Ip46)(Clock)(Mirage_crypto_rng)
 
   module Stack =
-    Tcpip_stack_direct.MakeV4V6(Time)(Mirage_crypto_rng)(V)(E)(A)(Ip46)(Icmp4)(U)(T)
+    Tcpip_stack_direct.MakeV4V6(Mirage_crypto_rng)(V)(E)(A)(Ip46)(Icmp4)(U)(T)
 
   let create_backend () =
     B.create ()

@@ -61,9 +61,9 @@ end
 
 
 (* Delayed ACKs *)
-module Delayed (Time:Mirage_time.S) : M = struct
+module Delayed : M = struct
 
-  module TT = Tcptimer.Make(Time)
+  module TT = Tcptimer.Make
 
   type delayed_r = {
     send_ack: Sequence.t Lwt_mvar.t;
