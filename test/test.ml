@@ -39,8 +39,7 @@ let run test () =
 
 let () =
   Printexc.record_backtrace true;
-  (* someone has to call Mirage_random_test.initialize () *)
-  Mirage_random_test.initialize ();
+  Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna);
   (* enable logging to stdout for all modules *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Debug);

@@ -4,8 +4,8 @@ module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
 
-module Ipv6 = Ipv6.Make(V)(E)(Mirage_random_test)(Time)(Mclock)
-module Udp = Udp.Make(Ipv6)(Mirage_random_test)
+module Ipv6 = Ipv6.Make(V)(E)(Mirage_crypto_rng)(Time)(Mclock)
+module Udp = Udp.Make(Ipv6)(Mirage_crypto_rng)
 open Lwt.Infix
 
 let ip =
