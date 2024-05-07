@@ -15,7 +15,6 @@
  *)
 
 module Make (IP:Tcpip.Ip.S)
-            (TM:Mirage_time.S)
             (C:Mirage_clock.MCLOCK)
             (R:Mirage_random.S) : sig
   include Tcpip.Tcp.S with type ipaddr = IP.ipaddr
