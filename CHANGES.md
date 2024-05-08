@@ -1,3 +1,9 @@
+### v8.0.2 (2024-05-08)
+
+* remove mirage-random-test dependency (#514 @hannesm)
+* remove calls to mirage-profile in tests, now support mirage-vnetif 0.6.1
+  (#514 @hannesm)
+
 ### v8.0.1 (2024-03-26)
 
 * TCP: add `src : flow -> ipaddr * int`, implemented by `getsockname` on unix
