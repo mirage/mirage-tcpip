@@ -18,9 +18,11 @@ type t = unit
 type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.V4.t
 type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+type cidr = Ipaddr.V4.Prefix.t
 
 let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.V4.pp
+let pp_cidr = Ipaddr.V4.Prefix.pp
 
 let mtu _ ~dst:_ = 1500 - Ipv4_wire.sizeof_ipv4
 
@@ -32,5 +34,6 @@ let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
   Lwt.fail (Failure "Not implemented")
 
 let get_ip _ = [Ipaddr.V4.any]
+let get_cidr _ = [Ipaddr.V4.Prefix.global]
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

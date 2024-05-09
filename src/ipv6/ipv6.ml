@@ -31,6 +31,10 @@ module Make (N : Mirage_net.S)
 
   let pp_ipaddr = Ipaddr.V6.pp
 
+  type cidr = Ipaddr.V6.Prefix.t
+
+  let pp_cidr = Ipaddr.V6.Prefix.pp
+
   type t =
     { ethif : E.t;
       mutable ctx : Ndpv6.context }
@@ -113,6 +117,9 @@ module Make (N : Mirage_net.S)
 
   let get_ip t =
     Ndpv6.get_ip t.ctx
+
+  let get_cidr t =
+    Ndpv6.get_prefix t.ctx
 
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in

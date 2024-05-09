@@ -28,6 +28,12 @@ module type S = sig
   val pp_ipaddr : ipaddr Fmt.t
   (** [pp_ipaddr] is the pretty-printer for IP addresses. *)
 
+  type cidr
+  (** The type for the IP address and netmask. *)
+
+  val pp_cidr : cidr Fmt.t
+  (** [pp_cidr] is the pretty-printer for the CIDR. *)
+
   type t
   (** The type representing the internal state of the IP layer. *)
 
@@ -78,7 +84,12 @@ module type S = sig
   val get_ip: t -> ipaddr list
   (** Get the IP addresses associated with this interface. For IPv4, only
       one IP address can be set at a time, so the list will always be of
-      length 1 (and may be the default value, 0.0.0.0). *)
+      length 1 (and may be the default value, [[10.0.0.2]]). *)
+
+  val get_cidr: t -> cidr list
+  (** Get the CIDRs associated with this interface. For IPv4, only
+      one CIDR can be set at a time, so the list will always be of
+      length 1, e.g. [[10.0.0.2/24]]. *)
 
   val mtu: t -> dst:ipaddr -> int
   (** [mtu ~dst ip] is the Maximum Transmission Unit of the [ip] i.e. the

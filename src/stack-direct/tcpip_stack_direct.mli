@@ -14,8 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) : sig
-  include Tcpip.Ip.S with type ipaddr = Ipaddr.t
+module IPV4V6
+    (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t and type cidr = Ipaddr.V4.Prefix.t)
+    (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t and type cidr = Ipaddr.V6.Prefix.t) : sig
+  include Tcpip.Ip.S with type ipaddr = Ipaddr.t and type cidr = Ipaddr.Prefix.t
 
   val connect : ipv4_only:bool -> ipv6_only:bool -> Ipv4.t -> Ipv6.t -> t Lwt.t
 end

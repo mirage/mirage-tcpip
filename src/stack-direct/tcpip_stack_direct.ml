@@ -19,12 +19,17 @@ open Lwt.Infix
 let src = Logs.Src.create "tcpip-stack-direct" ~doc:"Pure OCaml TCP/IP stack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) = struct
+module IPV4V6
+    (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t and type cidr = Ipaddr.V4.Prefix.t)
+    (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t and type cidr = Ipaddr.V6.Prefix.t) = struct
 
   type ipaddr   = Ipaddr.t
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
 
   let pp_ipaddr = Ipaddr.pp
+
+  type cidr = Ipaddr.Prefix.t
+  let pp_cidr = Ipaddr.Prefix.pp
 
   type error = [ Tcpip.Ip.error | `Ipv4 of Ipv4.error | `Ipv6 of Ipv6.error | `Msg of string ]
 
@@ -128,6 +133,10 @@ module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.I
   let get_ip t =
     List.map (fun ip -> Ipaddr.V4 ip) (Ipv4.get_ip t.ipv4) @
     List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.get_ip t.ipv6)
+
+  let get_cidr t =
+    List.map (fun cidr -> Ipaddr.V4 cidr) (Ipv4.get_cidr t.ipv4) @
+    List.map (fun cidr -> Ipaddr.V6 cidr) (Ipv6.get_cidr t.ipv6)
 
   let mtu t ~dst = match dst with
     | Ipaddr.V4 dst -> Ipv4.mtu t.ipv4 ~dst

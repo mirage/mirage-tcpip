@@ -41,7 +41,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Ipaddr = Ipaddr.V6
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.t
 type prefix = Ipaddr.Prefix.t
 type time   = int64
@@ -1021,9 +1020,9 @@ module Parser = struct
 end
 
 type event =
-  [ `Tcp of ipaddr * ipaddr * buffer
-  | `Udp of ipaddr * ipaddr * buffer
-  | `Default of int * ipaddr * ipaddr * buffer ]
+  [ `Tcp of ipaddr * ipaddr * Cstruct.t
+  | `Udp of ipaddr * ipaddr * Cstruct.t
+  | `Default of int * ipaddr * ipaddr * Cstruct.t ]
 
 (* TODO add destination cache *)
 type context =
