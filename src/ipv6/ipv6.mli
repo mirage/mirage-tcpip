@@ -17,7 +17,6 @@
 module Make (N : Mirage_net.S)
             (E : Ethernet.S)
             (R : Mirage_random.S)
-            (T : Mirage_time.S)
             (Clock : Mirage_clock.MCLOCK) : sig
   include Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t
   val connect :

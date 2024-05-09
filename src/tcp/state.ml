@@ -92,14 +92,14 @@ let pp_tcpstate fmt = function
 
 let pp fmt t = pf fmt "{ %a }" pp_tcpstate t.state
 
-module Make(Time:Mirage_time.S) = struct
+module Make = struct
 
   let fin_wait_2_time = (* 60 *) Duration.of_sec 10
   let time_wait_time = (* 30 *) Duration.of_sec 2
 
   let rec finwait2timer t count timeout =
     Log.debug (fun fmt -> fmt "finwait2timer %Lu" timeout);
-    Time.sleep_ns timeout >>= fun () ->
+    Mirage_time.sleep_ns timeout >>= fun () ->
     match t.state with
     | Fin_wait_2 i ->
       Log.debug (fun f -> f "finwait2timer: Fin_wait_2");
@@ -116,7 +116,7 @@ module Make(Time:Mirage_time.S) = struct
 
   let timewait t twomsl =
     Log.debug (fun fmt -> fmt "timewait %Lu" twomsl);
-    Time.sleep_ns twomsl >>= fun () ->
+    Mirage_time.sleep_ns twomsl >>= fun () ->
     t.state <- Closed;
     Log.debug (fun fmt -> fmt "timewait on_close");
     t.on_close ();

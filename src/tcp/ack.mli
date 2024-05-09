@@ -26,4 +26,4 @@ end
 
 module Immediate : M
 
-module Delayed(T:Mirage_time.S) : M
+module Delayed : M

@@ -21,7 +21,6 @@ module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.I
 end
 
 module MakeV4V6
-    (Time     : Mirage_time.S)
     (Random   : Mirage_random.S)
     (Netif    : Mirage_net.S)
     (Ethernet : Ethernet.S)

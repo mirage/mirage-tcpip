@@ -49,7 +49,7 @@ let next ~configuration ~ns state =
       end
   end
 
-  module Make(T:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) = struct
+  module Make(Clock:Mirage_clock.MCLOCK) = struct
     type t = {
       configuration: Tcpip.Tcp.Keepalive.t;
       callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
@@ -64,7 +64,7 @@ let next ~configuration ~ns state =
       let ns = Int64.sub (Clock.elapsed_ns ()) t.start in
       match next ~configuration:t.configuration ~ns t.state with
       | `Wait ns, state ->
-        T.sleep_ns ns >>= fun () ->
+        Mirage_time.sleep_ns ns >>= fun () ->
         t.state <- state;
         restart t
       | `SendProbe, state ->

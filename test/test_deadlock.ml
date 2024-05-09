@@ -12,12 +12,6 @@ module TCPIP =
 struct
   module RANDOM = Mirage_crypto_rng
 
-  module TIME =
-  struct
-    type 'a io = 'a Lwt.t
-    let sleep_ns nanos = Lwt_unix.sleep (Int64.to_float nanos /. 1e9)
-  end
-
   module MCLOCK = Mclock
 
   module M =
@@ -25,14 +19,14 @@ struct
     module B      = Basic_backend.Make
     module NETIF  = Vnetif.Make(B)
     module ETHIF  = Ethernet.Make(NETIF)
-    module ARPV4  = Arp.Make(ETHIF)(TIME)
+    module ARPV4  = Arp.Make(ETHIF)
     module IPV4   = Static_ipv4.Make(RANDOM)(MCLOCK)(ETHIF)(ARPV4)
-    module IPV6   = Ipv6.Make(NETIF)(ETHIF)(RANDOM)(TIME)(MCLOCK)
+    module IPV6   = Ipv6.Make(NETIF)(ETHIF)(RANDOM)(MCLOCK)
     module IP     = Tcpip_stack_direct.IPV4V6(IPV4)(IPV6)
     module ICMPV4 = Icmpv4.Make(IPV4)
     module UDP    = Udp.Make(IP)(RANDOM)
-    module TCP    = Tcp.Flow.Make(IP)(TIME)(MCLOCK)(RANDOM)
-    module TCPIP  = Tcpip_stack_direct.MakeV4V6(TIME)(RANDOM)(NETIF)(ETHIF)(ARPV4)(IP)(ICMPV4)(UDP)(TCP)
+    module TCP    = Tcp.Flow.Make(IP)(MCLOCK)(RANDOM)
+    module TCPIP  = Tcpip_stack_direct.MakeV4V6(RANDOM)(NETIF)(ETHIF)(ARPV4)(IP)(ICMPV4)(UDP)(TCP)
   end
   open M
 

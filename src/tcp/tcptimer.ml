@@ -32,7 +32,7 @@ type t = {
   mutable running: bool;
 }
 
-module Make(Time:Mirage_time.S) = struct
+module Make = struct
   let t ~period_ns ~expire =
     let running = false in
     {period_ns; expire; running}
@@ -42,7 +42,7 @@ module Make(Time:Mirage_time.S) = struct
     Stats.incr_timer ();
     let rec aux t s =
       Log.debug (fun f -> f "timerloop: sleeping for %Lu ns" t.period_ns);
-      Time.sleep_ns t.period_ns >>= fun () ->
+      Mirage_time.sleep_ns t.period_ns >>= fun () ->
       t.expire s >>= function
       | Stoptimer ->
         Stats.decr_timer ();
