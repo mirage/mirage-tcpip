@@ -28,11 +28,11 @@ module type S = sig
   val pp_ipaddr : ipaddr Fmt.t
   (** [pp_ipaddr] is the pretty-printer for IP addresses. *)
 
-  type cidr
+  type prefix
   (** The type for the IP address and netmask. *)
 
-  val pp_cidr : cidr Fmt.t
-  (** [pp_cidr] is the pretty-printer for the CIDR. *)
+  val pp_prefix : prefix Fmt.t
+  (** [pp_prefix] is the pretty-printer for the prefix. *)
 
   type t
   (** The type representing the internal state of the IP layer. *)
@@ -82,13 +82,14 @@ module type S = sig
       the same IP, which is the only one set. *)
 
   val get_ip: t -> ipaddr list
+  [@@ocaml.deprecated "this function will be removed soon, use [configured_ips] instead."]
   (** Get the IP addresses associated with this interface. For IPv4, only
       one IP address can be set at a time, so the list will always be of
       length 1 (and may be the default value, [[10.0.0.2]]). *)
 
-  val get_cidr: t -> cidr list
-  (** Get the CIDRs associated with this interface. For IPv4, only
-      one CIDR can be set at a time, so the list will always be of
+  val configured_ips: t -> prefix list
+  (** Get the prefix associated with this interface. For IPv4, only
+      one prefix can be set at a time, so the list will always be of
       length 1, e.g. [[10.0.0.2/24]]. *)
 
   val mtu: t -> dst:ipaddr -> int

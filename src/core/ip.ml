@@ -17,8 +17,8 @@ module type S = sig
   val pp_error: error Fmt.t
   type ipaddr
   val pp_ipaddr : ipaddr Fmt.t
-  type cidr
-  val pp_cidr : cidr Fmt.t
+  type prefix
+  val pp_prefix : prefix Fmt.t
   type t
   val disconnect : t -> unit Lwt.t
   type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
@@ -32,6 +32,7 @@ module type S = sig
   val pseudoheader : t -> ?src:ipaddr -> ipaddr -> proto -> int -> Cstruct.t
   val src: t -> dst:ipaddr -> ipaddr
   val get_ip: t -> ipaddr list
-  val get_cidr: t -> cidr list
+  [@@ocaml.deprecated "this function will be removed soon, use [configured_ips] instead."]
+  val configured_ips: t -> prefix list
   val mtu: t -> dst:ipaddr -> int
 end

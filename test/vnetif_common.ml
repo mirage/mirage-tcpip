@@ -21,7 +21,6 @@ open Lwt.Infix
    to mirage-vnetif *)
 
 module Time = struct
-  type 'a io = 'a Lwt.t
   include Lwt_unix
   let sleep_ns ns = sleep (Duration.to_f ns)
 end
@@ -59,7 +58,6 @@ module VNETIF_STACK (B: Vnetif_backends.Backend): sig
 end
 = struct
   type backend = B.t
-
   module V = Vnetif.Make(B)
   module E = Ethernet.Make(V)
 

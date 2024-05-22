@@ -10,7 +10,7 @@ module type V4V6 = sig
 
   module TCP: Tcp.S with type ipaddr = Ipaddr.t
 
-  module IP: Ip.S with type ipaddr = Ipaddr.t
+  module IP: Ip.S with type ipaddr = Ipaddr.t and type prefix = Ipaddr.Prefix.t
 
   val udp: t -> UDP.t
   (** [udp t] obtains a descriptor for use with the [UDP] module,

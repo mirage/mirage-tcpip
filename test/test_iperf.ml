@@ -164,7 +164,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let server_done, server_done_u = Lwt.wait () in
     let server_s, client_s = server, client in
 
-    let ip_of s = V.Stack.IP.get_ip (V.Stack.ip s) |> List.hd in
+    let ip_of s = V.Stack.ip s |> V.Stack.IP.configured_ips |> List.hd |> Ipaddr.Prefix.address in
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
@@ -178,7 +178,7 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
        iperfclient client_s amt (ip_of server) port);
 
       (Logs.info (fun f -> f  "I am server with IP %a, expecting connections on port %d"
-         Ipaddr.pp (V.Stack.IP.get_ip (V.Stack.ip server_s) |> List.hd)
+         V.Stack.IP.pp_prefix (V.Stack.IP.configured_ips (V.Stack.ip server_s) |> List.hd)
          port);
        V.Stack.TCP.listen (V.Stack.tcp server_s) ~port (iperf server_s server_done_u);
        Lwt.wakeup server_ready_u ();

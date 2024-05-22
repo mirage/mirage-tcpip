@@ -31,9 +31,9 @@ module Make (N : Mirage_net.S)
 
   let pp_ipaddr = Ipaddr.V6.pp
 
-  type cidr = Ipaddr.V6.Prefix.t
+  type prefix = Ipaddr.V6.Prefix.t
 
-  let pp_cidr = Ipaddr.V6.Prefix.pp
+  let pp_prefix = Ipaddr.V6.Prefix.pp
 
   type t =
     { ethif : E.t;
@@ -118,7 +118,7 @@ module Make (N : Mirage_net.S)
   let get_ip t =
     Ndpv6.get_ip t.ctx
 
-  let get_cidr t =
+  let configured_ips t =
     Ndpv6.get_prefix t.ctx
 
   let pseudoheader t ?src:source dst proto len =
