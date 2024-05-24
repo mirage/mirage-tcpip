@@ -30,9 +30,6 @@ module Clock = Mclock
 module type VNETIF_STACK =
 sig
   type backend
-  type buffer
-  type 'a io
-  type id
   module Stack : Tcpip.Stack.V4V6
 
   (** Create a new backend *)
@@ -43,10 +40,10 @@ sig
     ?gateway:Ipaddr.V4.t -> ?cidr6:Ipaddr.V6.Prefix.t ->
     ?gateway6:Ipaddr.V6.t -> backend -> Stack.t Lwt.t
 
-  val create_backend_listener : backend -> (buffer -> unit io) -> id
+  val create_backend_listener : backend -> (Cstruct.t -> unit Lwt.t) -> int
 
   (** Disable a listener function *)
-  val disable_backend_listener : backend -> id -> unit io
+  val disable_backend_listener : backend -> int -> unit Lwt.t
 
   (** Records pcap data from the backend while running the specified
       function. Disables the pcap recorder when the function exits. *)
@@ -62,9 +59,6 @@ module VNETIF_STACK (B: Vnetif_backends.Backend): sig
 end
 = struct
   type backend = B.t
-  type buffer = B.buffer
-  type 'a io = 'a B.io
-  type id = B.id
 
   module V = Vnetif.Make(B)
   module E = Ethernet.Make(V)

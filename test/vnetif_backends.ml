@@ -29,11 +29,6 @@ module Frame_size_enforced = struct
     mutable frame_size : int;
   }
 
-  type macaddr = X.macaddr
-  type 'a io = 'a X.io
-  type buffer = X.buffer
-  type id = X.id
-
   let register t =
     X.register t.xt
 
@@ -141,11 +136,6 @@ module Drop_1_second_after_1_megabyte : Backend = struct
     mutable is_dropping : bool;
     mutable done_dropping : bool;
   }
-
-  type macaddr = X.macaddr
-  type 'a io = 'a X.io
-  type buffer = X.buffer
-  type id = X.id
 
   let byte_limit : int = 1_000_000
   let time_to_sleep : float = 1.0
