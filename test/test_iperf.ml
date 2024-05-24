@@ -164,7 +164,11 @@ module Test_iperf (B : Vnetif_backends.Backend) = struct
     let server_done, server_done_u = Lwt.wait () in
     let server_s, client_s = server, client in
 
-    let ip_of s = V.Stack.ip s |> V.Stack.IP.configured_ips |> List.hd |> Ipaddr.Prefix.address in
+    let ip_of s =
+      V.Stack.ip s |> V.Stack.IP.configured_ips |>
+      List.filter (function Ipaddr.V4 _ -> true | Ipaddr.V6 _ -> false) |>
+      List.hd |> Ipaddr.Prefix.address
+    in
 
     Lwt.pick [
       (Lwt_unix.sleep timeout >>= fun () -> (* timeout *)
