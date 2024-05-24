@@ -119,7 +119,7 @@ module Make (N : Mirage_net.S)
     Ndpv6.get_ip t.ctx
 
   let configured_ips t =
-    Ndpv6.get_prefix t.ctx
+    Ndpv6.configured_ips t.ctx
 
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
@@ -140,7 +140,7 @@ module Make (N : Mirage_net.S)
     let ctx, outs = match cidr with
       | None -> ctx, outs
       | Some p ->
-        let ctx, outs' = Ndpv6.add_ip ~now ctx (Ipaddr.V6.Prefix.address p) in
+        let ctx, outs' = Ndpv6.add_ip ~now ctx p in
         let ctx = Ndpv6.add_prefix ~now ctx (Ipaddr.V6.Prefix.prefix p) in
         ctx, outs @ outs'
     in

@@ -33,13 +33,16 @@ val local : handle_ra:bool -> now:time -> random:(int -> Cstruct.t) -> Macaddr.t
     associated to the hardware address [mac].  [outs] is a list of ethif packets
     to be sent. *)
 
-val add_ip : now:time -> context -> ipaddr ->
+val add_ip : now:time -> context -> prefix ->
   context * (Macaddr.t * int * (Cstruct.t -> int)) list
 (** [add_ip ~now ctx ip] is [ctx', outs] where [ctx'] is [ctx] updated with a
     new local ip and [outs] is a list of ethif packets to be sent. *)
 
 val get_ip : context -> ipaddr list
 (** [get_ip ctx] returns the list of local ips. *)
+
+val configured_ips : context -> prefix list
+(** [configured_ips ctx] returns the list of local prefixes. *)
 
 val select_source : context -> ipaddr -> ipaddr
 (** [select_source ctx ip] returns the ip that should be put in the source field
