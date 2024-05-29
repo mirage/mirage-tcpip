@@ -1,3 +1,10 @@
+### v8.1.0 (2024-05-29)
+
+* adapt to mirage-vnetif 0.6.2 changes (#517 @hannesm)
+* Add `type prefix = Ipaddr.Prefix.t` and `IP.configured_ips : t -> prefix`
+  to the IP layers (#516 @hannesm)
+* Mark `get_ips` as deprecated, use `configured_ips` instead (#516 @hannesm)
+
 ### v8.0.2 (2024-05-08)
 
 * remove mirage-random-test dependency (#514 @hannesm)
