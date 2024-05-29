@@ -19,9 +19,11 @@ type t = unit
 type error = Tcpip.Ip.error
 type ipaddr = Ipaddr.V6.t
 type callback = src:ipaddr -> dst:ipaddr -> Cstruct.t -> unit Lwt.t
+type prefix = Ipaddr.V6.Prefix.t
 
 let pp_error = Tcpip.Ip.pp_error
 let pp_ipaddr = Ipaddr.V6.pp
+let pp_prefix = Ipaddr.V6.Prefix.pp
 
 let mtu _ ~dst:_ = 1500 - Ipv6_wire.sizeof_ipv6
 
@@ -33,5 +35,6 @@ let write _ ?fragment:_ ?ttl:_ ?src:_ _ _ ?size:_ _ _ =
   Lwt.fail (Failure "Not implemented")
 
 let get_ip _ = [Ipaddr.V6.unspecified]
+let configured_ips _ = [Ipaddr.V6.Prefix.of_string_exn "::/0"]
 let src _ ~dst:_ = raise (Failure "Not implemented")
 let pseudoheader _ ?src:_ _ _ _ = raise (Failure "Not implemented")

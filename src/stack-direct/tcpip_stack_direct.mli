@@ -14,8 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module IPV4V6 (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t) : sig
-  include Tcpip.Ip.S with type ipaddr = Ipaddr.t
+module IPV4V6
+    (Ipv4 : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t and type prefix = Ipaddr.V4.Prefix.t)
+    (Ipv6 : Tcpip.Ip.S with type ipaddr = Ipaddr.V6.t and type prefix = Ipaddr.V6.Prefix.t) : sig
+  include Tcpip.Ip.S with type ipaddr = Ipaddr.t and type prefix = Ipaddr.Prefix.t
 
   val connect : ipv4_only:bool -> ipv6_only:bool -> Ipv4.t -> Ipv6.t -> t Lwt.t
 end
@@ -26,7 +28,7 @@ module MakeV4V6
     (Netif    : Mirage_net.S)
     (Ethernet : Ethernet.S)
     (Arpv4    : Arp.S)
-    (Ip       : Tcpip.Ip.S with type ipaddr = Ipaddr.t)
+    (Ip       : Tcpip.Ip.S with type ipaddr = Ipaddr.t and type prefix = Ipaddr.Prefix.t)
     (Icmpv4   : Icmpv4.S)
     (Udp      : Tcpip.Udp.S with type ipaddr = Ipaddr.t)
     (Tcp      : Tcpip.Tcp.S with type ipaddr = Ipaddr.t) : sig

@@ -14,7 +14,6 @@ struct
 
   module TIME =
   struct
-    type 'a io = 'a Lwt.t
     let sleep_ns nanos = Lwt_unix.sleep (Int64.to_float nanos /. 1e9)
   end
 

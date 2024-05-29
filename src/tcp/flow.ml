@@ -757,13 +757,15 @@ struct
     let connects = Hashtbl.create 1 in
     let channels = Hashtbl.create 7 in
     Log.info (fun f -> f "TCP layer connected on %a"
-                 Fmt.(list ~sep:(any ", ") Ip.pp_ipaddr) @@ Ip.get_ip ip);
+                 Fmt.(list ~sep:(any ", ") Ip.pp_prefix)
+                 (Ip.configured_ips ip));
     Lwt.return { ip; listeners = Hashtbl.create 7; active = true; localport; channels; listens; connects }
 
   let disconnect t =
     t.active <- false;
     Log.info (fun f -> f "TCP layer disconnected on %a"
-                 Fmt.(list ~sep:(any ", ") Ip.pp_ipaddr) @@ Ip.get_ip t.ip);
+                 Fmt.(list ~sep:(any ", ") Ip.pp_prefix)
+                 (Ip.configured_ips t.ip));
     let conns = Hashtbl.fold (fun _ (pcb, _) acc -> pcb :: acc) t.channels [] in
     Lwt_list.iter_p close conns >|= fun () ->
     Hashtbl.reset t.listens;

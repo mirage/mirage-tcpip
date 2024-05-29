@@ -33,6 +33,10 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Ethernet.S)
 
   let pp_ipaddr = Ipaddr.V4.pp
 
+  type prefix = Ipaddr.V4.Prefix.t
+
+  let pp_prefix = Ipaddr.V4.Prefix.pp
+
   type t = {
     ethif : Ethernet.t;
     arp : Arpv4.t;
@@ -169,6 +173,8 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Ethernet.S)
   let disconnect _ = Lwt.return_unit
 
   let get_ip t = [Ipaddr.V4.Prefix.address t.cidr]
+
+  let configured_ips t = [t.cidr]
 
   let pseudoheader t ?src dst proto len =
     let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in

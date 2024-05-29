@@ -41,7 +41,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Ipaddr = Ipaddr.V6
 
-type buffer = Cstruct.t
 type ipaddr = Ipaddr.t
 type prefix = Ipaddr.Prefix.t
 type time   = int64
@@ -106,7 +105,8 @@ let interface_addr mac =
     (c 4 lsl 8 + c 5)
 
 let link_local_addr mac =
-  Ipaddr.(Prefix.network_address Prefix.link (interface_addr mac))
+  let addr = Ipaddr.(Prefix.network_address Prefix.link (interface_addr mac)) in
+  Ipaddr.Prefix.(make (bits link) addr)
 
 let multicast_mac =
   let pbuf = Cstruct.create 6 in
@@ -272,7 +272,7 @@ module AddressList = struct
     | DEPRECATED of time option
 
   type t =
-    (Ipaddr.t * state) list
+    (Ipaddr.Prefix.t * state) list
 
   let empty =
     []
@@ -288,37 +288,41 @@ module AddressList = struct
   let select_source al ~dst:_ =
     let rec loop = function
       | (_, TENTATIVE _) :: rest -> loop rest
-      | (ip, _) :: _             -> ip (* FIXME *)
+      | (ip, _) :: _             -> Ipaddr.Prefix.address ip (* FIXME *)
       | []                       -> Ipaddr.unspecified
     in
     loop al
 
   let tick_one ~now ~retrans_timer = function
-    | (ip, TENTATIVE (timeout, n, t)) when t <= now ->
+    | (prefix, TENTATIVE (timeout, n, t)) when t <= now ->
       if n + 1 >= Defaults.dup_addr_detect_transmits then
         let timeout = match timeout with
           | None -> None
           | Some (preferred_lifetime, valid_lifetime) ->
             Some (Int64.add now preferred_lifetime, valid_lifetime)
         in
+        let ip = Ipaddr.Prefix.address prefix in
         Log.debug (fun f -> f "SLAAC: %a --> PREFERRED" Ipaddr.pp ip);
-        Some (ip, PREFERRED timeout), []
+        Some (prefix, PREFERRED timeout), []
       else
+        let ip = Ipaddr.Prefix.address prefix in
         let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-        Some (ip, TENTATIVE (timeout, n+1, Int64.add now retrans_timer)),
+        Some (prefix, TENTATIVE (timeout, n+1, Int64.add now retrans_timer)),
         [SendNS (`Unspecified, dst, ip)]
-    | ip, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
+    | prefix, PREFERRED (Some (preferred_timeout, valid_lifetime)) when preferred_timeout <= now ->
+      let ip = Ipaddr.Prefix.address prefix in
       Log.debug (fun f -> f "SLAAC: %a --> DEPRECATED" Ipaddr.pp ip);
       let valid_timeout = match valid_lifetime with
         | None -> None
         | Some valid_lifetime -> Some (Int64.add now valid_lifetime)
       in
-      Some (ip, DEPRECATED valid_timeout), []
-    | ip, DEPRECATED (Some t) when t <= now ->
+      Some (prefix, DEPRECATED valid_timeout), []
+    | prefix, DEPRECATED (Some t) when t <= now ->
+      let ip = Ipaddr.Prefix.address prefix in
       Log.debug (fun f -> f "SLAAC: %a --> EXPIRED" Ipaddr.pp ip);
       None, []
-    | addr ->
-      Some addr, []
+    | x ->
+      Some x, []
 
   let tick al ~now ~retrans_timer =
     List.fold_right (fun ip (ips, acts) ->
@@ -340,22 +344,23 @@ module AddressList = struct
     match List.mem_assoc ip al with
     | false ->
       let al = (ip, TENTATIVE (lft, 0, Int64.add now retrans_timer)) :: al in
-      let dst = Ipaddr.Prefix.network_address solicited_node_prefix ip in
-      al, [SendNS (`Unspecified, dst, ip)]
+      let src = Ipaddr.Prefix.address ip in
+      let dst = Ipaddr.Prefix.network_address solicited_node_prefix src in
+      al, [SendNS (`Unspecified, dst, src)]
     | true ->
       Log.warn (fun f -> f "ndpv6: attempted to add ip %a already in address list"
-                   Ipaddr.pp ip);
+                   Ipaddr.Prefix.pp ip);
       al, []
 
   let is_my_addr al ip =
     List.exists (function
         | _, TENTATIVE _ -> false
-        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.compare ip' ip = 0
+        | ip', (PREFERRED _ | DEPRECATED _) -> Ipaddr.(compare (Prefix.address ip') ip) = 0
       ) al
 
   let find_prefix al pfx =
     let rec loop = function
-      | (ip, _) :: _ when Ipaddr.Prefix.mem ip pfx -> Some ip
+      | (ip, _) :: _ when Ipaddr.Prefix.mem (Ipaddr.Prefix.address ip) pfx -> Some ip
       | _ :: rest -> loop rest
       | [] -> None
     in
@@ -369,19 +374,16 @@ module AddressList = struct
       al, []
     | None ->
       let ip = Ipaddr.Prefix.network_address pfx (interface_addr mac) in
-      add al ~now ~retrans_timer ~lft ip
+      let prefix = Ipaddr.Prefix.(make (bits pfx) ip) in
+      add al ~now ~retrans_timer ~lft prefix
 
   let handle_na al ip =
     (* FIXME How to notify the client? *)
-    try
-      match List.assoc ip al with
-      | TENTATIVE _ ->
-        Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp ip);
-        List.remove_assoc ip al
-      | _ ->
-        al
-    with
-    | Not_found -> al
+    match List.partition (fun (pre, _) -> Ipaddr.Prefix.mem ip pre) al with
+    | [ (_, TENTATIVE _) ], rest ->
+      Log.info (fun f -> f "DAD: Failed: %a" Ipaddr.pp ip);
+      rest
+    | _ -> al
 end
 
 module PrefixList = struct
@@ -1021,9 +1023,9 @@ module Parser = struct
 end
 
 type event =
-  [ `Tcp of ipaddr * ipaddr * buffer
-  | `Udp of ipaddr * ipaddr * buffer
-  | `Default of int * ipaddr * ipaddr * buffer ]
+  [ `Tcp of ipaddr * ipaddr * Cstruct.t
+  | `Udp of ipaddr * ipaddr * Cstruct.t
+  | `Default of int * ipaddr * ipaddr * Cstruct.t ]
 
 (* TODO add destination cache *)
 type context =
@@ -1142,6 +1144,9 @@ let add_ip ~now ctx ip =
   process_actions ~now ctx actions
 
 let get_ip ctx =
+  List.map Ipaddr.Prefix.address (AddressList.to_list ctx.address_list)
+
+let configured_ips ctx =
   AddressList.to_list ctx.address_list
 
 let select_source ctx dst =

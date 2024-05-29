@@ -31,6 +31,10 @@ module Make (N : Mirage_net.S)
 
   let pp_ipaddr = Ipaddr.V6.pp
 
+  type prefix = Ipaddr.V6.Prefix.t
+
+  let pp_prefix = Ipaddr.V6.Prefix.pp
+
   type t =
     { ethif : E.t;
       mutable ctx : Ndpv6.context }
@@ -114,6 +118,9 @@ module Make (N : Mirage_net.S)
   let get_ip t =
     Ndpv6.get_ip t.ctx
 
+  let configured_ips t =
+    Ndpv6.configured_ips t.ctx
+
   let pseudoheader t ?src:source dst proto len =
     let ph = Cstruct.create (16 + 16 + 8) in
     let src = match source with None -> src t ~dst | Some x -> x in
@@ -133,7 +140,7 @@ module Make (N : Mirage_net.S)
     let ctx, outs = match cidr with
       | None -> ctx, outs
       | Some p ->
-        let ctx, outs' = Ndpv6.add_ip ~now ctx (Ipaddr.V6.Prefix.address p) in
+        let ctx, outs' = Ndpv6.add_ip ~now ctx p in
         let ctx = Ndpv6.add_prefix ~now ctx (Ipaddr.V6.Prefix.prefix p) in
         ctx, outs @ outs'
     in
