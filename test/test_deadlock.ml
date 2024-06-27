@@ -8,9 +8,15 @@ module Server_log = (val Logs.src_log server_log : Logs.LOG)
 let client_log = Logs.Src.create "test_deadlock_client" ~doc:"tcp deadlock tests: client"
 module Client_log = (val Logs.src_log client_log : Logs.LOG)
 
+module Rng = struct
+  include Mirage_crypto_rng
+
+  let generate ?g n = Cstruct.of_string (generate ?g n)
+end
+
 module TCPIP =
 struct
-  module RANDOM = Mirage_crypto_rng
+  module RANDOM = Rng
 
   module TIME =
   struct
@@ -79,7 +85,7 @@ let test_digest netif1 netif2 =
   TCPIP.make `Server netif2 >>= fun server_stack ->
 
   let send_data () =
-    let data = Mirage_crypto_rng.generate 100_000_000 |> Cstruct.to_string in
+    let data = Mirage_crypto_rng.generate 100_000_000 in
     let t0   = Unix.gettimeofday () in
     TCPIP.TCP.create_connection
       TCPIP.(tcp @@ tcpip server_stack) (Ipaddr.V4 TCPIP.client_ip, port) >>= function

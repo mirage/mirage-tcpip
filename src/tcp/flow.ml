@@ -17,6 +17,8 @@
 
 open Lwt.Infix
 
+let ( % ) f g = fun x -> f (g x)
+
 let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -510,7 +512,7 @@ struct
     log_with_stats "process-syn" t;
     match Hashtbl.find_opt t.listeners (WIRE.src_port id) with
     | Some (keepalive, process) ->
-      let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+      let tx_isn = Sequence.of_int32 (Randomconv.int32 (Cstruct.to_string % Random.generate)) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -703,7 +705,7 @@ struct
 
   let connect ?keepalive t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+    let tx_isn = Sequence.of_int32 (Randomconv.int32 (Cstruct.to_string % Random.generate)) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
@@ -751,7 +753,7 @@ struct
   (* Construct the main TCP thread *)
   let connect ip =
     let localport =
-      1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Random.generate)
+      1024 + (Randomconv.int ~bound:(0xFFFF - 1024) (Cstruct.to_string % Random.generate))
     in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
