@@ -5,8 +5,13 @@ module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
 module Static_arp = Static_arp.Make(E)(Time)
-module Ip = Static_ipv4.Make(Mirage_crypto_rng)(Mclock)(E)(Static_arp)
-module Udp = Udp.Make(Ip)(Mirage_crypto_rng)
+module Rng = struct
+  include Mirage_crypto_rng
+
+  let generate ?g n = Cstruct.of_string (generate ?g n)
+end
+module Ip = Static_ipv4.Make(Rng)(Mclock)(E)(Static_arp)
+module Udp = Udp.Make(Ip)(Rng)
 
 type stack = {
   backend : B.t;

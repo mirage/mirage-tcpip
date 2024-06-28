@@ -16,6 +16,7 @@
 
 open Lwt.Infix
 
+let ( % ) f g = fun x -> f (g x)
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -77,7 +78,7 @@ module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (Ethernet: Ethernet.S)
         in
         let hdr =
           let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
-          let id = if multiple then Randomconv.int16 R.generate else 0 in
+          let id = if multiple then Randomconv.int16 (Cstruct.to_string % R.generate) else 0 in
           Ipv4_packet.{
             options = Cstruct.empty ;
             src ; dst ; ttl ; off ; id ;

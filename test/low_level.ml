@@ -12,7 +12,12 @@ module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
 module E = Ethernet.Make(V)
 module A = Arp.Make(E)(Time)
-module I = Static_ipv4.Make(Mirage_crypto_rng)(Vnetif_common.Clock)(E)(A)
+module Rng = struct
+  include Mirage_crypto_rng
+
+  let generate ?g n = Cstruct.of_string (generate ?g n)
+end
+module I = Static_ipv4.Make(Rng)(Vnetif_common.Clock)(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
 module Tcp_wire = Tcp.Tcp_wire

@@ -40,7 +40,7 @@ depends: [
   "lwt-dllist"
   "logs" {>= "0.6.0"}
   "duration"
-  "randomconv" {< "0.2.0"}
+  "randomconv" {>= "0.2.0"}
   "ethernet" {>= "3.0.0"}
   "arp" {>= "3.0.0"}
   "mirage-flow" {>= "4.0.0"}
@@ -66,3 +66,8 @@ system](https://mirage.io). It provides implementations for the following module
 * UDP
 * TCP
 """
+
+pin-depends: [
+  [ "mirage-crypto-rng.0.11.0" "git+https://github.com/mirage/mirage-crypto.git#98f01b14f5ebf98ba0e7e9c2ba97ec518f90fddc" ]
+  [ "mirage-crypto.0.11.0" "git+https://github.com/mirage/mirage-crypto.git#98f01b14f5ebf98ba0e7e9c2ba97ec518f90fddc" ]
+]

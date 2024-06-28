@@ -3,9 +3,14 @@ module Time = Vnetif_common.Time
 module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
+module Rng = struct
+  include Mirage_crypto_rng
 
-module Ipv6 = Ipv6.Make(V)(E)(Mirage_crypto_rng)(Time)(Mclock)
-module Udp = Udp.Make(Ipv6)(Mirage_crypto_rng)
+  let generate ?g n = Cstruct.of_string (generate ?g n)
+end
+
+module Ipv6 = Ipv6.Make(V)(E)(Rng)(Time)(Mclock)
+module Udp = Udp.Make(Ipv6)(Rng)
 open Lwt.Infix
 
 let ip =
