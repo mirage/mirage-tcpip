@@ -1,4 +1,4 @@
-name: Main workflow
+name: Builds, tests & co
 
 on:
   pull_request:
@@ -7,6 +7,8 @@ on:
     # Prime the caches every Monday
     - cron: 0 1 * * MON
 
+permissions: read-all
+
 jobs:
   build:
     strategy:
@@ -14,22 +16,20 @@ jobs:
       matrix:
         os:
           - macos-latest
-          - windows-latest
+          - ubuntu-latest
         ocaml-compiler:
-          - 4.13.x
+          - 5
+          - 4
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout tree
+        uses: actions/checkout@v4
 
-      - name: Use OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
         with:
-          opam-repositories: |
-            opam-repository-mingw: https://github.com/ocaml-opam/opam-repository-mingw.git#sunset
-            default: https://github.com/ocaml/opam-repository.git
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - run: opam install . --deps-only --with-test
@@ -37,3 +37,32 @@ jobs:
       - run: opam exec -- dune build
 
       - run: opam exec -- dune runtest
+
+  unikernel-example:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+          - qubes
+          - unix
+          - virtio
+
+    defaults:
+      run:
+        working-directory: examples/unikernel
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tree
+        uses: actions/checkout@v4
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4
+
+      - run: opam install mirage
+      - run: opam exec -- mirage configure -t ${{ matrix.mode }}
+      - run: opam exec -- make depend
+      - run: opam exec -- make
