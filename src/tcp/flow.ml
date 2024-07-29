@@ -20,6 +20,9 @@ open Lwt.Infix
 let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(* MSS options are 16 bites, so the max value is 64k *)
+let max_mss = Int32.mul 64l 1024l
+
 module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_random.S) =
 struct
 
@@ -372,8 +375,9 @@ struct
     in
     (* Set up ACK module *)
     let ack = ACK.t ~send_ack ~last:(Sequence.succ rx_isn) in
-    (* The user application transmit buffer *)
-    let utx = UTX.create ~wnd ~txq ~max_size:16384l in
+    (* The user application transmit buffer. Ensure we are always allowed to write
+       an MSS of data into it before `available` returns 0. *)
+    let utx = UTX.create ~wnd ~txq ~max_size:(Int32.mul 2l max_mss) in
     let rxq = RXS.create ~rx_data ~ack ~wnd ~state ~tx_ack in
     (* Set up the keepalive state if requested *)
     let keepalive = match keepalive with
