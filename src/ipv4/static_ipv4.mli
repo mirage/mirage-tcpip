@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (R: Mirage_random.S) (C: Mirage_clock.MCLOCK) (E: Ethernet.S) (A: Arp.S) : sig
+module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (E: Ethernet.S) (A: Arp.S) : sig
   include Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t and type prefix = Ipaddr.V4.Prefix.t
 
   val connect : ?no_init:bool -> cidr:Ipaddr.V4.Prefix.t -> ?gateway:Ipaddr.V4.t ->

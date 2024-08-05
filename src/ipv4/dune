@@ -3,6 +3,6 @@
  (public_name tcpip.ipv4)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs ipaddr cstruct tcpip tcpip.udp tcpip.checksum mirage-random
-   mirage-clock randomconv lru arp.mirage ethernet)
+ (libraries logs ipaddr cstruct tcpip tcpip.udp tcpip.checksum
+   mirage-crypto-rng-mirage mirage-clock randomconv lru arp.mirage ethernet)
  (wrapped false))
