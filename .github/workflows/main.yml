@@ -61,6 +61,7 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 4
+          opam-pin: false
 
       - run: opam install mirage
       - run: opam exec -- mirage configure -t ${{ matrix.mode }}
