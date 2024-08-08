@@ -1,12 +1,12 @@
 open Lwt.Infix
 
-module Main (S: Mirage_stack.V4) = struct
+module Main (S: Tcpip.Stack.V4V6) = struct
   let report_and_close flow pp e message =
-    let ip, port = S.TCPV4.dst flow in
+    let ip, port = S.TCP.dst flow in
     Logs.warn
       (fun m -> m "closing connection from %a:%d due to error %a while %s"
-          Ipaddr.V4.pp ip port pp e message);
-    S.TCPV4.close flow
+          Ipaddr.pp ip port pp e message);
+    S.TCP.close flow
 
   let rec chargen flow how_many start_at =
     let charpool =
@@ -17,38 +17,38 @@ module Main (S: Mirage_stack.V4) = struct
       Cstruct.of_string output
     in
 
-    S.TCPV4.write flow (make_chars how_many start_at) >>= function
+    S.TCP.write flow (make_chars how_many start_at) >>= function
     | Ok () ->
       chargen flow how_many ((start_at + 1) mod (String.length charpool))
-    | Error e -> report_and_close flow S.TCPV4.pp_write_error e "writing in Chargen"
+    | Error e -> report_and_close flow S.TCP.pp_write_error e "writing in Chargen"
 
   let rec discard flow =
-    S.TCPV4.read flow >>= fun result -> (
+    S.TCP.read flow >>= fun result -> (
     match result with
-    | Error e -> report_and_close flow S.TCPV4.pp_error e "reading in Discard"
+    | Error e -> report_and_close flow S.TCP.pp_error e "reading in Discard"
     | Ok `Eof -> report_and_close flow Fmt.string "end of file" "reading in Discard"
     | Ok (`Data _) -> discard flow
   )
 
 
   let rec echo flow =
-    S.TCPV4.read flow >>= function
-    | Error e -> report_and_close flow S.TCPV4.pp_error e "reading in Echo"
+    S.TCP.read flow >>= function
+    | Error e -> report_and_close flow S.TCP.pp_error e "reading in Echo"
     | Ok `Eof -> report_and_close flow Fmt.string "end of file" "reading in Echo"
     | Ok (`Data buf) ->
-      S.TCPV4.write flow buf >>= function
+      S.TCP.write flow buf >>= function
       | Ok () -> echo flow
-      | Error e -> report_and_close flow S.TCPV4.pp_write_error e "writing in Echo"
+      | Error e -> report_and_close flow S.TCP.pp_write_error e "writing in Echo"
 
   let start s =
     (* RFC 862 - read payloads and repeat them back *)
-    S.TCPV4.listen (S.tcpv4 s) ~port:7 echo;
+    S.TCP.listen (S.tcp s) ~port:7 echo;
 
     (* RFC 863 - discard all incoming data and never write a payload *)
-    S.TCPV4.listen (S.tcpv4 s) ~port:9 discard;
+    S.TCP.listen (S.tcp s) ~port:9 discard;
 
     (* RFC 864 - write data without regard for input *)
-    S.TCPV4.listen (S.tcpv4 s) ~port:19 (fun flow -> chargen flow 75 0);
+    S.TCP.listen (S.tcp s) ~port:19 (fun flow -> chargen flow 75 0);
 
     S.listen s
 

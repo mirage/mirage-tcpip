@@ -1,12 +1,11 @@
+(* mirage >= 4.6.0 & < 4.7.0 *)
+
 open Mirage
 
 let main =
   let packages = [ package ~min:"2.9.0" "ipaddr" ] in
-  foreign ~packages "Services.Main" (stackv4 @-> job)
+  main ~packages "Services.Main" (stackv4v6 @-> job)
 
-let stack = generic_stackv4 default_network
+let stack = generic_stackv4v6 default_network
 
-let () =
-  register "services" [
-    main $ stack
-  ]
+let () = register "services" [ main $ stack ]
