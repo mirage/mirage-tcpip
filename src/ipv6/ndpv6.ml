@@ -36,6 +36,7 @@ References:
   http://tools.ietf.org/html/rfc3810
 *)
 
+let ( % ) f g = fun x -> f (g x)
 let src = Logs.Src.create "ndpc6" ~doc:"Mirage IPv6 discovery"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -120,7 +121,7 @@ let multicast_mac =
 let compute_reachable_time r reachable_time =
   let factor =
     Defaults.min_random_factor +.
-    Randomconv.float ~bound:Defaults.(max_random_factor -. min_random_factor) r
+    Randomconv.float ~bound:Defaults.(max_random_factor -. min_random_factor) (Cstruct.to_string % r)
   in
   Int64.of_float (factor *. Int64.to_float reachable_time)
 

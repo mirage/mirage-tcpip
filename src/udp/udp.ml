@@ -58,7 +58,7 @@ module Make (Ip : Tcpip.Ip.S) (Random : Mirage_random.S) = struct
 
   let writev ?src ?src_port ?ttl ~dst ~dst_port t bufs =
     let src_port = match src_port with
-      | None   -> Randomconv.int ~bound:65535 (fun x -> Random.generate x)
+      | None   -> Randomconv.int ~bound:65535 (fun x -> Cstruct.to_string (Random.generate x))
       | Some p -> p
     in
     let fill_hdr buf =
