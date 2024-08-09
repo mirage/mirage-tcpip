@@ -3,5 +3,5 @@
  (public_name tcpip.stack-direct)
  (instrumentation
   (backend bisect_ppx))
- (libraries logs ipaddr lwt fmt mirage-time mirage-random mirage-net ethernet
-   arp.mirage tcpip.icmpv4 tcpip.udp tcpip.tcp))
+ (libraries logs ipaddr lwt fmt mirage-time mirage-crypto-rng-mirage mirage-net
+   ethernet arp.mirage tcpip.icmpv4 tcpip.udp tcpip.tcp))

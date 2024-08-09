@@ -27,7 +27,7 @@ type event =
 
 type context
 
-val local : handle_ra:bool -> now:time -> random:(int -> Cstruct.t) -> Macaddr.t ->
+val local : handle_ra:bool -> now:time -> random:(int -> string) -> Macaddr.t ->
   context * (Macaddr.t * int * (Cstruct.t -> int)) list
 (** [local ~handle_ra ~now ~random mac] is a pair [ctx, outs] where [ctx] is a local IPv6 context
     associated to the hardware address [mac].  [outs] is a list of ethif packets
@@ -48,7 +48,7 @@ val select_source : context -> ipaddr -> ipaddr
 (** [select_source ctx ip] returns the ip that should be put in the source field
     of a packet destined to [ip]. *)
 
-val handle : now:time -> random:(int -> Cstruct.t) -> context -> Cstruct.t ->
+val handle : now:time -> random:(int -> string) -> context -> Cstruct.t ->
   context * (Macaddr.t * int * (Cstruct.t -> int)) list * event list
 (** [handle ~now ~random ctx buf] handles an incoming ipv6 packet.  It returns
     [ctx', bufs, evs] where [ctx'] is the updated context, [bufs] is a list of

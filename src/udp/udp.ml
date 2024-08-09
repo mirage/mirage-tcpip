@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "udp" ~doc:"Mirage UDP"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (Ip : Tcpip.Ip.S) (Random : Mirage_random.S) = struct
+module Make (Ip : Tcpip.Ip.S) (Random : Mirage_crypto_rng_mirage.S) = struct
 
   type ipaddr = Ip.ipaddr
   type callback = src:ipaddr -> dst:ipaddr -> src_port:int -> Cstruct.t -> unit Lwt.t
