@@ -1,3 +1,9 @@
+### v8.2.0 (2024-08-22)
+
+* Use `mirage-crypto.1.0` & `randomconv.0.2` (@hannesm, #521)
+* Update unikernels to `mirage.4.6.0` (@hannesm, @reynir, @smorimoto, #522)
+* Update our CI system (@samoht, @smorimoto, #519, #520)
+
 ### v8.1.0 (2024-05-29)
 
 * adapt to mirage-vnetif 0.6.2 changes (#517 @hannesm)
