@@ -79,7 +79,7 @@ let test_digest netif1 netif2 =
   TCPIP.make `Server netif2 >>= fun server_stack ->
 
   let send_data () =
-    let data = Mirage_crypto_rng.generate 100_000_000 |> Cstruct.to_string in
+    let data = Mirage_crypto_rng.generate 100_000_000 in
     let t0   = Unix.gettimeofday () in
     TCPIP.TCP.create_connection
       TCPIP.(tcp @@ tcpip server_stack) (Ipaddr.V4 TCPIP.client_ip, port) >>= function

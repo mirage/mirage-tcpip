@@ -23,7 +23,7 @@ open Lwt.Infix
 
 module Make (N : Mirage_net.S)
             (E : Ethernet.S)
-            (R : Mirage_random.S)
+            (R : Mirage_crypto_rng_mirage.S)
             (T : Mirage_time.S)
             (C : Mirage_clock.MCLOCK) = struct
   type ipaddr   = Ipaddr.V6.t
