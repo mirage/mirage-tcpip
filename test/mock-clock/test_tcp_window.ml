@@ -119,10 +119,6 @@ let () =
   (* enable logging to stdout for all modules *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Debug);
-  (* Uncomment to enable tracing *)
-  (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
-  let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in
-  MProf.Trace.Control.start trace_config;*)
   let suite = List.map (fun (n, s) ->
       n, List.map (fun (d, s, f) -> d, s, run f) s
     ) suite
