@@ -1,0 +1,6 @@
+(test
+ (name test_tcp_window)
+ (libraries alcotest mirage-crypto-rng mirage-crypto-rng.unix lwt.unix logs logs.fmt
+   mirage-mtime.mock tcpip.tcp)
+ (action
+  (run %{test} -q -e --color=always)))

@@ -20,7 +20,6 @@ let suite = [
   "ipv6"           , Test_ipv6.suite        ;
   "icmpv4"         , Test_icmpv4.suite      ;
   "udp"            , Test_udp.suite         ;
-  "tcp_window"     , Test_tcp_window.suite  ;
   "tcp_options"    , Test_tcp_options.suite ;
   "mtu+tcp"        , Test_mtus.suite        ;
   "rfc5961"        , Test_rfc5961.suite     ;

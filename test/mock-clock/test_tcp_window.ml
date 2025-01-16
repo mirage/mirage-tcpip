@@ -1,15 +1,3 @@
-let now = ref 0L
-
-module Clock = struct
-  (* Mirage_clock.MCLOCK *)
-  let period_ns () = None
-  let elapsed_ns () = !now
-
-  (* Test-related function: advance by 1 ns *)
-  let tick () = now := Int64.add !now 1L
-  let tick_for duration = now := Int64.add !now duration
-end
-
 let default_window () =
   Tcp.Window.t ~tx_wnd_scale:2 ~rx_wnd_scale:2 ~rx_wnd:65535 ~tx_wnd:65535 ~rx_isn:Tcp.Sequence.zero ~tx_mss:1460 ~tx_isn:Tcp.Sequence.zero
 
@@ -33,9 +21,9 @@ let increase_congestion_window window goal =
     | true -> max_send
     | false ->
       let sz = Tcp.Sequence.add max_send @@ Tcp.Window.tx_nxt window in
-      Clock.tick ();
+      Mirage_mtime_set.tick ();
       Tcp.Window.tx_advance window @@ Tcp.Window.tx_nxt window;
-      Clock.tick ();
+      Mirage_mtime_set.tick ();
       (* need to acknowledge the full size of the data *)
       Tcp.Window.tx_ack window sz receive_window;
       successful_transmission goal
@@ -60,23 +48,23 @@ let recover_fast () =
 
   (* get ready to send another burst of data *)
   let seq = Tcp.Window.tx_nxt window in
-  Clock.tick ();
+  Mirage_mtime_set.tick ();
   (* say that we sent the full amount of data *)
   let sz = Tcp.Sequence.(add (of_int32 available_to_send) seq) in
   Tcp.Window.tx_advance window sz;
   (* but receive an ack indicating that we missed a segment *)
   let nonfull_ack = Tcp.Sequence.add seq @@ n_segments window 4l in
   (* 1st ack *)
-  Clock.tick ();
+  Mirage_mtime_set.tick ();
   Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 1st duplicate ack *)
-  Clock.tick ();
+  Mirage_mtime_set.tick ();
   Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 2nd duplicate ack *)
-  Clock.tick ();
+  Mirage_mtime_set.tick ();
   Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 3rd duplicate ack *)
-  Clock.tick ();
+  Mirage_mtime_set.tick ();
   Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* request that we go into fast retransmission *)
   Tcp.Window.alert_fast_rexmit window @@ n_segments window 4l;
@@ -93,7 +81,7 @@ let rto_calculation () =
   Alcotest.(check int64) "initial rto is 2/3 second" (Duration.of_ms 667) @@ Tcp.Window.rto window;
   let receive_window = Tcp.Window.ack_win window in
   Tcp.Window.tx_advance window (Tcp.Window.tx_nxt window);
-  Clock.tick_for (Duration.of_ms 400);
+  Mirage_mtime_set.tick_for (Duration.of_ms 400);
   let max_size = Tcp.Window.tx_available window |> Tcp.Sequence.of_int32 in
   let sz = Tcp.Sequence.add max_size @@ (Tcp.Window.tx_nxt window) in
   Tcp.Window.tx_ack window sz receive_window;
@@ -103,7 +91,7 @@ let rto_calculation () =
   (* RFC 2988 2.3 *)
   Tcp.Window.tx_advance window (Tcp.Window.tx_nxt window);
   let receive_window = Tcp.Window.ack_win window in
-  Clock.tick_for (Duration.of_ms 300);
+  Mirage_mtime_set.tick_for (Duration.of_ms 300);
   let max_size = Tcp.Window.tx_available window |> Tcp.Sequence.of_int32 in
   let sz = Tcp.Sequence.add max_size @@ (Tcp.Window.tx_nxt window) in
   Tcp.Window.tx_ack window sz receive_window;
@@ -117,3 +105,26 @@ let suite = [
   "fast recovery recovers fast", `Quick, recover_fast;
   "smoothed rtt, rtt variation and retransmission timer are calculated according to RFC2988", `Quick, rto_calculation;
 ]
+
+let suite = [
+  "tcp_window"     , suite  ;
+]
+
+let run test () =
+  Lwt_main.run (test ())
+
+let () =
+  Printexc.record_backtrace true;
+  Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna);
+  (* enable logging to stdout for all modules *)
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level ~all:true (Some Logs.Debug);
+  (* Uncomment to enable tracing *)
+  (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
+  let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in
+  MProf.Trace.Control.start trace_config;*)
+  let suite = List.map (fun (n, s) ->
+      n, List.map (fun (d, s, f) -> d, s, run f) s
+    ) suite
+  in
+  Alcotest.run "tcpip" suite
