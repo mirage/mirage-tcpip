@@ -116,9 +116,9 @@ end
    to decide how to throttle or breakup its data production with this
    information.
 *)
-module Tx(Clock:Mirage_clock.MCLOCK) = struct
+module Tx = struct
 
-  module TXS = Segment.Tx(Clock)
+  module TXS = Segment.Tx
 
   type t = {
     wnd: Window.t;

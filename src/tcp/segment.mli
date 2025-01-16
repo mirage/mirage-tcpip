@@ -57,7 +57,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Clock:Mirage_clock.MCLOCK) : sig
+module Tx : sig
 
   type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t

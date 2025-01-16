@@ -10,8 +10,6 @@ module Clock = struct
   let tick_for duration = now := Int64.add !now duration
 end
 
-module Timed_window = Tcp.Window.Make(Clock)
-
 let default_window () =
   Tcp.Window.t ~tx_wnd_scale:2 ~rx_wnd_scale:2 ~rx_wnd:65535 ~tx_wnd:65535 ~rx_isn:Tcp.Sequence.zero ~tx_mss:1460 ~tx_isn:Tcp.Sequence.zero
 
@@ -36,10 +34,10 @@ let increase_congestion_window window goal =
     | false ->
       let sz = Tcp.Sequence.add max_send @@ Tcp.Window.tx_nxt window in
       Clock.tick ();
-      Timed_window.tx_advance window @@ Tcp.Window.tx_nxt window;
+      Tcp.Window.tx_advance window @@ Tcp.Window.tx_nxt window;
       Clock.tick ();
       (* need to acknowledge the full size of the data *)
-      Timed_window.tx_ack window sz receive_window;
+      Tcp.Window.tx_ack window sz receive_window;
       successful_transmission goal
   in
   successful_transmission goal
@@ -65,21 +63,21 @@ let recover_fast () =
   Clock.tick ();
   (* say that we sent the full amount of data *)
   let sz = Tcp.Sequence.(add (of_int32 available_to_send) seq) in
-  Timed_window.tx_advance window sz;
+  Tcp.Window.tx_advance window sz;
   (* but receive an ack indicating that we missed a segment *)
   let nonfull_ack = Tcp.Sequence.add seq @@ n_segments window 4l in
   (* 1st ack *)
   Clock.tick ();
-  Timed_window.tx_ack window nonfull_ack receive_window;
+  Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 1st duplicate ack *)
   Clock.tick ();
-  Timed_window.tx_ack window nonfull_ack receive_window;
+  Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 2nd duplicate ack *)
   Clock.tick ();
-  Timed_window.tx_ack window nonfull_ack receive_window;
+  Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* 3rd duplicate ack *)
   Clock.tick ();
-  Timed_window.tx_ack window nonfull_ack receive_window;
+  Tcp.Window.tx_ack window nonfull_ack receive_window;
   (* request that we go into fast retransmission *)
   Tcp.Window.alert_fast_rexmit window @@ n_segments window 4l;
 
@@ -94,21 +92,21 @@ let rto_calculation () =
   (* RFC 2988 2.1 *)
   Alcotest.(check int64) "initial rto is 2/3 second" (Duration.of_ms 667) @@ Tcp.Window.rto window;
   let receive_window = Tcp.Window.ack_win window in
-  Timed_window.tx_advance window (Tcp.Window.tx_nxt window);
+  Tcp.Window.tx_advance window (Tcp.Window.tx_nxt window);
   Clock.tick_for (Duration.of_ms 400);
   let max_size = Tcp.Window.tx_available window |> Tcp.Sequence.of_int32 in
   let sz = Tcp.Sequence.add max_size @@ (Tcp.Window.tx_nxt window) in
-  Timed_window.tx_ack window sz receive_window;
+  Tcp.Window.tx_ack window sz receive_window;
   (* RFC 2988 2.2 *)
   Alcotest.(check int64) "After one RTT measurement, the calculated rto is 400 + (4 * 200) = 1200ms" (Duration.of_ms 1200) @@ Tcp.Window.rto window;
 
   (* RFC 2988 2.3 *)
-  Timed_window.tx_advance window (Tcp.Window.tx_nxt window);
+  Tcp.Window.tx_advance window (Tcp.Window.tx_nxt window);
   let receive_window = Tcp.Window.ack_win window in
   Clock.tick_for (Duration.of_ms 300);
   let max_size = Tcp.Window.tx_available window |> Tcp.Sequence.of_int32 in
   let sz = Tcp.Sequence.add max_size @@ (Tcp.Window.tx_nxt window) in
-  Timed_window.tx_ack window sz receive_window;
+  Tcp.Window.tx_ack window sz receive_window;
   Alcotest.(check int64) "After subsequent RTT measurement, the calculated rto is 1087.5ms" (Duration.of_us 1087500) @@ Tcp.Window.rto window;
 
   Lwt.return_unit

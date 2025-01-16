@@ -125,7 +125,7 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
     (* debug is too much for us here *)
     Logs.set_level ~all:true (Some Logs.Info);
     Logs.info (fun f -> f  "Iperf server: Received connection.");
-    let t0 = Clock.elapsed_ns () in
+    let t0 = Mirage_mtime.elapsed_ns () in
     let st = {
       bytes=0L; packets=0L; bin_bytes=0L; bin_packets=0L; start_time = t0;
       last_time = t0
@@ -133,7 +133,7 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
     let rec iperf_h flow =
       V.Stack.TCP.read flow >|= Result.get_ok >>= function
       | `Eof ->
-        let ts_now = Clock.elapsed_ns () in
+        let ts_now = Mirage_mtime.elapsed_ns () in
         st.bin_bytes <- st.bytes;
         st.bin_packets <- st.packets;
         st.last_time <- st.start_time;
@@ -148,7 +148,7 @@ module Test_iperf_ipv6 (B : Vnetif_backends.Backend) = struct
           st.packets <- (Int64.add st.packets 1L);
           st.bin_bytes <- (Int64.add st.bin_bytes (Int64.of_int l));
           st.bin_packets <- (Int64.add st.bin_packets 1L);
-          let ts_now = Clock.elapsed_ns () in
+          let ts_now = Mirage_mtime.elapsed_ns () in
           (if (Int64.sub ts_now st.last_time >= 1_000_000_000L) then
              print_data st ts_now
            else

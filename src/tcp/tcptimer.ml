@@ -32,41 +32,39 @@ type t = {
   mutable running: bool;
 }
 
-module Make = struct
-  let t ~period_ns ~expire =
-    let running = false in
-    {period_ns; expire; running}
+let t ~period_ns ~expire =
+  let running = false in
+  {period_ns; expire; running}
 
-  let timerloop t s =
-    Log.debug (fun f -> f "timerloop");
-    Stats.incr_timer ();
-    let rec aux t s =
-      Log.debug (fun f -> f "timerloop: sleeping for %Lu ns" t.period_ns);
-      Mirage_time.sleep_ns t.period_ns >>= fun () ->
-      t.expire s >>= function
-      | Stoptimer ->
-        Stats.decr_timer ();
-        t.running <- false;
-        Log.debug (fun f -> f "timerloop: stoptimer");
-        Lwt.return_unit
-      | Continue d ->
-        Log.debug (fun f -> f "timerloop: continuer");
-        aux t d
-      | ContinueSetPeriod (p, d) ->
-        Log.debug (fun f -> f "timerloop: continuesetperiod (new period: %Lu ns)" p);
-        t.period_ns <- p;
-        aux t d
-    in
-    aux t s
-
-  let period_ns t = t.period_ns
-
-  let start t ?(p=(period_ns t)) s =
-    if not t.running then begin
+let timerloop t s =
+  Log.debug (fun f -> f "timerloop");
+  Stats.incr_timer ();
+  let rec aux t s =
+    Log.debug (fun f -> f "timerloop: sleeping for %Lu ns" t.period_ns);
+    Mirage_sleep.ns t.period_ns >>= fun () ->
+    t.expire s >>= function
+    | Stoptimer ->
+      Stats.decr_timer ();
+      t.running <- false;
+      Log.debug (fun f -> f "timerloop: stoptimer");
+      Lwt.return_unit
+    | Continue d ->
+      Log.debug (fun f -> f "timerloop: continuer");
+      aux t d
+    | ContinueSetPeriod (p, d) ->
+      Log.debug (fun f -> f "timerloop: continuesetperiod (new period: %Lu ns)" p);
       t.period_ns <- p;
-      t.running <- true;
-      Lwt.async (fun () -> timerloop t s);
-      Lwt.return_unit
-    end else
-      Lwt.return_unit
-end
+      aux t d
+  in
+  aux t s
+
+let period_ns t = t.period_ns
+
+let start t ?(p=(period_ns t)) s =
+  if not t.running then begin
+    t.period_ns <- p;
+    t.running <- true;
+    Lwt.async (fun () -> timerloop t s);
+    Lwt.return_unit
+  end else
+    Lwt.return_unit

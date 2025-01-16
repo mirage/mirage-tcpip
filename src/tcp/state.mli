@@ -56,10 +56,8 @@ val on_close : t -> unit
 
 val pp: Format.formatter -> t -> unit
 
-module Make : sig
-  val fin_wait_2_time : int64
-  val time_wait_time : int64
-  val finwait2timer : t -> int -> int64 -> unit Lwt.t
-  val timewait : t -> int64 -> unit Lwt.t
-  val tick : t -> action -> unit
-end
+val fin_wait_2_time : int64
+val time_wait_time : int64
+val finwait2timer : t -> int -> int64 -> unit Lwt.t
+val timewait : t -> int64 -> unit Lwt.t
+val tick : t -> action -> unit

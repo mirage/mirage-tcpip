@@ -146,7 +146,6 @@ module IPV4V6
 end
 
 module MakeV4V6
-    (Random   : Mirage_crypto_rng_mirage.S)
     (Netif    : Mirage_net.S)
     (Eth      : Ethernet.S)
     (Arpv4    : Arp.S)

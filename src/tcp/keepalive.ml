@@ -49,43 +49,42 @@ let next ~configuration ~ns state =
       end
   end
 
-  module Make(Clock:Mirage_clock.MCLOCK) = struct
-    type t = {
-      configuration: Tcpip.Tcp.Keepalive.t;
-      callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
-      mutable state: state;
-      mutable timer: unit Lwt.t;
-      mutable start: int64;
-    }
-    (** A keep-alive timer *)
+type t = {
+  configuration: Tcpip.Tcp.Keepalive.t;
+  callback: ([ `SendProbe | `Close ] -> unit Lwt.t);
+  mutable state: state;
+  mutable timer: unit Lwt.t;
+  mutable start: int64;
+}
+(** A keep-alive timer *)
 
-    let rec restart t =
-      let open Lwt.Infix in
-      let ns = Int64.sub (Clock.elapsed_ns ()) t.start in
-      match next ~configuration:t.configuration ~ns t.state with
-      | `Wait ns, state ->
-        Mirage_time.sleep_ns ns >>= fun () ->
-        t.state <- state;
-        restart t
-      | `SendProbe, state ->
-        t.callback `SendProbe >>= fun () ->
-        t.state <- state;
-        restart t
-      | `Close, _ ->
-        t.callback `Close >>= fun () ->
-        Lwt.return_unit
+let rec restart t =
+  let open Lwt.Infix in
+  let ns = Int64.sub (Mirage_mtime.elapsed_ns ()) t.start in
+  match next ~configuration:t.configuration ~ns t.state with
+  | `Wait ns, state ->
+    Mirage_sleep.ns ns >>= fun () ->
+    t.state <- state;
+    restart t
+  | `SendProbe, state ->
+    t.callback `SendProbe >>= fun () ->
+    t.state <- state;
+    restart t
+  | `Close, _ ->
+    t.callback `Close >>= fun () ->
+    Lwt.return_unit
 
-    let create configuration callback =
-      let state = alive in
-      let timer = Lwt.return_unit in
-      let start = Clock.elapsed_ns () in
-      let t = { configuration; callback; state; timer; start } in
-      t.timer <- restart t;
-      t
+let create configuration callback =
+  let state = alive in
+  let timer = Lwt.return_unit in
+  let start = Mirage_mtime.elapsed_ns () in
+  let t = { configuration; callback; state; timer; start } in
+  t.timer <- restart t;
+  t
 
-    let refresh t =
-      t.start <- Clock.elapsed_ns ();
-      t.state <- alive;
-      Lwt.cancel t.timer;
-      t.timer <- restart t
-  end
+let refresh t =
+  t.start <- Mirage_mtime.elapsed_ns ();
+  t.state <- alive;
+  Lwt.cancel t.timer;
+  t.timer <- restart t
+

@@ -4,5 +4,5 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries logs ipaddr cstruct tcpip tcpip.udp tcpip.checksum
-   mirage-crypto-rng-mirage mirage-clock randomconv lru arp.mirage ethernet)
+   mirage-crypto-rng mirage-mtime randomconv lru arp.mirage ethernet)
  (wrapped false))

@@ -3,7 +3,6 @@ open Common
 let src = Logs.Src.create "test_icmpv4" ~doc:"ICMP tests"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
@@ -18,10 +17,10 @@ type decomposed = {
   ethernet_header : Ethernet.Packet.t;
 }
 
-module Ip = Static_ipv4.Make(Mirage_crypto_rng)(Mclock)(E)(Static_arp)
+module Ip = Static_ipv4.Make(E)(Static_arp)
 module Icmp = Icmpv4.Make(Ip)
 
-module Udp = Udp.Make(Ip)(Mirage_crypto_rng)
+module Udp = Udp.Make(Ip)
 
 type stack = {
   backend : B.t;
@@ -204,10 +203,10 @@ let write_errors () =
     Lwt.pick [
       icmp_listen stack (fun ~src:_ ~dst:_ buf -> check_packet buf >>= fun () ->
                           V.disconnect stack.netif);
-      Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
+      Mirage_sleep.ns (Duration.of_ms 500) >>= fun () ->
       Udp.write stack.udp ~dst ~src_port:1212 ~dst_port:123 payload
         >|= Result.get_ok >>= fun () ->
-        Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
+        Mirage_sleep.ns (Duration.of_sec 1) >>= fun () ->
       Alcotest.fail "writing thread completed first";
     ]
   in

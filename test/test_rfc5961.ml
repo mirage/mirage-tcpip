@@ -29,7 +29,7 @@ let sut_connects_and_remains_connected stack fail_callback =
    * If after half second that remains true, assume test succeeds *)
   Lwt.pick [
     (VNETIF_STACK.Stack.TCP.read flow >>= fail_result_not_expected fail_callback);
-    Time.sleep_ns (Duration.of_ms 500) ]
+    Mirage_sleep.ns (Duration.of_ms 500) ]
 
 
 let blind_rst_on_syn_scenario =

@@ -92,88 +92,85 @@ let pp_tcpstate fmt = function
 
 let pp fmt t = pf fmt "{ %a }" pp_tcpstate t.state
 
-module Make = struct
+let fin_wait_2_time = (* 60 *) Duration.of_sec 10
+let time_wait_time = (* 30 *) Duration.of_sec 2
 
-  let fin_wait_2_time = (* 60 *) Duration.of_sec 10
-  let time_wait_time = (* 30 *) Duration.of_sec 2
-
-  let rec finwait2timer t count timeout =
-    Log.debug (fun fmt -> fmt "finwait2timer %Lu" timeout);
-    Mirage_time.sleep_ns timeout >>= fun () ->
-    match t.state with
-    | Fin_wait_2 i ->
-      Log.debug (fun f -> f "finwait2timer: Fin_wait_2");
-      if i = count then begin
-        t.state <- Closed;
-        t.on_close ();
-        Lwt.return_unit
-      end else begin
-        finwait2timer t i timeout
-      end
-    | s ->
-      Log.debug (fun fmt -> fmt "finwait2timer: %a" pp_tcpstate s);
+let rec finwait2timer t count timeout =
+  Log.debug (fun fmt -> fmt "finwait2timer %Lu" timeout);
+  Mirage_sleep.ns timeout >>= fun () ->
+  match t.state with
+  | Fin_wait_2 i ->
+    Log.debug (fun f -> f "finwait2timer: Fin_wait_2");
+    if i = count then begin
+      t.state <- Closed;
+      t.on_close ();
       Lwt.return_unit
-
-  let timewait t twomsl =
-    Log.debug (fun fmt -> fmt "timewait %Lu" twomsl);
-    Mirage_time.sleep_ns twomsl >>= fun () ->
-    t.state <- Closed;
-    Log.debug (fun fmt -> fmt "timewait on_close");
-    t.on_close ();
+    end else begin
+      finwait2timer t i timeout
+    end
+  | s ->
+    Log.debug (fun fmt -> fmt "finwait2timer: %a" pp_tcpstate s);
     Lwt.return_unit
 
-  let transition_to_timewait t =
-    Lwt.async (fun () -> timewait t time_wait_time);
-    Time_wait
+let timewait t twomsl =
+  Log.debug (fun fmt -> fmt "timewait %Lu" twomsl);
+  Mirage_sleep.ns twomsl >>= fun () ->
+  t.state <- Closed;
+  Log.debug (fun fmt -> fmt "timewait on_close");
+  t.on_close ();
+  Lwt.return_unit
 
-  let tick t (i:action) =
-    let diffone x y = Sequence.succ y = x in
-    let tstr s (i:action) =
-      match s, i with
-      | Closed, Passive_open -> Listen
-      | Closed, Send_syn a -> Syn_sent a
-      | Listen, Send_synack a -> Syn_rcvd a
-      | Syn_rcvd _, Timeout -> t.on_close (); Closed
-      | Syn_rcvd _, Recv_rst -> Closed
-      | Syn_sent _, Timeout -> t.on_close (); Closed
-      | Syn_sent a, Recv_synack b-> if diffone b a then Established else Syn_sent a
-      | Syn_rcvd a, Recv_ack b -> if diffone b a then Established else Syn_rcvd a
-      | Established, Recv_ack _ -> Established
-      | Established, Send_fin a -> Fin_wait_1 a
-      | Established, Recv_fin -> Close_wait
-      | Established, Timeout ->  t.on_close (); Closed
-      | Established, Recv_rst -> t.on_close (); Reset
-      | Fin_wait_1 a, Recv_ack b ->
-        if diffone b a then
-          let count = 0 in
-          Lwt.async (fun () -> finwait2timer t count fin_wait_2_time);
-          Fin_wait_2 count
-        else
-          Fin_wait_1 a
-      | Fin_wait_1 a, Recv_fin -> Closing a
-      | Fin_wait_1 _, Timeout -> t.on_close (); Closed
-      | Fin_wait_1 _, Recv_rst -> t.on_close (); Reset
-      | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
-      | Fin_wait_2 _, Recv_rst -> t.on_close (); Reset
-      | Fin_wait_2 _, Recv_fin -> transition_to_timewait t
-      | Closing a, Recv_ack b ->
-        if diffone b a then
-          transition_to_timewait t
-        else Closing a
-      | Closing _, Timeout -> t.on_close (); Closed
-      | Closing _, Recv_rst -> t.on_close (); Reset
-      | Time_wait, Timeout -> t.on_close (); Closed
-      | Close_wait,  Send_fin a -> Last_ack a
-      | Close_wait,  Timeout -> t.on_close (); Closed
-      | Close_wait,  Recv_rst -> t.on_close (); Reset
-      | Last_ack a, Recv_ack b -> if diffone b a then (t.on_close (); Closed) else Last_ack a
-      | Last_ack _, Timeout -> t.on_close (); Closed
-      | Last_ack _, Recv_rst -> t.on_close (); Reset
-      | x, _ -> x
-    in
-    let old_state = t.state in
-    let new_state = tstr t.state i in
-    Log.debug (fun fmt -> fmt "%d %a  - %a -> %a" t.id
-          pp_tcpstate old_state pp_action i pp_tcpstate new_state);
-    t.state <- new_state;
-end
+let transition_to_timewait t =
+  Lwt.async (fun () -> timewait t time_wait_time);
+  Time_wait
+
+let tick t (i:action) =
+  let diffone x y = Sequence.succ y = x in
+  let tstr s (i:action) =
+    match s, i with
+    | Closed, Passive_open -> Listen
+    | Closed, Send_syn a -> Syn_sent a
+    | Listen, Send_synack a -> Syn_rcvd a
+    | Syn_rcvd _, Timeout -> t.on_close (); Closed
+    | Syn_rcvd _, Recv_rst -> Closed
+    | Syn_sent _, Timeout -> t.on_close (); Closed
+    | Syn_sent a, Recv_synack b-> if diffone b a then Established else Syn_sent a
+    | Syn_rcvd a, Recv_ack b -> if diffone b a then Established else Syn_rcvd a
+    | Established, Recv_ack _ -> Established
+    | Established, Send_fin a -> Fin_wait_1 a
+    | Established, Recv_fin -> Close_wait
+    | Established, Timeout ->  t.on_close (); Closed
+    | Established, Recv_rst -> t.on_close (); Reset
+    | Fin_wait_1 a, Recv_ack b ->
+      if diffone b a then
+        let count = 0 in
+        Lwt.async (fun () -> finwait2timer t count fin_wait_2_time);
+        Fin_wait_2 count
+      else
+        Fin_wait_1 a
+    | Fin_wait_1 a, Recv_fin -> Closing a
+    | Fin_wait_1 _, Timeout -> t.on_close (); Closed
+    | Fin_wait_1 _, Recv_rst -> t.on_close (); Reset
+    | Fin_wait_2 i, Recv_ack _ -> Fin_wait_2 (i + 1)
+    | Fin_wait_2 _, Recv_rst -> t.on_close (); Reset
+    | Fin_wait_2 _, Recv_fin -> transition_to_timewait t
+    | Closing a, Recv_ack b ->
+      if diffone b a then
+        transition_to_timewait t
+      else Closing a
+    | Closing _, Timeout -> t.on_close (); Closed
+    | Closing _, Recv_rst -> t.on_close (); Reset
+    | Time_wait, Timeout -> t.on_close (); Closed
+    | Close_wait,  Send_fin a -> Last_ack a
+    | Close_wait,  Timeout -> t.on_close (); Closed
+    | Close_wait,  Recv_rst -> t.on_close (); Reset
+    | Last_ack a, Recv_ack b -> if diffone b a then (t.on_close (); Closed) else Last_ack a
+    | Last_ack _, Timeout -> t.on_close (); Closed
+    | Last_ack _, Recv_rst -> t.on_close (); Reset
+    | x, _ -> x
+  in
+  let old_state = t.state in
+  let new_state = tstr t.state i in
+  Log.debug (fun fmt -> fmt "%d %a  - %a -> %a" t.id
+                pp_tcpstate old_state pp_action i pp_tcpstate new_state);
+  t.state <- new_state;

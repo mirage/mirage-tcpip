@@ -30,9 +30,9 @@ depends: [
   "cstruct" {>= "6.0.0"}
   "cstruct-lwt"
   "mirage-net" {>= "3.0.0"}
-  "mirage-clock" {>= "3.0.0"}
-  "mirage-crypto-rng-mirage" {>= "1.0.0"}
-  "mirage-time" {>= "4.0.0"}
+  "mirage-mtime" {>= "4.0.0"}
+  "mirage-crypto-rng" {>= "1.0.0"}
+  "mirage-sleep" {>= "4.0.0"}
   "ipaddr" {>= "5.6.0"}
   "macaddr" {>="4.0.0"}
   "macaddr-cstruct"
@@ -48,8 +48,7 @@ depends: [
   "mirage-vnetif" {with-test & >= "0.6.2"}
   "alcotest" {with-test & >="1.5.0"}
   "pcap-format" {with-test}
-  "mirage-clock-unix" {with-test & >= "3.0.0"}
-  "mirage-crypto-rng" {with-test & >= "1.0.0"}
+  "mirage-crypto-rng-mirage2" {with-test & >= "1.0.0"}
   "ipaddr-cstruct"
   "macaddr-cstruct"
   "lru" {>= "0.3.0"}
