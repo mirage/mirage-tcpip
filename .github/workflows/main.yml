@@ -15,8 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-latest
           - ubuntu-latest
+          - macos-latest
+          - windows-latest
         ocaml-compiler:
           - 5
           - 4
@@ -63,7 +64,7 @@ jobs:
           ocaml-compiler: 4
           opam-pin: false
 
-      - run: opam install mirage
+      - run: opam install "mirage<4.7.0"
       - run: opam exec -- mirage configure -t ${{ matrix.mode }}
       - run: opam exec -- make depend
       - run: opam exec -- make
