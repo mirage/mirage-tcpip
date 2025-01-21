@@ -2,7 +2,7 @@
  (name test)
  (libraries alcotest mirage-crypto-rng mirage-crypto-rng.unix lwt.unix logs logs.fmt
    mirage-flow mirage-vnetif mirage-mtime pcap-format duration
-   mirage-crypto-rng-mirage arp arp.mirage ethernet tcpip.ipv4 tcpip.tcp tcpip.udp
+   arp arp.mirage ethernet tcpip.ipv4 tcpip.tcp tcpip.udp
    tcpip.stack-direct tcpip.icmpv4 tcpip.udpv4v6-socket tcpip.tcpv4v6-socket
    tcpip.icmpv4-socket tcpip.stack-socket tcpip.ipv6 ipaddr-cstruct
    macaddr-cstruct tcpip)
