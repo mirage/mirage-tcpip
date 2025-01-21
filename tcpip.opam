@@ -48,7 +48,6 @@ depends: [
   "mirage-vnetif" {with-test & >= "0.6.2"}
   "alcotest" {with-test & >="1.5.0"}
   "pcap-format" {with-test}
-  "mirage-crypto-rng-mirage2" {with-test & >= "1.0.0"}
   "ipaddr-cstruct"
   "macaddr-cstruct"
   "lru" {>= "0.3.0"}
