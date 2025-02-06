@@ -1,3 +1,9 @@
+### v9.0.0 (2025-02-06)
+
+* Adapt to mirage-crypto-rng 1.2.0 API (#526 @hannesm)
+* Use dune variants instead of functors for TIME, MCLOCK, PCLOCK
+  -- now using mirage-sleep and mirage-mtime (#526 @hannesm)
+
 ### v8.2.0 (2024-08-22)
 
 * Use `mirage-crypto.1.0` & `randomconv.0.2` (@hannesm, #521)
