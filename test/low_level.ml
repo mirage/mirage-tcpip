@@ -8,11 +8,10 @@ open Lwt.Infix
  *)
 module VNETIF_STACK = Vnetif_common.VNETIF_STACK(Vnetif_backends.Basic)
 
-module Time = Vnetif_common.Time
 module V = Vnetif.Make(Vnetif_backends.Basic)
 module E = Ethernet.Make(V)
-module A = Arp.Make(E)(Time)
-module I = Static_ipv4.Make(Mirage_crypto_rng)(Vnetif_common.Clock)(E)(A)
+module A = Arp.Make(E)
+module I = Static_ipv4.Make(E)(A)
 module Wire = Tcp.Wire
 module WIRE = Wire.Make(I)
 module Tcp_wire = Tcp.Tcp_wire
@@ -129,7 +128,7 @@ let run backend fsm sut () =
 
   (* Either both fsm and the sut terminates, or a timeout occurs, or one of the sut/fsm informs an error *)
   Lwt.pick [
-    (Time.sleep_ns (Duration.of_sec 5) >>= fun () ->
+    (Mirage_sleep.ns (Duration.of_sec 5) >>= fun () ->
      Lwt.return_some "timed out");
 
     (Lwt.join [
@@ -137,9 +136,9 @@ let run backend fsm sut () =
 
         (* time to let the other end connects to the network and listen.
          * Otherwise initial syn might need to be repeated slowing down the test *)
-        (Time.sleep_ns (Duration.of_ms 100) >>= fun () ->
+        (Mirage_sleep.ns (Duration.of_ms 100) >>= fun () ->
          sut stack (Lwt_mvar.put error_mbox) >>= fun _ ->
-         Time.sleep_ns (Duration.of_ms 100));
+         Mirage_sleep.ns (Duration.of_ms 100));
       ] >>= fun () -> Lwt.return_none);
 
     (Lwt_mvar.take error_mbox >>= fun cause ->

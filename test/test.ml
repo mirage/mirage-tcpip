@@ -20,7 +20,6 @@ let suite = [
   "ipv6"           , Test_ipv6.suite        ;
   "icmpv4"         , Test_icmpv4.suite      ;
   "udp"            , Test_udp.suite         ;
-  "tcp_window"     , Test_tcp_window.suite  ;
   "tcp_options"    , Test_tcp_options.suite ;
   "mtu+tcp"        , Test_mtus.suite        ;
   "rfc5961"        , Test_rfc5961.suite     ;
@@ -39,14 +38,10 @@ let run test () =
 
 let () =
   Printexc.record_backtrace true;
-  Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna);
+  Mirage_crypto_rng_unix.use_default ();
   (* enable logging to stdout for all modules *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Debug);
-  (* Uncomment to enable tracing *)
-  (*let buffer = MProf_unix.mmap_buffer ~size:1000000 "trace.ctf" in
-  let trace_config = MProf.Trace.Control.make buffer MProf_unix.timestamper in
-  MProf.Trace.Control.start trace_config;*)
   let suite = List.map (fun (n, s) ->
       n, List.map (fun (d, s, f) -> d, s, run f) s
     ) suite

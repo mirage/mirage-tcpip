@@ -24,7 +24,7 @@
     the Rtx queue to ack messages or close channels.
 *)
 
-module Rx (T:Mirage_time.S)(ACK:Ack.M) : sig
+module Rx (ACK:Ack.M) : sig
 
   type segment = { header: Tcp_packet.t; payload: Cstruct.t }
   (** Individual received TCP segment *)
@@ -57,7 +57,7 @@ type tx_flags = No_flags | Syn | Fin | Rst | Psh
 (** Either Syn/Fin/Rst allowed, but not combinations *)
 
 (** Pre-transmission queue *)
-module Tx (Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
+module Tx : sig
 
   type ('a, 'b) xmit = flags:tx_flags -> wnd:Window.t -> options:Options.t list ->
     seq:Sequence.t -> Cstruct.t -> ('a, 'b) result Lwt.t

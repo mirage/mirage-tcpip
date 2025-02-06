@@ -1,11 +1,10 @@
 open Common
-module Time = Vnetif_common.Time
 module B = Vnetif_backends.Basic
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
 
-module Ipv6 = Ipv6.Make(V)(E)(Mirage_crypto_rng)(Time)(Mclock)
-module Udp = Udp.Make(Ipv6)(Mirage_crypto_rng)
+module Ipv6 = Ipv6.Make(V)(E)
+module Udp = Udp.Make(Ipv6)
 open Lwt.Infix
 
 let ip =
@@ -61,7 +60,7 @@ let send_forever sender receiver_address udp_message =
   let rec loop () =
     Udp.write sender.udp ~dst:receiver_address ~dst_port:1234 udp_message
     >|= Result.get_ok >>= fun () ->
-    Time.sleep_ns (Duration.of_ms 50) >>= fun () ->
+    Mirage_sleep.ns (Duration.of_ms 50) >>= fun () ->
     loop () in
   loop ()
 
@@ -77,7 +76,7 @@ let pass_udp_traffic () =
     listen sender;
     send_forever sender receiver_address udp_message;
     received_one; (* stop on the first packet *)
-      Time.sleep_ns (Duration.of_ms 3000) >>= fun () ->
+      Mirage_sleep.ns (Duration.of_ms 3000) >>= fun () ->
       Alcotest.fail "UDP packet should have been received";
   ]
 
@@ -143,7 +142,7 @@ let dad_na_is_sent () =
         Lwt.return_unit);
     (write_raw (E.mac stack.ethif) ~size:nd_size nd >|= fun _ -> ());
     received_one;
-    (Time.sleep_ns (Duration.of_ms 1000) >>= fun () ->
+    (Mirage_sleep.ns (Duration.of_ms 1000) >>= fun () ->
      Alcotest.fail "NA packet should have been received")
   ]
 
@@ -211,7 +210,7 @@ let dad_na_is_received () =
        (fun _ -> Lwt.return (Ok ())) >|= function
      | Ok () -> ()
      | Error () -> Alcotest.fail "Expected stack initialization failure");
-    (Time.sleep_ns (Duration.of_ms 5000) >>= fun () ->
+    (Mirage_sleep.ns (Duration.of_ms 5000) >>= fun () ->
      Alcotest.fail "stack initialization should have failed")
   ]
 

@@ -3,5 +3,5 @@
  (public_name tcpip.udp)
  (instrumentation
   (backend bisect_ppx))
- (libraries mirage-crypto-rng-mirage logs tcpip randomconv tcpip.checksum)
+ (libraries mirage-crypto-rng logs tcpip randomconv tcpip.checksum)
  (wrapped false))

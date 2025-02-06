@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (IP : Tcpip.Ip.S) (R : Mirage_crypto_rng_mirage.S) : sig
+module Make (IP : Tcpip.Ip.S) : sig
   include Tcpip.Udp.S with type ipaddr = IP.ipaddr
   val connect : IP.t -> t Lwt.t
 end

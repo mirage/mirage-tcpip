@@ -27,12 +27,12 @@ module Rx : sig
   val monitor: t -> int32 Lwt_mvar.t -> unit
 end
 
-module Tx(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK) : sig
+module Tx : sig
 
   type t
 
   module TXS : sig
-    type t = Segment.Tx(Time)(Clock).t
+    type t = Segment.Tx.t
     val output : ?flags:Segment.tx_flags -> ?options:Options.t list -> t ->
       Cstruct.t -> unit Lwt.t
   end

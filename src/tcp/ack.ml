@@ -61,9 +61,7 @@ end
 
 
 (* Delayed ACKs *)
-module Delayed (Time:Mirage_time.S) : M = struct
-
-  module TT = Tcptimer.Make(Time)
+module Delayed : M = struct
 
   type delayed_r = {
     send_ack: Sequence.t Lwt_mvar.t;
@@ -106,7 +104,7 @@ module Delayed (Time:Mirage_time.S) : M = struct
     let r = {send_ack; delayedack; delayed; pushpending} in
     let expire = ontimer r in
     let period_ns = Duration.of_ms 100 in
-    let timer = TT.t ~period_ns ~expire in
+    let timer = Tcptimer.t ~period_ns ~expire in
     {r; timer}
 
 
@@ -119,7 +117,7 @@ module Delayed (Time:Mirage_time.S) : M = struct
     | false ->
       t.r.delayed <- true;
       t.r.delayedack <- ack_number;
-      TT.start t.timer ack_number
+      Tcptimer.start t.timer ack_number
 
 
   (* Force out an ACK *)

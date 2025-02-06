@@ -1,12 +1,11 @@
 open Common
 
-module Time = Vnetif_common.Time
 module B = Basic_backend.Make
 module V = Vnetif.Make(B)
 module E = Ethernet.Make(V)
-module Static_arp = Static_arp.Make(E)(Time)
-module Ip = Static_ipv4.Make(Mirage_crypto_rng)(Mclock)(E)(Static_arp)
-module Udp = Udp.Make(Ip)(Mirage_crypto_rng)
+module Static_arp = Static_arp.Make(E)
+module Ip = Static_ipv4.Make(E)(Static_arp)
+module Udp = Udp.Make(Ip)
 
 type stack = {
   backend : B.t;

@@ -1,7 +1,5 @@
 open Lwt.Infix
 
-module Time = Vnetif_common.Time
-
 let or_fail_str ~str f args =
   f args >>= function
   | `Ok p -> Lwt.return p
@@ -62,9 +60,9 @@ let icmp_echo_request () =
   in
   Lwt.pick [
     Icmpv4_socket.listen server localhost log_and_count;
-    Time.sleep_ns (Duration.of_ms 500) >>= fun () ->
+    Mirage_sleep.ns (Duration.of_ms 500) >>= fun () ->
     Icmpv4_socket.write client ~dst:localhost echo_request >|= Result.get_ok >>= fun () ->
-    Time.sleep_ns (Duration.of_sec 10);
+    Mirage_sleep.ns (Duration.of_sec 10);
   ] >>= fun () ->
   Icmpv4_socket.disconnect server >>= fun () ->
   Icmpv4_socket.disconnect client >|= fun () ->

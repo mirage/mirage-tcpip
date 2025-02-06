@@ -19,7 +19,7 @@ open Lwt.Infix
 let src = Logs.Src.create "ipv4" ~doc:"Mirage IPv4"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
+module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
   module Routing = Routing.Make(Log)(Arpv4)
 
   (** IO operation errors *)
@@ -77,7 +77,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
         in
         let hdr =
           let src = match src with None -> Ipaddr.V4.Prefix.address t.cidr | Some x -> x in
-          let id = if multiple then Randomconv.int16 R.generate else 0 in
+          let id = if multiple then Randomconv.int16 Mirage_crypto_rng.generate else 0 in
           Ipv4_packet.{
             options = Cstruct.empty ;
             src ; dst ; ttl ; off ; id ;
@@ -149,7 +149,7 @@ module Make (R: Mirage_crypto_rng_mirage.S) (C: Mirage_clock.MCLOCK) (Ethernet: 
         Log.debug (fun m -> m "dropping zero length IPv4 frame %a" Ipv4_packet.pp packet) ;
         Lwt.return_unit
       end else
-        let ts = C.elapsed_ns () in
+        let ts = Mirage_mtime.elapsed_ns () in
         let cache, res = Fragments.process t.cache ts packet payload in
         t.cache <- cache ;
         match res with

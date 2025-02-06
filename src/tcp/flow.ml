@@ -20,16 +20,15 @@ open Lwt.Infix
 let src = Logs.Src.create "tcp.pcb" ~doc:"Mirage TCP PCB module"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make(Ip: Tcpip.Ip.S)(Time:Mirage_time.S)(Clock:Mirage_clock.MCLOCK)(Random:Mirage_crypto_rng_mirage.S) =
+module Make(Ip: Tcpip.Ip.S) =
 struct
 
   module ACK = Ack.Immediate
-  module RXS = Segment.Rx(Time)(ACK)
-  module TXS = Segment.Tx(Time)(Clock)
-  module UTX = User_buffer.Tx(Time)(Clock)
+  module RXS = Segment.Rx(ACK)
+  module TXS = Segment.Tx
+  module UTX = User_buffer.Tx
   module WIRE = Wire.Make(Ip)
-  module STATE = State.Make(Time)
-  module KEEPALIVE = Keepalive.Make(Time)(Clock)
+  module KEEPALIVE = Keepalive
 
   type error = [ Tcpip.Tcp.error | WIRE.error]
 
@@ -131,7 +130,7 @@ struct
       | State.Established | State.Close_wait ->
         UTX.wait_for_flushed pcb.utx >>= fun () ->
         (let { wnd; _ } = pcb in
-         STATE.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
+         State.tick pcb.state (State.Send_fin (Window.tx_nxt wnd));
          TXS.output ~flags:Segment.Fin pcb.txq Cstruct.empty
         )
       | State.Closed | State.Syn_rcvd _ | State.Syn_sent _ when ctx = `Close ->
@@ -206,7 +205,7 @@ struct
         begin match data with
           | None ->
             (* don't send an ACK in this case; this already happened *)
-            STATE.tick pcb.state State.Recv_fin;
+            State.tick pcb.state State.Recv_fin;
             User_buffer.Rx.add_r urx None
           | Some data ->
             signal_ack winadv >>= fun () ->
@@ -318,7 +317,7 @@ struct
     Lwt.return_unit
   | `Close ->
     Log.debug (fun f -> f "Keepalive timer expired, resetting connection %a" WIRE.pp id);
-    STATE.tick state State.Recv_rst;
+    State.tick state State.Recv_rst;
     (* Close the read direction *)
     User_buffer.Rx.add_r urx None >>= fun () ->
     Lwt.return_unit
@@ -416,8 +415,8 @@ struct
   let new_server_connection t params id pushf keepalive =
     log_with_stats "new-server-connection" t;
     new_pcb t params id keepalive >>= fun (pcb, th, opts) ->
-    STATE.tick pcb.state State.Passive_open;
-    STATE.tick pcb.state (State.Send_synack params.tx_isn);
+    State.tick pcb.state State.Passive_open;
+    State.tick pcb.state (State.Send_synack params.tx_isn);
     (* Add the PCB to our listens table *)
     if Hashtbl.mem t.listens id then (
       Log.debug (fun f -> f "duplicate attempt to make a connection: %a .\
@@ -438,11 +437,11 @@ struct
     let params = { params with tx_isn = Sequence.succ tx_isn } in
     new_pcb t params id keepalive >>= fun (pcb, th, _) ->
     (* A hack here because we create the pcb only after the SYN-ACK is rx-ed*)
-    STATE.tick pcb.state (State.Send_syn tx_isn);
+    State.tick pcb.state (State.Send_syn tx_isn);
     (* Add the PCB to our connection table *)
     Hashtbl.add t.channels id (pcb, th);
     Stats.incr_channel ();
-    STATE.tick pcb.state (State.Recv_synack ack_number);
+    State.tick pcb.state (State.Recv_synack ack_number);
     (* xmit ACK *)
     TXS.output pcb.txq (Cstruct.create 0) >>= fun () ->
     Lwt.return (pcb, th)
@@ -468,7 +467,7 @@ struct
           | Some (_, (_, (pcb, th))) ->
             Hashtbl.remove t.listens id;
             Stats.decr_listen ();
-            STATE.tick pcb.state State.Recv_rst;
+            State.tick pcb.state State.Recv_rst;
             Lwt.cancel th;
             Lwt.return_unit
           | None ->
@@ -510,7 +509,7 @@ struct
     log_with_stats "process-syn" t;
     match Hashtbl.find_opt t.listeners (WIRE.src_port id) with
     | Some (keepalive, process) ->
-      let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+      let tx_isn = Sequence.of_int32 (Randomconv.int32 Mirage_crypto_rng.generate) in
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
@@ -678,7 +677,7 @@ struct
     let rxtime = match count with
       | 0 -> 3 | 1 -> 6 | 2 -> 12 | 3 -> 24 | _ -> 48
     in
-    Time.sleep_ns (Duration.of_sec rxtime) >>= fun () ->
+    Mirage_sleep.ns (Duration.of_sec rxtime) >>= fun () ->
     match hashtbl_find t.connects id with
     | None                -> Lwt.return_unit
     | Some (wakener, isn, _) ->
@@ -703,7 +702,7 @@ struct
 
   let connect ?keepalive t ~dst ~dst_port =
     let id = getid t dst dst_port in
-    let tx_isn = Sequence.of_int32 (Randomconv.int32 Random.generate) in
+    let tx_isn = Sequence.of_int32 (Randomconv.int32 Mirage_crypto_rng.generate) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in
     let options =
@@ -751,7 +750,7 @@ struct
   (* Construct the main TCP thread *)
   let connect ip =
     let localport =
-      1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Random.generate)
+      1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Mirage_crypto_rng.generate)
     in
     let listens = Hashtbl.create 1 in
     let connects = Hashtbl.create 1 in
