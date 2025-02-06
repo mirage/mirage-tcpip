@@ -11,6 +11,7 @@ authors: [
   "Kia" "Luke Dunstan" "Pablo Polvorin" "Tim Cuthbertson" "lnmx" "pqwy" ]
 license: "ISC"
 tags: ["org:mirage"]
+x-maintenance-intent: [ "(latest)" ]
 
 build: [
   ["dune" "subst"] {dev}
