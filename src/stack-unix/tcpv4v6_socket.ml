@@ -178,15 +178,17 @@ let listen t ~port ?keepalive callback =
                      Lwt.catch
                        (fun () -> callback afd)
                        (fun exn ->
-                          Log.warn (fun m -> m "error %s in callback" (Printexc.to_string exn)) ;
+                          Log.warn (fun m -> m "tcp error on port %u in callback %s" port (Printexc.to_string exn)) ;
                           close afd));
                 `Continue)
               (function
                 | Unix.Unix_error (Unix.EBADF, _, _) ->
-                  Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                  (match Hashtbl.find_opt t.listen_sockets port with
+                   | None -> ()
+                   | Some _ -> Log.warn (fun m -> m "tcp error bad file descriptor in accept on port %u" port)) ;
                   Lwt.return `Stop
                 | exn ->
-                  Log.warn (fun m -> m "error %s in accept" (Printexc.to_string exn)) ;
+                  Log.warn (fun m -> m "tcp error on port %u in accept: %s" port (Printexc.to_string exn)) ;
                   Lwt.return `Continue) >>= function
             | `Continue -> loop ()
             | `Stop -> Lwt.return_unit
