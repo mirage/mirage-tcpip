@@ -190,22 +190,19 @@ let listen t ~port callback =
                            | Some v4 -> Ipaddr.V4 v4
                          in
                          let dst = Ipaddr.(V6 V6.unspecified) in (* TODO *)
-                         let buf =
-                           (* Use Cstruct.sub_copy once it exists in a
-                              reasonably mature cstruct release *)
-                           let b = Cstruct.create_unsafe len in
-                           Cstruct.blit buf 0 b 0 len;
-                           b
-                         in
+                         let buf = Cstruct.sub_copy buf 0 len in
                          callback ~src ~dst ~src_port buf
                        | _ -> Lwt.return_unit) >|= fun () ->
                       `Continue)
                     (function
                       | Unix.Unix_error (Unix.EBADF, _, _) ->
-                        Log.warn (fun m -> m "error bad file descriptor in accept") ;
+                        (match Hashtbl.find_opt t.listen_fds port with
+                         | None -> ()
+                         | Some _ ->
+                           Log.info (fun m -> m "udp error bad file descriptor in accept on port %u" port)) ;
                         Lwt.return `Stop
                       | exn ->
-                        Log.warn (fun m -> m "exception %s in recvfrom" (Printexc.to_string exn)) ;
+                        Log.warn (fun m -> m "udp exception on port %u in recvfrom: %s" port (Printexc.to_string exn)) ;
                         Lwt.return `Continue) >>= function
                   | `Continue -> loop ()
                   | `Stop -> Lwt.return_unit
