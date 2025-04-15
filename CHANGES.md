@@ -1,3 +1,10 @@
+### v9.0.1 (2025-04-15)
+
+* Unix: avoid spurious warnings when the fd is scheduled to be closed (#527
+  @hannesm, review by @djs55 @reynir)
+* Unix: if recvfrom (UDP sockets) returns 0 (signalling EOF), do not try to read
+  again (avoids busy loops) (#528 @hannesm, review by @reynir)
+
 ### v9.0.0 (2025-02-06)
 
 * Adapt to mirage-crypto-rng 1.2.0 API (#526 @hannesm)
