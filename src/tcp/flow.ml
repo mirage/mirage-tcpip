@@ -72,6 +72,7 @@ struct
         Hashtbl.t;
     (* clients in the process of connecting *)
     connects: (WIRE.t, ((connection, error) result Lwt.u * Sequence.t * Tcpip.Tcp.Keepalive.t option)) Hashtbl.t;
+    max_listens : int;
   }
 
   let num_open_channels t = Hashtbl.length t.channels
@@ -412,8 +413,6 @@ struct
     Gc.finalise fnth th;
     Lwt.return (pcb, th, opts)
 
-  let max_listens = 1_000 (* TODO: configurable *)
-
   let new_server_connection t params id pushf keepalive =
     log_with_stats "new-server-connection" t;
     new_pcb t params id keepalive >>= fun (pcb, th, opts) ->
@@ -515,7 +514,7 @@ struct
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
-      if Hashtbl.length t.listens >= max_listens then begin
+      if Hashtbl.length t.listens >= t.max_listens then begin
         log_with_stats "drop-syn" t;
         Log.debug (fun f -> f "Dropped SYN packet: %a" WIRE.pp id);
         Lwt.return_unit
@@ -755,7 +754,7 @@ struct
       | Ok (fl, _) -> Lwt.return (Ok fl)
 
   (* Construct the main TCP thread *)
-  let connect ip =
+  let connect ?(max_listens = 1_000) ip =
     let localport =
       1024 + (Randomconv.int ~bound:(0xFFFF - 1024) Mirage_crypto_rng.generate)
     in
@@ -765,7 +764,16 @@ struct
     Log.info (fun f -> f "TCP layer connected on %a"
                  Fmt.(list ~sep:(any ", ") Ip.pp_prefix)
                  (Ip.configured_ips ip));
-    Lwt.return { ip; listeners = Hashtbl.create 7; active = true; localport; channels; listens; connects }
+    Lwt.return {
+      ip;
+      listeners = Hashtbl.create 7;
+      active = true;
+      localport;
+      channels;
+      listens;
+      connects;
+      max_listens
+    }
 
   let disconnect t =
     t.active <- false;

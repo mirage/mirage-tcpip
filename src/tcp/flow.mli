@@ -16,7 +16,7 @@
 
 module Make (IP:Tcpip.Ip.S) : sig
   include Tcpip.Tcp.S with type ipaddr = IP.ipaddr
-  val connect : IP.t -> t Lwt.t
+  val connect : ?max_listens:int -> IP.t -> t Lwt.t
 
   (**/**)
   (* the number of open connections *)
