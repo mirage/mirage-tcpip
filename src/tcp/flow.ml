@@ -412,6 +412,8 @@ struct
     Gc.finalise fnth th;
     Lwt.return (pcb, th, opts)
 
+  let max_listens = 1_000 (* TODO: configurable *)
+
   let new_server_connection t params id pushf keepalive =
     log_with_stats "new-server-connection" t;
     new_pcb t params id keepalive >>= fun (pcb, th, opts) ->
@@ -513,11 +515,16 @@ struct
       (* TODO: make this configurable per listener *)
       let rx_wnd = 65535 in
       let rx_wnd_scaleoffer = wscale_default in
-      new_server_connection t
-        { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-        id process keepalive
-      >>= fun _ ->
-      Lwt.return_unit
+      if Hashtbl.length t.listens >= max_listens then begin
+        log_with_stats "drop-syn" t;
+        Log.debug (fun f -> f "Dropped SYN packet: %a" WIRE.pp id);
+        Lwt.return_unit
+      end else
+        new_server_connection t
+          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+          id process keepalive
+        >>= fun _ ->
+        Lwt.return_unit
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
       >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
