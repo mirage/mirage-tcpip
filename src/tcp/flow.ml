@@ -76,6 +76,10 @@ struct
 
   let num_open_channels t = Hashtbl.length t.channels
 
+  (* vault_lord audit 2026-04-14 — SYN flood protection per T4 finding.
+     Limits half-open connections (SYN_RCVD state entries in t.listens). *)
+  let max_half_open = 256
+
   let listen t ~port ?keepalive cb =
     if port < 0 || port > 65535 then
       raise (Invalid_argument (Printf.sprintf "invalid port number (%d)" port))
@@ -509,15 +513,22 @@ struct
     log_with_stats "process-syn" t;
     match Hashtbl.find_opt t.listeners (WIRE.src_port id) with
     | Some (keepalive, process) ->
-      let tx_isn = Sequence.of_int32 (Randomconv.int32 Mirage_crypto_rng.generate) in
-      (* TODO: make this configurable per listener *)
-      let rx_wnd = 65535 in
-      let rx_wnd_scaleoffer = wscale_default in
-      new_server_connection t
-        { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
-        id process keepalive
-      >>= fun _ ->
-      Lwt.return_unit
+      (* vault_lord audit 2026-04-14 — SYN flood protection: limit half-open connections *)
+      if Hashtbl.length t.listens >= max_half_open then begin
+        Log.warn (fun f -> f "SYN flood protection: dropping SYN, half-open connection limit (%d) reached"
+                     max_half_open);
+        Lwt.return_unit
+      end else begin
+        let tx_isn = Sequence.of_int32 (Randomconv.int32 Mirage_crypto_rng.generate) in
+        (* TODO: make this configurable per listener *)
+        let rx_wnd = 65535 in
+        let rx_wnd_scaleoffer = wscale_default in
+        new_server_connection t
+          { tx_wnd; sequence; options; tx_isn; rx_wnd; rx_wnd_scaleoffer }
+          id process keepalive
+        >>= fun _ ->
+        Lwt.return_unit
+      end
     | None ->
       Tx.send_rst t id ~sequence ~ack_number ~syn ~fin
       >>= fun _ -> Lwt.return_unit (* discard errors; we won't retry *)
@@ -577,6 +588,15 @@ struct
     | Error s -> Log.debug (fun f -> f "parsing TCP header failed: %s" s);
       Lwt.return_unit
     | Ok (pkt, payload) ->
+      (* Checksum validation — was dead code, wired by vault_lord audit 2026-04-14 *)
+      (* Validate TCP checksum per RFC 793: silently discard on failure *)
+      let ph = Ip.pseudoheader t.ip ~src dst `TCP (Cstruct.length data) in
+      let tcp_csum = Tcpip_checksum.ones_complement_list [ph ; data] in
+      if tcp_csum <> 0 then begin
+        Log.debug (fun f -> f "dropping TCP segment with bad checksum %04x, %a:%d -> %a:%d"
+                      tcp_csum Ip.pp_ipaddr src pkt.src_port Ip.pp_ipaddr dst pkt.dst_port);
+        Lwt.return_unit
+      end else
       let id =
         WIRE.v ~src_port:pkt.dst_port ~dst_port:pkt.src_port ~dst:src ~src:dst
       in
@@ -650,8 +670,12 @@ struct
 
   let src pcb = WIRE.src pcb.id, WIRE.src_port pcb.id
 
+  (* vault_lord audit 2026-04-14 — T8: port exhaustion infinite loop protection.
+     Port range 10000-65535 = 55536 ephemeral ports. Added counter to return
+     Error instead of looping forever when all ports are in use. *)
+  let max_ephemeral_ports = 55536
+
   let getid t dst dst_port =
-    (* TODO: make this more robust and recognise when all ports are gone *)
     let islistener _t _port =
       (* TODO keep a list of active listen ports *)
       false in
@@ -661,16 +685,21 @@ struct
       Hashtbl.mem t.listens id
     in
     let inuse t id = islistener t (WIRE.src_port id) || idinuse t id in
-    let rec bumpport t =
-      (match t.localport with
-       | 65535 -> t.localport <- 10000
-       | _ -> t.localport <- t.localport + 1);
-      let id =
-        WIRE.v ~src:(Ip.src t.ip ~dst) ~src_port:t.localport ~dst ~dst_port
-      in
-      if inuse t id then bumpport t else id
+    let rec bumpport t attempts =
+      if attempts >= max_ephemeral_ports then begin
+        Log.err (fun f -> f "port exhaustion: all %d ephemeral ports in use" max_ephemeral_ports);
+        Error (`Msg "all ephemeral ports in use")
+      end else begin
+        (match t.localport with
+         | 65535 -> t.localport <- 10000
+         | _ -> t.localport <- t.localport + 1);
+        let id =
+          WIRE.v ~src:(Ip.src t.ip ~dst) ~src_port:t.localport ~dst ~dst_port
+        in
+        if inuse t id then bumpport t (attempts + 1) else Ok id
+      end
     in
-    bumpport t
+    bumpport t 0
 
   (* SYN retransmission timer *)
   let rec connecttimer t id tx_isn options window count =
@@ -701,7 +730,12 @@ struct
       else Lwt.return_unit
 
   let connect ?keepalive t ~dst ~dst_port =
-    let id = getid t dst dst_port in
+    match getid t dst dst_port with
+    | Error (`Msg _msg) ->
+      (* vault_lord audit 2026-04-14 — T8: propagate port exhaustion error *)
+      Log.err (fun f -> f "connect failed: %s" _msg);
+      Lwt.return (Error `Timeout) (* no port available; report as timeout *)
+    | Ok id ->
     let tx_isn = Sequence.of_int32 (Randomconv.int32 Mirage_crypto_rng.generate) in
     (* TODO: This is hardcoded for now - make it configurable *)
     let rx_wnd_scaleoffer = wscale_default in

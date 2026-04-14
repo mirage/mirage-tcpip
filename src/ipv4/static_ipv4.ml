@@ -136,6 +136,15 @@ module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
       Log.info (fun m -> m "error %s while parsing IPv4 frame %a" s Cstruct.hexdump_pp buf);
       Lwt.return_unit
     | Ok (packet, payload) ->
+      (* Checksum validation — was dead code, wired by vault_lord audit 2026-04-14 *)
+      (* Validate IPv4 header checksum per RFC 1122 S3.2.1.2: silently discard on failure *)
+      let hlen = (Cstruct.get_uint8 buf 0 land 0x0f) * 4 in
+      let header_csum = Tcpip_checksum.ones_complement (Cstruct.sub buf 0 hlen) in
+      if header_csum <> 0 then begin
+        Log.debug (fun m -> m "dropping IPv4 packet with bad header checksum %04x %a"
+                      header_csum Ipv4_packet.pp packet);
+        Lwt.return_unit
+      end else
       let of_interest ip =
         Ipaddr.V4.(compare ip (Prefix.address t.cidr) = 0
                    || compare ip broadcast = 0
