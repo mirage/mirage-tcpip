@@ -596,9 +596,7 @@ struct
 
   (* Maximum allowed write *)
   let write_available pcb =
-    (* Our effective outgoing MTU is what can fit in a page *)
-    min 4000 (min (Window.tx_mss pcb.wnd)
-                (Int32.to_int (UTX.available pcb.utx)))
+    min (Window.tx_mss pcb.wnd) (Int32.to_int (UTX.available pcb.utx))
 
   (* Wait for more write space *)
   let write_wait_for pcb sz =
