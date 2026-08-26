@@ -143,6 +143,18 @@ module IPV4V6
   let mtu t ~dst = match dst with
     | Ipaddr.V4 dst -> Ipv4.mtu t.ipv4 ~dst
     | Ipaddr.V6 dst -> Ipv6.mtu t.ipv6 ~dst
+
+  let join_multicast_group t = function
+    | Ipaddr.V4 group -> Ipv4.join_multicast_group t.ipv4 group
+    | Ipaddr.V6 group -> Ipv6.join_multicast_group t.ipv6 group
+
+  let leave_multicast_group t = function
+    | Ipaddr.V4 group -> Ipv4.leave_multicast_group t.ipv4 group
+    | Ipaddr.V6 group -> Ipv6.leave_multicast_group t.ipv6 group
+
+  let multicast_groups t =
+    List.map (fun ip -> Ipaddr.V4 ip) (Ipv4.multicast_groups t.ipv4) @
+    List.map (fun ip -> Ipaddr.V6 ip) (Ipv6.multicast_groups t.ipv6)
 end
 
 module MakeV4V6
@@ -176,6 +188,10 @@ module MakeV4V6
   let tcp { tcp; _ } = tcp
   let udp { udp; _ } = udp
   let ip { ip; _ } = ip
+
+  let join_multicast_group { ip; _ } group = IP.join_multicast_group ip group
+  let leave_multicast_group { ip; _ } group = IP.leave_multicast_group ip group
+  let multicast_groups { ip; _ } = IP.multicast_groups ip
 
   let listen t =
     Lwt.catch (fun () ->

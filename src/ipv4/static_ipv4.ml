@@ -43,6 +43,7 @@ module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
     cidr: Ipaddr.V4.Prefix.t;
     gateway: Ipaddr.V4.t option;
     mutable cache: Fragments.Cache.t;
+    mutable groups: Ipaddr.V4.Set.t; (* joined multicast groups *)
   }
 
   let write t ?(fragment = true) ?(ttl = 38) ?src dst proto ?(size = 0) headerf bufs =
@@ -140,6 +141,8 @@ module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
         Ipaddr.V4.(compare ip (Prefix.address t.cidr) = 0
                    || compare ip broadcast = 0
                    || compare ip (Prefix.broadcast t.cidr) = 0)
+        (* accept datagrams for multicast groups we have joined *)
+        || (Ipaddr.V4.is_multicast ip && Ipaddr.V4.Set.mem ip t.groups)
       in
       if not (of_interest packet.dst) then begin
         Log.debug (fun m -> m "dropping IP fragment not for us or broadcast %a"
@@ -168,7 +171,25 @@ module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
      else
        Arpv4.set_ips arp [Ipaddr.V4.Prefix.address cidr]) >|= fun () ->
     let cache = Fragments.Cache.empty fragment_cache_size in
-    { ethif; arp; cidr; gateway; cache }
+    { ethif; arp; cidr; gateway; cache; groups = Ipaddr.V4.Set.empty }
+
+  (* RFC 6762 §11: on a directly attached link (a tap or Solo5 net device) the
+     ethernet layer already delivers frames addressed to a multicast MAC, so
+     joining a group is a matter of no longer discarding it at IPv4 input (see
+     [of_interest]).  IGMP membership reports are only needed for groups
+     outside the link local [224.0.0.0/24] range.
+     TODO: emit IGMP membership reports so routable multicast groups are
+     forwarded to us. *)
+  let join_multicast_group t group =
+    if Ipaddr.V4.is_multicast group then
+      t.groups <- Ipaddr.V4.Set.add group t.groups ;
+    Lwt.return_unit
+
+  let leave_multicast_group t group =
+    t.groups <- Ipaddr.V4.Set.remove group t.groups ;
+    Lwt.return_unit
+
+  let multicast_groups t = Ipaddr.V4.Set.elements t.groups
 
   let disconnect _ = Lwt.return_unit
 

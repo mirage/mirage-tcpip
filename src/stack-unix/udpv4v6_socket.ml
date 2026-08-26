@@ -28,8 +28,22 @@ let any_v6 = Ipaddr_unix.V6.to_inet_addr Ipaddr.V6.unspecified
 type t = {
   interface: [ `Any | `Ip of Unix.inet_addr * Unix.inet_addr | `V4_only of Unix.inet_addr | `V6_only of Unix.inet_addr ]; (* source ip to bind to *)
   listen_fds: (int, Lwt_unix.file_descr * Lwt_unix.file_descr option) Hashtbl.t; (* UDP fds bound to a particular port *)
+  mutable groups : Ipaddr.t list; (* joined multicast groups; applied to each listening fd *)
   mutable switched_off : unit Lwt.t;
 }
+
+(* Best-effort IP_ADD_MEMBERSHIP on a bound fd.  A v4 group on the default
+   dual-stack (PF_INET6) socket can fail, we log and carry on rather than
+   abort the join. *)
+let apply_membership add fd group =
+  try
+    let inet = Ipaddr_unix.to_inet_addr group in
+    if add then Lwt_unix.mcast_add_membership fd inet
+    else Lwt_unix.mcast_drop_membership fd inet
+  with exn ->
+    Log.warn (fun m -> m "multicast %s of %a failed: %s"
+                 (if add then "join" else "leave") Ipaddr.pp group
+                 (Printexc.to_string exn))
 
 let set_switched_off t switched_off =
   t.switched_off <- Lwt.pick [ switched_off; t.switched_off ]
@@ -38,7 +52,7 @@ let ignore_canceled = function
   | Lwt.Canceled -> Lwt.return_unit
   | exn -> raise exn
 
-let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;interface;_} port =
+let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;interface;groups;_} port =
   try
     Lwt.return
       (match Hashtbl.find listen_fds port with
@@ -77,7 +91,11 @@ let get_udpv4v6_listening_fd ?(preserve = true) ?(v4_or_v6 = `Both) {listen_fds;
        let fd = Lwt_unix.(socket PF_INET6 SOCK_DGRAM 0) in
        Lwt_unix.bind fd (Lwt_unix.ADDR_INET (ip, port)) >|= fun () ->
        ((fd, None), [ fd ])) >|= fun (fds, r) ->
-    if preserve then Hashtbl.add listen_fds port fds;
+    if preserve then begin
+      Hashtbl.add listen_fds port fds;
+      (* apply any already-joined multicast groups to the freshly bound fd(s) *)
+      List.iter (fun fd -> List.iter (apply_membership true fd) groups) r
+    end;
     true, r
 
 
@@ -118,7 +136,29 @@ let connect ~ipv4_only ~ipv6_only ipv4 ipv6 =
           `Ip (v4_unix, Ipaddr_unix.V6.to_inet_addr v6)
   in
   let listen_fds = Hashtbl.create 7 in
-  Lwt.return { interface; listen_fds; switched_off = fst (Lwt.wait ()) }
+  Lwt.return { interface; listen_fds; groups = []; switched_off = fst (Lwt.wait ()) }
+
+(* Join a multicast group (IP_ADD_MEMBERSHIP).  The group is remembered and
+   applied to every currently bound fd as well as to fds bound later by
+   [listen] (see [get_udpv4v6_listening_fd]). *)
+let join_multicast_group t group =
+  if not (List.exists (fun g -> Ipaddr.compare g group = 0) t.groups) then
+    t.groups <- group :: t.groups ;
+  Hashtbl.iter (fun _ (fd, fd') ->
+      apply_membership true fd group ;
+      Option.iter (fun fd -> apply_membership true fd group) fd')
+    t.listen_fds ;
+  Lwt.return_unit
+
+let leave_multicast_group t group =
+  t.groups <- List.filter (fun g -> Ipaddr.compare g group <> 0) t.groups ;
+  Hashtbl.iter (fun _ (fd, fd') ->
+      apply_membership false fd group ;
+      Option.iter (fun fd -> apply_membership false fd group) fd')
+    t.listen_fds ;
+  Lwt.return_unit
+
+let multicast_groups t = t.groups
 
 let disconnect t =
   Hashtbl.fold (fun _ (fd, fd') r ->
