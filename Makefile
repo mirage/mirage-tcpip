@@ -1,5 +1,5 @@
 
-.PHONY: build clean test
+.PHONY: build clean test install uninstall
 
 build:
 	dune build
