@@ -50,6 +50,9 @@ module Make (Ethernet: Ethernet.S) (Arpv4 : Arp.S) = struct
     | Error `Local ->
       Log.warn (fun f -> f "Could not find %a on the local network" Ipaddr.V4.pp dst);
       Lwt.return @@ Error (`No_route "no response for IP on local network")
+    | Error `Loopback ->
+      Log.warn (fun f -> f "Write to loopback %a dropped" Ipaddr.V4.pp dst);
+      Lwt.return @@ Error (`No_route "Loopback address")
     | Error `Gateway when t.gateway = None ->
       Log.warn (fun f -> f "Write to %a would require an external route, which was not provided" Ipaddr.V4.pp dst);
       Lwt.return @@ Ok ()
