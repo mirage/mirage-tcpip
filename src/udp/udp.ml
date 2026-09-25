@@ -52,9 +52,25 @@ module Make (Ip : Tcpip.Ip.S) = struct
           f "Discarding received UDP message: error parsing: %s" s);
       Lwt.return_unit
     | Ok ({ Udp_packet.src_port; dst_port}, payload) ->
-      match Hashtbl.find_opt t.listeners dst_port with
-      | None    -> Lwt.return_unit
-      | Some fn -> fn ~src ~dst ~src_port payload
+      (* Checksum validation — was dead code, wired by vault_lord audit 2026-04-14 *)
+      (* Validate UDP checksum per RFC 768: checksum 0 means "not computed", accept it.
+         Otherwise compute and silently discard on mismatch. *)
+      let udp_csum_field = Udp_wire.get_checksum buf in
+      if udp_csum_field <> 0 then begin
+        let ph = Ip.pseudoheader t.ip ~src dst `UDP (Cstruct.length buf) in
+        let computed = Tcpip_checksum.ones_complement_list [ph ; buf] in
+        if computed <> 0 then begin
+          Log.debug (fun f -> f "dropping UDP datagram with bad checksum %04x, %a:%d -> %a:%d"
+                        computed pp_ip src src_port pp_ip dst dst_port);
+          Lwt.return_unit
+        end else
+          match Hashtbl.find_opt t.listeners dst_port with
+          | None    -> Lwt.return_unit
+          | Some fn -> fn ~src ~dst ~src_port payload
+      end else
+        match Hashtbl.find_opt t.listeners dst_port with
+        | None    -> Lwt.return_unit
+        | Some fn -> fn ~src ~dst ~src_port payload
 
   let writev ?src ?src_port ?ttl ~dst ~dst_port t bufs =
     let src_port = match src_port with
