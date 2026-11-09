@@ -258,7 +258,7 @@ let ra_received () =
 let ra_prefix_length () =
   let ctx = ra_received () in
   Alcotest.(check (list prefix)) "the RA prefix is on-link"
-    [ra_prefix] (Ndpv6.get_prefix ctx);
+    [ra_prefix; Ipaddr.V6.Prefix.link] (Ndpv6.get_prefix ctx);
   Lwt.return_unit
 
 let ra_lifetimes () =
@@ -267,7 +267,18 @@ let ra_lifetimes () =
   Alcotest.(check (list ip)) "the router is still a default router"
     [router_address] (Ndpv6.get_routers ctx);
   Alcotest.(check (list prefix)) "the RA prefix is still on-link"
-    [ra_prefix] (Ndpv6.get_prefix ctx);
+    [ra_prefix; Ipaddr.V6.Prefix.link] (Ndpv6.get_prefix ctx);
+  Lwt.return_unit
+
+let ra_expires () =
+  let ctx = ra_received () in
+  let ctx, _ = Ndpv6.tick ~now:(Duration.of_sec 1801) ctx in
+  Alcotest.(check (list ip)) "the router expired" [] (Ndpv6.get_routers ctx);
+  Alcotest.(check (list prefix)) "the RA prefix is still on-link"
+    [ra_prefix; Ipaddr.V6.Prefix.link] (Ndpv6.get_prefix ctx);
+  let ctx, _ = Ndpv6.tick ~now:(Duration.of_day 31) ctx in
+  Alcotest.(check (list prefix)) "the RA prefix expired"
+    [Ipaddr.V6.Prefix.link] (Ndpv6.get_prefix ctx);
   Lwt.return_unit
 
 let suite = [
@@ -276,4 +287,5 @@ let suite = [
   "NA is received, stack fails to initialise", `Quick, dad_na_is_received;
   "RA prefix uses the Prefix Length", `Quick, ra_prefix_length;
   "RA lifetimes are in seconds", `Quick, ra_lifetimes;
+  "RA router and prefix lifetimes expire", `Quick, ra_expires;
 ]
