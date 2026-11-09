@@ -728,6 +728,12 @@ module Parser = struct
     | MTU of int
     | PREFIX of pfx
 
+  (* [time] is in nanoseconds; RA lifetimes are unsigned 32-bit (or 16-bit)
+     seconds, its timers milliseconds (RFC 4861 4.2, 4.6.2) *)
+  let uint32 n = Int64.(logand (of_int32 n) 0xFFFF_FFFFL)
+  let of_sec32 n = Duration.of_sec_64 (uint32 n)
+  let of_ms32 n = Duration.of_ms_64 (uint32 n)
+
   let rec parse_options1 opts =
     if Cstruct.length opts >= Ipv6_wire.Opt.sizeof_opt then
       (* TODO check for invalid len == 0 *)
@@ -742,7 +748,7 @@ module Parser = struct
       | 3, 4 ->
         let pfx_prefix =
           Ipaddr.Prefix.make
-            (Ipv6_wire.Opt_prefix.get_len opt)
+            (Ipv6_wire.Opt_prefix.get_prefix_len opt)
             (Ipv6_wire.Opt_prefix.get_prefix opt)
         in
         let pfx_on_link = Ipv6_wire.Opt_prefix.on_link opt in
@@ -751,13 +757,13 @@ module Parser = struct
           let n = Ipv6_wire.Opt_prefix.get_valid_lifetime opt in
           match n with
           | 0xffffffffl -> None
-          | n -> Some (Int64.of_int32 n)
+          | n -> Some (of_sec32 n)
         in
         let pfx_preferred_lifetime =
           let n = Ipv6_wire.Opt_prefix.get_preferred_lifetime opt in
           match n with
           | 0xffffffffl -> None
-          | n -> Some (Int64.of_int32 n)
+          | n -> Some (of_sec32 n)
         in
         let pfx =
           {pfx_on_link; pfx_autonomous; pfx_valid_lifetime; pfx_preferred_lifetime; pfx_prefix}
@@ -772,21 +778,15 @@ module Parser = struct
   let parse_ra buf =
     let ra_cur_hop_limit = Ipv6_wire.Ra.get_cur_hop_limit buf in
     let ra_router_lifetime =
-      Int64.of_int (Ipv6_wire.Ra.get_router_lifetime buf)
+      Duration.of_sec (Ipv6_wire.Ra.get_router_lifetime buf)
     in
     let ra_reachable_time =
       let n = Ipv6_wire.Ra.get_reachable_time buf in
-      if n = 0l then None
-      else
-        let dt = Int64.of_int32 @@ Int32.div n 1000l in
-        Some dt
+      if n = 0l then None else Some (of_ms32 n)
     in
     let ra_retrans_timer =
       let n = Ipv6_wire.Ra.get_retrans_timer buf in
-      if n = 0l then None
-      else
-        let dt = Int64.of_int32 @@ Int32.div n 1000l in
-        Some dt
+      if n = 0l then None else Some (of_ms32 n)
     in
     let opts = Cstruct.shift buf Ipv6_wire.Ra.sizeof_ra in
     let ra_slla, ra_prefix =

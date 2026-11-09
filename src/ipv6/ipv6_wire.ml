@@ -174,11 +174,13 @@ module Ra = struct
 
   let cur_hop_limit_off = 4
   let get_cur_hop_limit buf = Cstruct.get_uint8 buf cur_hop_limit_off
+  let set_cur_hop_limit buf v = Cstruct.set_uint8 buf cur_hop_limit_off v
 
   let reserved_off = 5
 
   let router_lifetime_off = 6
   let get_router_lifetime buf = Cstruct.BE.get_uint16 buf router_lifetime_off
+  let set_router_lifetime buf v = Cstruct.BE.set_uint16 buf router_lifetime_off v
 
   let reachable_time_off = 8
   let get_reachable_time buf = Cstruct.BE.get_uint32 buf reachable_time_off
