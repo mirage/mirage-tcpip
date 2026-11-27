@@ -1,3 +1,8 @@
+### v9.0.2 (2026-11-27)
+
+* ipv6: fix Router Advertisement parsing (prefix length, lifetime units) (#543 @hhugo, review by @reynir)
+* Re-add ipv4 `get_tos` and `set_tos` (#529 @patricoferris, review by @hannesm)
+
 ### v9.0.1 (2025-04-15)
 
 * Unix: avoid spurious warnings when the fd is scheduled to be closed (#527
