@@ -36,6 +36,8 @@ module Make(Log : Logs.LOG) (A : Arp.S) = struct
           Log.info (fun f -> f "IP.output: %a" A.pp_error e);
           Error `Local
       end
+    |ip when Ipaddr.V4.Prefix.mem ip Ipaddr.V4.Prefix.loopback -> (* Loopback *)
+      Lwt.return (Error `Loopback)
     |ip -> (* Gateway *)
       match gateway with
       | None ->

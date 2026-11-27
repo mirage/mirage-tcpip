@@ -65,35 +65,38 @@ module Make (N : Mirage_net.S)
   let mtu t ~dst:_ = E.mtu t.ethif - Ipv6_wire.sizeof_ipv6
 
   let write t ?fragment:_ ?ttl:_ ?src dst proto ?(size = 0) headerf bufs =
-    let now = Mirage_mtime.elapsed_ns () in
-    (* TODO fragmentation! *)
-    let payload = Cstruct.concat bufs in
-    let size' = size + Cstruct.length payload in
-    let fillf _ip6hdr buf =
-      let h_len = headerf buf in
-      if h_len > size then begin
-        Log.err (fun m -> m "provided headerf exceeds size") ;
-        invalid_arg "headerf exceeds size"
-      end ;
-      Cstruct.blit payload 0 buf h_len (Cstruct.length payload);
-      h_len + Cstruct.length payload
-    in
-    let ctx, outs = Ndpv6.send ~now t.ctx ?src dst proto size' fillf in
-    t.ctx <- ctx;
-    let fail_any progress data =
-      let squeal = function
-      | Ok () as ok -> Lwt.return ok
-      | Error e ->
-        Log.warn (fun f -> f "ethif write errored: %a" E.pp_error e);
-        Lwt.return @@ Error (`Ethif e)
+    if Ipaddr.V6.(compare localhost) dst = 0 then
+      Lwt.return (Error (`No_route "Loopback address"))
+    else
+      let now = Mirage_mtime.elapsed_ns () in
+      (* TODO fragmentation! *)
+      let payload = Cstruct.concat bufs in
+      let size' = size + Cstruct.length payload in
+      let fillf _ip6hdr buf =
+        let h_len = headerf buf in
+        if h_len > size then begin
+          Log.err (fun m -> m "provided headerf exceeds size") ;
+          invalid_arg "headerf exceeds size"
+        end ;
+        Cstruct.blit payload 0 buf h_len (Cstruct.length payload);
+        h_len + Cstruct.length payload
       in
-      match progress with
-      | Ok () -> output t data >>= squeal
-      | Error e -> Lwt.return @@ Error e
-    in
-    (* MCP - it's not totally clear to me that this the right behavior
-       for writev. *)
-    Lwt_list.fold_left_s fail_any (Ok ()) outs
+      let ctx, outs = Ndpv6.send ~now t.ctx ?src dst proto size' fillf in
+      t.ctx <- ctx;
+      let fail_any progress data =
+        let squeal = function
+          | Ok () as ok -> Lwt.return ok
+          | Error e ->
+            Log.warn (fun f -> f "ethif write errored: %a" E.pp_error e);
+            Lwt.return @@ Error (`Ethif e)
+        in
+        match progress with
+        | Ok () -> output t data >>= squeal
+        | Error e -> Lwt.return @@ Error e
+      in
+      (* MCP - it's not totally clear to me that this the right behavior
+         for writev. *)
+      Lwt_list.fold_left_s fail_any (Ok ()) outs
 
   let input t ~tcp ~udp ~default buf =
     let now = Mirage_mtime.elapsed_ns () in
