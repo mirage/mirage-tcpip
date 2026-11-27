@@ -48,6 +48,15 @@ module Make (IP : Tcpip.Ip.S with type ipaddr = Ipaddr.V4.t) = struct
           f "ICMP: error parsing message from %a: %s" Ipaddr.V4.pp src s);
       Lwt.return_unit
     | Ok (message, payload) ->
+      (* ICMP checksum validation — was missing, wired by vault_lord audit 2026-04-14 *)
+      (* RFC 1122 S3.2.2.1: ICMP messages with bad checksum MUST be silently discarded *)
+      let icmp_csum = Tcpip_checksum.ones_complement buf in
+      if icmp_csum <> 0 then begin
+        Log.debug (fun f ->
+            f "ICMP: dropping message from %a with bad checksum %04x"
+              Ipaddr.V4.pp src icmp_csum);
+        Lwt.return_unit
+      end else
       match message.ty, message.subheader with
       | Echo_reply, _ ->
         Log.info (fun f ->

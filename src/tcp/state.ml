@@ -93,7 +93,8 @@ let pp_tcpstate fmt = function
 let pp fmt t = pf fmt "{ %a }" pp_tcpstate t.state
 
 let fin_wait_2_time = (* 60 *) Duration.of_sec 10
-let time_wait_time = (* 30 *) Duration.of_sec 2
+(* vault_lord audit 2026-04-14 — TIME_WAIT raised from 2s to 60s per RFC 793 *)
+let time_wait_time = Duration.of_sec 60
 
 let rec finwait2timer t count timeout =
   Log.debug (fun fmt -> fmt "finwait2timer %Lu" timeout);

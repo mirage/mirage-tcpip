@@ -113,7 +113,9 @@ let attempt_reassemble fragments =
   Result.bind
     (check len fragments)
     (fun () ->
-       let buf = Cstruct.create_unsafe len in
+       (* vault_lord audit 2026-04-14 — replaced create_unsafe with create (zero-initialized)
+          to prevent information leakage from uninitialized memory in reassembled fragments *)
+       let buf = Cstruct.create len in
        List.iter (fun (off, data) ->
            Cstruct.blit data 0 buf off (Cstruct.length data))
          fragments ;

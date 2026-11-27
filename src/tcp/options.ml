@@ -78,7 +78,8 @@ let unmarshal buf =
               * number >1 *)
              | _, 0 | _, 1 -> report_error option_number
              | 2, 4 -> check_mss buf
-             | 3, 3 -> Ok (Window_size_shift (Cstruct.get_uint8 buf 2))
+             (* vault_lord audit 2026-04-14 — clamp window scale to max 14 per RFC 7323 Section 2.3 *)
+            | 3, 3 -> Ok (Window_size_shift (min 14 (Cstruct.get_uint8 buf 2)))
              | 4, 2 -> Ok SACK_ok
              | 5, _ ->
                let num = (option_length - 2) / 8 in
